@@ -1,0 +1,110 @@
+// Formata valor para Real brasileiro
+export const formatCurrency = (value) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value ?? 0)
+
+// Formata data para pt-BR
+export const formatDate = (dateString) => {
+  if (!dateString) return ''
+  return new Date(dateString + 'T12:00:00').toLocaleDateString('pt-BR')
+}
+
+// Retorna o nome do mês abreviado + ano (ex: "Out/26")
+export const labelMes = (date) => {
+  const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+                 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+  return `${meses[date.getMonth()]}/${String(date.getFullYear()).slice(2)}`
+}
+
+// Retorna o primeiro e último dia de um mês
+export const rangeDoMes = (ano, mes) => {
+  const inicio = `${ano}-${String(mes).padStart(2, '0')}-01`
+  const fim = new Date(ano, mes, 0).toISOString().split('T')[0]
+  return { inicio, fim }
+}
+
+// Cor de badge de categoria baseada no nome
+const CORES_CATEGORIA = {
+  'Moradia':       'bg-blue-100 text-blue-700',
+  'Alimentação':   'bg-orange-100 text-orange-700',
+  'Transporte':    'bg-yellow-100 text-yellow-700',
+  'Saúde':         'bg-red-100 text-red-700',
+  'Lazer':         'bg-purple-100 text-purple-700',
+  'Serviços':      'bg-teal-100 text-teal-700',
+  'Educação':      'bg-indigo-100 text-indigo-700',
+  'Vestuário':     'bg-pink-100 text-pink-700',
+  'Pets':          'bg-lime-100 text-lime-700',
+  'Eletrônicos':   'bg-blue-100 text-blue-700',
+  'Móveis':        'bg-amber-100 text-amber-700',
+  'Viagem':        'bg-sky-100 text-sky-700',
+  'Salário':       'bg-green-100 text-green-700',
+  'Freelance':     'bg-cyan-100 text-cyan-700',
+  'Renda extra':   'bg-emerald-100 text-emerald-700',
+  'Investimento':  'bg-green-100 text-green-700',
+}
+
+export const corCategoria = (nome) =>
+  CORES_CATEGORIA[nome] || 'bg-gray-100 text-gray-600'
+
+// Estado de carregamento vazio (lista)
+export const estadoVazio = (mensagem = 'Nenhum registro encontrado.') => mensagem
+
+// Quantidade de dias restantes no mês, incluindo o dia atual
+export const diasRestantesNoMes = (dataRef = new Date()) => {
+  const ano = dataRef.getFullYear()
+  const mes = dataRef.getMonth()
+  const ultimoDia = new Date(ano, mes + 1, 0).getDate()
+  const diaAtual = dataRef.getDate()
+  return ultimoDia - diaAtual + 1
+}
+
+/**
+ * Calcula "Quanto posso gastar hoje?".
+ *
+ * Fórmula:
+ *   orçamento variável disponível = receitas - compromissos(fixas + parcelas do mês) - reserva do mês
+ *   saldo variável restante       = orçamento variável disponível - gastos variáveis já realizados
+ *   limite diário                 = saldo variável restante / dias restantes (incluindo hoje)
+ *
+ * As parcelas NÃO são duplicadas: as despesas fixas aqui consideram apenas
+ * despesas à vista classificadas como fixa; as parcelas entram separadamente.
+ *
+ * @returns objeto com os valores calculados ou { indisponivel, motivo }
+ */
+export const calcularLimiteDiario = ({
+  receitaTotal = 0,
+  despesasFixas = 0,       // despesas à vista fixas (compromissos)
+  parcelasMes = 0,         // soma das parcelas devidas neste mês
+  reservaMes = 0,          // meta/reserva financeira do mês
+  gastosVariaveisRealizados = 0, // despesas à vista variáveis já lançadas
+  gastosVariaveisHoje = 0, // subconjunto realizado hoje
+  dataRef = new Date(),
+} = {}) => {
+  // Precisa de receita para calcular com segurança
+  if (receitaTotal <= 0) {
+    return {
+      indisponivel: true,
+      motivo: 'Cadastre sua receita do mês para calcular quanto você pode gastar por dia.',
+    }
+  }
+
+  const compromissos = despesasFixas + parcelasMes + reservaMes
+  const orcamentoVariavel = receitaTotal - compromissos
+  const saldoVariavelRestante = orcamentoVariavel - gastosVariaveisRealizados
+
+  const dias = diasRestantesNoMes(dataRef)
+  // Limite diário nunca negativo
+  const limiteDiario = saldoVariavelRestante > 0 && dias > 0
+    ? saldoVariavelRestante / dias
+    : 0
+
+  return {
+    indisponivel: false,
+    limiteDiario,
+    orcamentoVariavel,
+    saldoVariavelRestante: Math.max(0, saldoVariavelRestante),
+    saldoVariavelRestanteReal: saldoVariavelRestante, // pode ser negativo (para alertas)
+    gastosVariaveisHoje,
+    diasRestantes: dias,
+    compromissos,
+  }
+}

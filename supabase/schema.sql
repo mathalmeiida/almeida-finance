@@ -1,0 +1,229 @@
+-- ============================================================
+-- POSSO COMPRAR? — Script de banco de dados
+-- Execute este script no SQL Editor do Supabase
+-- (menu lateral > SQL Editor > New query > cole e clique em Run)
+-- ============================================================
+
+
+-- ============================================================
+-- 1. TABELA: perfis
+-- Armazena informações do usuário (complementa o auth.users)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.perfis (
+  id          UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  nome        TEXT,
+  email       TEXT,
+  criado_em   TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RLS: cada usuário acessa apenas o próprio perfil
+ALTER TABLE public.perfis ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Usuário vê apenas o próprio perfil"
+  ON public.perfis FOR SELECT
+  USING (auth.uid() = id);
+
+CREATE POLICY "Usuário insere apenas o próprio perfil"
+  ON public.perfis FOR INSERT
+  WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Usuário atualiza apenas o próprio perfil"
+  ON public.perfis FOR UPDATE
+  USING (auth.uid() = id);
+
+
+-- ============================================================
+-- 2. TABELA: categorias
+-- usuario_id = NULL  → categoria padrão do sistema (todos veem)
+-- usuario_id = <id>  → categoria personalizada do usuário
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.categorias (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  usuario_id  UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  nome        TEXT NOT NULL,
+  icone       TEXT DEFAULT '📁',
+  cor         TEXT DEFAULT '#6b7280',
+  tipo        TEXT CHECK (tipo IN ('despesa', 'receita', 'ambos')) DEFAULT 'despesa',
+  criado_em   TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RLS: usuário vê as categorias do sistema (NULL) + as próprias
+ALTER TABLE public.categorias ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Usuário vê categorias do sistema e próprias"
+  ON public.categorias FOR SELECT
+  USING (usuario_id IS NULL OR auth.uid() = usuario_id);
+
+CREATE POLICY "Usuário insere apenas categorias próprias"
+  ON public.categorias FOR INSERT
+  WITH CHECK (auth.uid() = usuario_id);
+
+CREATE POLICY "Usuário atualiza apenas categorias próprias"
+  ON public.categorias FOR UPDATE
+  USING (auth.uid() = usuario_id);
+
+CREATE POLICY "Usuário apaga apenas categorias próprias"
+  ON public.categorias FOR DELETE
+  USING (auth.uid() = usuario_id);
+
+
+-- ============================================================
+-- 3. TABELA: receitas
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.receitas (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  usuario_id  UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  descricao   TEXT NOT NULL,
+  valor       NUMERIC(12,2) NOT NULL CHECK (valor > 0),
+  data        DATE NOT NULL,
+  recorrente  BOOLEAN DEFAULT FALSE,
+  categoria   TEXT,
+  criado_em   TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RLS
+ALTER TABLE public.receitas ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Usuário gerencia apenas as próprias receitas"
+  ON public.receitas FOR ALL
+  USING (auth.uid() = usuario_id)
+  WITH CHECK (auth.uid() = usuario_id);
+
+
+-- ============================================================
+-- 4. TABELA: despesas
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.despesas (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  usuario_id    UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  descricao     TEXT NOT NULL,
+  valor         NUMERIC(12,2) NOT NULL CHECK (valor > 0),
+  data          DATE NOT NULL,
+  recorrente    BOOLEAN DEFAULT FALSE,
+  categoria_id  UUID REFERENCES public.categorias(id) ON DELETE SET NULL,
+  -- Classificação automática: 'fixa' (valor estável) ou 'variavel' (valor flutuante)
+  -- Independente de recorrente. Definida pelo app via regras de categoria/descrição.
+  -- Pode ser corrigida manualmente pelo usuário.
+  tipo_despesa  TEXT CHECK (tipo_despesa IN ('fixa', 'variavel')) DEFAULT 'variavel',
+  criado_em     TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ATENÇÃO: se o banco já foi criado, execute apenas este comando adicional:
+-- ALTER TABLE public.despesas ADD COLUMN tipo_despesa TEXT CHECK (tipo_despesa IN ('fixa', 'variavel')) DEFAULT 'variavel';
+
+-- RLS
+ALTER TABLE public.despesas ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Usuário gerencia apenas as próprias despesas"
+  ON public.despesas FOR ALL
+  USING (auth.uid() = usuario_id)
+  WITH CHECK (auth.uid() = usuario_id);
+
+
+-- ============================================================
+-- 5. TABELA: parcelamentos
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.parcelamentos (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  usuario_id       UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  descricao        TEXT NOT NULL,
+  valor_total      NUMERIC(12,2) NOT NULL CHECK (valor_total > 0),
+  numero_parcelas  INTEGER NOT NULL CHECK (numero_parcelas > 0),
+  valor_parcela    NUMERIC(12,2) GENERATED ALWAYS AS (ROUND(valor_total / numero_parcelas, 2)) STORED,
+  primeira_parcela DATE NOT NULL,
+  categoria_id     UUID REFERENCES public.categorias(id) ON DELETE SET NULL,
+  -- Quitação antecipada: NULL = ativo; data preenchida = quitado naquela data
+  -- Preserva o histórico. Parcelas futuras saem da projeção automaticamente.
+  -- ALTER TABLE para bancos já criados:
+  -- ALTER TABLE public.parcelamentos ADD COLUMN quitado_em DATE DEFAULT NULL;
+  quitado_em       DATE DEFAULT NULL,
+  criado_em        TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RLS
+ALTER TABLE public.parcelamentos ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Usuário gerencia apenas os próprios parcelamentos"
+  ON public.parcelamentos FOR ALL
+  USING (auth.uid() = usuario_id)
+  WITH CHECK (auth.uid() = usuario_id);
+
+
+-- ============================================================
+-- 6. TABELA: metas
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.metas (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  usuario_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  nome           TEXT NOT NULL,
+  valor_desejado NUMERIC(12,2) NOT NULL CHECK (valor_desejado > 0),
+  valor_atual    NUMERIC(12,2) DEFAULT 0 CHECK (valor_atual >= 0),
+  prazo          DATE,
+  cor            TEXT DEFAULT '#2563eb',
+  criado_em      TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RLS
+ALTER TABLE public.metas ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Usuário gerencia apenas as próprias metas"
+  ON public.metas FOR ALL
+  USING (auth.uid() = usuario_id)
+  WITH CHECK (auth.uid() = usuario_id);
+
+
+-- ============================================================
+-- 7. TRIGGER: criar perfil automaticamente ao cadastrar usuário
+-- Quando alguém se cadastra, um registro em "perfis" é criado
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.criar_perfil_novo_usuario()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO public.perfis (id, nome, email)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'nome', split_part(NEW.email, '@', 1)),
+    NEW.email
+  );
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE TRIGGER ao_criar_usuario
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.criar_perfil_novo_usuario();
+
+
+-- ============================================================
+-- 8. CATEGORIAS PADRÃO DO SISTEMA (usuario_id = NULL)
+-- ============================================================
+INSERT INTO public.categorias (usuario_id, nome, icone, cor, tipo) VALUES
+  -- Despesas
+  (NULL, 'Moradia',      '🏠', '#3b82f6', 'despesa'),
+  (NULL, 'Alimentação',  '🍽️', '#f97316', 'despesa'),
+  (NULL, 'Transporte',   '🚗', '#eab308', 'despesa'),
+  (NULL, 'Saúde',        '❤️', '#ef4444', 'despesa'),
+  (NULL, 'Educação',     '📚', '#6366f1', 'despesa'),
+  (NULL, 'Lazer',        '🎮', '#8b5cf6', 'despesa'),
+  (NULL, 'Serviços',     '📱', '#14b8a6', 'despesa'),
+  (NULL, 'Vestuário',    '👕', '#ec4899', 'despesa'),
+  (NULL, 'Pets',         '🐾', '#84cc16', 'despesa'),
+  (NULL, 'Outros',       '📦', '#6b7280', 'despesa'),
+  -- Receitas
+  (NULL, 'Salário',      '💼', '#22c55e', 'receita'),
+  (NULL, 'Freelance',    '💻', '#06b6d4', 'receita'),
+  (NULL, 'Renda extra',  '💰', '#a3e635', 'receita'),
+  (NULL, 'Investimento', '📈', '#10b981', 'receita'),
+  -- Parcelamentos / Ambos
+  (NULL, 'Eletrônicos',  '📺', '#2563eb', 'ambos'),
+  (NULL, 'Móveis',       '🛋️', '#d97706', 'ambos'),
+  (NULL, 'Viagem',       '✈️', '#0ea5e9', 'ambos')
+ON CONFLICT DO NOTHING;
+
+
+-- ============================================================
+-- FIM DO SCRIPT
+-- ============================================================

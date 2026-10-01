@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Fundo preto -->
+  <rect width="64" height="64" rx="12" fill="#000000"/>
+  <g fill="#ffffff">
+    <!-- Faixa inclinada: perna direita do "A", do ápice à base -->
+    <polygon points="33,12 41,12 48,52 40,52" />
+    <!-- Três barras verticais crescentes (gráfico ascendente) -->
+    <rect x="15" y="41" width="5" height="11" />
+    <rect x="22" y="33" width="5" height="19" />
+    <rect x="29" y="23" width="5" height="29" />
+  </g>
+</svg>
