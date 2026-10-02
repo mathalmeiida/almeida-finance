@@ -8,6 +8,7 @@ import {
   BarChart2,
   ShoppingCart,
   Target,
+  MessagesSquare,
   Settings,
   ShieldCheck,
   MoreHorizontal,
@@ -23,34 +24,36 @@ import logoAlmeida from '../assets/Logo Corporativo Almeida Finance.png'
 // adminOnly só aparecem quando ehAdmin (filtrado na renderização).
 const navGrupos = [
   { titulo: 'Principal', itens: [
-    { to: '/',              label: 'Início',         icon: LayoutDashboard, corIcone: 'text-blue-400'    },
+    { to: '/',              label: 'Início',         icon: LayoutDashboard, corIcone: 'text-blue-400'   },
   ]},
   { titulo: 'Finanças', itens: [
-    { to: '/receitas',      label: 'Receitas',       icon: TrendingUp,   corIcone: 'text-green-400'      },
-    { to: '/despesas',      label: 'Despesas',       icon: TrendingDown, corIcone: 'text-rose-400'       },
-    { to: '/cartoes',       label: 'Cartões',        icon: CreditCard,   corIcone: 'text-sky-400'        },
-    { to: '/projecao',      label: 'Projeção',       icon: BarChart2,    corIcone: 'text-violet-400'     },
+    { to: '/receitas',      label: 'Receitas',       icon: TrendingUp,    corIcone: 'text-green-400'    },
+    { to: '/despesas',      label: 'Despesas',       icon: TrendingDown,  corIcone: 'text-rose-400'     },
+    { to: '/cartoes',       label: 'Cartões',        icon: CreditCard,    corIcone: 'text-sky-400'      },
+    { to: '/projecao',      label: 'Projeção',       icon: BarChart2,     corIcone: 'text-violet-400'   },
   ]},
   { titulo: 'Planejamento', itens: [
-    { to: '/posso-comprar', label: 'Posso Comprar?', icon: ShoppingCart, corIcone: 'text-blue-400'       },
-    { to: '/metas',         label: 'Metas',          icon: Target,       corIcone: 'text-amber-400'      },
+    { to: '/posso-comprar', label: 'Posso Comprar?', icon: ShoppingCart,  corIcone: 'text-blue-400'     },
+    { to: '/metas',         label: 'Metas',          icon: Target,        corIcone: 'text-amber-400'    },
+    { to: '/consultoria',   label: 'Consultoria',    icon: MessagesSquare, corIcone: 'text-cyan-400', badge: 'EM BREVE' },
   ]},
   { titulo: 'Conta', itens: [
-    { to: '/configuracoes', label: 'Configurações',  icon: Settings,     corIcone: 'text-gray-400'       },
+    { to: '/configuracoes', label: 'Configurações',  icon: Settings,      corIcone: 'text-gray-400'     },
   ]},
   { titulo: 'Administração', itens: [
-    { to: '/admin',         label: 'Admin',          icon: ShieldCheck,  corIcone: 'text-violet-400', adminOnly: true },
+    { to: '/admin',         label: 'Admin',          icon: ShieldCheck,   corIcone: 'text-violet-400', adminOnly: true },
   ]},
 ]
 
 // Itens que aparecem no sheet "Mais" (mobile)
 const maisItems = [
-  { to: '/receitas',      label: 'Receitas',       icon: TrendingUp   },
-  { to: '/cartoes',       label: 'Cartões',        icon: CreditCard   },
-  { to: '/projecao',      label: 'Projeção',       icon: BarChart2    },
-  { to: '/metas',         label: 'Metas',          icon: Target       },
-  { to: '/configuracoes', label: 'Configurações',  icon: Settings     },
-  { to: '/admin',         label: 'Admin',          icon: ShieldCheck, adminOnly: true },
+  { to: '/receitas',      label: 'Receitas',       icon: TrendingUp,    corIcone: 'text-green-400'  },
+  { to: '/cartoes',       label: 'Cartões',        icon: CreditCard,    corIcone: 'text-sky-400'    },
+  { to: '/projecao',      label: 'Projeção',       icon: BarChart2,     corIcone: 'text-violet-400' },
+  { to: '/metas',         label: 'Metas',          icon: Target,        corIcone: 'text-amber-400'  },
+  { to: '/consultoria',   label: 'Consultoria',    icon: MessagesSquare, corIcone: 'text-cyan-400', badge: 'EM BREVE' },
+  { to: '/configuracoes', label: 'Configurações',  icon: Settings,      corIcone: 'text-gray-400'   },
+  { to: '/admin',         label: 'Admin',          icon: ShieldCheck,   corIcone: 'text-violet-400', adminOnly: true },
 ]
 
 // Ações rápidas do botão central "+". Apenas NAVEGAM para fluxos já existentes
@@ -78,13 +81,20 @@ function NavItem({ item, onClick }) {
     >
       {({ isActive }) => (
         <>
-          {/* Ícone colorido só quando NÃO selecionado; selecionado herda o
-              branco do container. O texto nunca recebe cor. */}
+          {/* Só o ÍCONE recebe cor (corIcone) quando inativo; selecionado herda
+              o branco do container. O texto segue a cor do item (nunca colorido). */}
           <item.icon
             size={19}
             className={`flex-shrink-0 ${isActive ? '' : (item.corIcone || '')}`}
           />
-          <span>{item.label}</span>
+          <span className="flex-1">{item.label}</span>
+          {item.badge && (
+            <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${
+              isActive ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'
+            }`}>
+              {item.badge}
+            </span>
+          )}
         </>
       )}
     </NavLink>

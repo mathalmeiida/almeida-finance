@@ -13,6 +13,7 @@ import Cartoes from './pages/Cartoes'
 import Projecao from './pages/Projecao'
 import PossoComprar from './pages/PossoCComprar'
 import Metas from './pages/Metas'
+import Consultoria from './pages/Consultoria'
 import Configuracoes from './pages/Configuracoes'
 import Admin from './pages/Admin'
 
@@ -125,6 +126,7 @@ function Rotas() {
                 <Route path="/projecao" element={<Projecao />} />
                 <Route path="/posso-comprar" element={<PossoComprar />} />
                 <Route path="/metas" element={<Metas />} />
+                <Route path="/consultoria" element={<Consultoria />} />
                 <Route path="/configuracoes" element={<Configuracoes />} />
                 <Route path="/admin" element={<RotaAdmin><Admin /></RotaAdmin>} />
                 <Route path="*" element={<Navigate to="/" replace />} />
