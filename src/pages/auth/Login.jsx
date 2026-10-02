@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
-import logoAlmeida from '../../assets/Logo Almeida Finance Geométrico.png'
+import logoAlmeida from '../../assets/Logo Corporativo Almeida Finance.png'
 
 export default function Login() {
   const { entrar } = useAuth()
@@ -94,6 +94,11 @@ export default function Login() {
                 >
                   {mostrarSenha ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
+              </div>
+              <div className="flex justify-end mt-1.5">
+                <Link to="/recuperar-senha" className="text-xs text-blue-600 hover:underline">
+                  Esqueci minha senha
+                </Link>
               </div>
             </div>
 

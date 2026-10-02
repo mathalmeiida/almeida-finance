@@ -105,11 +105,28 @@ CREATE TABLE IF NOT EXISTS public.despesas (
   -- Independente de recorrente. Definida pelo app via regras de categoria/descrição.
   -- Pode ser corrigida manualmente pelo usuário.
   tipo_despesa  TEXT CHECK (tipo_despesa IN ('fixa', 'variavel')) DEFAULT 'variavel',
+  -- Duração da recorrência em meses (só se aplica quando frequencia = 'por_meses').
+  -- NULL = recorrência sem prazo definido (repete indefinidamente).
+  -- A coluna "data" é considerada a primeira ocorrência.
+  recorrencia_meses INTEGER CHECK (recorrencia_meses IS NULL OR recorrencia_meses > 0),
+  -- Frequência da recorrência:
+  --   'nao_repete' | 'mensal' | 'semanal' | 'diaria' | 'por_meses'
+  -- O booleano "recorrente" é mantido por compatibilidade (TRUE p/ qualquer
+  -- frequência != 'nao_repete').
+  frequencia    TEXT CHECK (frequencia IN ('nao_repete','mensal','semanal','diaria','por_meses')) DEFAULT 'nao_repete',
+  -- Forma de pagamento (texto livre controlado pelo app). NULL = não informado.
+  forma_pagamento TEXT,
   criado_em     TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ATENÇÃO: se o banco já foi criado, execute apenas este comando adicional:
+-- ATENÇÃO: se o banco já foi criado, execute apenas estes comandos adicionais:
 -- ALTER TABLE public.despesas ADD COLUMN tipo_despesa TEXT CHECK (tipo_despesa IN ('fixa', 'variavel')) DEFAULT 'variavel';
+-- ALTER TABLE public.despesas ADD COLUMN recorrencia_meses INTEGER CHECK (recorrencia_meses IS NULL OR recorrencia_meses > 0);
+-- ALTER TABLE public.despesas ADD COLUMN frequencia TEXT CHECK (frequencia IN ('nao_repete','mensal','semanal','diaria','por_meses')) DEFAULT 'nao_repete';
+-- ALTER TABLE public.despesas ADD COLUMN forma_pagamento TEXT;
+-- Migração dos dados existentes para a nova coluna frequencia:
+-- UPDATE public.despesas SET frequencia = 'por_meses' WHERE recorrente = TRUE AND recorrencia_meses IS NOT NULL;
+-- UPDATE public.despesas SET frequencia = 'mensal'    WHERE recorrente = TRUE AND recorrencia_meses IS NULL;
 
 -- RLS
 ALTER TABLE public.despesas ENABLE ROW LEVEL SECURITY;
@@ -137,6 +154,9 @@ CREATE TABLE IF NOT EXISTS public.parcelamentos (
   -- ALTER TABLE para bancos já criados:
   -- ALTER TABLE public.parcelamentos ADD COLUMN quitado_em DATE DEFAULT NULL;
   quitado_em       DATE DEFAULT NULL,
+  -- Forma de pagamento (texto livre controlado pelo app). NULL = não informado.
+  -- ALTER TABLE public.parcelamentos ADD COLUMN forma_pagamento TEXT;
+  forma_pagamento  TEXT,
   criado_em        TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -209,6 +229,8 @@ INSERT INTO public.categorias (usuario_id, nome, icone, cor, tipo) VALUES
   (NULL, 'Educação',     '📚', '#6366f1', 'despesa'),
   (NULL, 'Lazer',        '🎮', '#8b5cf6', 'despesa'),
   (NULL, 'Serviços',     '📱', '#14b8a6', 'despesa'),
+  (NULL, 'Internet',     '🌐', '#06b6d4', 'despesa'),
+  (NULL, 'Empréstimos',  '💰', '#f43f5e', 'despesa'),
   (NULL, 'Vestuário',    '👕', '#ec4899', 'despesa'),
   (NULL, 'Pets',         '🐾', '#84cc16', 'despesa'),
   (NULL, 'Outros',       '📦', '#6b7280', 'despesa'),
@@ -222,6 +244,54 @@ INSERT INTO public.categorias (usuario_id, nome, icone, cor, tipo) VALUES
   (NULL, 'Móveis',       '🛋️', '#d97706', 'ambos'),
   (NULL, 'Viagem',       '✈️', '#0ea5e9', 'ambos')
 ON CONFLICT DO NOTHING;
+
+
+-- ============================================================
+-- 9. TABELA: cartoes (cartões de crédito do usuário)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.cartoes (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  usuario_id      UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  nome            TEXT NOT NULL,            -- ex: "Bradesco Visa", "Nubank"
+  banco           TEXT,                     -- instituição
+  limite_total    NUMERIC(12,2) NOT NULL CHECK (limite_total >= 0),
+  dia_fechamento  INTEGER NOT NULL CHECK (dia_fechamento BETWEEN 1 AND 31),
+  dia_vencimento  INTEGER NOT NULL CHECK (dia_vencimento BETWEEN 1 AND 31),
+  cor             TEXT DEFAULT '#6366f1',
+  criado_em       TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.cartoes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Usuário gerencia apenas os próprios cartões"
+  ON public.cartoes FOR ALL
+  USING (auth.uid() = usuario_id)
+  WITH CHECK (auth.uid() = usuario_id);
+
+
+-- ============================================================
+-- 10. TABELA: compras_cartao (compras lançadas em um cartão)
+-- Uma compra parcelada é UM registro; as parcelas são projetadas
+-- pelo app (sem criar N linhas), evitando duplicidade.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.compras_cartao (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  usuario_id       UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  cartao_id        UUID NOT NULL REFERENCES public.cartoes(id) ON DELETE CASCADE,
+  descricao        TEXT NOT NULL,
+  valor_total      NUMERIC(12,2) NOT NULL CHECK (valor_total > 0),
+  data_compra      DATE NOT NULL,
+  numero_parcelas  INTEGER NOT NULL DEFAULT 1 CHECK (numero_parcelas > 0),
+  categoria_id     UUID REFERENCES public.categorias(id) ON DELETE SET NULL,
+  criado_em        TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.compras_cartao ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Usuário gerencia apenas as próprias compras de cartão"
+  ON public.compras_cartao FOR ALL
+  USING (auth.uid() = usuario_id)
+  WITH CHECK (auth.uid() = usuario_id);
 
 
 -- ============================================================

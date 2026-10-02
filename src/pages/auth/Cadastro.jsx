@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, User, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
-import logoAlmeida from '../../assets/Logo Almeida Finance Geométrico.png'
+import logoAlmeida from '../../assets/Logo Corporativo Almeida Finance.png'
 
 export default function Cadastro() {
   const { cadastrar } = useAuth()

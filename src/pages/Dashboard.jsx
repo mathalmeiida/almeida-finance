@@ -1,14 +1,12 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Zap, Sun, Plus
+  TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Zap, Sun, Plus, Pencil
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
-import { useMetas } from '../hooks/useMetas'
 import { useCategorias } from '../hooks/useCategorias'
 import { useAuth } from '../contexts/AuthContext'
-import { formatCurrency, calcularLimiteDiario, diasRestantesNoMes } from '../lib/utils'
-import { valorParcelaNoMes } from '../hooks/useParcelamentos'
+import { formatCurrency } from '../lib/utils'
 import { classificarDespesa } from '../lib/classificarDespesa'
 import Modal from '../components/Modal'
 
@@ -111,53 +109,60 @@ function SummaryCard({ title, value, icon: Icon, color, bgColor, subtitle, carre
 function ResumoProjecao({ projecao }) {
   // Próximo mês = índice 1 (índice 0 é o mês atual). Fallback para o atual se só houver 1.
   const proximo = projecao[1] || projecao[0]
-  const saldoProx = proximo?.saldo ?? 0
-  const saldoPositivo = saldoProx >= 0
+  // "Disponível" agora considera a reserva de emergência: Receita − Compromissos − Reserva.
+  const dispProx = proximo?.disponivel ?? 0
+  const dispPositivo = dispProx >= 0
 
   return (
     <div className="space-y-5">
       {/* Resumo do próximo mês */}
-      <div className={`rounded-2xl p-4 border ${saldoPositivo ? 'bg-blue-50 border-blue-100' : 'bg-red-50 border-red-100'}`}>
+      <div className={`rounded-2xl p-4 border ${dispPositivo ? 'bg-blue-50 border-blue-100' : 'bg-red-50 border-red-100'}`}>
         <p className="text-xs font-medium text-gray-500 mb-3">
           Resumo de <span className="capitalize font-semibold text-gray-700">{proximo?.mes}</span> (próximo mês)
         </p>
-        <div className="grid grid-cols-3 gap-3 mb-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
           <div>
             <p className="text-xs text-gray-400">Receitas previstas</p>
             <p className="text-sm font-bold text-green-600">{formatCurrency(proximo?.receitas ?? 0)}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-400">Despesas previstas</p>
+            <p className="text-xs text-gray-400">Compromissos previstos</p>
             <p className="text-sm font-bold text-red-500">{formatCurrency(proximo?.despesas ?? 0)}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-400">Disponível</p>
-            <p className={`text-sm font-bold ${saldoPositivo ? 'text-blue-600' : 'text-red-600'}`}>
-              {formatCurrency(saldoProx)}
+            <p className="text-xs text-gray-400">Reserva planejada</p>
+            <p className="text-sm font-bold text-amber-600">{formatCurrency(proximo?.reserva ?? 0)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400">Disponível para gastar</p>
+            <p className={`text-sm font-bold ${dispPositivo ? 'text-blue-600' : 'text-red-600'}`}>
+              {formatCurrency(dispProx)}
             </p>
           </div>
         </div>
-        <p className={`text-sm font-semibold ${saldoPositivo ? 'text-blue-700' : 'text-red-700'}`}>
-          {saldoPositivo
-            ? `Você terá ${formatCurrency(saldoProx)} livres`
-            : `Você ficará ${formatCurrency(Math.abs(saldoProx))} no negativo`}
+        <p className={`text-sm font-semibold ${dispPositivo ? 'text-blue-700' : 'text-red-700'}`}>
+          {dispPositivo
+            ? `Você terá ${formatCurrency(dispProx)} livres após a reserva`
+            : `Você ficará ${formatCurrency(Math.abs(dispProx))} no negativo após a reserva`}
         </p>
       </div>
 
-      {/* Tabela dos 12 meses */}
-      <div className="overflow-x-auto">
+      {/* Projeção dos 12 meses — tabela no desktop, cards no mobile */}
+      {/* Desktop (md+): tabela */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left border-b border-gray-100">
               <th className="pb-2 text-xs font-medium text-gray-500">Mês</th>
               <th className="pb-2 text-xs font-medium text-gray-500 text-right">Receitas</th>
-              <th className="pb-2 text-xs font-medium text-gray-500 text-right">Despesas</th>
+              <th className="pb-2 text-xs font-medium text-gray-500 text-right">Compromissos</th>
+              <th className="pb-2 text-xs font-medium text-gray-500 text-right">Reserva</th>
               <th className="pb-2 text-xs font-medium text-gray-500 text-right">Disponível</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {projecao.map((m, i) => {
-              const positivo = m.saldo >= 0
+              const positivo = m.disponivel >= 0
               return (
                 <tr key={i} className={m.ehMesAtual ? 'bg-blue-50/40' : ''}>
                   <td className="py-2.5 text-gray-700">
@@ -168,12 +173,13 @@ function ResumoProjecao({ projecao }) {
                   </td>
                   <td className="py-2.5 text-right text-green-600">{formatCurrency(m.receitas)}</td>
                   <td className="py-2.5 text-right text-red-500">{formatCurrency(m.despesas)}</td>
+                  <td className="py-2.5 text-right text-amber-600">{formatCurrency(m.reserva)}</td>
                   <td className="py-2.5 text-right">
                     {positivo ? (
-                      <span className="font-semibold text-blue-600">{formatCurrency(m.saldo)}</span>
+                      <span className="font-semibold text-blue-600">{formatCurrency(m.disponivel)}</span>
                     ) : (
                       <span className="inline-flex items-center gap-1 font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-lg">
-                        ⚠️ {formatCurrency(m.saldo)}
+                        ⚠️ {formatCurrency(m.disponivel)}
                       </span>
                     )}
                   </td>
@@ -183,94 +189,351 @@ function ResumoProjecao({ projecao }) {
           </tbody>
         </table>
       </div>
+
+      {/* Mobile (<md): cada mês como card vertical, sem scroll horizontal */}
+      <div className="md:hidden space-y-2.5">
+        {projecao.map((m, i) => {
+          const positivo = m.disponivel >= 0
+          return (
+            <div
+              key={i}
+              className={`rounded-xl border p-3 ${m.ehMesAtual ? 'border-blue-200 bg-blue-50/40' : 'border-gray-100 bg-white'}`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="capitalize font-semibold text-gray-800 text-sm">{m.mes}</span>
+                {m.ehMesAtual && (
+                  <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">atual</span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                <div>
+                  <p className="text-[11px] text-gray-400">Receitas</p>
+                  <p className="text-sm font-semibold text-green-600">{formatCurrency(m.receitas)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-gray-400">Compromissos</p>
+                  <p className="text-sm font-semibold text-red-500">{formatCurrency(m.despesas)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-gray-400">Reserva</p>
+                  <p className="text-sm font-semibold text-amber-600">{formatCurrency(m.reserva)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-gray-400">Disponível</p>
+                  <p className={`text-sm font-bold ${positivo ? 'text-blue-600' : 'text-red-600'}`}>
+                    {positivo ? '' : '⚠️ '}{formatCurrency(m.disponivel)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
 
-// ─── Card "Quanto posso gastar hoje?" ─────────────────────────────────────────
-function CardQuantoPossoGastar({ limite, carregando }) {
+// Dias restantes no mês, incluindo hoje
+function diasRestantesNoMes(ref = new Date()) {
+  const ultimoDia = new Date(ref.getFullYear(), ref.getMonth() + 1, 0).getDate()
+  return ultimoDia - ref.getDate() + 1
+}
+
+// Status do orçamento com base no % de comprometimento da renda (educativo, não alarmista)
+function statusOrcamento(receita, disponivel) {
+  if (receita <= 0) return null
+  const pctComprometido = (receita - disponivel) / receita
+  if (disponivel < 0 || pctComprometido >= 1) {
+    return { cor: '🔴', texto: 'Orçamento comprometido', classe: 'text-white' }
+  }
+  if (pctComprometido >= 0.8) {
+    return { cor: '🟡', texto: 'Atenção aos gastos', classe: 'text-white' }
+  }
+  return { cor: '🟢', texto: 'Dentro do orçamento', classe: 'text-white' }
+}
+
+// ─── Card "Quanto posso gastar?" — modos Automático e Manual ──────────────────
+const OPCOES_RESERVA = [10, 15, 20, 25, 30]
+
+function CardQuantoPossoGastar({
+  carregando, modo, onTrocarModo,
+  receitaMes, compromissosMes, limiteManual, onEditarLimite, hoje,
+  reservaPercentual, onTrocarReserva,
+}) {
+  const [personalizando, setPersonalizando] = useState(false)
+  const [pctCustom, setPctCustom] = useState('')
+  // Estado local do percentual (atualização otimista): o clique reflete na hora,
+  // sem esperar o salvamento no banco. Sincroniza quando o perfil carrega/muda.
+  const [pctLocal, setPctLocal] = useState(reservaPercentual != null ? Number(reservaPercentual) : 20)
+  const [erroSalvar, setErroSalvar] = useState(false)
+
+  useEffect(() => {
+    if (reservaPercentual != null) setPctLocal(Number(reservaPercentual))
+  }, [reservaPercentual])
+
+  // Seleciona um percentual: atualiza a UI imediatamente e tenta persistir
+  async function selecionarPct(valor) {
+    setPctLocal(valor)        // recálculo imediato (reserva, disponível, gasto diário)
+    setErroSalvar(false)
+    try {
+      await onTrocarReserva(valor)  // persiste no banco
+    } catch {
+      setErroSalvar(true)
+    }
+  }
+
   if (carregando) {
     return (
       <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5">
         <div className="flex items-center gap-2 text-white/90 mb-3">
           <Sun size={18} />
-          <span className="text-sm font-medium">Quanto posso gastar hoje?</span>
+          <span className="text-sm font-medium">Quanto posso gastar?</span>
         </div>
         <div className="h-9 w-40 bg-black/20 rounded-lg animate-pulse" />
       </div>
     )
   }
 
-  // Faltam dados para calcular com segurança — card compacto
-  if (limite.indisponivel) {
-    return (
-      <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-white">
-          <Sun size={16} className="flex-shrink-0" />
-          <span className="text-sm">{limite.motivo}</span>
-        </div>
-        <Link to="/receitas"
-          className="inline-flex items-center gap-1.5 bg-white text-emerald-700 text-sm font-semibold px-3 py-1.5 rounded-lg hover:bg-emerald-50 transition-colors self-start sm:self-auto flex-shrink-0">
-          <Plus size={14} /> Cadastrar receita
-        </Link>
-      </div>
-    )
+  const dias = diasRestantesNoMes(hoje)
+  const ehManual = modo === 'manual'
+
+  // Reserva de emergência (só afeta o modo automático). Usa o estado local
+  // otimista para refletir o clique imediatamente. Padrão 20%.
+  const pct = pctLocal
+  const reserva = receitaMes > 0 ? receitaMes * (pct / 100) : 0
+
+  // Disponível no modo automático = receita − reserva − compromissos
+  const disponivelAuto = receitaMes - reserva - compromissosMes
+  // No modo manual, a reserva não entra: disponível = receita − compromissos
+  const disponivelManual = receitaMes - compromissosMes
+  const disponivelMes = ehManual ? disponivelManual : disponivelAuto
+
+  const limiteAuto = disponivelAuto > 0 && dias > 0 ? disponivelAuto / dias : 0
+  const limiteManualNum = Number(limiteManual) || 0
+  const limiteExibido = ehManual ? limiteManualNum : limiteAuto
+
+  const status = statusOrcamento(receitaMes, disponivelMes)
+  const orcamentoNegativo = disponivelMes < 0
+  const manualAcimaDoRecomendado = ehManual && limiteManualNum > limiteAuto && limiteAuto > 0
+
+  function aplicarCustom(e) {
+    e.preventDefault()
+    const n = parseFloat(String(pctCustom).replace(',', '.'))
+    if (!isNaN(n) && n >= 0 && n <= 100) {
+      selecionarPct(n)
+      setPersonalizando(false)
+      setPctCustom('')
+    }
   }
 
   return (
     <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5 text-white">
-      <div className="flex items-center gap-2 mb-2">
-        <Sun size={18} />
-        <span className="text-sm font-medium text-white/90">Quanto posso gastar hoje?</span>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2">
+          <Sun size={18} />
+          <span className="text-sm font-medium text-white/90">Quanto posso gastar?</span>
+        </div>
+        {/* Alternador Automático | Manual */}
+        <div className="flex bg-black/15 rounded-lg p-0.5 text-xs font-medium flex-shrink-0">
+          <button
+            onClick={() => onTrocarModo('auto')}
+            className={`px-3 py-1.5 rounded-md transition-colors ${!ehManual ? 'bg-white/90 text-emerald-700' : 'text-white/80'}`}
+          >
+            Automático
+          </button>
+          <button
+            onClick={() => onTrocarModo('manual')}
+            className={`px-3 py-1.5 rounded-md transition-colors ${ehManual ? 'bg-white/90 text-emerald-700' : 'text-white/80'}`}
+          >
+            Manual
+          </button>
+        </div>
       </div>
 
-      {/* Mensagem principal em destaque */}
-      <p className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight">
-        Você pode gastar <span className="whitespace-nowrap">{formatCurrency(limite.limiteDiario)}</span> hoje
-      </p>
-
-      {/* Indicadores compactos */}
-      <div className="grid grid-cols-3 gap-2 mt-4">
-        <div className="bg-black/15 rounded-xl px-3 py-2">
-          <p className="text-xs text-white/70">Gastou hoje</p>
-          <p className="text-sm font-bold">{formatCurrency(limite.gastosVariaveisHoje)}</p>
+      {/* ── Reserva de emergência (só no modo automático) ── */}
+      {!ehManual && (
+        <div className="bg-black/15 rounded-xl px-3 py-3 mb-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-white/90 font-medium">Reserva de emergência — {pct}%</p>
+            <p className="text-sm font-bold">{formatCurrency(reserva)}</p>
+          </div>
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {OPCOES_RESERVA.map(op => (
+              <button key={op} type="button" onClick={() => { selecionarPct(op); setPersonalizando(false) }}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  !personalizando && pct === op ? 'bg-white/90 text-emerald-700' : 'bg-black/20 text-white/80 hover:bg-black/30'
+                }`}>
+                {op}%
+              </button>
+            ))}
+            <button type="button" onClick={() => setPersonalizando(v => !v)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                personalizando || !OPCOES_RESERVA.includes(pct) ? 'bg-white/90 text-emerald-700' : 'bg-black/20 text-white/80 hover:bg-black/30'
+              }`}>
+              Personalizado
+            </button>
+          </div>
+          {personalizando && (
+            <form onSubmit={aplicarCustom} className="flex gap-2 mt-2">
+              <input type="number" min="0" max="100" step="1" value={pctCustom}
+                onChange={e => setPctCustom(e.target.value)}
+                placeholder="Ex: 18" autoFocus
+                className="flex-1 bg-white/90 text-gray-900 rounded-md px-2 py-1 text-sm focus:outline-none" />
+              <button type="submit" className="bg-white/90 text-emerald-700 text-xs font-semibold px-3 rounded-md">OK</button>
+            </form>
+          )}
+          <p className="text-xs text-white/60 mt-2">Este valor está sendo separado do seu orçamento de gastos.</p>
+          {erroSalvar && (
+            <p className="text-xs text-amber-100 mt-1">
+              Não foi possível salvar sua preferência. O cálculo está atualizado, mas pode não permanecer após recarregar.
+            </p>
+          )}
         </div>
-        <div className="bg-black/15 rounded-xl px-3 py-2">
+      )}
+
+      {/* ── Detalhamento (modo automático): renda → reserva → compromissos → disponível ── */}
+      {!ehManual && (
+        <div className="bg-black/15 rounded-xl px-3 py-3 mb-3 space-y-1.5">
+          <div className="flex justify-between text-sm">
+            <span className="text-white/70">Renda do mês</span>
+            <span className="font-medium">{formatCurrency(receitaMes)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-white/70">Reserva de emergência ({pct}%)</span>
+            <span className="font-medium">− {formatCurrency(reserva)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-white/70">Compromissos do mês</span>
+            <span className="font-medium">− {formatCurrency(compromissosMes)}</span>
+          </div>
+          <div className="flex justify-between text-sm pt-1.5 border-t border-white/15">
+            <span className="font-semibold">Disponível para gastar</span>
+            <span className={`font-bold ${orcamentoNegativo ? 'text-red-200' : ''}`}>{formatCurrency(disponivelMes)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Valores principais */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-black/15 rounded-xl px-3 py-3">
           <p className="text-xs text-white/70">Disponível no mês</p>
-          <p className="text-sm font-bold">{formatCurrency(limite.saldoVariavelRestante)}</p>
+          <p className={`text-xl font-bold ${orcamentoNegativo ? 'text-red-200' : ''}`}>
+            {formatCurrency(disponivelMes)}
+          </p>
         </div>
-        <div className="bg-black/15 rounded-xl px-3 py-2">
-          <p className="text-xs text-white/70">Dias restantes</p>
-          <p className="text-sm font-bold">{limite.diasRestantes}</p>
+        <div className="bg-black/15 rounded-xl px-3 py-3">
+          <p className="text-xs text-white/70">
+            {ehManual ? 'Seu limite diário' : 'Você pode gastar por dia'}
+          </p>
+          <p className="text-xl font-bold">
+            {formatCurrency(Math.max(0, limiteExibido))}<span className="text-xs font-normal text-white/70">/dia</span>
+          </p>
         </div>
       </div>
 
-      {limite.saldoVariavelRestanteReal < 0 && (
-        <p className="text-xs text-white/90 mt-3 bg-black/15 rounded-lg px-3 py-2">
-          ⚠️ Seus gastos variáveis já ultrapassaram o orçamento disponível do mês.
+      {/* Status */}
+      {status && (
+        <div className="flex items-center gap-2 mt-3 bg-black/15 rounded-xl px-3 py-2">
+          <span>{status.cor}</span>
+          <span className="text-sm font-medium">{status.texto}</span>
+        </div>
+      )}
+
+      {/* Mensagens contextuais */}
+      {orcamentoNegativo && (
+        <p className="text-xs text-white/90 mt-2 bg-black/15 rounded-lg px-3 py-2">
+          Seus compromissos do mês estão acima da renda cadastrada.
         </p>
+      )}
+
+      {ehManual && !orcamentoNegativo && (
+        <div className="mt-2 bg-black/15 rounded-lg px-3 py-2">
+          <p className="text-xs text-white/90">
+            {dias} dias restantes • Orçamento necessário até o fim do mês:{' '}
+            <strong>{formatCurrency(limiteManualNum * dias)}</strong>
+          </p>
+          {manualAcimaDoRecomendado && (
+            <p className="text-xs text-amber-100 mt-1">
+              Seu limite diário definido está acima do valor recomendado pelo seu orçamento atual.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Botão editar limite — só no modo manual */}
+      {ehManual && (
+        <button
+          onClick={onEditarLimite}
+          className="mt-3 flex items-center gap-1 text-xs font-medium text-white/90 bg-black/15 hover:bg-black/25 px-2.5 py-1.5 rounded-lg transition-colors"
+        >
+          <Pencil size={12} /> {limiteManualNum > 0 ? 'Editar meu limite' : 'Definir meu limite'}
+        </button>
       )}
     </div>
   )
 }
 
+// ─── Modal para editar o limite diário manual ─────────────────────────────────
+function ModalLimiteDiario({ aberto, onFechar, valorAtual, onSalvar, salvando }) {
+  const [valor, setValor] = useState('')
+
+  useEffect(() => {
+    if (aberto) setValor(valorAtual != null && Number(valorAtual) > 0 ? String(valorAtual) : '')
+  }, [aberto, valorAtual])
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    const num = parseFloat(String(valor).replace(',', '.'))
+    if (!num || num <= 0) return
+    onSalvar(num)
+  }
+
+  return (
+    <Modal aberto={aberto} onFechar={onFechar} titulo="Meu limite diário">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="label">Quanto você quer poder gastar por dia?</label>
+          <input
+            type="number" min="0.01" step="0.01"
+            value={valor}
+            onChange={e => setValor(e.target.value)}
+            className="input"
+            placeholder="Ex: 100,00"
+            autoFocus
+            required
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            Esse valor fica salvo e continua o mesmo nos próximos dias até você alterar.
+          </p>
+        </div>
+        <div className="flex gap-3 pt-1">
+          <button type="button" onClick={onFechar} className="btn-secondary flex-1">Cancelar</button>
+          <button type="submit" disabled={salvando}
+            className="btn-primary flex-1 flex items-center justify-center gap-2">
+            {salvando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : 'Salvar limite'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
 export default function Dashboard() {
-  const { perfil } = useAuth()
+  const { perfil, atualizarPreferenciasLimite } = useAuth()
   const {
-    resumoMes, projecao, carregando, receitas, despesas, parcelamentos,
-    mesAtual, anoAtual, criarDespesa,
+    resumoMes, projecao, carregando, receitas, despesas, criarDespesa,
   } = useProjecao()
-  const { metas, carregando: carregandoMetas } = useMetas()
 
   const [modalGasto, setModalGasto] = useState(false)
   const [salvandoGasto, setSalvandoGasto] = useState(false)
   const [erroGasto, setErroGasto] = useState('')
+  const [modalLimite, setModalLimite] = useState(false)
+  const [salvandoLimite, setSalvandoLimite] = useState(false)
 
   const sobraPositiva = resumoMes.sobraPrevista >= 0
   const hoje = new Date()
   const nomeMes = hoje.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
   const saudacao = perfil?.nome ? `Olá, ${perfil.nome.split(' ')[0]}` : 'Olá'
-  const hojeISO = hoje.toISOString().split('T')[0]
 
   // Aviso de projeção zerada: há dados mas nenhum é recorrente
   const temReceitas = receitas.length > 0
@@ -282,47 +545,16 @@ export default function Dashboard() {
     (temDespesas && !temDespesasRecorrentes)
   )
 
-  // ─── Cálculo "Quanto posso gastar hoje?" ───
-  // Despesas à vista fixas (compromissos) — não inclui parcelas (evita duplicação)
-  const despesasFixas = despesas
-    .filter(d => d.tipo_despesa === 'fixa')
-    .reduce((a, d) => a + Number(d.valor), 0)
-
-  // Gastos variáveis à vista já realizados no mês
-  const gastosVariaveisRealizados = despesas
-    .filter(d => d.tipo_despesa !== 'fixa')
-    .reduce((a, d) => a + Number(d.valor), 0)
-
-  // Gastos variáveis à vista lançados hoje
-  const gastosVariaveisHoje = despesas
-    .filter(d => d.tipo_despesa !== 'fixa' && d.data === hojeISO)
-    .reduce((a, d) => a + Number(d.valor), 0)
-
-  // Parcelas devidas neste mês (fonte separada — não duplica despesas)
-  const parcelasMes = parcelamentos
-    .reduce((a, p) => a + valorParcelaNoMes(p, anoAtual, mesAtual), 0)
-
-  // Reserva/meta do mês: soma dos aportes mensais sugeridos das metas com prazo futuro
-  const reservaMes = metas.reduce((acc, m) => {
-    if (!m.prazo) return acc
-    const fim = new Date(m.prazo)
-    const meses = Math.max(0, (fim.getFullYear() - hoje.getFullYear()) * 12 + (fim.getMonth() - hoje.getMonth()))
-    const faltante = Number(m.valor_desejado) - Number(m.valor_atual)
-    if (meses <= 0 || faltante <= 0) return acc
-    return acc + (faltante / meses)
-  }, 0)
-
-  const limite = calcularLimiteDiario({
-    receitaTotal: resumoMes.receitaTotal,
-    despesasFixas,
-    parcelasMes,
-    reservaMes,
-    gastosVariaveisRealizados,
-    gastosVariaveisHoje,
-    dataRef: hoje,
-  })
-
-  const carregandoLimite = carregando || carregandoMetas
+  // ─── "Quanto posso gastar?" ───
+  // Compromissos do mês = despesas + parcelas + faturas de cartão, SEM duplicar.
+  // resumoMes.sobraPrevista = receita − compromissos (já consolidado no useProjecao).
+  // Então: compromissosMes = receita − sobraPrevista. A reserva é aplicada no card.
+  const receitaMes = resumoMes.receitaTotal
+  const compromissosMes = receitaMes - resumoMes.sobraPrevista
+  const limiteManual = perfil?.limite_diario ?? null
+  const modoLimite = perfil?.modo_limite === 'manual' ? 'manual' : 'auto' // padrão: automático
+  const reservaPercentual = perfil?.reserva_percentual ?? 20 // padrão 20%
+  const carregandoLimite = carregando
 
   // ─── Handler do Gasto rápido ───
   async function handleSalvarGasto(dados) {
@@ -335,6 +567,34 @@ export default function Dashboard() {
       setErroGasto('Erro ao salvar o gasto. Tente novamente.')
     } finally {
       setSalvandoGasto(false)
+    }
+  }
+
+  // ─── Handlers do limite / modo / reserva ───
+  async function handleTrocarModo(novoModo) {
+    try {
+      await atualizarPreferenciasLimite({ modo_limite: novoModo })
+    } catch {
+      // silencioso para não quebrar o layout
+    }
+  }
+
+  async function handleTrocarReserva(pct) {
+    // Propaga o erro para o card tratar (ex: coluna ausente no banco).
+    // A UI já atualiza de forma otimista no próprio card.
+    await atualizarPreferenciasLimite({ reserva_percentual: pct })
+  }
+
+  async function handleSalvarLimite(valor) {
+    setSalvandoLimite(true)
+    try {
+      // Salvar um limite manual também fixa o modo em "manual"
+      await atualizarPreferenciasLimite({ limite_diario: valor, modo_limite: 'manual' })
+      setModalLimite(false)
+    } catch {
+      // mantém o modal aberto; erro silencioso para não quebrar o layout
+    } finally {
+      setSalvandoLimite(false)
     }
   }
 
@@ -358,8 +618,19 @@ export default function Dashboard() {
         <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{erroGasto}</p>
       )}
 
-      {/* Card: Quanto posso gastar hoje? */}
-      <CardQuantoPossoGastar limite={limite} carregando={carregandoLimite} />
+      {/* Card: Quanto posso gastar? (Automático | Manual) */}
+      <CardQuantoPossoGastar
+        carregando={carregandoLimite}
+        modo={modoLimite}
+        onTrocarModo={handleTrocarModo}
+        receitaMes={receitaMes}
+        compromissosMes={compromissosMes}
+        limiteManual={limiteManual}
+        onEditarLimite={() => setModalLimite(true)}
+        hoje={hoje}
+        reservaPercentual={reservaPercentual}
+        onTrocarReserva={handleTrocarReserva}
+      />
 
       {/* Cards de resumo */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -383,20 +654,20 @@ export default function Dashboard() {
         />
         <SummaryCard
           title="Parcelas do mês"
-          value={resumoMes.parcelasTotal}
+          value={resumoMes.parcelasTotalExibicao}
           icon={CreditCard}
           color="text-orange-500"
           bgColor="bg-orange-50"
-          subtitle={carregando ? '' : `${resumoMes.qtdParcelamentos} ativo${resumoMes.qtdParcelamentos !== 1 ? 's' : ''}`}
+          subtitle={carregando ? '' : `${resumoMes.qtdParcelasExibicao} ativo${resumoMes.qtdParcelasExibicao !== 1 ? 's' : ''}`}
           carregando={carregando}
         />
         <SummaryCard
-          title="Dinheiro disponível"
+          title="Saldo após compromissos"
           value={resumoMes.sobraPrevista}
           icon={Wallet}
           color={sobraPositiva ? 'text-blue-600' : 'text-red-600'}
           bgColor={sobraPositiva ? 'bg-blue-50' : 'bg-red-50'}
-          subtitle={carregando ? '' : sobraPositiva ? 'Situação saudável ✓' : '⚠️ Atenção: saldo negativo'}
+          subtitle={carregando ? '' : 'Antes da reserva de emergência'}
           carregando={carregando}
         />
       </div>
@@ -425,7 +696,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-between mb-5">
           <div>
             <h2 className="text-base font-semibold text-gray-900">Projeção dos próximos 12 meses</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Baseada em receitas e despesas recorrentes</p>
+            <p className="text-xs text-gray-400 mt-0.5">Receitas e despesas recorrentes, parcelas, faturas e reserva de emergência</p>
           </div>
           <Link
             to="/projecao"
@@ -484,6 +755,15 @@ export default function Dashboard() {
           carregando={salvandoGasto}
         />
       </Modal>
+
+      {/* Modal de edição do limite diário */}
+      <ModalLimiteDiario
+        aberto={modalLimite}
+        onFechar={() => setModalLimite(false)}
+        valorAtual={limiteManual}
+        onSalvar={handleSalvarLimite}
+        salvando={salvandoLimite}
+      />
     </div>
   )
 }

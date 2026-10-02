@@ -158,6 +158,24 @@ export function useParcelamentos() {
     return data
   }
 
+  // Atualiza um parcelamento existente pelo ID (UPDATE, sem duplicar)
+  async function atualizar(id, dados) {
+    const { data, error } = await supabase
+      .from('parcelamentos')
+      .update(dados)
+      .eq('id', id)
+      .select(`*, categorias (id, nome, icone, cor)`)
+      .single()
+    if (error) {
+      console.error('[atualizar parcelamento] erro Supabase:', {
+        message: error.message, details: error.details, hint: error.hint, code: error.code,
+      })
+      throw error
+    }
+    await buscar() // recalcula parcela atual, término, valores etc.
+    return data
+  }
+
   // Quitação antecipada: registra a data de hoje, preserva o histórico
   async function quitar(id) {
     const hoje = new Date().toISOString().split('T')[0]
@@ -194,6 +212,7 @@ export function useParcelamentos() {
     carregando,
     erro,
     criar,
+    atualizar,
     quitar,
     remover,
     recarregar: buscar,

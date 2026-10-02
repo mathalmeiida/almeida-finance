@@ -11,6 +11,31 @@
   body {
     @apply bg-gray-50 text-gray-900;
   }
+
+  /* Evita scroll horizontal acidental em telas pequenas (nenhuma página deve
+     "vazar" na largura). Não afeta o desktop. */
+  html, body {
+    @apply overflow-x-hidden;
+  }
+
+  /* Quando um modal/sheet está aberto, trava o scroll do conteúdo de fundo. */
+  body.no-scroll {
+    overflow: hidden;
+  }
+
+  /* CAUSA DO ZOOM NO MOBILE: o iOS Safari aplica zoom automático ao focar
+     qualquer campo com font-size < 16px (e não desfaz sozinho). Vários campos
+     usam text-sm (14px). Abaixo de 768px, forçamos 16px em todos os campos
+     de formulário — elimina o zoom automático sem alterar o visual no desktop.
+     A altura do campo é controlada por padding (py), então o visual segue
+     praticamente igual, só com texto um pouco maior no celular. */
+  @media (max-width: 767px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
 }
 
 @layer components {
@@ -44,5 +69,29 @@
 
   .badge-arriscado {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800;
+  }
+
+  /* Navegação inferior mobile: alvo de toque confortável + rótulo */
+  .bottom-nav-item {
+    @apply flex flex-col items-center justify-center gap-0.5 flex-1 min-h-[52px] text-[11px] font-medium transition-colors;
+  }
+}
+
+@layer utilities {
+  /* Safe-area (notch, Dynamic Island, barra inferior do iPhone, nav Android) */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  /* Reserva de espaço para a barra inferior no mobile (altura + safe-area).
+     ~64px da barra + inset. Só aplicada abaixo de md. */
+  .pb-mobilenav {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+  /* Área de toque mínima recomendada (~44px) para ícones/botões pequenos. */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
   }
 }

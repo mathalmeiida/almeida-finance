@@ -1,9 +1,11 @@
 import React, { useState } from 'react'
-import { CreditCard, Plus, Calendar, CheckCircle2, Trash2, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { CreditCard, Plus, Calendar, CheckCircle2, Trash2, Loader2, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
 import { useParcelamentos, calcularParcelas } from '../hooks/useParcelamentos'
 import { useCategorias } from '../hooks/useCategorias'
+import { useCartoes } from '../hooks/useCartoes'
 import Modal from '../components/Modal'
-import { formatCurrency, formatDate, corCategoria } from '../lib/utils'
+import { formatCurrency, formatDate, corCategoria, FORMAS_PAGAMENTO, formaPagamentoLabel } from '../lib/utils'
 
 // ─── Barra de progresso ───────────────────────────────────────────────────────
 export function ProgressBar({ value, max }) {
@@ -20,14 +22,20 @@ export function ProgressBar({ value, max }) {
 }
 
 // ─── Formulário de cadastro ───────────────────────────────────────────────────
-export function FormParcelamento({ onSalvar, onCancelar, carregando }) {
+export function FormParcelamento({ onSalvar, onCancelar, carregando, parcelamentoInicial, textoBotao }) {
   const { categorias } = useCategorias('ambos')
+  const { cartoes } = useCartoes()
   const [form, setForm] = useState({
-    descricao: '',
-    valor_total: '',
-    numero_parcelas: '12',
-    primeira_parcela: new Date().toISOString().split('T')[0].slice(0, 7),
-    categoria_id: '',
+    descricao: parcelamentoInicial?.descricao ?? '',
+    valor_total: parcelamentoInicial != null ? String(parcelamentoInicial.valor_total) : '',
+    numero_parcelas: parcelamentoInicial != null ? String(parcelamentoInicial.numero_parcelas) : '12',
+    // "primeira_parcela" no banco é uma data (YYYY-MM-DD); o input month usa YYYY-MM
+    primeira_parcela: parcelamentoInicial?.primeira_parcela
+      ? parcelamentoInicial.primeira_parcela.slice(0, 7)
+      : new Date().toISOString().split('T')[0].slice(0, 7),
+    categoria_id: parcelamentoInicial?.categoria_id ?? '',
+    forma_pagamento: parcelamentoInicial?.forma_pagamento ?? 'cartao_credito',
+    cartao_id: parcelamentoInicial?.cartao_id ?? '',
   })
 
   function handleChange(e) {
@@ -40,6 +48,8 @@ export function FormParcelamento({ onSalvar, onCancelar, carregando }) {
       : { base: 0, ultima: 0 }
   const temAjuste = parcelaBase > 0 && parcelaUltima !== parcelaBase
 
+  const ehCartaoCredito = form.forma_pagamento === 'cartao_credito'
+
   function handleSubmit(e) {
     e.preventDefault()
     onSalvar({
@@ -48,6 +58,9 @@ export function FormParcelamento({ onSalvar, onCancelar, carregando }) {
       numero_parcelas: parseInt(form.numero_parcelas),
       primeira_parcela: form.primeira_parcela + '-01',
       categoria_id: form.categoria_id || null,
+      forma_pagamento: form.forma_pagamento || null,
+      // Só vincula cartão quando a forma é cartão de crédito; caso contrário NULL
+      cartao_id: ehCartaoCredito ? (form.cartao_id || null) : null,
     })
   }
 
@@ -97,10 +110,42 @@ export function FormParcelamento({ onSalvar, onCancelar, carregando }) {
           {categorias.map(c => <option key={c.id} value={c.id}>{c.icone} {c.nome}</option>)}
         </select>
       </div>
+      <div>
+        <label className="label">Forma de pagamento</label>
+        <select name="forma_pagamento" value={form.forma_pagamento} onChange={handleChange} className="input">
+          <option value="">Não informado</option>
+          {FORMAS_PAGAMENTO.map(f => (
+            <option key={f.value} value={f.value}>{f.icone} {f.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Campo "Em qual cartão?" — só aparece ao escolher Cartão de crédito */}
+      {ehCartaoCredito && (
+        <div>
+          <label className="label">Em qual cartão?</label>
+          {cartoes.length === 0 ? (
+            <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-500">
+              Você ainda não possui cartões cadastrados.
+              <Link to="/cartoes" className="block mt-2 text-blue-600 font-medium hover:underline">
+                + Cadastrar cartão
+              </Link>
+            </div>
+          ) : (
+            <select name="cartao_id" value={form.cartao_id} onChange={handleChange} className="input">
+              <option value="">Selecione o cartão</option>
+              {cartoes.map(c => (
+                <option key={c.id} value={c.id}>{c.nome}{c.banco ? ` • ${c.banco}` : ''}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
       <div className="flex gap-3 pt-1">
         <button type="button" onClick={onCancelar} className="btn-secondary flex-1">Cancelar</button>
         <button type="submit" disabled={carregando} className="btn-primary flex-1 flex items-center justify-center gap-2">
-          {carregando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : 'Salvar'}
+          {carregando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : (textoBotao || 'Salvar')}
         </button>
       </div>
     </form>
@@ -108,13 +153,20 @@ export function FormParcelamento({ onSalvar, onCancelar, carregando }) {
 }
 
 // ─── Card de parcelamento ─────────────────────────────────────────────────────
-export function CardParcelamento({ p, onQuitar, onRemover, quitando, removendo }) {
+export function CardParcelamento({ p, onQuitar, onRemover, onEditar, quitando, removendo, cartoes = [] }) {
   const pct = Math.round((p.parcelasPagas / p.numero_parcelas) * 100)
   // valorPagoReal vem do hook com arredondamento correto; fallback para o cálculo antigo
   const valorPago = p.valorPagoReal ?? (p.parcelasPagas * Number(p.valor_parcela))
   // valor da parcela a exibir (base com arredondamento correto; fallback ao valor do banco)
   const valorParcelaExibir = p.valorParcelaBase ?? Number(p.valor_parcela)
   const nomeCategoria = p.categorias?.nome
+
+  // Se vinculado a um cartão cadastrado, mostra o nome real do cartão (💳 Nome • Banco);
+  // caso contrário, mostra o rótulo genérico da forma de pagamento.
+  const cartaoVinculado = p.cartao_id ? cartoes.find(c => c.id === p.cartao_id) : null
+  const textoPagamento = cartaoVinculado
+    ? `💳 ${cartaoVinculado.nome}${cartaoVinculado.banco ? ` • ${cartaoVinculado.banco}` : ''}`
+    : (p.forma_pagamento ? formaPagamentoLabel(p.forma_pagamento) : '')
 
   return (
     <div className={`card group ${!p.ativo ? 'opacity-70' : ''}`}>
@@ -128,6 +180,9 @@ export function CardParcelamento({ p, onQuitar, onRemover, quitando, removendo }
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-gray-900 truncate">{p.descricao}</p>
+            {textoPagamento && (
+              <p className="text-xs text-gray-400 mt-0.5">{textoPagamento}</p>
+            )}
             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
               {nomeCategoria && (
                 <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${corCategoria(nomeCategoria)}`}>
@@ -157,6 +212,15 @@ export function CardParcelamento({ p, onQuitar, onRemover, quitando, removendo }
             </p>
             <p className="text-xs text-gray-400">{formatCurrency(p.valor_total)} total</p>
           </div>
+          {onEditar && (
+            <button
+              onClick={() => onEditar(p)}
+              className="p-1.5 rounded-lg text-gray-300 hover:text-blue-500 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-all mt-0.5"
+              title="Editar parcelamento"
+            >
+              <Pencil size={14} />
+            </button>
+          )}
           <button
             onClick={() => onRemover(p.id)}
             disabled={removendo === p.id}

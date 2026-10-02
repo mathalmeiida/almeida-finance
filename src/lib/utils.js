@@ -30,6 +30,8 @@ const CORES_CATEGORIA = {
   'Saúde':         'bg-red-100 text-red-700',
   'Lazer':         'bg-purple-100 text-purple-700',
   'Serviços':      'bg-teal-100 text-teal-700',
+  'Internet':      'bg-cyan-100 text-cyan-700',
+  'Empréstimos':   'bg-rose-100 text-rose-700',
   'Educação':      'bg-indigo-100 text-indigo-700',
   'Vestuário':     'bg-pink-100 text-pink-700',
   'Pets':          'bg-lime-100 text-lime-700',
@@ -44,6 +46,24 @@ const CORES_CATEGORIA = {
 
 export const corCategoria = (nome) =>
   CORES_CATEGORIA[nome] || 'bg-gray-100 text-gray-600'
+
+// Formas de pagamento (valor salvo no banco + rótulo com ícone para exibição)
+export const FORMAS_PAGAMENTO = [
+  { value: 'cartao_credito',   label: 'Cartão de crédito',  icone: '💳' },
+  { value: 'cartao_debito',    label: 'Cartão de débito',   icone: '💳' },
+  { value: 'pix',              label: 'Pix',                icone: '⚡' },
+  { value: 'boleto',           label: 'Boleto',             icone: '🧾' },
+  { value: 'dinheiro',         label: 'Dinheiro',           icone: '💵' },
+  { value: 'debito_automatico',label: 'Débito automático',  icone: '🏦' },
+  { value: 'transferencia',    label: 'Transferência',      icone: '🔄' },
+  { value: 'outro',            label: 'Outro',              icone: '💠' },
+]
+
+// Retorna "💳 Cartão de crédito" a partir do valor salvo; vazio se não houver
+export const formaPagamentoLabel = (value) => {
+  const f = FORMAS_PAGAMENTO.find(f => f.value === value)
+  return f ? `${f.icone} ${f.label}` : ''
+}
 
 // Estado de carregamento vazio (lista)
 export const estadoVazio = (mensagem = 'Nenhum registro encontrado.') => mensagem

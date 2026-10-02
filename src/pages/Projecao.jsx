@@ -144,10 +144,12 @@ export default function Projecao() {
             </ResponsiveContainer>
           </div>
 
-          {/* Tabela detalhada */}
+          {/* Detalhamento mensal — tabela no desktop, cards no mobile */}
           <div className="card overflow-hidden">
             <h2 className="text-base font-semibold text-gray-900 mb-4">Detalhamento mensal</h2>
-            <div className="overflow-x-auto">
+
+            {/* Desktop (md+): tabela */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left border-b border-gray-100">
@@ -175,6 +177,42 @@ export default function Projecao() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile (<md): cada mês como card vertical, sem scroll horizontal */}
+            <div className="md:hidden space-y-2.5">
+              {projecao.map((m, i) => {
+                const positivo = m.saldo >= 0
+                return (
+                  <div
+                    key={i}
+                    className={`rounded-xl border p-3 ${m.ehMesAtual ? 'border-blue-200 bg-blue-50/40' : 'border-gray-100 bg-white'}`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="capitalize font-semibold text-gray-800 text-sm">{m.mes}</span>
+                      {m.ehMesAtual && (
+                        <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">atual</span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-x-3">
+                      <div>
+                        <p className="text-[11px] text-gray-400">Receitas</p>
+                        <p className="text-sm font-semibold text-green-600">{formatCurrency(m.receitas)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] text-gray-400">Despesas</p>
+                        <p className="text-sm font-semibold text-red-500">{formatCurrency(m.despesas)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] text-gray-400">Sobra</p>
+                        <p className={`text-sm font-bold ${positivo ? 'text-blue-600' : 'text-red-600'}`}>
+                          {formatCurrency(m.saldo)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </>

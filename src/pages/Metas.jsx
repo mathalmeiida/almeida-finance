@@ -250,12 +250,14 @@ export default function Metas() {
                           <p className="text-sm font-bold text-gray-800">{formatCurrency(meta.valor_desejado)}</p>
                         </div>
                         <button onClick={() => setModal({ tipo: 'editar', meta })}
-                          className="p-1.5 rounded-lg text-gray-300 hover:text-blue-500 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-all">
-                          <Pencil size={13} />
+                          aria-label="Editar meta"
+                          className="touch-target rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                          <Pencil size={15} />
                         </button>
                         <button onClick={() => handleRemover(meta.id)} disabled={removendo === meta.id}
-                          className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all">
-                          {removendo === meta.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                          aria-label="Remover meta"
+                          className="touch-target rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                          {removendo === meta.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
                         </button>
                       </div>
                     </div>

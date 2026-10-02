@@ -1,19 +1,26 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { useOnboarding } from './hooks/useOnboarding'
 import Layout from './components/Layout'
+import Onboarding from './pages/Onboarding'
 
 // Páginas autenticadas
 import Dashboard from './pages/Dashboard'
 import Receitas from './pages/Receitas'
 import Despesas from './pages/Despesas'
+import Cartoes from './pages/Cartoes'
 import Projecao from './pages/Projecao'
 import PossoComprar from './pages/PossoCComprar'
 import Metas from './pages/Metas'
+import Configuracoes from './pages/Configuracoes'
+import Admin from './pages/Admin'
 
 // Páginas públicas (autenticação)
 import Login from './pages/auth/Login'
 import Cadastro from './pages/auth/Cadastro'
+import RecuperarSenha from './pages/auth/RecuperarSenha'
+import RedefinirSenha from './pages/auth/RedefinirSenha'
 
 // Tela de carregamento enquanto verifica a sessão
 function Carregando() {
@@ -35,6 +42,53 @@ function RotaPrivada({ children }) {
   return children
 }
 
+// Tela exibida quando a conta foi desativada por um administrador.
+// O usuário não acessa o app (e a RLS já bloqueia os dados no banco).
+function ContaDesativada() {
+  const { sair } = useAuth()
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="card max-w-md w-full text-center">
+        <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <span className="text-3xl">🔒</span>
+        </div>
+        <h1 className="text-xl font-bold text-gray-900 mb-2">Conta desativada</h1>
+        <p className="text-sm text-gray-500 mb-6">
+          Sua conta foi desativada e o acesso ao Almeida Finance está suspenso no momento.
+          Seus dados foram preservados. Se achar que isso é um engano, entre em contato com o
+          administrador.
+        </p>
+        <button onClick={() => sair()} className="btn-secondary w-full">Sair</button>
+      </div>
+    </div>
+  )
+}
+
+// Decide, para o usuário já autenticado, entre: conta desativada, onboarding de
+// primeiro acesso ou o app normal.
+function AreaAutenticada({ children }) {
+  const { usuario, perfil, contaDesativada } = useAuth()
+  const { verificando, precisaOnboarding, concluir } = useOnboarding()
+  // Enquanto o perfil não carrega, não decide nada (evita piscar telas).
+  if (usuario && perfil == null) return <Carregando />
+  // Conta desativada tem prioridade sobre qualquer outra tela.
+  if (contaDesativada) return <ContaDesativada />
+  if (verificando) return <Carregando />
+  if (precisaOnboarding) return <Onboarding aoConcluir={concluir} />
+  return children
+}
+
+// Guarda de rota de administrador. A segurança real está no banco (RLS +
+// função e_admin); aqui apenas evitamos exibir a página a quem não é admin,
+// inclusive se digitar /admin na URL — nesse caso redireciona para a Início.
+function RotaAdmin({ children }) {
+  const { usuario, perfil, ehAdmin } = useAuth()
+  // Perfil ainda carregando (usuário autenticado mas perfil não chegou).
+  if (usuario && perfil == null) return <Carregando />
+  if (!ehAdmin) return <Navigate to="/" replace />
+  return children
+}
+
 // Guarda de rota pública: redireciona para / se já autenticado
 function RotaPublica({ children }) {
   const { autenticado, carregando } = useAuth()
@@ -49,12 +103,17 @@ function Rotas() {
       {/* Rotas públicas */}
       <Route path="/login" element={<RotaPublica><Login /></RotaPublica>} />
       <Route path="/cadastro" element={<RotaPublica><Cadastro /></RotaPublica>} />
+      <Route path="/recuperar-senha" element={<RotaPublica><RecuperarSenha /></RotaPublica>} />
+      {/* Redefinir senha: rota independente — o usuário chega com sessão de recuperação
+          vinda do link do e-mail, então NÃO passa por RotaPublica/RotaPrivada */}
+      <Route path="/redefinir-senha" element={<RedefinirSenha />} />
 
       {/* Rotas privadas — todas dentro do Layout */}
       <Route
         path="/*"
         element={
           <RotaPrivada>
+            <AreaAutenticada>
             <Layout>
               <Routes>
                 <Route path="/" element={<Dashboard />} />
@@ -62,12 +121,16 @@ function Rotas() {
                 <Route path="/despesas" element={<Despesas />} />
                 {/* Parcelamentos foi integrado à tela de Despesas (aba "Parceladas") */}
                 <Route path="/parcelamentos" element={<Navigate to="/despesas" replace />} />
+                <Route path="/cartoes" element={<Cartoes />} />
                 <Route path="/projecao" element={<Projecao />} />
                 <Route path="/posso-comprar" element={<PossoComprar />} />
                 <Route path="/metas" element={<Metas />} />
+                <Route path="/configuracoes" element={<Configuracoes />} />
+                <Route path="/admin" element={<RotaAdmin><Admin /></RotaAdmin>} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>
+            </AreaAutenticada>
           </RotaPrivada>
         }
       />

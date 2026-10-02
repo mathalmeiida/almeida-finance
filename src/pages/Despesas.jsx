@@ -1,49 +1,113 @@
 import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { TrendingDown, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, CreditCard, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
 import { useDespesas } from '../hooks/useDespesas'
-import { useParcelamentos, valorParcelaNoMes } from '../hooks/useParcelamentos'
+import { useParcelamentos, valorParcelaNoMes, calcularParcelas } from '../hooks/useParcelamentos'
 import { useCategorias } from '../hooks/useCategorias'
+import { useCartoes } from '../hooks/useCartoes'
 import { useProjecao } from '../hooks/useProjecao'
 import Modal from '../components/Modal'
-import { formatCurrency, formatDate, corCategoria } from '../lib/utils'
+import { formatCurrency, formatDate, corCategoria, FORMAS_PAGAMENTO, formaPagamentoLabel } from '../lib/utils'
 import { classificarDespesa, labelTipoDespesa } from '../lib/classificarDespesa'
 import { FormParcelamento, CardParcelamento } from './Parcelamentos'
 
 const mesAtual = new Date().getMonth() + 1
 const anoAtual = new Date().getFullYear()
 
-// ─── Formulário de despesa à vista ────────────────────────────────────────────
-function FormDespesa({ onSalvar, onCancelar, carregando }) {
+// ─── Formulário de despesa ────────────────────────────────────────────────────
+// Fluxo unificado: a diferenciação "1x / Parcelada" aparece apenas quando a
+// forma de pagamento é "Cartão de crédito". Internamente, continua usando a
+// lógica existente — à vista grava em "despesas" (onSalvarVista) e parcelada
+// grava em "parcelamentos" (onSalvarParcelada). Nenhum cálculo/banco muda.
+function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando, despesaInicial, textoBotao }) {
   const { categorias } = useCategorias('despesa')
+  const { cartoes } = useCartoes()
+  const editando = !!despesaInicial
+
+  // Deriva a frequência a partir dos campos salvos (retrocompatível).
+  // As opções do form são: nao_repete | diaria | semanal | mensal.
+  // Dados antigos com 'por_meses' são tratados como 'mensal' na edição.
+  function freqInicial(d) {
+    if (!d) return 'nao_repete'
+    const f = d.frequencia || (d.recorrente ? 'mensal' : 'nao_repete')
+    return f === 'por_meses' ? 'mensal' : f
+  }
+
   const [form, setForm] = useState({
-    descricao: '',
-    valor: '',
-    data: new Date().toISOString().split('T')[0],
-    recorrente: false,
-    categoria_id: '',
+    descricao: despesaInicial?.descricao ?? '',
+    valor: despesaInicial != null ? String(despesaInicial.valor) : '',
+    data: despesaInicial?.data ?? new Date().toISOString().split('T')[0],
+    frequencia: freqInicial(despesaInicial),
+    categoria_id: despesaInicial?.categoria_id ?? '',
+    forma_pagamento: despesaInicial?.forma_pagamento ?? '',
+    // Novos (só UI): forma da compra no cartão e nº de parcelas
+    comoCompra: 'avista',       // 'avista' | 'parcelada'
+    numero_parcelas: '12',
+    cartao_id: '',
   })
 
   function handleChange(e) {
-    const { name, value, type, checked } = e.target
-    setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
+    const { name, value } = e.target
+    setForm(prev => ({ ...prev, [name]: value }))
   }
+
+  const ehCartaoCredito = form.forma_pagamento === 'cartao_credito'
+  // Parcelada só é possível no cartão de crédito; edição nunca vira parcelamento.
+  const ehParcelada = !editando && ehCartaoCredito && form.comoCompra === 'parcelada'
+
+  // "Valor por parcela" usando a MESMA função da lógica de parcelamento.
+  const { base: parcelaBase, ultima: parcelaUltima } =
+    ehParcelada && form.valor && form.numero_parcelas
+      ? calcularParcelas(parseFloat(String(form.valor).replace(',', '.')), parseInt(form.numero_parcelas))
+      : { base: 0, ultima: 0 }
+  const temAjusteParcela = parcelaBase > 0 && parcelaUltima !== parcelaBase
 
   function handleSubmit(e) {
     e.preventDefault()
+
+    // ── Caminho PARCELAMENTO (compra parcelada no cartão) ──
+    if (ehParcelada) {
+      onSalvarParcelada({
+        descricao: form.descricao,
+        valor_total: parseFloat(String(form.valor).replace(',', '.')),
+        numero_parcelas: parseInt(form.numero_parcelas),
+        // 1ª parcela = mês da data informada (mesmo formato do FormParcelamento)
+        primeira_parcela: form.data.slice(0, 7) + '-01',
+        categoria_id: form.categoria_id || null,
+        forma_pagamento: 'cartao_credito',
+        cartao_id: form.cartao_id || null,
+      })
+      return
+    }
+
+    // ── Caminho DESPESA (à vista / 1x no cartão / outras formas) ──
     const catSelecionada = categorias.find(c => c.id === form.categoria_id)
     const tipo_despesa = classificarDespesa({
       descricao: form.descricao,
       categoria: catSelecionada?.nome || '',
     })
-    onSalvar({
+    const freq = form.frequencia
+    const recorrente = freq !== 'nao_repete'
+
+    onSalvarVista({
       descricao: form.descricao,
-      valor: parseFloat(form.valor.replace(',', '.')),
+      valor: parseFloat(String(form.valor).replace(',', '.')),
       data: form.data,
-      recorrente: form.recorrente,
+      recorrente,
+      frequencia: freq,
+      recorrencia_meses: null,
       categoria_id: form.categoria_id || null,
       tipo_despesa,
+      forma_pagamento: form.forma_pagamento || null,
     })
   }
+
+  const OPCOES_REPETIR = [
+    { value: 'nao_repete', titulo: 'Não',          desc: 'considera somente a ocorrência cadastrada' },
+    { value: 'mensal',     titulo: 'Mensalmente',  desc: 'repete o mesmo valor todo mês' },
+    { value: 'semanal',    titulo: 'Semanalmente', desc: 'repete o mesmo valor toda semana' },
+    { value: 'diaria',     titulo: 'Diariamente',  desc: 'repete o mesmo valor todo dia' },
+  ]
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -76,19 +140,97 @@ function FormDespesa({ onSalvar, onCancelar, carregando }) {
         </select>
       </div>
 
-      <div className="bg-gray-50 rounded-xl p-3">
-        <label className="flex items-start gap-3 cursor-pointer select-none">
-          <input type="checkbox" name="recorrente" checked={form.recorrente} onChange={handleChange}
-            className="w-4 h-4 mt-0.5 rounded accent-blue-600 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-medium text-gray-800">Essa despesa se repete todo mês</p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Marque se for uma despesa que acontece mensalmente (ex: aluguel, academia, mercado mensal).
-              Despesas recorrentes aparecem na projeção dos próximos meses.
-            </p>
-          </div>
-        </label>
+      <div>
+        <label className="label">Forma de pagamento</label>
+        <select name="forma_pagamento" value={form.forma_pagamento} onChange={handleChange} className="input">
+          <option value="">Não informado</option>
+          {FORMAS_PAGAMENTO.map(f => (
+            <option key={f.value} value={f.value}>{f.icone} {f.label}</option>
+          ))}
+        </select>
       </div>
+
+      {/* "Como foi a compra?" — só para cartão de crédito e só na criação */}
+      {!editando && ehCartaoCredito && (
+        <div className="rounded-xl border border-gray-200 p-3 space-y-3">
+          <div>
+            <label className="label">Como foi a compra?</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button"
+                onClick={() => setForm(p => ({ ...p, comoCompra: 'avista' }))}
+                className={`p-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                  form.comoCompra === 'avista' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                }`}>
+                1x
+              </button>
+              <button type="button"
+                onClick={() => setForm(p => ({ ...p, comoCompra: 'parcelada' }))}
+                className={`p-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                  form.comoCompra === 'parcelada' ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-200 text-gray-600'
+                }`}>
+                Parcelada
+              </button>
+            </div>
+          </div>
+
+          {ehParcelada && (
+            <div>
+              <label className="label">Número de parcelas</label>
+              <select name="numero_parcelas" value={form.numero_parcelas} onChange={handleChange} className="input">
+                {[2,3,4,5,6,7,8,9,10,11,12,18,24,36,48,60].map(n => (
+                  <option key={n} value={n}>{n}x</option>
+                ))}
+              </select>
+              {parcelaBase > 0 && (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 mt-2">
+                  <p className="text-xs text-blue-700">
+                    Valor por parcela: <strong>{formatCurrency(parcelaBase)}/mês</strong>
+                  </p>
+                  {temAjusteParcela && (
+                    <p className="text-xs text-blue-600 mt-0.5">
+                      Última parcela: <strong>{formatCurrency(parcelaUltima)}</strong> (ajuste de centavos)
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Em qual cartão? (opcional, igual ao FormParcelamento) */}
+              <label className="label mt-3">Em qual cartão? <span className="text-gray-400">(opcional)</span></label>
+              {cartoes.length === 0 ? (
+                <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-500">
+                  Você ainda não possui cartões cadastrados.
+                  <Link to="/cartoes" className="block mt-2 text-blue-600 font-medium hover:underline">
+                    + Cadastrar cartão
+                  </Link>
+                </div>
+              ) : (
+                <select name="cartao_id" value={form.cartao_id} onChange={handleChange} className="input">
+                  <option value="">Não vincular a um cartão específico</option>
+                  {cartoes.map(c => (
+                    <option key={c.id} value={c.id}>{c.nome}{c.banco ? ` • ${c.banco}` : ''}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* "Essa despesa se repete?" — separada. Oculta quando for compra parcelada
+          (parcelamento ≠ recorrência; evita duplicidade — item 8). */}
+      {!ehParcelada && (
+        <div className="rounded-xl border border-gray-200 p-3">
+          <label className="label">Essa despesa se repete?</label>
+          <select name="frequencia" value={form.frequencia} onChange={handleChange} className="input">
+            {OPCOES_REPETIR.map(o => (
+              <option key={o.value} value={o.value}>{o.titulo}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-400 mt-1.5">
+            Use para contas recorrentes, como aluguel, internet e assinaturas.
+          </p>
+        </div>
+      )}
 
       <p className="text-xs text-gray-400 flex items-center gap-1">
         <span>✨</span>
@@ -101,7 +243,7 @@ function FormDespesa({ onSalvar, onCancelar, carregando }) {
           className="btn-primary flex-1 flex items-center justify-center gap-2">
           {carregando
             ? <><Loader2 size={15} className="animate-spin" /> Salvando...</>
-            : 'Salvar despesa'}
+            : (textoBotao || 'Salvar despesa')}
         </button>
       </div>
     </form>
@@ -142,60 +284,49 @@ function NotificacaoClassificacao({ despesa, onAlterar, onFechar }) {
   )
 }
 
-// ─── Modal com escolha À vista / Parcelada ────────────────────────────────────
-function ModalNovaDespesa({ aberto, onFechar, onSalvarVista, onSalvarParcelada, salvandoVista, salvandoParcelada }) {
-  const [modo, setModo] = useState('avista')
-
-  // Reseta para "à vista" sempre que reabre
-  useEffect(() => {
-    if (aberto) setModo('avista')
-  }, [aberto])
+// ─── Modal: Nova despesa (À vista / Parcelada) ou Editar despesa ──────────────
+function ModalNovaDespesa({
+  aberto, onFechar, onSalvarVista, onSalvarParcelada,
+  salvandoVista, salvandoParcelada, despesaEmEdicao,
+}) {
+  const editando = !!despesaEmEdicao
 
   return (
-    <Modal aberto={aberto} onFechar={onFechar} titulo="Nova despesa">
-      {/* Seletor de tipo */}
-      <div className="flex gap-3 mb-5">
-        <button
-          type="button"
-          onClick={() => setModo('avista')}
-          className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-sm font-medium transition-all ${
-            modo === 'avista' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
-          }`}
-        >
-          <TrendingDown size={16} /> À vista
-        </button>
-        <button
-          type="button"
-          onClick={() => setModo('parcelada')}
-          className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-sm font-medium transition-all ${
-            modo === 'parcelada' ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
-          }`}
-        >
-          <CreditCard size={16} /> Parcelada
-        </button>
-      </div>
-
-      {modo === 'avista' ? (
-        <FormDespesa onSalvar={onSalvarVista} onCancelar={onFechar} carregando={salvandoVista} />
-      ) : (
-        <FormParcelamento onSalvar={onSalvarParcelada} onCancelar={onFechar} carregando={salvandoParcelada} />
-      )}
+    <Modal
+      aberto={aberto}
+      onFechar={onFechar}
+      titulo={editando ? 'Editar despesa' : 'Nova despesa'}
+    >
+      {/* Fluxo unificado: a diferenciação 1x/Parcelada mora dentro do próprio
+          formulário e só aparece quando a forma de pagamento é Cartão de crédito.
+          Na edição, só o caminho de despesa (não vira parcelamento). */}
+      <FormDespesa
+        key={editando ? despesaEmEdicao.id : 'nova'}
+        onSalvarVista={onSalvarVista}
+        onSalvarParcelada={onSalvarParcelada}
+        onCancelar={onFechar}
+        carregando={editando ? salvandoVista : (salvandoVista || salvandoParcelada)}
+        despesaInicial={editando ? despesaEmEdicao : undefined}
+        textoBotao={editando ? 'Salvar alterações' : 'Salvar despesa'}
+      />
     </Modal>
   )
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function Despesas() {
-  const { despesas, total, carregando, criar, remover, alterarTipo } = useDespesas(mesAtual, anoAtual)
+  const { despesas, total, carregando, criar, atualizar, remover, alterarTipo } = useDespesas(mesAtual, anoAtual)
   const {
     parcelamentos,
     totalMesAtual,
     carregando: carregandoParc,
     criar: criarParcelamento,
+    atualizar: atualizarParcelamento,
     quitar,
     remover: removerParcelamento,
   } = useParcelamentos()
   const { resumoMes } = useProjecao()
+  const { cartoes } = useCartoes()
 
   const [filtro, setFiltro] = useState('Todas')
   const [modalAberto, setModalAberto] = useState(false)
@@ -207,6 +338,9 @@ export default function Despesas() {
   const [erroAcao, setErroAcao] = useState('')
   const [ultimaDespesa, setUltimaDespesa] = useState(null)
   const [mostrarConcluidos, setMostrarConcluidos] = useState(false)
+  const [despesaEditando, setDespesaEditando] = useState(null) // null = modo criação
+  const [parcelamentoEditando, setParcelamentoEditando] = useState(null)
+  const [salvandoEdicaoParc, setSalvandoEdicaoParc] = useState(false)
 
   const nomeMes = new Date(anoAtual, mesAtual - 1)
     .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
@@ -267,15 +401,39 @@ export default function Despesas() {
   const totalLinhas = despesasVisiveis.length + parcelasVisiveis.length
 
   // ─── Handlers despesa à vista ───
+  // Abre o modal em modo criação
+  function handleAbrirNova() {
+    setDespesaEditando(null)
+    setModalAberto(true)
+  }
+
+  // Abre o modal em modo edição, preenchido com a despesa
+  function handleEditar(despesa) {
+    setDespesaEditando(despesa)
+    setModalAberto(true)
+  }
+
+  function fecharModal() {
+    setModalAberto(false)
+    setDespesaEditando(null)
+  }
+
+  // Salva: cria uma nova OU atualiza a existente (sem duplicar)
   async function handleSalvar(dados) {
     setSalvando(true)
     setErroAcao('')
     try {
-      const nova = await criar(dados)
-      setModalAberto(false)
-      setUltimaDespesa(nova)
+      if (despesaEditando) {
+        await atualizar(despesaEditando.id, dados)
+      } else {
+        const nova = await criar(dados)
+        setUltimaDespesa(nova)
+      }
+      fecharModal()
     } catch {
-      setErroAcao('Erro ao salvar despesa. Tente novamente.')
+      setErroAcao(despesaEditando
+        ? 'Erro ao salvar alterações. Tente novamente.'
+        : 'Erro ao salvar despesa. Tente novamente.')
     } finally {
       setSalvando(false)
     }
@@ -320,6 +478,24 @@ export default function Despesas() {
     }
   }
 
+  // Edição de parcelamento (modal próprio)
+  function handleEditarParc(p) {
+    setParcelamentoEditando(p)
+  }
+
+  async function handleSalvarEdicaoParc(dados) {
+    setSalvandoEdicaoParc(true)
+    setErroAcao('')
+    try {
+      await atualizarParcelamento(parcelamentoEditando.id, dados)
+      setParcelamentoEditando(null)
+    } catch {
+      setErroAcao('Erro ao salvar alterações do parcelamento. Tente novamente.')
+    } finally {
+      setSalvandoEdicaoParc(false)
+    }
+  }
+
   async function handleQuitar(id) {
     if (!confirm('Confirma a quitação antecipada? As parcelas futuras serão removidas da projeção.')) return
     setQuitando(id)
@@ -354,7 +530,7 @@ export default function Despesas() {
           <h1 className="text-2xl font-bold text-gray-900">Despesas</h1>
           <p className="text-sm text-gray-500 mt-1 capitalize">{nomeMes}</p>
         </div>
-        <button onClick={() => setModalAberto(true)}
+        <button onClick={handleAbrirNova}
           className="btn-primary flex items-center gap-2 self-start sm:self-auto">
           <Plus size={16} /> Nova despesa
         </button>
@@ -444,7 +620,7 @@ export default function Despesas() {
             <div className="text-center py-12">
               <TrendingDown size={36} className="text-gray-200 mx-auto mb-3" />
               <p className="text-sm text-gray-500">Nenhuma despesa nesta categoria.</p>
-              <button onClick={() => setModalAberto(true)} className="mt-3 text-sm text-blue-600 hover:underline">
+              <button onClick={handleAbrirNova} className="mt-3 text-sm text-blue-600 hover:underline">
                 Cadastrar despesa
               </button>
             </div>
@@ -465,6 +641,9 @@ export default function Despesas() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{p.descricao}</p>
+                        {p.forma_pagamento && (
+                          <p className="text-xs text-gray-400 mt-0.5">{formaPagamentoLabel(p.forma_pagamento)}</p>
+                        )}
                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           <span className="flex items-center gap-1 text-xs text-orange-600">
                             <CreditCard size={11} />Parcela {p.parcelaAtual}/{p.numero_parcelas}
@@ -504,6 +683,9 @@ export default function Despesas() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{d.descricao}</p>
+                        {d.forma_pagamento && (
+                          <p className="text-xs text-gray-400 mt-0.5">{formaPagamentoLabel(d.forma_pagamento)}</p>
+                        )}
                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           <span className="flex items-center gap-1 text-xs text-gray-400">
                             <Calendar size={11} />{formatDate(d.data)}
@@ -525,15 +707,16 @@ export default function Despesas() {
                           {nomeCategoria}
                         </span>
                       )}
-                      <span className="text-sm font-bold text-red-500 ml-1">-{formatCurrency(d.valor)}</span>
-                      <button onClick={() => handleAlterarTipo(d.id, tipoOposto)}
-                        title={`Alterar para ${labelOposto}`}
-                        className="p-1.5 rounded-lg text-gray-300 hover:text-blue-500 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-all">
-                        <Pencil size={13} />
+                      <span className="text-sm font-bold text-red-500 ml-1 whitespace-nowrap">-{formatCurrency(d.valor)}</span>
+                      <button onClick={() => handleEditar(d)}
+                        title="Editar despesa" aria-label="Editar despesa"
+                        className="touch-target rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                        <Pencil size={15} />
                       </button>
                       <button onClick={() => handleRemover(d.id)} disabled={removendo === d.id}
-                        className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all">
-                        {removendo === d.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                        aria-label="Remover despesa"
+                        className="touch-target rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                        {removendo === d.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
                       </button>
                     </div>
                   </div>
@@ -574,7 +757,7 @@ export default function Despesas() {
               <div className="card text-center py-12">
                 <CreditCard size={36} className="text-gray-200 mx-auto mb-3" />
                 <p className="text-sm text-gray-500">Nenhuma compra parcelada cadastrada.</p>
-                <button onClick={() => setModalAberto(true)} className="mt-3 text-sm text-blue-600 hover:underline">
+                <button onClick={handleAbrirNova} className="mt-3 text-sm text-blue-600 hover:underline">
                   Cadastrar parcelamento
                 </button>
               </div>
@@ -586,6 +769,7 @@ export default function Despesas() {
                   {parcAtivos.map(p => (
                     <CardParcelamento key={p.id} p={p}
                       onQuitar={handleQuitar} onRemover={handleRemoverParc}
+                      onEditar={handleEditarParc} cartoes={cartoes}
                       quitando={quitando} removendo={removendoParc} />
                   ))}
                 </>
@@ -604,6 +788,7 @@ export default function Despesas() {
                       {parcConcluidos.map(p => (
                         <CardParcelamento key={p.id} p={p}
                           onQuitar={handleQuitar} onRemover={handleRemoverParc}
+                          cartoes={cartoes}
                           quitando={quitando} removendo={removendoParc} />
                       ))}
                     </div>
@@ -615,15 +800,34 @@ export default function Despesas() {
         </div>
       )}
 
-      {/* Modal com escolha À vista / Parcelada */}
+      {/* Modal: Nova despesa (criação) ou Editar despesa */}
       <ModalNovaDespesa
         aberto={modalAberto}
-        onFechar={() => setModalAberto(false)}
+        onFechar={fecharModal}
         onSalvarVista={handleSalvar}
         onSalvarParcelada={handleSalvarParcelado}
         salvandoVista={salvando}
         salvandoParcelada={salvandoParc}
+        despesaEmEdicao={despesaEditando}
       />
+
+      {/* Modal: Editar parcelamento */}
+      <Modal
+        aberto={!!parcelamentoEditando}
+        onFechar={() => setParcelamentoEditando(null)}
+        titulo="Editar parcelamento"
+      >
+        {parcelamentoEditando && (
+          <FormParcelamento
+            key={parcelamentoEditando.id}
+            onSalvar={handleSalvarEdicaoParc}
+            onCancelar={() => setParcelamentoEditando(null)}
+            carregando={salvandoEdicaoParc}
+            parcelamentoInicial={parcelamentoEditando}
+            textoBotao="Salvar alterações"
+          />
+        )}
+      </Modal>
     </div>
   )
 }

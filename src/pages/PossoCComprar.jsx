@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { ShoppingCart, AlertTriangle, CheckCircle2, XCircle, Calculator, Info, Loader2 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { formatCurrency } from '../lib/utils'
+import Modal from '../components/Modal'
 
 // ─────────────────────────────────────────────
 // Motor de simulação (usa dados reais)
@@ -65,28 +66,48 @@ function simularCompra({ projecao, valorTotal, tipo, numeroParcelas }) {
 // ─────────────────────────────────────────────
 function gerarExplicacao(res, nome) {
   const compra = nome || 'esta compra'
+  const Compra = compra.charAt(0).toUpperCase() + compra.slice(1)
   const { custoPorMes, mesesDeImpacto, sobraMesAtual, novaSobra,
-          novosNegativo, mesesNegativosCom, classificacao } = res
+          novosNegativo, mesesNegativosCom, classificacao, tipo, valorTotal } = res
 
-  const impactoTexto = mesesDeImpacto > 1
-    ? `adicionará ${formatCurrency(custoPorMes)} por mês durante ${mesesDeImpacto} meses`
-    : `custará ${formatCurrency(custoPorMes)} à vista`
+  // ── À VISTA ──
+  if (tipo === 'avista') {
+    const falta = Math.max(0, (valorTotal ?? custoPorMes) - sobraMesAtual)
+    const valorCompra = valorTotal ?? custoPorMes
+    if (classificacao === 'saudavel') {
+      return `${Compra} custa ${formatCurrency(valorCompra)}. ` +
+        `Você tem ${formatCurrency(sobraMesAtual)} disponíveis e, após a compra, ainda sobrariam ` +
+        `${formatCurrency(novaSobra)} no mês.`
+    }
+    if (classificacao === 'atencao') {
+      return `${Compra} custa ${formatCurrency(valorCompra)}. ` +
+        `Cabe no seu orçamento, mas o disponível cairia de ${formatCurrency(sobraMesAtual)} ` +
+        `para ${formatCurrency(novaSobra)}, deixando pouca folga para imprevistos.`
+    }
+    // arriscado / não cabe
+    return `Esta compra custa ${formatCurrency(valorCompra)}. ` +
+      `Com base no seu orçamento atual, faltariam ${formatCurrency(falta)} para realizar essa compra ` +
+      `sem comprometer o planejamento do mês. O orçamento ficaria em ${formatCurrency(novaSobra)}.`
+  }
+
+  // ── PARCELADA ──
+  const impactoTexto = `adicionará ${formatCurrency(custoPorMes)} por mês durante ${mesesDeImpacto} meses`
 
   if (classificacao === 'saudavel') {
-    return `${compra.charAt(0).toUpperCase() + compra.slice(1)} ${impactoTexto}. ` +
+    return `${Compra} ${impactoTexto}. ` +
       `Sua sobra mensal passará de ${formatCurrency(sobraMesAtual)} para ${formatCurrency(novaSobra)} ` +
       `e nenhum dos próximos meses ficará negativo.`
   }
 
   if (classificacao === 'atencao') {
-    return `${compra.charAt(0).toUpperCase() + compra.slice(1)} ${impactoTexto}. ` +
+    return `${Compra} ${impactoTexto}. ` +
       `Sua sobra mensal passará de ${formatCurrency(sobraMesAtual)} para ${formatCurrency(novaSobra)}. ` +
       (mesesNegativosCom > 0
         ? `Atenção: ${mesesNegativosCom} mês(es) da projeção já apresentam saldo negativo.`
         : `Você ainda terá saldo positivo, mas com menos folga para imprevistos.`)
   }
 
-  return `${compra.charAt(0).toUpperCase() + compra.slice(1)} ${impactoTexto}. ` +
+  return `${Compra} ${impactoTexto}. ` +
     `Isso tornará ${novosNegativo} mês(es) negativo(s) no seu orçamento. ` +
     `A sobra cairia de ${formatCurrency(sobraMesAtual)} para ${formatCurrency(novaSobra)}. ` +
     `Recomendamos revisar o valor, as condições ou adiar a compra.`
@@ -120,6 +141,100 @@ const resultConfig = {
 }
 
 // ─────────────────────────────────────────────
+// Conteúdo do resultado (reutilizado no desktop e no bottom sheet mobile)
+// ─────────────────────────────────────────────
+function ConteudoResultado({ resultado, config }) {
+  const ehAvista = resultado.tipo === 'avista'
+  const valorCompra = resultado.valorTotal ?? resultado.custoPorMes
+  const falta = Math.max(0, valorCompra - resultado.sobraMesAtual)
+  const orcamentoNegativo = resultado.novaSobra < 0
+
+  // Título: para à vista que não cabe, usar "Não cabe no orçamento atual"
+  const titulo = (ehAvista && resultado.classificacao === 'arriscado')
+    ? 'Não cabe no orçamento atual'
+    : config.label
+
+  // Célula de métrica com bom contraste (rótulo escuro, valor forte)
+  const Metric = ({ rotulo, valor, cor = 'text-gray-900' }) => (
+    <div className="bg-white rounded-xl p-3 text-center shadow-sm">
+      <p className="text-xs text-gray-500 mb-1">{rotulo}</p>
+      <p className={`text-base font-bold ${cor}`}>{valor}</p>
+    </div>
+  )
+
+  return (
+    <>
+      <div className="flex items-center gap-3 mb-4">
+        <config.icon size={32} className={config.iconColor} />
+        <div>
+          <p className="text-xs text-gray-600 font-medium uppercase tracking-wide">Resultado da simulação</p>
+          <p className={`text-2xl font-bold ${config.color}`}>{titulo}</p>
+        </div>
+      </div>
+
+      {/* Texto explicativo com contraste reforçado (gray-800 em vez de claro) */}
+      <p className="text-sm text-gray-800 leading-relaxed mb-4">
+        {gerarExplicacao(resultado, resultado.nomeCompra)}
+      </p>
+
+      {ehAvista ? (
+        /* ── À VISTA ── */
+        <div className="grid grid-cols-2 gap-3">
+          <Metric rotulo="Valor da compra" valor={formatCurrency(valorCompra)} />
+          <Metric rotulo="Disponível hoje" valor={formatCurrency(resultado.sobraMesAtual)} />
+          <Metric
+            rotulo="Valor que falta"
+            valor={falta > 0 ? formatCurrency(falta) : '—'}
+            cor={falta > 0 ? 'text-red-600' : 'text-green-600'}
+          />
+          <Metric
+            rotulo="Impacto no orçamento"
+            valor={formatCurrency(resultado.novaSobra)}
+            cor={orcamentoNegativo ? 'text-red-600' : 'text-blue-600'}
+          />
+        </div>
+      ) : (
+        /* ── PARCELADA ── */
+        <div className="grid grid-cols-2 gap-3">
+          <Metric rotulo="Valor da parcela" valor={`${formatCurrency(resultado.custoPorMes)}/mês`} />
+          <Metric rotulo="Sobra atual" valor={formatCurrency(resultado.sobraMesAtual)} />
+          <Metric
+            rotulo="Sobra após a parcela"
+            valor={formatCurrency(resultado.novaSobra)}
+            cor={resultado.novaSobra >= 0 ? 'text-blue-600' : 'text-red-600'}
+          />
+          <Metric rotulo="Meses impactados" valor={`${resultado.mesesDeImpacto}`} />
+        </div>
+      )}
+
+      {/* À vista: destaque de orçamento negativo. */}
+      {ehAvista && orcamentoNegativo && (
+        <div className="mt-3 flex items-center gap-2 bg-red-100 rounded-xl px-3 py-2">
+          <XCircle size={14} className="text-red-600 flex-shrink-0" />
+          <p className="text-xs text-red-800 font-medium">
+            Após a compra, o orçamento do mês ficaria em {formatCurrency(resultado.novaSobra)}.
+          </p>
+        </div>
+      )}
+
+      {/* Parcelada: mantém a análise da projeção dos meses futuros. */}
+      {!ehAvista && resultado.mesesNegativosCom > 0 && (
+        <div className="mt-3 flex items-center gap-2 bg-red-100 rounded-xl px-3 py-2">
+          <XCircle size={14} className="text-red-600 flex-shrink-0" />
+          <p className="text-xs text-red-800 font-medium">
+            {resultado.mesesNegativosCom} mês(es) com saldo negativo na projeção após esta compra
+          </p>
+        </div>
+      )}
+
+      <p className="text-xs text-gray-500 mt-4 text-center italic">
+        Simulação de orçamento — não constitui aconselhamento financeiro profissional.
+      </p>
+    </>
+  )
+}
+
+// ─────────────────────────────────────────────
 // Componente principal
 // ─────────────────────────────────────────────
 export default function PossoComprar() {
@@ -132,11 +247,14 @@ export default function PossoComprar() {
     parcelas: '12',
   })
   const [resultado, setResultado] = useState(null)
+  // No mobile, o resultado abre em bottom sheet (Modal). No desktop, fica inline.
+  const [mostrarSheet, setMostrarSheet] = useState(false)
 
   function handleChange(e) {
     const { name, value } = e.target
     setForm(prev => ({ ...prev, [name]: value }))
     setResultado(null)
+    setMostrarSheet(false)
   }
 
   function handleSimular(e) {
@@ -150,7 +268,11 @@ export default function PossoComprar() {
       tipo: form.tipo,
       numeroParcelas: parseInt(form.parcelas),
     })
-    if (sim) setResultado({ ...sim, nomeCompra: form.nome })
+    if (sim) {
+      // tipo e valorTotal são apenas metadados de APRESENTAÇÃO (não entram no cálculo)
+      setResultado({ ...sim, nomeCompra: form.nome, tipo: form.tipo, valorTotal: valorNum })
+      setMostrarSheet(true) // abre o sheet no mobile; no desktop é ignorado (inline)
+    }
   }
 
   const config = resultado ? resultConfig[resultado.classificacao] : null
@@ -270,60 +392,33 @@ export default function PossoComprar() {
         )}
       </div>
 
-      {/* Resultado */}
+      {/* Resultado — DESKTOP (md+): inline abaixo do formulário, como antes */}
       {resultado && config && (
-        <div className={`card border-2 ${config.border} ${config.bg}`}>
-          <div className="flex items-center gap-3 mb-4">
-            <config.icon size={32} className={config.iconColor} />
-            <div>
-              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Resultado da simulação</p>
-              <p className={`text-2xl font-bold ${config.color}`}>{config.label}</p>
-            </div>
-          </div>
-
-          <p className="text-sm text-gray-700 leading-relaxed mb-4">
-            {gerarExplicacao(resultado, resultado.nomeCompra)}
-          </p>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-white rounded-xl p-3 text-center">
-              <p className="text-xs text-gray-400 mb-1">Custo por mês</p>
-              <p className="text-base font-bold text-gray-900">{formatCurrency(resultado.custoPorMes)}</p>
-            </div>
-            <div className="bg-white rounded-xl p-3 text-center">
-              <p className="text-xs text-gray-400 mb-1">Nova sobra mensal</p>
-              <p className={`text-base font-bold ${resultado.novaSobra >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                {formatCurrency(resultado.novaSobra)}
-              </p>
-            </div>
-            <div className="bg-white rounded-xl p-3 text-center">
-              <p className="text-xs text-gray-400 mb-1">Sobra atual</p>
-              <p className="text-base font-bold text-gray-900">{formatCurrency(resultado.sobraMesAtual)}</p>
-            </div>
-            <div className="bg-white rounded-xl p-3 text-center">
-              <p className="text-xs text-gray-400 mb-1">% da sobra consumida</p>
-              <p className={`text-base font-bold ${
-                resultado.percentualConsumo > 80 ? 'text-red-600' :
-                resultado.percentualConsumo > 50 ? 'text-yellow-600' : 'text-green-600'}`}>
-                {Math.min(100, resultado.percentualConsumo).toFixed(0)}%
-              </p>
-            </div>
-          </div>
-
-          {resultado.mesesNegativosCom > 0 && (
-            <div className="mt-3 flex items-center gap-2 bg-red-100 rounded-xl px-3 py-2">
-              <XCircle size={14} className="text-red-500 flex-shrink-0" />
-              <p className="text-xs text-red-700">
-                {resultado.mesesNegativosCom} mês(es) com saldo negativo na projeção após esta compra
-              </p>
-            </div>
-          )}
-
-          <p className="text-xs text-gray-400 mt-4 text-center italic">
-            Simulação de orçamento — não constitui aconselhamento financeiro profissional.
-          </p>
+        <div className={`hidden md:block card border-2 ${config.border} ${config.bg}`}>
+          <ConteudoResultado resultado={resultado} config={config} />
         </div>
       )}
+
+      {/* Resultado — MOBILE (<md): bottom sheet sobre a tela, com scroll interno */}
+      <div className="md:hidden">
+        {resultado && config && (
+          <Modal
+            aberto={mostrarSheet}
+            onFechar={() => setMostrarSheet(false)}
+            titulo="Resultado da simulação"
+          >
+            <div className={`-m-5 p-5 ${config.bg}`}>
+              <ConteudoResultado resultado={resultado} config={config} />
+              <button
+                onClick={() => setMostrarSheet(false)}
+                className="btn-secondary w-full mt-4"
+              >
+                Fechar
+              </button>
+            </div>
+          </Modal>
+        )}
+      </div>
     </div>
   )
 }

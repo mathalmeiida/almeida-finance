@@ -11,6 +11,12 @@ export default function Modal({ aberto, onFechar, titulo, children }) {
     return () => document.removeEventListener('keydown', handler)
   }, [aberto, onFechar])
 
+  // Bloqueia o scroll do conteúdo de fundo enquanto o modal está aberto.
+  useEffect(() => {
+    document.body.classList.toggle('no-scroll', aberto)
+    return () => document.body.classList.remove('no-scroll')
+  }, [aberto])
+
   if (!aberto) return null
 
   return (
@@ -20,18 +26,21 @@ export default function Modal({ aberto, onFechar, titulo, children }) {
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onFechar}
       />
-      {/* Painel */}
-      <div className="relative bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
-          <h3 className="text-base font-semibold text-gray-900">{titulo}</h3>
+      {/* Painel — bottom sheet no mobile, card centralizado no desktop.
+          Altura limitada à viewport (com safe-area no mobile) e scroll interno;
+          o cabeçalho (título + X) fica fixo no topo. */}
+      <div className="relative bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90dvh] sm:max-h-[90vh] overflow-y-auto flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10 flex-shrink-0">
+          <h3 className="text-base font-semibold text-gray-900 pr-2 truncate">{titulo}</h3>
           <button
             onClick={onFechar}
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+            className="touch-target -mr-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+            aria-label="Fechar"
           >
             <X size={18} />
           </button>
         </div>
-        <div className="p-5">
+        <div className="p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           {children}
         </div>
       </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { TrendingUp, Plus, RefreshCw, Calendar, Trash2, Loader2 } from 'lucide-react'
+import { TrendingUp, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil } from 'lucide-react'
 import { useReceitas } from '../hooks/useReceitas'
 import { useCategorias } from '../hooks/useCategorias'
 import Modal from '../components/Modal'
@@ -8,14 +8,15 @@ import { formatCurrency, formatDate, corCategoria } from '../lib/utils'
 const mesAtual = new Date().getMonth() + 1
 const anoAtual = new Date().getFullYear()
 
-function FormReceita({ onSalvar, onCancelar, carregando }) {
+function FormReceita({ onSalvar, onCancelar, carregando, receitaInicial, textoBotao }) {
   const { categorias } = useCategorias('receita')
   const [form, setForm] = useState({
-    descricao: '',
-    valor: '',
-    data: new Date().toISOString().split('T')[0],
-    recorrente: true,   // padrão: recorrente (a maioria das receitas é mensal)
-    categoria: '',
+    descricao: receitaInicial?.descricao ?? '',
+    valor: receitaInicial != null ? String(receitaInicial.valor) : '',
+    data: receitaInicial?.data ?? new Date().toISOString().split('T')[0],
+    // padrão: recorrente (a maioria das receitas é mensal); na edição usa o valor salvo
+    recorrente: receitaInicial != null ? !!receitaInicial.recorrente : true,
+    categoria: receitaInicial?.categoria ?? '',
   })
 
   function handleChange(e) {
@@ -94,7 +95,7 @@ function FormReceita({ onSalvar, onCancelar, carregando }) {
       <div className="flex gap-3 pt-1">
         <button type="button" onClick={onCancelar} className="btn-secondary flex-1">Cancelar</button>
         <button type="submit" disabled={carregando} className="btn-primary flex-1 flex items-center justify-center gap-2">
-          {carregando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : 'Salvar receita'}
+          {carregando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : (textoBotao || 'Salvar receita')}
         </button>
       </div>
     </form>
@@ -102,22 +103,47 @@ function FormReceita({ onSalvar, onCancelar, carregando }) {
 }
 
 export default function Receitas() {
-  const { receitas, total, carregando, erro, criar, remover } = useReceitas(mesAtual, anoAtual)
+  const { receitas, total, carregando, erro, criar, atualizar, remover } = useReceitas(mesAtual, anoAtual)
   const [modalAberto, setModalAberto] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [removendo, setRemovendo] = useState(null)
   const [erroAcao, setErroAcao] = useState('')
+  const [receitaEditando, setReceitaEditando] = useState(null) // null = modo criação
 
   const nomeMes = new Date(anoAtual, mesAtual - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 
+  // Abre o modal em modo criação
+  function handleAbrirNova() {
+    setReceitaEditando(null)
+    setModalAberto(true)
+  }
+
+  // Abre o modal em modo edição, preenchido com a receita
+  function handleEditar(receita) {
+    setReceitaEditando(receita)
+    setModalAberto(true)
+  }
+
+  function fecharModal() {
+    setModalAberto(false)
+    setReceitaEditando(null)
+  }
+
+  // Salva: cria uma nova OU atualiza a existente (sem duplicar)
   async function handleSalvar(dados) {
     setSalvando(true)
     setErroAcao('')
     try {
-      await criar(dados)
-      setModalAberto(false)
+      if (receitaEditando) {
+        await atualizar(receitaEditando.id, dados)
+      } else {
+        await criar(dados)
+      }
+      fecharModal()
     } catch (err) {
-      setErroAcao('Erro ao salvar receita. Tente novamente.')
+      setErroAcao(receitaEditando
+        ? 'Erro ao salvar alterações. Tente novamente.'
+        : 'Erro ao salvar receita. Tente novamente.')
     } finally {
       setSalvando(false)
     }
@@ -142,7 +168,7 @@ export default function Receitas() {
           <h1 className="text-2xl font-bold text-gray-900">Receitas</h1>
           <p className="text-sm text-gray-500 mt-1 capitalize">{nomeMes}</p>
         </div>
-        <button onClick={() => setModalAberto(true)} className="btn-primary flex items-center gap-2 self-start sm:self-auto">
+        <button onClick={handleAbrirNova} className="btn-primary flex items-center gap-2 self-start sm:self-auto">
           <Plus size={16} /> Nova receita
         </button>
       </div>
@@ -177,7 +203,7 @@ export default function Receitas() {
           <div className="text-center py-12">
             <TrendingUp size={36} className="text-gray-200 mx-auto mb-3" />
             <p className="text-sm text-gray-500">Nenhuma receita cadastrada este mês.</p>
-            <button onClick={() => setModalAberto(true)} className="mt-3 text-sm text-blue-600 hover:underline">
+            <button onClick={handleAbrirNova} className="mt-3 text-sm text-blue-600 hover:underline">
               Cadastrar primeira receita
             </button>
           </div>
@@ -203,19 +229,29 @@ export default function Receitas() {
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                   {r.categoria && (
                     <span className={`hidden sm:inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${corCategoria(r.categoria)}`}>
                       {r.categoria}
                     </span>
                   )}
-                  <span className="text-sm font-bold text-green-600">+{formatCurrency(r.valor)}</span>
+                  <span className="text-sm font-bold text-green-600 whitespace-nowrap">+{formatCurrency(r.valor)}</span>
+                  {/* Ações: sempre visíveis no mobile (sem hover); revelam no hover no desktop */}
+                  <button
+                    onClick={() => handleEditar(r)}
+                    title="Editar receita"
+                    aria-label="Editar receita"
+                    className="touch-target rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
+                  >
+                    <Pencil size={15} />
+                  </button>
                   <button
                     onClick={() => handleRemover(r.id)}
                     disabled={removendo === r.id}
-                    className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
+                    aria-label="Remover receita"
+                    className="touch-target rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
                   >
-                    {removendo === r.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    {removendo === r.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
                   </button>
                 </div>
               </div>
@@ -224,8 +260,19 @@ export default function Receitas() {
         )}
       </div>
 
-      <Modal aberto={modalAberto} onFechar={() => setModalAberto(false)} titulo="Nova receita">
-        <FormReceita onSalvar={handleSalvar} onCancelar={() => setModalAberto(false)} carregando={salvando} />
+      <Modal
+        aberto={modalAberto}
+        onFechar={fecharModal}
+        titulo={receitaEditando ? 'Editar receita' : 'Nova receita'}
+      >
+        <FormReceita
+          key={receitaEditando ? receitaEditando.id : 'nova'}
+          onSalvar={handleSalvar}
+          onCancelar={fecharModal}
+          carregando={salvando}
+          receitaInicial={receitaEditando}
+          textoBotao={receitaEditando ? 'Salvar alterações' : 'Salvar receita'}
+        />
       </Modal>
     </div>
   )
