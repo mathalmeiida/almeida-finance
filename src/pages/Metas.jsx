@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Target, Plus, Calendar, TrendingUp, Trash2, Loader2, Pencil } from 'lucide-react'
 import { useMetas } from '../hooks/useMetas'
 import Modal from '../components/Modal'
+import InputMoeda from '../components/InputMoeda'
 import { formatCurrency, formatDate } from '../lib/utils'
 
 const CORES_PRESET = ['#2563eb','#7c3aed','#059669','#dc2626','#d97706','#0891b2','#be185d']
@@ -45,8 +46,8 @@ function FormMeta({ meta, onSalvar, onCancelar, carregando }) {
     e.preventDefault()
     onSalvar({
       nome: form.nome,
-      valor_desejado: parseFloat(form.valor_desejado),
-      valor_atual: parseFloat(form.valor_atual) || 0,
+      valor_desejado: Number(form.valor_desejado) || 0,
+      valor_atual: Number(form.valor_atual) || 0,
       prazo: form.prazo || null,
       cor: form.cor,
     })
@@ -62,13 +63,15 @@ function FormMeta({ meta, onSalvar, onCancelar, carregando }) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Valor desejado (R$)</label>
-          <input name="valor_desejado" value={form.valor_desejado} onChange={handleChange}
-            type="number" min="0.01" step="0.01" className="input" placeholder="0,00" required />
+          <InputMoeda valor={form.valor_desejado}
+            onChangeValor={(n) => setForm(prev => ({ ...prev, valor_desejado: n }))}
+            className="input" />
         </div>
         <div>
           <label className="label">Já tenho (R$)</label>
-          <input name="valor_atual" value={form.valor_atual} onChange={handleChange}
-            type="number" min="0" step="0.01" className="input" placeholder="0,00" />
+          <InputMoeda valor={form.valor_atual}
+            onChangeValor={(n) => setForm(prev => ({ ...prev, valor_atual: n }))}
+            className="input" />
         </div>
       </div>
       <div>
@@ -96,13 +99,14 @@ function FormMeta({ meta, onSalvar, onCancelar, carregando }) {
 }
 
 function FormAporte({ meta, onSalvar, onCancelar, carregando }) {
-  const [valor, setValor] = useState('')
+  const [valor, setValor] = useState(0)
 
   function handleSubmit(e) {
     e.preventDefault()
+    if (!valor || valor <= 0) return
     const novoValor = Math.min(
       Number(meta.valor_desejado),
-      Number(meta.valor_atual) + parseFloat(valor)
+      Number(meta.valor_atual) + valor
     )
     onSalvar({ valor_atual: novoValor })
   }
@@ -115,8 +119,7 @@ function FormAporte({ meta, onSalvar, onCancelar, carregando }) {
       </p>
       <div>
         <label className="label">Valor do aporte (R$)</label>
-        <input value={valor} onChange={e => setValor(e.target.value)}
-          type="number" min="0.01" step="0.01" className="input" placeholder="0,00" required />
+        <InputMoeda valor={valor} onChangeValor={setValor} className="input" autoFocus />
       </div>
       <div className="flex gap-3 pt-1">
         <button type="button" onClick={onCancelar} className="btn-secondary flex-1">Cancelar</button>

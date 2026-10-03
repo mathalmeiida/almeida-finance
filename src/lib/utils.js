@@ -128,3 +128,34 @@ export const calcularLimiteDiario = ({
     compromissos,
   }
 }
+
+// ─── Máscara monetária brasileira ────────────────────────────────────────────
+// Sempre trata os dígitos como centavos: "3874" → R$ 38,74 ; "" → "".
+// Formata um texto que contém apenas dígitos em moeda pt-BR.
+export const formatarMoedaDigitada = (texto) => {
+  const digitos = String(texto ?? '').replace(/\D/g, '')
+  if (!digitos) return ''
+  const centavos = parseInt(digitos, 10)
+  return (centavos / 100).toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}
+
+// Converte o texto exibido na máscara ("3.874,70") para número (3874.70).
+export const moedaParaNumero = (texto) => {
+  const digitos = String(texto ?? '').replace(/\D/g, '')
+  if (!digitos) return 0
+  return parseInt(digitos, 10) / 100
+}
+
+// Converte um número (ex.: 3874.7) para o texto da máscara ("3.874,70"),
+// usado para pré-preencher o campo ao editar um valor já existente.
+export const numeroParaMoeda = (valor) => {
+  const n = Number(valor)
+  if (!n || isNaN(n)) return ''
+  return n.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}

@@ -16,6 +16,27 @@ CREATE TABLE IF NOT EXISTS public.perfis (
   criado_em   TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Colunas adicionadas por evolução do app (rode os ALTERs no banco já criado):
+-- Reserva de emergência: percentual mensal a separar da renda (padrão 20%).
+-- ALTER TABLE public.perfis ADD COLUMN reserva_percentual INTEGER DEFAULT 20;
+-- Valor JÁ guardado como reserva de emergência (patrimônio). NÃO entra em
+-- renda nem no disponível para gastar — é apenas informativo.
+-- ALTER TABLE public.perfis
+--   ADD COLUMN IF NOT EXISTS reserva_atual NUMERIC(12,2) DEFAULT 0
+--   CHECK (reserva_atual IS NULL OR reserva_atual >= 0);
+-- Meta TOTAL da reserva de emergência (objetivo a acumular). Também informativo;
+-- usado só para progresso/"falta acumular". NÃO afeta nenhum cálculo financeiro.
+-- ALTER TABLE public.perfis
+--   ADD COLUMN IF NOT EXISTS meta_reserva NUMERIC(12,2) DEFAULT 0
+--   CHECK (meta_reserva IS NULL OR meta_reserva >= 0);
+-- Saldo atual real informado pelo usuário ("Quanto você tem disponível hoje?").
+-- saldo_base = valor informado; saldo_base_data = marco temporal (a partir dele
+-- as receitas/despesas alteram o saldo, evitando dupla contagem do histórico).
+-- NULL = não configurado (usuários existentes). NÃO inclui a reserva.
+-- ALTER TABLE public.perfis
+--   ADD COLUMN IF NOT EXISTS saldo_base NUMERIC(12,2),
+--   ADD COLUMN IF NOT EXISTS saldo_base_data DATE;
+
 -- RLS: cada usuário acessa apenas o próprio perfil
 ALTER TABLE public.perfis ENABLE ROW LEVEL SECURITY;
 

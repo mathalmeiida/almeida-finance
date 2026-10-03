@@ -1,231 +1,286 @@
 import React, { useState } from 'react'
-import { ShoppingCart, AlertTriangle, CheckCircle2, XCircle, Calculator, Info, Loader2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import {
+  ShoppingCart, AlertTriangle, CheckCircle2, XCircle, Calculator, Info, Loader2,
+  TrendingUp, Plus, RotateCcw
+} from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
+import { useAuth } from '../contexts/AuthContext'
 import { formatCurrency } from '../lib/utils'
 import Modal from '../components/Modal'
+import InputMoeda from '../components/InputMoeda'
 
-// ─────────────────────────────────────────────
-// Motor de simulação (usa dados reais)
-// ─────────────────────────────────────────────
-function simularCompra({ projecao, valorTotal, tipo, numeroParcelas }) {
-  if (!projecao || projecao.length === 0) return null
-
-  const custoPorMes = tipo === 'avista' ? valorTotal : valorTotal / numeroParcelas
-  const mesesDeImpacto = tipo === 'avista' ? 1 : numeroParcelas
-
-  // Projeção SEM a compra
-  const semCompra = projecao.map(m => ({ ...m }))
-
-  // Projeção COM a compra
-  const comCompra = projecao.map((m, i) => {
-    const temImpacto = i < mesesDeImpacto
-    return {
-      ...m,
-      despesas: temImpacto ? m.despesas + custoPorMes : m.despesas,
-      saldo: temImpacto ? m.saldo - custoPorMes : m.saldo,
-    }
-  })
-
-  // Indicadores
-  const sobraMesAtual = semCompra[0]?.saldo ?? 0
-  const novaSobra = comCompra[0]?.saldo ?? 0
-  const mesesNegativosSem = semCompra.filter(m => m.saldo < 0).length
-  const mesesNegativosCom = comCompra.filter(m => m.saldo < 0).length
-  const novosNegativo = mesesNegativosCom - mesesNegativosSem
-  const percentualConsumo = sobraMesAtual > 0 ? (custoPorMes / sobraMesAtual) * 100 : 100
-  const piorSaldoCom = Math.min(...comCompra.map(m => m.saldo))
-
-  // Classificação conforme regras do planejamento aprovado
-  let classificacao = 'saudavel'
-  if (mesesNegativosCom > 0 && novosNegativo > 0) {
-    classificacao = 'arriscado'
-  } else if (
-    percentualConsumo > 50 ||
-    novaSobra < 300 ||
-    piorSaldoCom < 0
-  ) {
-    classificacao = 'atencao'
-  }
-
-  return {
-    custoPorMes,
-    mesesDeImpacto,
-    sobraMesAtual,
-    novaSobra,
-    percentualConsumo,
-    mesesNegativosCom,
-    novosNegativo,
-    piorSaldoCom,
-    classificacao,
-    comCompra,
-  }
+// Dias restantes no mês (inclui hoje) — mesma regra usada na Home para o
+// "disponível por dia". Reutilizada aqui para não criar cálculo conflitante.
+function diasRestantesNoMes(ref = new Date()) {
+  const ultimoDia = new Date(ref.getFullYear(), ref.getMonth() + 1, 0).getDate()
+  return ultimoDia - ref.getDate() + 1
 }
 
-// ─────────────────────────────────────────────
-// Gerador de explicação em linguagem natural
-// ─────────────────────────────────────────────
-function gerarExplicacao(res, nome) {
-  const compra = nome || 'esta compra'
-  const Compra = compra.charAt(0).toUpperCase() + compra.slice(1)
-  const { custoPorMes, mesesDeImpacto, sobraMesAtual, novaSobra,
-          novosNegativo, mesesNegativosCom, classificacao, tipo, valorTotal } = res
+// Classifica por PERCENTUAL RESTANTE do disponível após a compra.
+//  verde   = restante >= 50%
+//  amarelo = 20% <= restante < 50%
+//  vermelho= restante < 20% OU saldo negativo OU disponível atual <= 0
+function classificarPorRestante(disponivelAntes, disponivelDepois) {
+  if (disponivelAntes <= 0) return 'vermelho'
+  if (disponivelDepois < 0) return 'vermelho'
+  const restante = (disponivelDepois / disponivelAntes) * 100
+  if (restante >= 50) return 'verde'
+  if (restante >= 20) return 'amarelo'
+  return 'vermelho'
+}
 
-  // ── À VISTA ──
+const PESO = { verde: 0, amarelo: 1, vermelho: 2 }
+const piorEntre = (a, b) => (PESO[b] > PESO[a] ? b : a)
+
+// ─────────────────────────────────────────────
+// Motor de simulação — reutiliza a projeção existente (projecao[].disponivel,
+// que é receita − compromissos − reserva). NÃO altera cálculos da Home.
+// ─────────────────────────────────────────────
+function simularCompra({ projecao, valorTotal, tipo, numeroParcelas, saldoAgora, reservaAtual = 0 }) {
+  if (!projecao || projecao.length === 0) return null
+  const dias = diasRestantesNoMes()
+
   if (tipo === 'avista') {
-    const falta = Math.max(0, (valorTotal ?? custoPorMes) - sobraMesAtual)
-    const valorCompra = valorTotal ?? custoPorMes
-    if (classificacao === 'saudavel') {
-      return `${Compra} custa ${formatCurrency(valorCompra)}. ` +
-        `Você tem ${formatCurrency(sobraMesAtual)} disponíveis e, após a compra, ainda sobrariam ` +
-        `${formatCurrency(novaSobra)} no mês.`
+    const mesAtual = projecao[0]
+    // Compra à vista é feita HOJE → a referência principal é o dinheiro
+    // realmente disponível agora (quando o usuário informou o saldo). Receita
+    // futura NÃO conta como já recebida. Fallback: disponível do mês (projeção).
+    const temSaldo = saldoAgora != null
+    const disponivelAntes = temSaldo ? saldoAgora : (mesAtual?.disponivel ?? 0)
+    const saldoAntes = mesAtual?.saldo ?? 0 // antes da reserva (fallback)
+    const disponivelDepois = disponivelAntes - valorTotal
+
+    const classificacao = classificarPorRestante(disponivelAntes, disponivelDepois)
+    const pctConsumido = disponivelAntes > 0
+      ? Math.min(100, (valorTotal / disponivelAntes) * 100)
+      : 100
+    const pctRestante = disponivelAntes > 0
+      ? Math.max(0, (disponivelDepois / disponivelAntes) * 100)
+      : 0
+    // "Depende da reserva": a compra não cabe no disponível de hoje (que já
+    // exclui a reserva), mas caberia se o usuário usasse a reserva acumulada.
+    const dependeReserva = temSaldo
+      ? (disponivelDepois < 0 && reservaAtual > 0)
+      : (disponivelDepois < 0 && (saldoAntes - valorTotal) >= 0)
+    const falta = Math.max(0, valorTotal - disponivelAntes)
+    const diaAntes = dias > 0 && disponivelAntes > 0 ? disponivelAntes / dias : 0
+    const diaDepois = dias > 0 && disponivelDepois > 0 ? disponivelDepois / dias : 0
+
+    return {
+      tipo, classificacao, valorTotal,
+      disponivelAntes, disponivelDepois, pctConsumido, pctRestante,
+      dependeReserva, falta, diaAntes, diaDepois,
     }
-    if (classificacao === 'atencao') {
-      return `${Compra} custa ${formatCurrency(valorCompra)}. ` +
-        `Cabe no seu orçamento, mas o disponível cairia de ${formatCurrency(sobraMesAtual)} ` +
-        `para ${formatCurrency(novaSobra)}, deixando pouca folga para imprevistos.`
-    }
-    // arriscado / não cabe
-    return `Esta compra custa ${formatCurrency(valorCompra)}. ` +
-      `Com base no seu orçamento atual, faltariam ${formatCurrency(falta)} para realizar essa compra ` +
-      `sem comprometer o planejamento do mês. O orçamento ficaria em ${formatCurrency(novaSobra)}.`
   }
 
   // ── PARCELADA ──
-  const impactoTexto = `adicionará ${formatCurrency(custoPorMes)} por mês durante ${mesesDeImpacto} meses`
-
-  if (classificacao === 'saudavel') {
-    return `${Compra} ${impactoTexto}. ` +
-      `Sua sobra mensal passará de ${formatCurrency(sobraMesAtual)} para ${formatCurrency(novaSobra)} ` +
-      `e nenhum dos próximos meses ficará negativo.`
+  const n = Math.max(1, Number(numeroParcelas) || 1)
+  const valorParcela = valorTotal / n
+  // Analisa os meses com parcela (índices 0..n-1 da projeção disponível).
+  const limite = Math.min(n, projecao.length)
+  const meses = []
+  for (let i = 0; i < limite; i++) {
+    const m = projecao[i]
+    const disponivelAntes = m?.disponivel ?? 0
+    const disponivelDepois = disponivelAntes - valorParcela
+    const classe = classificarPorRestante(disponivelAntes, disponivelDepois)
+    meses.push({
+      mes: m?.mes ?? `Mês ${i + 1}`,
+      disponivelAntes,
+      disponivelDepois,
+      classificacao: classe,
+    })
   }
+  // Resultado geral = pior mês entre os afetados.
+  const classificacao = meses.reduce((acc, x) => piorEntre(acc, x.classificacao), 'verde')
 
-  if (classificacao === 'atencao') {
-    return `${Compra} ${impactoTexto}. ` +
-      `Sua sobra mensal passará de ${formatCurrency(sobraMesAtual)} para ${formatCurrency(novaSobra)}. ` +
-      (mesesNegativosCom > 0
-        ? `Atenção: ${mesesNegativosCom} mês(es) da projeção já apresentam saldo negativo.`
-        : `Você ainda terá saldo positivo, mas com menos folga para imprevistos.`)
+  return {
+    tipo, classificacao, valorTotal,
+    numeroParcelas: n, valorParcela, mesesImpacto: limite, meses,
   }
-
-  return `${Compra} ${impactoTexto}. ` +
-    `Isso tornará ${novosNegativo} mês(es) negativo(s) no seu orçamento. ` +
-    `A sobra cairia de ${formatCurrency(sobraMesAtual)} para ${formatCurrency(novaSobra)}. ` +
-    `Recomendamos revisar o valor, as condições ou adiar a compra.`
 }
 
+// Configuração visual por classificação (ícone vetorial + cores; nunca só cor).
 const resultConfig = {
-  saudavel: {
-    label: 'Saudável',
+  verde: {
+    label: 'Compra saudável',
     icon: CheckCircle2,
-    color: 'text-green-600',
+    color: 'text-green-700',
     bg: 'bg-green-50',
     border: 'border-green-200',
-    iconColor: 'text-green-500',
+    iconColor: 'text-green-600',
+    dot: 'text-green-600',
   },
-  atencao: {
-    label: 'Atenção',
+  amarelo: {
+    label: 'Atenção ao orçamento',
     icon: AlertTriangle,
     color: 'text-yellow-700',
     bg: 'bg-yellow-50',
     border: 'border-yellow-200',
-    iconColor: 'text-yellow-500',
+    iconColor: 'text-yellow-600',
+    dot: 'text-yellow-600',
   },
-  arriscado: {
-    label: 'Arriscado',
+  vermelho: {
+    label: 'Compra não recomendada',
     icon: XCircle,
     color: 'text-red-700',
     bg: 'bg-red-50',
     border: 'border-red-200',
-    iconColor: 'text-red-500',
+    iconColor: 'text-red-600',
+    dot: 'text-red-600',
   },
 }
 
-// ─────────────────────────────────────────────
-// Conteúdo do resultado (reutilizado no desktop e no bottom sheet mobile)
-// ─────────────────────────────────────────────
-function ConteudoResultado({ resultado, config }) {
-  const ehAvista = resultado.tipo === 'avista'
-  const valorCompra = resultado.valorTotal ?? resultado.custoPorMes
-  const falta = Math.max(0, valorCompra - resultado.sobraMesAtual)
-  const orcamentoNegativo = resultado.novaSobra < 0
+// Frase de topo por classificação/tipo.
+function fraseTopo(res) {
+  if (res.tipo === 'avista') {
+    if (res.classificacao === 'verde') return 'Essa compra cabe confortavelmente no seu orçamento atual.'
+    if (res.classificacao === 'amarelo') return 'Esta compra cabe no orçamento, mas reduzirá significativamente seu dinheiro disponível.'
+    return 'Esta compra comprometeria grande parte do seu orçamento atual.'
+  }
+  // parcelada
+  if (res.classificacao === 'verde') return 'As parcelas cabem no seu orçamento ao longo dos meses afetados.'
+  if (res.classificacao === 'amarelo') return 'As parcelas cabem, mas reduzirão de forma relevante o seu disponível em alguns meses.'
+  return 'As parcelas comprometeriam grande parte do seu orçamento em um ou mais meses.'
+}
 
-  // Título: para à vista que não cabe, usar "Não cabe no orçamento atual"
-  const titulo = (ehAvista && resultado.classificacao === 'arriscado')
-    ? 'Não cabe no orçamento atual'
-    : config.label
-
-  // Célula de métrica com bom contraste (rótulo escuro, valor forte)
-  const Metric = ({ rotulo, valor, cor = 'text-gray-900' }) => (
+// Célula de métrica (rótulo discreto + valor forte).
+function Metric({ rotulo, valor, cor = 'text-gray-900' }) {
+  return (
     <div className="bg-white rounded-xl p-3 text-center shadow-sm">
       <p className="text-xs text-gray-500 mb-1">{rotulo}</p>
       <p className={`text-base font-bold ${cor}`}>{valor}</p>
     </div>
   )
+}
+
+// Pílula de classificação de um mês (ícone + cor; não depende só de cor).
+function MesPill({ classificacao }) {
+  const c = resultConfig[classificacao]
+  const Icon = c.icon
+  return <Icon size={16} className={c.dot} aria-label={c.label} />
+}
+
+// ─────────────────────────────────────────────
+// Conteúdo do resultado (desktop inline + bottom sheet mobile)
+// ─────────────────────────────────────────────
+function ConteudoResultado({ resultado, config, onRegistrar, onSimularOutro }) {
+  const ehAvista = resultado.tipo === 'avista'
+  const [verTodos, setVerTodos] = useState(false)
 
   return (
     <>
-      <div className="flex items-center gap-3 mb-4">
-        <config.icon size={32} className={config.iconColor} />
+      <div className="flex items-center gap-3 mb-3">
+        <config.icon size={30} className={config.iconColor} />
         <div>
           <p className="text-xs text-gray-600 font-medium uppercase tracking-wide">Resultado da simulação</p>
-          <p className={`text-2xl font-bold ${config.color}`}>{titulo}</p>
+          <p className={`text-xl font-bold ${config.color}`}>{config.label}</p>
         </div>
       </div>
 
-      {/* Texto explicativo com contraste reforçado (gray-800 em vez de claro) */}
-      <p className="text-sm text-gray-800 leading-relaxed mb-4">
-        {gerarExplicacao(resultado, resultado.nomeCompra)}
-      </p>
+      <p className="text-sm text-gray-800 leading-relaxed mb-4">{fraseTopo(resultado)}</p>
 
       {ehAvista ? (
-        /* ── À VISTA ── */
-        <div className="grid grid-cols-2 gap-3">
-          <Metric rotulo="Valor da compra" valor={formatCurrency(valorCompra)} />
-          <Metric rotulo="Disponível hoje" valor={formatCurrency(resultado.sobraMesAtual)} />
-          <Metric
-            rotulo="Valor que falta"
-            valor={falta > 0 ? formatCurrency(falta) : '—'}
-            cor={falta > 0 ? 'text-red-600' : 'text-green-600'}
-          />
-          <Metric
-            rotulo="Impacto no orçamento"
-            valor={formatCurrency(resultado.novaSobra)}
-            cor={orcamentoNegativo ? 'text-red-600' : 'text-blue-600'}
-          />
-        </div>
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <Metric rotulo="Valor da compra" valor={formatCurrency(resultado.valorTotal)} />
+            <Metric rotulo="Disponível antes" valor={formatCurrency(resultado.disponivelAntes)} />
+            <Metric
+              rotulo="Disponível depois"
+              valor={formatCurrency(resultado.disponivelDepois)}
+              cor={resultado.disponivelDepois < 0 ? 'text-red-600' : 'text-blue-600'}
+            />
+            <Metric rotulo="Orçamento consumido" valor={`${resultado.pctConsumido.toFixed(2).replace('.', ',')}%`} />
+          </div>
+
+          {resultado.disponivelDepois >= 0 && (
+            <p className="text-sm text-gray-700 mt-3">
+              Após essa compra, ainda restariam{' '}
+              <strong>{resultado.pctRestante.toFixed(2).replace('.', ',')}%</strong> do seu orçamento disponível.
+            </p>
+          )}
+
+          {/* Impacto no disponível por dia (reutiliza dias restantes do mês) */}
+          {resultado.diaAntes > 0 && (
+            <p className="text-xs text-gray-600 mt-2">
+              Seu valor disponível por dia passaria de <strong>{formatCurrency(resultado.diaAntes)}</strong> para{' '}
+              <strong>{formatCurrency(resultado.diaDepois)}</strong>.
+            </p>
+          )}
+
+          {resultado.classificacao === 'amarelo' && (
+            <p className="text-sm text-gray-700 mt-3">Considere se esta compra é prioridade neste momento.</p>
+          )}
+
+          {/* Vermelho: falta de orçamento e/ou uso da reserva */}
+          {resultado.classificacao === 'vermelho' && resultado.falta > 0 && (
+            <div className="mt-3 flex items-start gap-2 bg-red-100 rounded-xl px-3 py-2">
+              <XCircle size={15} className="text-red-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-red-800">
+                Faltariam <strong>{formatCurrency(resultado.falta)}</strong> para que essa compra coubesse no orçamento disponível.
+              </p>
+            </div>
+          )}
+          {resultado.dependeReserva && (
+            <div className="mt-2 flex items-start gap-2 bg-red-100 rounded-xl px-3 py-2">
+              <AlertTriangle size={15} className="text-red-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-red-800">
+                Para realizar esta compra dentro dos valores cadastrados, seria necessário comprometer sua reserva de emergência.
+              </p>
+            </div>
+          )}
+        </>
       ) : (
-        /* ── PARCELADA ── */
-        <div className="grid grid-cols-2 gap-3">
-          <Metric rotulo="Valor da parcela" valor={`${formatCurrency(resultado.custoPorMes)}/mês`} />
-          <Metric rotulo="Sobra atual" valor={formatCurrency(resultado.sobraMesAtual)} />
-          <Metric
-            rotulo="Sobra após a parcela"
-            valor={formatCurrency(resultado.novaSobra)}
-            cor={resultado.novaSobra >= 0 ? 'text-blue-600' : 'text-red-600'}
-          />
-          <Metric rotulo="Meses impactados" valor={`${resultado.mesesDeImpacto}`} />
-        </div>
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <Metric rotulo="Valor da compra" valor={formatCurrency(resultado.valorTotal)} />
+            <Metric rotulo="Parcelamento" valor={`${resultado.numeroParcelas}x de ${formatCurrency(resultado.valorParcela)}`} />
+            <Metric rotulo="Comprometimento" valor={`${resultado.mesesImpacto} ${resultado.mesesImpacto === 1 ? 'mês' : 'meses'}`} />
+            <Metric rotulo="Parcela / mês" valor={formatCurrency(resultado.valorParcela)} />
+          </div>
+
+          {/* Meses afetados — mostra os primeiros; "Ver todos" expande. */}
+          <div className="mt-4 space-y-2">
+            {(verTodos ? resultado.meses : resultado.meses.slice(0, 3)).map((m, i) => (
+              <div key={i} className="bg-white rounded-xl px-3 py-2.5 flex items-center justify-between shadow-sm">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800 capitalize truncate">{m.mes}</p>
+                  <p className="text-xs text-gray-500">
+                    Parcela: {formatCurrency(resultado.valorParcela)} • Sobra projetada:{' '}
+                    <span className={m.disponivelDepois < 0 ? 'text-red-600 font-medium' : 'text-gray-700'}>
+                      {formatCurrency(m.disponivelDepois)}
+                    </span>
+                  </p>
+                </div>
+                <MesPill classificacao={m.classificacao} />
+              </div>
+            ))}
+            {resultado.meses.length > 3 && (
+              <button
+                onClick={() => setVerTodos(v => !v)}
+                className="w-full text-xs font-medium text-blue-600 hover:text-blue-700 py-1"
+              >
+                {verTodos ? 'Mostrar menos' : `Ver todos os meses (${resultado.meses.length})`}
+              </button>
+            )}
+          </div>
+
+          {resultado.classificacao === 'amarelo' && (
+            <p className="text-sm text-gray-700 mt-3">Considere se esta compra é prioridade neste momento.</p>
+          )}
+        </>
       )}
 
-      {/* À vista: destaque de orçamento negativo. */}
-      {ehAvista && orcamentoNegativo && (
-        <div className="mt-3 flex items-center gap-2 bg-red-100 rounded-xl px-3 py-2">
-          <XCircle size={14} className="text-red-600 flex-shrink-0" />
-          <p className="text-xs text-red-800 font-medium">
-            Após a compra, o orçamento do mês ficaria em {formatCurrency(resultado.novaSobra)}.
-          </p>
-        </div>
-      )}
-
-      {/* Parcelada: mantém a análise da projeção dos meses futuros. */}
-      {!ehAvista && resultado.mesesNegativosCom > 0 && (
-        <div className="mt-3 flex items-center gap-2 bg-red-100 rounded-xl px-3 py-2">
-          <XCircle size={14} className="text-red-600 flex-shrink-0" />
-          <p className="text-xs text-red-800 font-medium">
-            {resultado.mesesNegativosCom} mês(es) com saldo negativo na projeção após esta compra
-          </p>
-        </div>
-      )}
+      {/* Ações — reutilizam os fluxos existentes; a simulação não altera dados. */}
+      <div className="flex flex-col sm:flex-row gap-3 mt-5">
+        <button onClick={onSimularOutro} className="btn-secondary flex-1 flex items-center justify-center gap-2">
+          <RotateCcw size={15} /> Simular outro valor
+        </button>
+        <button onClick={onRegistrar} className="btn-primary flex-1 flex items-center justify-center gap-2">
+          <Plus size={16} /> Registrar esta compra
+        </button>
+      </div>
 
       <p className="text-xs text-gray-500 mt-4 text-center italic">
         Simulação de orçamento — não constitui aconselhamento financeiro profissional.
@@ -239,6 +294,8 @@ function ConteudoResultado({ resultado, config }) {
 // ─────────────────────────────────────────────
 export default function PossoComprar() {
   const { projecao, carregando, resumoMes } = useProjecao()
+  const { perfil } = useAuth()
+  const navigate = useNavigate()
 
   const [form, setForm] = useState({
     nome: '',
@@ -247,7 +304,6 @@ export default function PossoComprar() {
     parcelas: '12',
   })
   const [resultado, setResultado] = useState(null)
-  // No mobile, o resultado abre em bottom sheet (Modal). No desktop, fica inline.
   const [mostrarSheet, setMostrarSheet] = useState(false)
 
   function handleChange(e) {
@@ -259,7 +315,7 @@ export default function PossoComprar() {
 
   function handleSimular(e) {
     e.preventDefault()
-    const valorNum = parseFloat(form.valor.replace(',', '.'))
+    const valorNum = Number(form.valor) || 0
     if (!valorNum || valorNum <= 0) return
 
     const sim = simularCompra({
@@ -267,12 +323,28 @@ export default function PossoComprar() {
       valorTotal: valorNum,
       tipo: form.tipo,
       numeroParcelas: parseInt(form.parcelas),
+      // À vista usa o saldo real de hoje (se informado); senão, cai no fallback.
+      saldoAgora: resumoMes.saldoConfigurado ? resumoMes.saldoDisponivelAgora : null,
+      reservaAtual: Number(perfil?.reserva_atual) || 0,
     })
     if (sim) {
-      // tipo e valorTotal são apenas metadados de APRESENTAÇÃO (não entram no cálculo)
-      setResultado({ ...sim, nomeCompra: form.nome, tipo: form.tipo, valorTotal: valorNum })
-      setMostrarSheet(true) // abre o sheet no mobile; no desktop é ignorado (inline)
+      setResultado({ ...sim, nomeCompra: form.nome })
+      setMostrarSheet(true)
     }
+  }
+
+  // "Registrar esta compra" → fluxos JÁ existentes (não cria lógica nova).
+  function handleRegistrar() {
+    setMostrarSheet(false)
+    if (resultado?.tipo === 'avista') navigate('/despesas?novo=1')
+    else navigate('/despesas?novo=parcelado')
+  }
+
+  // "Simular outro valor" → limpa o resultado e volta ao formulário.
+  function handleSimularOutro() {
+    setResultado(null)
+    setMostrarSheet(false)
+    setForm(prev => ({ ...prev, valor: '' }))
   }
 
   const config = resultado ? resultConfig[resultado.classificacao] : null
@@ -349,8 +421,10 @@ export default function PossoComprar() {
 
             <div>
               <label className="label">Valor total (R$)</label>
-              <input type="number" name="valor" value={form.valor} onChange={handleChange}
-                placeholder="0,00" min="0" step="0.01" className="input" required />
+              <InputMoeda
+                valor={form.valor}
+                onChangeValor={(n) => { setForm(prev => ({ ...prev, valor: n })); setResultado(null); setMostrarSheet(false) }}
+                className="input" />
             </div>
 
             <div>
@@ -376,9 +450,9 @@ export default function PossoComprar() {
                     <option key={n} value={n}>{n}x</option>
                   ))}
                 </select>
-                {form.valor && (
+                {Number(form.valor) > 0 && (
                   <p className="text-xs text-gray-400 mt-1.5">
-                    Parcela estimada: {formatCurrency(parseFloat(form.valor || 0) / parseInt(form.parcelas))} / mês
+                    Parcela estimada: {formatCurrency(Number(form.valor) / parseInt(form.parcelas))} / mês
                   </p>
                 )}
               </div>
@@ -392,14 +466,17 @@ export default function PossoComprar() {
         )}
       </div>
 
-      {/* Resultado — DESKTOP (md+): inline abaixo do formulário, como antes */}
+      {/* Resultado — DESKTOP (md+): inline abaixo do formulário */}
       {resultado && config && (
         <div className={`hidden md:block card border-2 ${config.border} ${config.bg}`}>
-          <ConteudoResultado resultado={resultado} config={config} />
+          <ConteudoResultado
+            resultado={resultado} config={config}
+            onRegistrar={handleRegistrar} onSimularOutro={handleSimularOutro}
+          />
         </div>
       )}
 
-      {/* Resultado — MOBILE (<md): bottom sheet sobre a tela, com scroll interno */}
+      {/* Resultado — MOBILE (<md): bottom sheet sobre a tela */}
       <div className="md:hidden">
         {resultado && config && (
           <Modal
@@ -408,13 +485,10 @@ export default function PossoComprar() {
             titulo="Resultado da simulação"
           >
             <div className={`-m-5 p-5 ${config.bg}`}>
-              <ConteudoResultado resultado={resultado} config={config} />
-              <button
-                onClick={() => setMostrarSheet(false)}
-                className="btn-secondary w-full mt-4"
-              >
-                Fechar
-              </button>
+              <ConteudoResultado
+                resultado={resultado} config={config}
+                onRegistrar={handleRegistrar} onSimularOutro={handleSimularOutro}
+              />
             </div>
           </Modal>
         )}

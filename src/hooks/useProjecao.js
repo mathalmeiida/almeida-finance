@@ -112,6 +112,43 @@ export function useProjecao() {
     .filter(r => r.recorrente)
     .reduce((acc, r) => acc + Number(r.valor), 0)
 
+  // ─── SALDO ATUAL REAL ───────────────────────────────────────────────────────
+  // O usuário informa quanto tem disponível hoje (saldo_base) e a data desse
+  // marco (saldo_base_data). O "saldo disponível agora" é derivado assim, sem
+  // dupla contagem: parte do saldo informado e aplica só os lançamentos cuja
+  // DATA está entre o marco e hoje (receitas somam, despesas subtraem).
+  // A reserva de emergência NUNCA entra aqui — fica separada.
+  const saldoConfigurado = perfil?.saldo_base != null
+  const saldoBase = Number(perfil?.saldo_base) || 0
+  const hojeStr = new Date().toISOString().split('T')[0]
+  const marcoStr = perfil?.saldo_base_data || hojeStr
+
+  // Lançamentos já ocorridos (marco <= data <= hoje), do mês atual em memória.
+  const receitasAteHoje = receitas
+    .filter(r => r.data >= marcoStr && r.data <= hojeStr)
+    .reduce((acc, r) => acc + Number(r.valor), 0)
+  const despesasAteHoje = despesas
+    .filter(d => d.data >= marcoStr && d.data <= hojeStr)
+    .reduce((acc, d) => acc + Number(d.valor), 0)
+
+  const saldoDisponivelAgora = saldoBase + receitasAteHoje - despesasAteHoje
+
+  // Lançamentos FUTUROS dentro do mês atual (hoje < data <= fim do mês).
+  const receitasFuturasMes = receitas
+    .filter(r => r.data > hojeStr)
+    .reduce((acc, r) => acc + Number(r.valor), 0)
+  const despesasFuturasMes = despesas
+    .filter(d => d.data > hojeStr)
+    .reduce((acc, d) => acc + Number(d.valor), 0)
+
+  // Compromissos de parcelas e faturas do mês são tratados como compromissos
+  // futuros (ainda a pagar) — reutiliza os totais já calculados do mês atual.
+  const compromissosFuturosMes = despesasFuturasMes + totalParcelas + totalFaturasCartao
+
+  // Previsão até o fim do mês = saldo agora + entradas futuras − compromissos futuros.
+  // NÃO inclui a reserva (patrimônio separado).
+  const previsaoFimMes = saldoDisponivelAgora + receitasFuturasMes - compromissosFuturosMes
+
   // Projeção dos próximos 12 meses
   const projecao = useMemo(() => {
     if (carregando) return []
@@ -202,6 +239,12 @@ export function useProjecao() {
       totalDespesasFixas,
       totalDespesasVariaveis,
       percentualRendaFixa,
+      // ─── Saldo atual real ───
+      saldoConfigurado,                 // false = usuário ainda não informou o saldo
+      saldoDisponivelAgora,             // dinheiro disponível HOJE (sem reserva)
+      previsaoFimMes,                   // projeção até o fim do mês (sem reserva)
+      compromissosFuturosMes,           // compromissos ainda a pagar neste mês
+      receitasFuturasMes,               // entradas previstas até o fim do mês
     },
     // dados brutos para o simulador
     receitas,

@@ -1,31 +1,9 @@
-import React, { useState } from 'react'
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell, ReferenceLine, Legend
-} from 'recharts'
+import React from 'react'
 import { BarChart2, TrendingUp, TrendingDown, Wallet, Loader2 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { formatCurrency } from '../lib/utils'
 
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-white border border-gray-100 rounded-xl shadow-lg p-3 text-sm min-w-[180px]">
-        <p className="font-semibold text-gray-700 mb-2">{label}</p>
-        {payload.map((entry) => (
-          <div key={entry.name} className="flex justify-between items-center gap-4 text-xs py-0.5">
-            <span style={{ color: entry.fill || entry.color }}>{entry.name}</span>
-            <span className="font-medium text-gray-800">{formatCurrency(entry.value)}</span>
-          </div>
-        ))}
-      </div>
-    )
-  }
-  return null
-}
-
 export default function Projecao() {
-  const [modo, setModo] = useState('barras')
   const { projecao, carregando } = useProjecao()
 
   const mediaSaldo = projecao.length
@@ -97,51 +75,6 @@ export default function Projecao() {
               </p>
               <p className="text-xs text-gray-400">{piorMes.mes}</p>
             </div>
-          </div>
-
-          {/* Gráfico */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2">
-                <BarChart2 size={18} className="text-blue-600" />
-                <h2 className="text-base font-semibold text-gray-900">Receitas vs. Despesas vs. Sobra</h2>
-              </div>
-              <div className="flex gap-1">
-                <button onClick={() => setModo('barras')}
-                  className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${modo === 'barras' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                  Barras
-                </button>
-                <button onClick={() => setModo('saldo')}
-                  className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${modo === 'saldo' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                  Só sobra
-                </button>
-              </div>
-            </div>
-
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={projecao} margin={{ top: 5, right: 5, left: 0, bottom: 5 }} barCategoryGap="20%">
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                <XAxis dataKey="mes" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false}
-                  tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
-                <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc' }} />
-                <ReferenceLine y={0} stroke="#e5e7eb" />
-                {modo === 'barras' ? (
-                  <>
-                    <Legend wrapperStyle={{ fontSize: '12px' }} />
-                    <Bar dataKey="receitas" name="Receitas" fill="#22c55e" radius={[4,4,0,0]} />
-                    <Bar dataKey="despesas" name="Despesas" fill="#f87171" radius={[4,4,0,0]} />
-                    <Bar dataKey="saldo" name="Sobra" fill="#3b82f6" radius={[4,4,0,0]} />
-                  </>
-                ) : (
-                  <Bar dataKey="saldo" name="Sobra" radius={[4,4,0,0]}>
-                    {projecao.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.saldo >= 0 ? '#3b82f6' : '#ef4444'} />
-                    ))}
-                  </Bar>
-                )}
-              </BarChart>
-            </ResponsiveContainer>
           </div>
 
           {/* Detalhamento mensal — tabela no desktop, cards no mobile */}

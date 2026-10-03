@@ -5,6 +5,7 @@ import { useParcelamentos, calcularParcelas } from '../hooks/useParcelamentos'
 import { useCategorias } from '../hooks/useCategorias'
 import { useCartoes } from '../hooks/useCartoes'
 import Modal from '../components/Modal'
+import InputMoeda from '../components/InputMoeda'
 import { formatCurrency, formatDate, corCategoria, FORMAS_PAGAMENTO, formaPagamentoLabel } from '../lib/utils'
 
 // ─── Barra de progresso ───────────────────────────────────────────────────────
@@ -43,8 +44,8 @@ export function FormParcelamento({ onSalvar, onCancelar, carregando, parcelament
   }
 
   const { base: parcelaBase, ultima: parcelaUltima } =
-    form.valor_total && form.numero_parcelas
-      ? calcularParcelas(parseFloat(form.valor_total), parseInt(form.numero_parcelas))
+    Number(form.valor_total) > 0 && form.numero_parcelas
+      ? calcularParcelas(Number(form.valor_total), parseInt(form.numero_parcelas))
       : { base: 0, ultima: 0 }
   const temAjuste = parcelaBase > 0 && parcelaUltima !== parcelaBase
 
@@ -54,7 +55,7 @@ export function FormParcelamento({ onSalvar, onCancelar, carregando, parcelament
     e.preventDefault()
     onSalvar({
       descricao: form.descricao,
-      valor_total: parseFloat(form.valor_total),
+      valor_total: Number(form.valor_total) || 0,
       numero_parcelas: parseInt(form.numero_parcelas),
       primeira_parcela: form.primeira_parcela + '-01',
       categoria_id: form.categoria_id || null,
@@ -74,8 +75,9 @@ export function FormParcelamento({ onSalvar, onCancelar, carregando, parcelament
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Valor total (R$)</label>
-          <input name="valor_total" value={form.valor_total} onChange={handleChange}
-            type="number" min="0.01" step="0.01" className="input" placeholder="0,00" required />
+          <InputMoeda valor={form.valor_total}
+            onChangeValor={(n) => setForm(prev => ({ ...prev, valor_total: n }))}
+            className="input" />
         </div>
         <div>
           <label className="label">Parcelas</label>

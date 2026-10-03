@@ -1,23 +1,37 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Zap, Sun, Plus, Pencil
+  TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Zap, Sun, Plus, Pencil,
+  CheckCircle2, Circle, Rocket
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useCategorias } from '../hooks/useCategorias'
 import { useAuth } from '../contexts/AuthContext'
+import InputMoeda from '../components/InputMoeda'
 import { formatCurrency } from '../lib/utils'
 import { classificarDespesa } from '../lib/classificarDespesa'
 import Modal from '../components/Modal'
 
 // ─── Modal de Gasto rápido ────────────────────────────────────────────────────
-function FormGastoRapido({ onSalvar, onCancelar, carregando }) {
+// Categorias comuns de gasto do dia a dia — aparecem primeiro no seletor
+// rápido (apenas ordenação visual; não cria, renomeia nem apaga categorias).
+const CATEGORIAS_COMUNS = ['Alimentação', 'Transporte', 'Lazer', 'Mercado', 'Saúde', 'Serviços']
+
+function FormGastoRapido({ onSalvar, onCancelar, carregando, onMaisOpcoes }) {
   const { categorias } = useCategorias('despesa')
   const [form, setForm] = useState({
     descricao: '',
     valor: '',
-    data: new Date().toISOString().split('T')[0],
     categoria_id: '',
+  })
+
+  // Ordena mostrando as categorias comuns primeiro (sem alterar os dados).
+  const categoriasOrdenadas = [...categorias].sort((a, b) => {
+    const ia = CATEGORIAS_COMUNS.indexOf(a.nome)
+    const ib = CATEGORIAS_COMUNS.indexOf(b.nome)
+    const ra = ia === -1 ? 999 : ia
+    const rb = ib === -1 ? 999 : ib
+    return ra - rb || a.nome.localeCompare(b.nome)
   })
 
   function handleChange(e) {
@@ -26,60 +40,64 @@ function FormGastoRapido({ onSalvar, onCancelar, carregando }) {
 
   function handleSubmit(e) {
     e.preventDefault()
+    const valorNum = Number(form.valor) || 0
+    if (valorNum <= 0) return
     const catSelecionada = categorias.find(c => c.id === form.categoria_id)
-    // Gasto rápido: à vista, não recorrente. Classificação automática (padrão variável).
+    // Gasto rápido: à vista, não recorrente, data de hoje. Classificação
+    // automática (padrão variável). Mesma função/estrutura das demais despesas.
     const tipo_despesa = classificarDespesa({
       descricao: form.descricao,
       categoria: catSelecionada?.nome || '',
     })
     onSalvar({
-      descricao: form.descricao,
-      valor: parseFloat(form.valor.replace(',', '.')),
-      data: form.data,
+      descricao: form.descricao?.trim() || (catSelecionada?.nome ?? 'Gasto'),
+      valor: valorNum,
+      data: new Date().toISOString().split('T')[0],
       recorrente: false,
       categoria_id: form.categoria_id || null,
       tipo_despesa,
-    })
+    }, catSelecionada?.nome || 'Sem categoria')
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Valor em destaque (foco imediato para registrar rápido) */}
       <div>
-        <label className="label">Descrição</label>
-        <input name="descricao" value={form.descricao} onChange={handleChange}
-          className="input" placeholder="Ex: Café, Almoço, Uber..." required />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label">Valor (R$)</label>
-          <input name="valor" value={form.valor} onChange={handleChange}
-            type="number" min="0.01" step="0.01" className="input" placeholder="0,00" required />
-        </div>
-        <div>
-          <label className="label">Data</label>
-          <input name="data" value={form.data} onChange={handleChange}
-            type="date" className="input" required />
-        </div>
+        <label className="label">Valor</label>
+        <InputMoeda
+          valor={form.valor}
+          onChangeValor={(n) => setForm(prev => ({ ...prev, valor: n }))}
+          className="input text-2xl font-bold text-center py-3"
+          prefixo={null}
+          autoFocus
+        />
       </div>
       <div>
         <label className="label">Categoria</label>
         <select name="categoria_id" value={form.categoria_id} onChange={handleChange} className="input">
-          <option value="">Sem categoria</option>
-          {categorias.map(c => <option key={c.id} value={c.id}>{c.icone} {c.nome}</option>)}
+          <option value="">Selecionar categoria</option>
+          {categoriasOrdenadas.map(c => <option key={c.id} value={c.id}>{c.icone} {c.nome}</option>)}
         </select>
       </div>
-      <p className="text-xs text-gray-400 flex items-center gap-1">
-        <Zap size={12} /> Registrado como despesa à vista no dia selecionado.
-      </p>
-      <div className="flex gap-3 pt-1">
-        <button type="button" onClick={onCancelar} className="btn-secondary flex-1">Cancelar</button>
-        <button type="submit" disabled={carregando}
-          className="btn-primary flex-1 flex items-center justify-center gap-2">
-          {carregando
-            ? <><Loader2 size={15} className="animate-spin" /> Salvando...</>
-            : 'Salvar gasto'}
-        </button>
+      <div>
+        <label className="label">Descrição <span className="text-gray-400">(opcional)</span></label>
+        <input name="descricao" value={form.descricao} onChange={handleChange}
+          className="input" placeholder="Ex.: Padaria" />
       </div>
+
+      <button type="submit" disabled={carregando}
+        className="btn-primary w-full flex items-center justify-center gap-2 py-3">
+        {carregando
+          ? <><Loader2 size={15} className="animate-spin" /> Salvando...</>
+          : 'Salvar gasto'}
+      </button>
+
+      {/* Atalho para o cadastro COMPLETO já existente (fixa/variável,
+          recorrência, forma de pagamento, parcelamento etc.). */}
+      <button type="button" onClick={onMaisOpcoes}
+        className="w-full text-xs font-medium text-blue-600 hover:text-blue-700 py-1">
+        Mais opções
+      </button>
     </form>
   )
 }
@@ -239,6 +257,24 @@ function diasRestantesNoMes(ref = new Date()) {
   return ultimoDia - ref.getDate() + 1
 }
 
+// Cálculo do limite diário ("Você pode gastar por dia"). FONTE ÚNICA — usada
+// pelo card "Quanto posso gastar?" e pela confirmação do gasto rápido, para
+// nunca divergirem. Mesma fórmula de sempre: auto = (receita − reserva −
+// compromissos)/dias; manual = valor fixo definido pelo usuário.
+function calcularLimiteDiario({ receitaMes, compromissosMes, reservaPct, modo, limiteManual, hoje, baseLivre }) {
+  const dias = diasRestantesNoMes(hoje)
+  const ehManual = modo === 'manual'
+  const reserva = receitaMes > 0 ? receitaMes * (reservaPct / 100) : 0
+  // Se "baseLivre" for informado (orçamento livre já considerando saldo atual
+  // e compromissos futuros), usa-o; senão, mantém a base antiga (receita −
+  // compromissos) para compatibilidade com quem não configurou o saldo.
+  const base = baseLivre != null ? baseLivre : (receitaMes - compromissosMes)
+  const disponivelAuto = base - reserva
+  const limiteAuto = disponivelAuto > 0 && dias > 0 ? disponivelAuto / dias : 0
+  const limiteManualNum = Number(limiteManual) || 0
+  return ehManual ? limiteManualNum : limiteAuto
+}
+
 // Status do orçamento com base no % de comprometimento da renda (educativo, não alarmista)
 function statusOrcamento(receita, disponivel) {
   if (receita <= 0) return null
@@ -259,6 +295,8 @@ function CardQuantoPossoGastar({
   carregando, modo, onTrocarModo,
   receitaMes, compromissosMes, limiteManual, onEditarLimite, hoje,
   reservaPercentual, onTrocarReserva,
+  reservaAtual = 0, metaReserva = 0, onEditarReservaAtual,
+  saldoConfigurado = false, previsaoFimMes = 0,
 }) {
   const [personalizando, setPersonalizando] = useState(false)
   const [pctCustom, setPctCustom] = useState('')
@@ -302,10 +340,17 @@ function CardQuantoPossoGastar({
   const pct = pctLocal
   const reserva = receitaMes > 0 ? receitaMes * (pct / 100) : 0
 
-  // Disponível no modo automático = receita − reserva − compromissos
-  const disponivelAuto = receitaMes - reserva - compromissosMes
-  // No modo manual, a reserva não entra: disponível = receita − compromissos
-  const disponivelManual = receitaMes - compromissosMes
+  // Base do orçamento livre:
+  //  - Se o usuário informou o saldo atual, parte do dinheiro REAL de hoje e
+  //    das entradas/compromissos futuros do mês (previsaoFimMes já é
+  //    saldoAgora + receitas futuras − compromissos futuros). A reserva fica
+  //    separada e só é descontada no modo automático.
+  //  - Se ainda NÃO informou o saldo, mantém o comportamento anterior
+  //    (receita do mês − compromissos), para não quebrar quem não configurou.
+  const baseLivre = saldoConfigurado ? previsaoFimMes : (receitaMes - compromissosMes)
+
+  const disponivelAuto = baseLivre - reserva
+  const disponivelManual = baseLivre
   const disponivelMes = ehManual ? disponivelManual : disponivelAuto
 
   const limiteAuto = disponivelAuto > 0 && dias > 0 ? disponivelAuto / dias : 0
@@ -469,23 +514,99 @@ function CardQuantoPossoGastar({
           <Pencil size={12} /> {limiteManualNum > 0 ? 'Editar meu limite' : 'Definir meu limite'}
         </button>
       )}
+
+      {/* Reserva de emergência: patrimônio já guardado + meta + progresso.
+          Tudo INFORMATIVO — não entra em renda nem no disponível para gastar. */}
+      {(() => {
+        const temMeta = metaReserva > 0
+        const pct = temMeta ? Math.min(100, (reservaAtual / metaReserva) * 100) : 0
+        const faltaAcumular = temMeta ? Math.max(0, metaReserva - reservaAtual) : 0
+        const metaAtingida = temMeta && reservaAtual >= metaReserva
+        return (
+          <div className="mt-3 pt-3 border-t border-white/15">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-white/80">
+                Reserva de emergência atual: <strong className="text-white">{formatCurrency(reservaAtual)}</strong>
+              </span>
+              <button
+                onClick={onEditarReservaAtual}
+                className="flex items-center gap-1 text-xs font-medium text-white/90 bg-black/15 hover:bg-black/25 px-2.5 py-1.5 rounded-lg transition-colors flex-shrink-0"
+              >
+                <Pencil size={12} /> Editar
+              </button>
+            </div>
+
+            {temMeta && (
+              <>
+                <div className="flex items-center justify-between text-xs text-white/80 mt-2">
+                  <span>Meta: <strong className="text-white">{formatCurrency(metaReserva)}</strong></span>
+                  <span>{pct.toFixed(1).replace('.', ',')}%</span>
+                </div>
+                {/* Barra de progresso */}
+                <div className="w-full bg-black/20 rounded-full h-2 mt-1.5">
+                  <div
+                    className="h-2 rounded-full bg-white/90 transition-all duration-500"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <p className="text-xs text-white/80 mt-1.5">
+                  {metaAtingida
+                    ? <>Falta acumular: <strong className="text-white">{formatCurrency(0)}</strong> • <strong className="text-white">Meta atingida ✓</strong></>
+                    : <>Falta acumular: <strong className="text-white">{formatCurrency(faltaAcumular)}</strong></>}
+                </p>
+
+                {/* Previsão de quando a meta será atingida (calculada dinamicamente).
+                    aporte_mensal = renda × (reserva_percentual/100). Não altera cálculos. */}
+                {(() => {
+                  if (metaAtingida) {
+                    return <p className="text-xs text-white/90 mt-1.5 font-medium">Meta atingida 🎉</p>
+                  }
+                  const aporteMensal = receitaMes > 0 ? receitaMes * (reservaPercentual / 100) : 0
+                  if (aporteMensal <= 0) {
+                    return (
+                      <p className="text-xs text-white/70 mt-1.5">
+                        Informe sua renda e defina um percentual de reserva para visualizar a previsão.
+                      </p>
+                    )
+                  }
+                  const meses = Math.ceil(faltaAcumular / aporteMensal)
+                  // Mês/ano estimado (a partir do mês atual + meses).
+                  const alvo = new Date()
+                  alvo.setMonth(alvo.getMonth() + meses)
+                  const mesAno = alvo.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+                  return (
+                    <div className="mt-2 bg-black/15 rounded-lg px-3 py-2">
+                      <p className="text-xs text-white/90">
+                        Mantendo seu aporte de <strong>{formatCurrency(aporteMensal)}/mês</strong>, você atingirá
+                        sua meta em aproximadamente <strong>{meses} {meses === 1 ? 'mês' : 'meses'}</strong>.
+                      </p>
+                      <p className="text-xs text-white/70 mt-0.5 capitalize">
+                        Previsão: {mesAno}.
+                      </p>
+                    </div>
+                  )
+                })()}
+              </>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }
 
 // ─── Modal para editar o limite diário manual ─────────────────────────────────
 function ModalLimiteDiario({ aberto, onFechar, valorAtual, onSalvar, salvando }) {
-  const [valor, setValor] = useState('')
+  const [valor, setValor] = useState(0)
 
   useEffect(() => {
-    if (aberto) setValor(valorAtual != null && Number(valorAtual) > 0 ? String(valorAtual) : '')
+    if (aberto) setValor(Number(valorAtual) || 0)
   }, [aberto, valorAtual])
 
   function handleSubmit(e) {
     e.preventDefault()
-    const num = parseFloat(String(valor).replace(',', '.'))
-    if (!num || num <= 0) return
-    onSalvar(num)
+    if (!valor || valor <= 0) return
+    onSalvar(valor)
   }
 
   return (
@@ -493,14 +614,11 @@ function ModalLimiteDiario({ aberto, onFechar, valorAtual, onSalvar, salvando })
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="label">Quanto você quer poder gastar por dia?</label>
-          <input
-            type="number" min="0.01" step="0.01"
-            value={valor}
-            onChange={e => setValor(e.target.value)}
+          <InputMoeda
+            valor={valor}
+            onChangeValor={setValor}
             className="input"
-            placeholder="Ex: 100,00"
             autoFocus
-            required
           />
           <p className="text-xs text-gray-400 mt-1">
             Esse valor fica salvo e continua o mesmo nos próximos dias até você alterar.
@@ -518,17 +636,222 @@ function ModalLimiteDiario({ aberto, onFechar, valorAtual, onSalvar, salvando })
   )
 }
 
+// ─── Modal para informar/atualizar o SALDO ATUAL (dinheiro disponível hoje) ───
+function ModalSaldo({ aberto, onFechar, valorAtual, onSalvar, salvando }) {
+  const [valor, setValor] = useState(0)
+  const [erro, setErro] = useState('')
+
+  useEffect(() => {
+    if (aberto) { setValor(Number(valorAtual) || 0); setErro('') }
+  }, [aberto, valorAtual])
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (valor < 0) return
+    setErro('')
+    try {
+      // onSalvar pode ser assíncrono e lançar erro (ex.: coluna ausente no
+      // banco). Nesse caso mostramos a mensagem em vez de um clique "morto".
+      await onSalvar(valor)
+    } catch (err) {
+      setErro(err?.message || 'Não foi possível salvar o saldo. Tente novamente.')
+    }
+  }
+
+  return (
+    <Modal aberto={aberto} onFechar={onFechar} titulo="Saldo atual">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="label">Quanto você tem disponível hoje?</label>
+          <InputMoeda
+            valor={valor}
+            onChangeValor={setValor}
+            className="input text-2xl font-bold text-center py-3"
+            prefixo={null}
+            autoFocus
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            Informe o dinheiro que você possui disponível para utilizar.
+            Não inclua sua reserva de emergência.
+          </p>
+        </div>
+
+        {erro && (
+          <p className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2">{erro}</p>
+        )}
+        <div className="flex gap-3 pt-1">
+          <button type="button" onClick={onFechar} className="btn-secondary flex-1">Cancelar</button>
+          <button type="submit" disabled={salvando}
+            className="btn-primary flex-1 flex items-center justify-center gap-2">
+            {salvando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : 'Salvar saldo'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+// ─── Modal para editar a reserva de emergência (valor atual + meta) ───────────
+function ModalReservaAtual({ aberto, onFechar, valorAtual, metaAtual, onSalvar, salvando }) {
+  const [valor, setValor] = useState(0)
+  const [meta, setMeta] = useState(0)
+
+  useEffect(() => {
+    if (aberto) {
+      setValor(Number(valorAtual) || 0)
+      setMeta(Number(metaAtual) || 0)
+    }
+  }, [aberto, valorAtual, metaAtual])
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    // Ambos aceitam 0 e qualquer valor >= 0.
+    onSalvar({ reserva_atual: Math.max(0, valor), meta_reserva: Math.max(0, meta) })
+  }
+
+  return (
+    <Modal aberto={aberto} onFechar={onFechar} titulo="Reserva de emergência">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="label">Quanto você já tem guardado?</label>
+          <InputMoeda valor={valor} onChangeValor={setValor} className="input" autoFocus />
+        </div>
+        <div>
+          <label className="label">Meta da reserva <span className="text-gray-400">(objetivo total)</span></label>
+          <InputMoeda valor={meta} onChangeValor={setMeta} className="input" />
+          <p className="text-xs text-gray-400 mt-1">
+            Esses valores são apenas um registro do seu patrimônio e do seu objetivo.
+            Não são somados à renda nem ao disponível para gastar.
+          </p>
+        </div>
+        <div className="flex gap-3 pt-1">
+          <button type="button" onClick={onFechar} className="btn-secondary flex-1">Cancelar</button>
+          <button type="submit" disabled={salvando}
+            className="btn-primary flex-1 flex items-center justify-center gap-2">
+            {salvando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : 'Salvar reserva'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+// ─── Card "Comece por aqui" (checklist de primeiro uso) ───────────────────────
+// Versão compacta por padrão; o checklist completo expande ao tocar "Continuar".
+function CardComecePorAqui({ itens, totalConcluidos, onIrPara, onContinuar }) {
+  const total = itens.length
+  const [expandido, setExpandido] = useState(false)
+
+  // Resumo dos pendentes (labels curtos) para a visão compacta.
+  const pendentes = itens.filter(i => !i.concluido)
+  const resumoPendentes = pendentes
+    .map(i => ({
+      renda: 'renda',
+      despesas: 'despesas recorrentes',
+      parcelas: 'parcelamentos',
+      reserva: 'reserva',
+    }[i.chave] || i.label.toLowerCase()))
+  // Junta com vírgulas e "e" antes do último.
+  const textoFaltam = resumoPendentes.length === 1
+    ? resumoPendentes[0]
+    : resumoPendentes.slice(0, -1).join(', ') + ' e ' + resumoPendentes[resumoPendentes.length - 1]
+
+  return (
+    <div className="card">
+      {/* Cabeçalho compacto */}
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2 min-w-0">
+          <Rocket size={18} className="text-blue-600 flex-shrink-0" />
+          <span className="truncate">Complete sua configuração</span>
+        </h2>
+        <span className="text-xs font-medium text-gray-500 flex-shrink-0">
+          {totalConcluidos} de {total} concluídos
+        </span>
+      </div>
+
+      {/* Resumo dos pendentes — só na visão compacta */}
+      {!expandido && pendentes.length > 0 && (
+        <p className="text-sm text-gray-500 mt-2">
+          Faltam: {textoFaltam}
+        </p>
+      )}
+
+      {/* Checklist completo — expande ao tocar "Continuar" */}
+      {expandido && (
+        <ul className="space-y-2 mt-3">
+          {itens.map(item => (
+            <li key={item.chave}>
+              <button
+                type="button"
+                onClick={() => !item.concluido && onIrPara(item)}
+                disabled={item.concluido}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-colors ${
+                  item.concluido
+                    ? 'border-green-100 bg-green-50 cursor-default'
+                    : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                }`}
+              >
+                {item.concluido
+                  ? <CheckCircle2 size={18} className="text-green-600 flex-shrink-0" />
+                  : <Circle size={18} className="text-gray-300 flex-shrink-0" />}
+                <span className={`text-sm flex-1 ${item.concluido ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
+                  {item.label}
+                </span>
+                {!item.concluido && <ArrowRight size={15} className="text-gray-400 flex-shrink-0" />}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Ações */}
+      {!expandido ? (
+        <button
+          onClick={() => setExpandido(true)}
+          className="btn-primary w-full mt-3 flex items-center justify-center gap-2"
+        >
+          Continuar <ArrowRight size={16} />
+        </button>
+      ) : (
+        <div className="flex gap-3 mt-4">
+          <button onClick={() => setExpandido(false)} className="btn-secondary flex-1">
+            Recolher
+          </button>
+          <button onClick={onContinuar} className="btn-primary flex-1 flex items-center justify-center gap-2">
+            Continuar configuração <ArrowRight size={16} />
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const { perfil, atualizarPreferenciasLimite } = useAuth()
   const {
-    resumoMes, projecao, carregando, receitas, despesas, criarDespesa,
+    resumoMes, projecao, carregando, receitas, despesas, parcelamentos, criarDespesa,
   } = useProjecao()
+  const navigate = useNavigate()
 
   const [modalGasto, setModalGasto] = useState(false)
   const [salvandoGasto, setSalvandoGasto] = useState(false)
   const [erroGasto, setErroGasto] = useState('')
+  const [confirmacaoGasto, setConfirmacaoGasto] = useState(null) // { msg, limite }
   const [modalLimite, setModalLimite] = useState(false)
   const [salvandoLimite, setSalvandoLimite] = useState(false)
+  const [modalReservaAtual, setModalReservaAtual] = useState(false)
+  const [salvandoReservaAtual, setSalvandoReservaAtual] = useState(false)
+  const [modalSaldo, setModalSaldo] = useState(false)
+  const [salvandoSaldo, setSalvandoSaldo] = useState(false)
+
+  // Atalho do botão "+" (menu inferior mobile): ?novo=gasto|reserva abre o
+  // modal JÁ existente desta página. Depois limpa o parâmetro da URL.
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    const novo = searchParams.get('novo')
+    if (novo === 'gasto') { setModalGasto(true); searchParams.delete('novo'); setSearchParams(searchParams, { replace: true }) }
+    else if (novo === 'reserva') { setModalReservaAtual(true); searchParams.delete('novo'); setSearchParams(searchParams, { replace: true }) }
+  }, [searchParams, setSearchParams])
 
   const sobraPositiva = resumoMes.sobraPrevista >= 0
   const hoje = new Date()
@@ -545,6 +868,23 @@ export default function Dashboard() {
     (temDespesas && !temDespesasRecorrentes)
   )
 
+  // ─── Checklist "Comece por aqui" (primeiro uso) ───
+  // Cada item apenas VERIFICA dados que já existem e aponta para o fluxo atual.
+  // Não há cadastro novo aqui — reutiliza as telas/rotas existentes.
+  const temParcelamentos = (parcelamentos?.length ?? 0) > 0
+  const temReserva = (Number(perfil?.reserva_atual) || 0) > 0 || (Number(perfil?.meta_reserva) || 0) > 0
+  // Ordem: 1) Saldo atual, 2) Receitas, 3) Despesas, 4) Reserva.
+  const onboardingItens = [
+    { chave: 'saldo',       label: 'Saldo atual',                  to: '/',         concluido: resumoMes.saldoConfigurado },
+    { chave: 'renda',       label: 'Receitas futuras',             to: '/receitas', concluido: temReceitas },
+    { chave: 'despesas',    label: 'Despesas e contas',            to: '/despesas', concluido: temDespesasRecorrentes },
+    { chave: 'reserva',     label: 'Reserva de emergência',        to: '/',         concluido: temReserva },
+  ]
+  const totalConcluidos = onboardingItens.filter(i => i.concluido).length
+  const primeiroPendente = onboardingItens.find(i => !i.concluido)
+  // Mostra só até concluir os 4; some automaticamente quando tudo estiver pronto.
+  const mostrarComecePorAqui = !carregando && totalConcluidos < onboardingItens.length
+
   // ─── "Quanto posso gastar?" ───
   // Compromissos do mês = despesas + parcelas + faturas de cartão, SEM duplicar.
   // resumoMes.sobraPrevista = receita − compromissos (já consolidado no useProjecao).
@@ -554,21 +894,61 @@ export default function Dashboard() {
   const limiteManual = perfil?.limite_diario ?? null
   const modoLimite = perfil?.modo_limite === 'manual' ? 'manual' : 'auto' // padrão: automático
   const reservaPercentual = perfil?.reserva_percentual ?? 20 // padrão 20%
+  // Valor JÁ guardado como reserva (patrimônio). NÃO entra em renda/disponível.
+  const reservaAtual = Number(perfil?.reserva_atual) || 0
+  // Meta TOTAL da reserva (objetivo). Também apenas informativa.
+  const metaReserva = Number(perfil?.meta_reserva) || 0
+  // ─── Saldo atual real (derivado no useProjecao) ───
+  const saldoConfigurado = resumoMes.saldoConfigurado
+  const saldoDisponivelAgora = resumoMes.saldoDisponivelAgora
+  const previsaoFimMes = resumoMes.previsaoFimMes
+  const compromissosFuturosMes = resumoMes.compromissosFuturosMes
   const carregandoLimite = carregando
 
   // ─── Handler do Gasto rápido ───
-  async function handleSalvarGasto(dados) {
+  async function handleSalvarGasto(dados, categoriaNome) {
     setSalvandoGasto(true)
     setErroGasto('')
     try {
       await criarDespesa(dados)   // atualiza o estado interno → indicadores recalculam
       setModalGasto(false)
+      // Confirmação curta + limite diário restante (MESMA fórmula do card,
+      // via calcularLimiteDiario). O gasto é à vista → entra em compromissos,
+      // então somamos o valor para refletir o limite JÁ atualizado.
+      const valorGasto = Number(dados.valor) || 0
+      const limite = calcularLimiteDiario({
+        receitaMes,
+        compromissosMes: compromissosMes + valorGasto,
+        reservaPct: reservaPercentual,
+        modo: modoLimite,
+        limiteManual,
+        hoje,
+        // Com saldo configurado, o gasto de hoje reduz a base livre.
+        baseLivre: saldoConfigurado ? (previsaoFimMes - valorGasto) : undefined,
+      })
+      setConfirmacaoGasto({
+        msg: `✓ Gasto de ${formatCurrency(dados.valor)} registrado em ${categoriaNome}`,
+        limite: Math.max(0, limite),
+      })
     } catch {
       setErroGasto('Erro ao salvar o gasto. Tente novamente.')
     } finally {
       setSalvandoGasto(false)
     }
   }
+
+  // Abre o cadastro COMPLETO de despesas (todos os campos avançados já existentes).
+  function handleMaisOpcoes() {
+    setModalGasto(false)
+    navigate('/despesas?novo=1')
+  }
+
+  // A confirmação do gasto rápido some sozinha após alguns segundos.
+  useEffect(() => {
+    if (!confirmacaoGasto) return
+    const t = setTimeout(() => setConfirmacaoGasto(null), 5000)
+    return () => clearTimeout(t)
+  }, [confirmacaoGasto])
 
   // ─── Handlers do limite / modo / reserva ───
   async function handleTrocarModo(novoModo) {
@@ -598,6 +978,38 @@ export default function Dashboard() {
     }
   }
 
+  // Salva o saldo atual informado pelo usuário. Grava o valor E a data de hoje
+  // como novo marco (reconciliação), evitando reaplicar histórico anterior.
+  async function handleSalvarSaldo(valor) {
+    setSalvandoSaldo(true)
+    try {
+      await atualizarPreferenciasLimite({
+        saldo_base: valor,
+        saldo_base_data: new Date().toISOString().split('T')[0],
+      })
+      setModalSaldo(false) // fecha só em caso de sucesso
+    } catch (err) {
+      // Relança para o ModalSaldo exibir a mensagem (ex.: coluna ausente).
+      throw err
+    } finally {
+      setSalvandoSaldo(false)
+    }
+  }
+
+  // Salva o valor JÁ guardado e a META da reserva (ambos patrimônio/objetivo).
+  // Não afetam nenhum cálculo financeiro — são apenas informativos.
+  async function handleSalvarReservaAtual({ reserva_atual, meta_reserva }) {
+    setSalvandoReservaAtual(true)
+    try {
+      await atualizarPreferenciasLimite({ reserva_atual, meta_reserva })
+      setModalReservaAtual(false)
+    } catch {
+      // mantém o modal aberto; erro silencioso para não quebrar o layout
+    } finally {
+      setSalvandoReservaAtual(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
@@ -606,16 +1018,102 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold text-gray-900">{saudacao} 👋</h1>
           <p className="text-sm text-gray-500 mt-1 capitalize">Resumo financeiro de {nomeMes}</p>
         </div>
+        {/* No mobile, a inclusão de gastos passa a ser pelo botão "+" do menu
+            inferior; aqui o botão fica só no desktop. */}
         <button
           onClick={() => setModalGasto(true)}
-          className="btn-primary flex items-center gap-2 flex-shrink-0"
+          className="btn-primary hidden sm:flex items-center gap-2 flex-shrink-0"
         >
-          <Zap size={16} /> <span className="hidden sm:inline">Gasto rápido</span><span className="sm:hidden">Gasto</span>
+          <Zap size={16} /> <span>Gasto rápido</span>
         </button>
       </div>
 
       {erroGasto && (
         <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{erroGasto}</p>
+      )}
+
+      {/* Confirmação curta do gasto rápido + limite diário restante */}
+      {confirmacaoGasto && (
+        <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-3">
+          <p className="text-sm font-medium text-green-700">{confirmacaoGasto.msg}</p>
+          <p className="text-xs text-green-600 mt-0.5">
+            Você ainda pode gastar {formatCurrency(confirmacaoGasto.limite)} hoje.
+          </p>
+        </div>
+      )}
+
+      {/* Card: Saldo disponível agora + Previsão até o fim do mês.
+          A reserva de emergência NÃO entra aqui (fica no card abaixo). */}
+      {!carregando && (
+        <div className="card">
+          {saldoConfigurado ? (
+            <>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm text-gray-500">Saldo disponível agora</p>
+                  <p className={`text-3xl font-bold ${saldoDisponivelAgora >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+                    {formatCurrency(saldoDisponivelAgora)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setModalSaldo(true)}
+                  className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 flex-shrink-0 mt-1"
+                >
+                  <Pencil size={13} /> Atualizar saldo
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <p className="text-xs text-gray-400">Previsão até o fim do mês</p>
+                  <p className={`text-lg font-bold ${previsaoFimMes >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                    {formatCurrency(previsaoFimMes)}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <p className="text-xs text-gray-400">Compromissos a pagar</p>
+                  <p className="text-lg font-bold text-red-500">{formatCurrency(compromissosFuturosMes)}</p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                O saldo mostra o dinheiro que você já tem. A reserva de emergência é separada.
+              </p>
+            </>
+          ) : (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Informe seu saldo atual</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Diga quanto você tem disponível hoje para o app calcular seu dinheiro em tempo real.
+                </p>
+              </div>
+              <button onClick={() => setModalSaldo(true)}
+                className="btn-primary flex items-center justify-center gap-2 flex-shrink-0">
+                <Wallet size={16} /> Informar saldo
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Card "Comece por aqui" — some automaticamente quando os 4 itens
+          estiverem concluídos. Cada item leva ao fluxo JÁ existente. */}
+      {mostrarComecePorAqui && (
+        <CardComecePorAqui
+          itens={onboardingItens}
+          totalConcluidos={totalConcluidos}
+          onIrPara={(item) => {
+            if (item.chave === 'saldo') setModalSaldo(true)
+            else if (item.chave === 'reserva') setModalReservaAtual(true)
+            else navigate(item.to)
+          }}
+          onContinuar={() => {
+            if (!primeiroPendente) return
+            if (primeiroPendente.chave === 'saldo') setModalSaldo(true)
+            else if (primeiroPendente.chave === 'reserva') setModalReservaAtual(true)
+            else navigate(primeiroPendente.to)
+          }}
+        />
       )}
 
       {/* Card: Quanto posso gastar? (Automático | Manual) */}
@@ -629,7 +1127,12 @@ export default function Dashboard() {
         onEditarLimite={() => setModalLimite(true)}
         hoje={hoje}
         reservaPercentual={reservaPercentual}
+        reservaAtual={reservaAtual}
+        metaReserva={metaReserva}
+        onEditarReservaAtual={() => setModalReservaAtual(true)}
         onTrocarReserva={handleTrocarReserva}
+        saldoConfigurado={saldoConfigurado}
+        previsaoFimMes={previsaoFimMes}
       />
 
       {/* Cards de resumo */}
@@ -753,6 +1256,7 @@ export default function Dashboard() {
           onSalvar={handleSalvarGasto}
           onCancelar={() => setModalGasto(false)}
           carregando={salvandoGasto}
+          onMaisOpcoes={handleMaisOpcoes}
         />
       </Modal>
 
@@ -763,6 +1267,23 @@ export default function Dashboard() {
         valorAtual={limiteManual}
         onSalvar={handleSalvarLimite}
         salvando={salvandoLimite}
+      />
+
+      <ModalReservaAtual
+        aberto={modalReservaAtual}
+        onFechar={() => setModalReservaAtual(false)}
+        valorAtual={reservaAtual}
+        metaAtual={metaReserva}
+        onSalvar={handleSalvarReservaAtual}
+        salvando={salvandoReservaAtual}
+      />
+
+      <ModalSaldo
+        aberto={modalSaldo}
+        onFechar={() => setModalSaldo(false)}
+        valorAtual={perfil?.saldo_base}
+        onSalvar={handleSalvarSaldo}
+        salvando={salvandoSaldo}
       />
     </div>
   )

@@ -13,6 +13,8 @@ import {
   ShieldCheck,
   MoreHorizontal,
   Plus,
+  Receipt,
+  PiggyBank,
   X,
   LogOut,
 } from 'lucide-react'
@@ -56,13 +58,14 @@ const maisItems = [
   { to: '/admin',         label: 'Admin',          icon: ShieldCheck,   corIcone: 'text-violet-400', adminOnly: true },
 ]
 
-// Ações rápidas do botão central "+". Apenas NAVEGAM para fluxos já existentes
-// (não criam regras novas nem formulários duplicados).
+// Ações do botão central "+". Cada opção NAVEGA para a página do fluxo e passa
+// um parâmetro (?novo=...) que faz a própria página abrir o modal/formulário
+// JÁ existente. Não há formulário novo nem regra duplicada — é só um atalho.
 const acoesRapidas = [
-  { to: '/receitas', label: 'Nova receita',  icon: TrendingUp,   cor: 'text-green-600', bg: 'bg-green-50' },
-  { to: '/despesas', label: 'Nova despesa',  icon: TrendingDown, cor: 'text-red-500',   bg: 'bg-red-50'   },
-  { to: '/cartoes',  label: 'Compra no cartão', icon: CreditCard, cor: 'text-indigo-600', bg: 'bg-indigo-50' },
-  { to: '/metas',    label: 'Nova meta',     icon: Target,       cor: 'text-blue-600',  bg: 'bg-blue-50'  },
+  { to: '/?novo=gasto',       label: 'Gasto rápido',      desc: 'Registre uma compra em segundos',  icon: Receipt,     cor: 'text-rose-500',   bg: 'bg-rose-50'   },
+  { to: '/receitas?novo=1',   label: 'Nova receita',      desc: 'Registre uma entrada',             icon: TrendingUp,  cor: 'text-green-600',  bg: 'bg-green-50'  },
+  { to: '/cartoes',           label: 'Compra no cartão',  desc: 'Registre uma compra no cartão',    icon: CreditCard,  cor: 'text-blue-600',   bg: 'bg-blue-50'   },
+  { to: '/?novo=reserva',     label: 'Atualizar reserva', desc: 'Informe quanto possui na reserva', icon: PiggyBank,   cor: 'text-violet-600', bg: 'bg-violet-50' },
 ]
 
 function NavItem({ item, onClick }) {
@@ -138,7 +141,7 @@ function SecaoLabel({ children }) {
 
 // Item da barra inferior mobile (ícone + rótulo, alvo de toque confortável).
 // Suporta tanto NavLink (to) quanto botão de ação (onClick + ativo manual).
-function BottomNavItem({ to, label, icon: Icon, onClick, ativo }) {
+function BottomNavItem({ to, label, icon: Icon, onClick, ativo, corIcone }) {
   const base = 'bottom-nav-item'
   if (to) {
     return (
@@ -147,14 +150,19 @@ function BottomNavItem({ to, label, icon: Icon, onClick, ativo }) {
         end={to === '/'}
         className={({ isActive }) => `${base} ${isActive ? 'text-blue-500' : 'text-gray-400'}`}
       >
-        <Icon size={21} />
-        <span>{label}</span>
+        {({ isActive }) => (
+          <>
+            {/* Só o ícone recebe cor quando inativo; selecionado fica azul (herdado). */}
+            <Icon size={21} className={isActive ? '' : (corIcone || '')} />
+            <span>{label}</span>
+          </>
+        )}
       </NavLink>
     )
   }
   return (
     <button onClick={onClick} className={`${base} ${ativo ? 'text-blue-500' : 'text-gray-400'}`}>
-      <Icon size={21} />
+      <Icon size={21} className={ativo ? '' : (corIcone || '')} />
       <span>{label}</span>
     </button>
   )
@@ -248,8 +256,8 @@ export default function Layout({ children }) {
 
       {/* ── Barra de navegação inferior premium (apenas mobile) ── */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 shadow-[0_-1px_12px_rgba(0,0,0,0.06)] flex items-end justify-around px-1 pb-safe">
-        <BottomNavItem to="/" label="Início" icon={LayoutDashboard} />
-        <BottomNavItem to="/despesas" label="Despesas" icon={TrendingDown} />
+        <BottomNavItem to="/" label="Início" icon={LayoutDashboard} corIcone="text-blue-400" />
+        <BottomNavItem to="/despesas" label="Despesas" icon={TrendingDown} corIcone="text-rose-400" />
 
         {/* Botão central "+" em destaque (ações rápidas) */}
         <div className="flex-1 flex justify-center">
@@ -262,7 +270,7 @@ export default function Layout({ children }) {
           </button>
         </div>
 
-        <BottomNavItem to="/posso-comprar" label="Comprar?" icon={ShoppingCart} />
+        <BottomNavItem to="/posso-comprar" label="Comprar?" icon={ShoppingCart} corIcone="text-blue-400" />
         <BottomNavItem label="Mais" icon={MoreHorizontal} onClick={() => setMaisAberto(true)} ativo={maisAtivo || maisAberto} />
       </nav>
 
@@ -272,7 +280,7 @@ export default function Layout({ children }) {
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setAcoesAberto(false)} />
           <div className="absolute bottom-0 inset-x-0 bg-white rounded-t-2xl shadow-xl pb-safe">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <h3 className="text-base font-semibold text-gray-900">Adicionar</h3>
+              <h3 className="text-base font-semibold text-gray-900">O que você quer adicionar?</h3>
               <button
                 onClick={() => setAcoesAberto(false)}
                 className="touch-target rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600"
@@ -281,17 +289,20 @@ export default function Layout({ children }) {
                 <X size={20} />
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-3 p-4">
+            <div className="p-4 space-y-2.5">
               {acoesRapidas.map(a => (
                 <button
                   key={a.to}
                   onClick={() => { setAcoesAberto(false); navigate(a.to) }}
-                  className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-gray-50 transition-colors text-left"
+                  className="w-full flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-blue-300 hover:bg-gray-50 transition-colors text-left"
                 >
                   <span className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${a.bg}`}>
-                    <a.icon size={18} className={a.cor} />
+                    <a.icon size={20} className={a.cor} />
                   </span>
-                  <span className="text-sm font-medium text-gray-800">{a.label}</span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-gray-800">{a.label}</span>
+                    <span className="block text-xs text-gray-500">{a.desc}</span>
+                  </span>
                 </button>
               ))}
             </div>

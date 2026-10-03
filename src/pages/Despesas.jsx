@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { TrendingDown, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, CreditCard, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
 import { useDespesas } from '../hooks/useDespesas'
 import { useParcelamentos, valorParcelaNoMes, calcularParcelas } from '../hooks/useParcelamentos'
@@ -7,6 +7,7 @@ import { useCategorias } from '../hooks/useCategorias'
 import { useCartoes } from '../hooks/useCartoes'
 import { useProjecao } from '../hooks/useProjecao'
 import Modal from '../components/Modal'
+import InputMoeda from '../components/InputMoeda'
 import { formatCurrency, formatDate, corCategoria, FORMAS_PAGAMENTO, formaPagamentoLabel } from '../lib/utils'
 import { classificarDespesa, labelTipoDespesa } from '../lib/classificarDespesa'
 import { FormParcelamento, CardParcelamento } from './Parcelamentos'
@@ -26,11 +27,16 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
 
   // Deriva a frequência a partir dos campos salvos (retrocompatível).
   // As opções do form são: nao_repete | diaria | semanal | mensal.
-  // Dados antigos com 'por_meses' são tratados como 'mensal' na edição.
+  // Dados salvos como 'por_meses' são exibidos como 'mensal' com duração.
   function freqInicial(d) {
     if (!d) return 'nao_repete'
     const f = d.frequencia || (d.recorrente ? 'mensal' : 'nao_repete')
     return f === 'por_meses' ? 'mensal' : f
+  }
+  // Modo da duração mensal: 'sem_fim' (repete sempre) ou 'quantidade' (N meses).
+  function duracaoInicial(d) {
+    if (d && (d.frequencia === 'por_meses') && d.recorrencia_meses != null) return 'quantidade'
+    return 'sem_fim'
   }
 
   const [form, setForm] = useState({
@@ -40,6 +46,9 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
     frequencia: freqInicial(despesaInicial),
     categoria_id: despesaInicial?.categoria_id ?? '',
     forma_pagamento: despesaInicial?.forma_pagamento ?? '',
+    // Duração da recorrência mensal (só UI): 'sem_fim' | 'quantidade' + nº meses
+    duracaoMensal: duracaoInicial(despesaInicial),
+    recorrenciaMeses: despesaInicial?.recorrencia_meses != null ? String(despesaInicial.recorrencia_meses) : '3',
     // Novos (só UI): forma da compra no cartão e nº de parcelas
     comoCompra: 'avista',       // 'avista' | 'parcelada'
     numero_parcelas: '12',
@@ -57,8 +66,8 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
 
   // "Valor por parcela" usando a MESMA função da lógica de parcelamento.
   const { base: parcelaBase, ultima: parcelaUltima } =
-    ehParcelada && form.valor && form.numero_parcelas
-      ? calcularParcelas(parseFloat(String(form.valor).replace(',', '.')), parseInt(form.numero_parcelas))
+    ehParcelada && Number(form.valor) > 0 && form.numero_parcelas
+      ? calcularParcelas(Number(form.valor), parseInt(form.numero_parcelas))
       : { base: 0, ultima: 0 }
   const temAjusteParcela = parcelaBase > 0 && parcelaUltima !== parcelaBase
 
@@ -69,7 +78,7 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
     if (ehParcelada) {
       onSalvarParcelada({
         descricao: form.descricao,
-        valor_total: parseFloat(String(form.valor).replace(',', '.')),
+        valor_total: Number(form.valor) || 0,
         numero_parcelas: parseInt(form.numero_parcelas),
         // 1ª parcela = mês da data informada (mesmo formato do FormParcelamento)
         primeira_parcela: form.data.slice(0, 7) + '-01',
@@ -86,16 +95,26 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
       descricao: form.descricao,
       categoria: catSelecionada?.nome || '',
     })
-    const freq = form.frequencia
+    // Frequência final + duração:
+    //  - Mensal "sem data para terminar" → frequencia 'mensal', sem limite.
+    //  - Mensal "por quantos meses?"     → frequencia 'por_meses' + recorrencia_meses.
+    //    (A projeção já respeita recorrencia_meses para por_meses, contando a
+    //     partir da data inicial e parando após N meses.)
+    let freq = form.frequencia
+    let recorrenciaMeses = null
+    if (form.frequencia === 'mensal' && form.duracaoMensal === 'quantidade') {
+      const n = parseInt(form.recorrenciaMeses, 10)
+      if (n > 0) { freq = 'por_meses'; recorrenciaMeses = n }
+    }
     const recorrente = freq !== 'nao_repete'
 
     onSalvarVista({
       descricao: form.descricao,
-      valor: parseFloat(String(form.valor).replace(',', '.')),
+      valor: Number(form.valor) || 0,
       data: form.data,
       recorrente,
       frequencia: freq,
-      recorrencia_meses: null,
+      recorrencia_meses: recorrenciaMeses,
       categoria_id: form.categoria_id || null,
       tipo_despesa,
       forma_pagamento: form.forma_pagamento || null,
@@ -120,8 +139,9 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Valor (R$)</label>
-          <input name="valor" value={form.valor} onChange={handleChange}
-            type="number" min="0.01" step="0.01" className="input" placeholder="0,00" required />
+          <InputMoeda valor={form.valor}
+            onChangeValor={(n) => setForm(prev => ({ ...prev, valor: n }))}
+            className="input" />
         </div>
         <div>
           <label className="label">Data</label>
@@ -229,6 +249,45 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
           <p className="text-xs text-gray-400 mt-1.5">
             Use para contas recorrentes, como aluguel, internet e assinaturas.
           </p>
+
+          {/* Duração — só para a frequência "Mensalmente" */}
+          {form.frequencia === 'mensal' && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <label className="label">Por quanto tempo?</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button"
+                  onClick={() => setForm(p => ({ ...p, duracaoMensal: 'sem_fim' }))}
+                  className={`p-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                    form.duracaoMensal === 'sem_fim' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                  }`}>
+                  Sem data para terminar
+                </button>
+                <button type="button"
+                  onClick={() => setForm(p => ({ ...p, duracaoMensal: 'quantidade' }))}
+                  className={`p-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                    form.duracaoMensal === 'quantidade' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                  }`}>
+                  Por alguns meses
+                </button>
+              </div>
+
+              {form.duracaoMensal === 'quantidade' && (
+                <div className="mt-2">
+                  <label className="label">Por quantos meses?</label>
+                  <input
+                    name="recorrenciaMeses"
+                    value={form.recorrenciaMeses}
+                    onChange={handleChange}
+                    type="number" min="1" max="120" inputMode="numeric"
+                    className="input" placeholder="Ex: 3"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    A despesa entra na projeção a partir da data inicial e para após esse número de meses.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -399,6 +458,21 @@ export default function Despesas() {
 
   const mostrarParceladas = filtro === 'Parceladas'
   const totalLinhas = despesasVisiveis.length + parcelasVisiveis.length
+
+  // Atalho do botão "+" (menu inferior mobile): ?novo=1 abre o modal de nova
+  // despesa; ?novo=parcelado abre o modal e já posiciona na aba Parceladas.
+  // Usa o fluxo/modal JÁ existente — sem formulário novo.
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    const novo = searchParams.get('novo')
+    if (novo === '1' || novo === 'parcelado') {
+      setDespesaEditando(null)
+      setModalAberto(true)
+      if (novo === 'parcelado') setFiltro('Parceladas')
+      searchParams.delete('novo')
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   // ─── Handlers despesa à vista ───
   // Abre o modal em modo criação

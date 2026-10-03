@@ -1,8 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { TrendingUp, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil } from 'lucide-react'
 import { useReceitas } from '../hooks/useReceitas'
 import { useCategorias } from '../hooks/useCategorias'
 import Modal from '../components/Modal'
+import InputMoeda from '../components/InputMoeda'
 import { formatCurrency, formatDate, corCategoria } from '../lib/utils'
 
 const mesAtual = new Date().getMonth() + 1
@@ -28,7 +30,7 @@ function FormReceita({ onSalvar, onCancelar, carregando, receitaInicial, textoBo
     e.preventDefault()
     onSalvar({
       ...form,
-      valor: parseFloat(form.valor.replace(',', '.')),
+      valor: Number(form.valor) || 0,
     })
   }
 
@@ -42,8 +44,9 @@ function FormReceita({ onSalvar, onCancelar, carregando, receitaInicial, textoBo
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Valor (R$)</label>
-          <input name="valor" value={form.valor} onChange={handleChange}
-            type="number" min="0.01" step="0.01" className="input" placeholder="0,00" required />
+          <InputMoeda valor={form.valor}
+            onChangeValor={(n) => setForm(prev => ({ ...prev, valor: n }))}
+            className="input" />
         </div>
         <div>
           <label className="label">Data</label>
@@ -111,6 +114,17 @@ export default function Receitas() {
   const [receitaEditando, setReceitaEditando] = useState(null) // null = modo criação
 
   const nomeMes = new Date(anoAtual, mesAtual - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+
+  // Atalho do botão "+" (menu inferior mobile): ?novo=1 abre o modal já existente.
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    if (searchParams.get('novo') === '1') {
+      setReceitaEditando(null)
+      setModalAberto(true)
+      searchParams.delete('novo')
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   // Abre o modal em modo criação
   function handleAbrirNova() {

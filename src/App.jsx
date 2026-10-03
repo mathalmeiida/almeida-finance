@@ -1,9 +1,7 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
-import { useOnboarding } from './hooks/useOnboarding'
 import Layout from './components/Layout'
-import Onboarding from './pages/Onboarding'
 
 // Páginas autenticadas
 import Dashboard from './pages/Dashboard'
@@ -65,17 +63,15 @@ function ContaDesativada() {
   )
 }
 
-// Decide, para o usuário já autenticado, entre: conta desativada, onboarding de
-// primeiro acesso ou o app normal.
+// Decide, para o usuário já autenticado, entre: conta desativada ou o app normal.
+// O tutorial/onboarding obrigatório de primeiro acesso foi desativado — a
+// orientação inicial agora é feita pelo card "Complete sua configuração" na Home.
 function AreaAutenticada({ children }) {
   const { usuario, perfil, contaDesativada } = useAuth()
-  const { verificando, precisaOnboarding, concluir } = useOnboarding()
   // Enquanto o perfil não carrega, não decide nada (evita piscar telas).
   if (usuario && perfil == null) return <Carregando />
   // Conta desativada tem prioridade sobre qualquer outra tela.
   if (contaDesativada) return <ContaDesativada />
-  if (verificando) return <Carregando />
-  if (precisaOnboarding) return <Onboarding aoConcluir={concluir} />
   return children
 }
 

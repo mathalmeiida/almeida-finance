@@ -6,6 +6,7 @@ import { useCartoes } from '../hooks/useCartoes'
 import { useComprasCartao } from '../hooks/useComprasCartao'
 import { useCategorias } from '../hooks/useCategorias'
 import Modal from '../components/Modal'
+import InputMoeda from '../components/InputMoeda'
 import { formatCurrency, formatDate, corCategoria, labelMes } from '../lib/utils'
 import { calcularParcelas, useParcelamentos } from '../hooks/useParcelamentos'
 import {
@@ -47,7 +48,7 @@ function FormCartao({ onSalvar, onCancelar, carregando, cartaoInicial, textoBota
     onSalvar({
       nome: form.nome,
       banco: form.banco || null,
-      limite_total: parseFloat(String(form.limite_total).replace(',', '.')),
+      limite_total: Number(form.limite_total) || 0,
       dia_fechamento: parseInt(form.dia_fechamento),
       dia_vencimento: parseInt(form.dia_vencimento),
     })
@@ -67,8 +68,9 @@ function FormCartao({ onSalvar, onCancelar, carregando, cartaoInicial, textoBota
       </div>
       <div>
         <label className="label">Limite total (R$)</label>
-        <input name="limite_total" value={form.limite_total} onChange={handleChange}
-          type="number" min="0" step="0.01" className="input" placeholder="0,00" required />
+        <InputMoeda valor={form.limite_total}
+          onChangeValor={(n) => setForm(prev => ({ ...prev, limite_total: n }))}
+          className="input" />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -111,8 +113,8 @@ function FormCompra({ cartoes, cartaoIdFixo, onSalvar, onCancelar, carregando })
   }
 
   const nParc = form.tipo === 'parcelada' ? parseInt(form.numero_parcelas) : 1
-  const { base: valorParcela } = form.valor_total && nParc
-    ? calcularParcelas(parseFloat(form.valor_total), nParc)
+  const { base: valorParcela } = Number(form.valor_total) > 0 && nParc
+    ? calcularParcelas(Number(form.valor_total), nParc)
     : { base: 0 }
 
   function handleSubmit(e) {
@@ -120,7 +122,7 @@ function FormCompra({ cartoes, cartaoIdFixo, onSalvar, onCancelar, carregando })
     onSalvar({
       cartao_id: form.cartao_id,
       descricao: form.descricao,
-      valor_total: parseFloat(String(form.valor_total).replace(',', '.')),
+      valor_total: Number(form.valor_total) || 0,
       data_compra: form.data_compra,
       categoria_id: form.categoria_id || null,
       numero_parcelas: form.tipo === 'parcelada' ? nParc : 1,
@@ -146,8 +148,9 @@ function FormCompra({ cartoes, cartaoIdFixo, onSalvar, onCancelar, carregando })
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Valor da compra (R$)</label>
-          <input name="valor_total" value={form.valor_total} onChange={handleChange}
-            type="number" min="0.01" step="0.01" className="input" placeholder="0,00" required />
+          <InputMoeda valor={form.valor_total}
+            onChangeValor={(n) => setForm(prev => ({ ...prev, valor_total: n }))}
+            className="input" />
         </div>
         <div>
           <label className="label">Data da compra</label>
