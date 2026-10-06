@@ -145,10 +145,11 @@ function fraseTopo(res) {
   return 'As parcelas comprometeriam grande parte do seu orçamento em um ou mais meses.'
 }
 
-// Célula de métrica (rótulo discreto + valor forte).
+// Célula de métrica (rótulo discreto + valor forte). Usa a surface do tema
+// (bg-gray-50) para bom contraste tanto no claro quanto no escuro.
 function Metric({ rotulo, valor, cor = 'text-gray-900' }) {
   return (
-    <div className="bg-white rounded-xl p-3 text-center shadow-sm">
+    <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
       <p className="text-xs text-gray-500 mb-1">{rotulo}</p>
       <p className={`text-base font-bold ${cor}`}>{valor}</p>
     </div>
@@ -243,7 +244,7 @@ function ConteudoResultado({ resultado, config, onRegistrar, onSimularOutro }) {
           {/* Meses afetados — mostra os primeiros; "Ver todos" expande. */}
           <div className="mt-4 space-y-2">
             {(verTodos ? resultado.meses : resultado.meses.slice(0, 3)).map((m, i) => (
-              <div key={i} className="bg-white rounded-xl px-3 py-2.5 flex items-center justify-between shadow-sm">
+              <div key={i} className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 flex items-center justify-between">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-800 capitalize truncate">{m.mes}</p>
                   <p className="text-xs text-gray-500">
@@ -468,7 +469,7 @@ export default function PossoComprar() {
 
       {/* Resultado — DESKTOP (md+): inline abaixo do formulário */}
       {resultado && config && (
-        <div className={`hidden md:block card border-2 ${config.border} ${config.bg}`}>
+        <div className={`hidden md:block card border-2 ${config.border}`}>
           <ConteudoResultado
             resultado={resultado} config={config}
             onRegistrar={handleRegistrar} onSimularOutro={handleSimularOutro}
@@ -484,7 +485,7 @@ export default function PossoComprar() {
             onFechar={() => setMostrarSheet(false)}
             titulo="Resultado da simulação"
           >
-            <div className={`-m-5 p-5 ${config.bg}`}>
+            <div className="-m-5 p-5">
               <ConteudoResultado
                 resultado={resultado} config={config}
                 onRegistrar={handleRegistrar} onSimularOutro={handleSimularOutro}

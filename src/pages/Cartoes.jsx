@@ -7,7 +7,7 @@ import { useComprasCartao } from '../hooks/useComprasCartao'
 import { useCategorias } from '../hooks/useCategorias'
 import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
-import { formatCurrency, formatDate, corCategoria, labelMes } from '../lib/utils'
+import { formatCurrency, formatDate, labelMes } from '../lib/utils'
 import { calcularParcelas, useParcelamentos } from '../hooks/useParcelamentos'
 import {
   valorFaturaCartaoNoMes, limiteComprometido, linhasFaturaCompleta,
@@ -222,6 +222,8 @@ function VerFatura({ cartao, onVoltar }) {
   const [erro, setErro] = useState('')
   // Mês/ano exibido: começa no atual; "Próximas faturas" muda isto
   const [refData, setRefData] = useState({ ano: anoAtual, mes: mesAtual })
+  // Categoria expandida (mostra os lançamentos dela ao tocar). null = nenhuma.
+  const [categoriaAberta, setCategoriaAberta] = useState(null)
 
   // Parcelamentos vinculados a ESTE cartão
   const parcelamentosDoCartao = parcelamentos.filter(p => p.cartao_id === cartao.id)
@@ -232,7 +234,47 @@ function VerFatura({ cartao, onVoltar }) {
   )
   const totalFatura = linhas.reduce((a, l) => a + l.valor, 0)
 
+  // Limite disponível do cartão (mesma função usada nos cards da lista).
+  const comprometido = limiteComprometido(compras, cartao.dia_fechamento, hoje)
+  const limiteDisponivelCartao = Math.max(0, Number(cartao.limite_total) - comprometido)
+  const pctUsado = Number(cartao.limite_total) > 0
+    ? Math.min(100, Math.round((comprometido / Number(cartao.limite_total)) * 100))
+    : 0
+
+  // Status da fatura (discreto, sem excesso de cores). Prevista quando não é o
+  // mês atual; senão, reflete o uso do limite do cartão.
   const ehMesAtual = refData.ano === anoAtual && refData.mes === mesAtual
+  const statusFatura = !ehMesAtual
+    ? { texto: 'Prevista', classe: 'bg-amber-50 text-amber-700' }
+    : pctUsado >= 90
+      ? { texto: 'Limite quase esgotado', classe: 'bg-red-50 text-red-600' }
+      : pctUsado >= 70
+        ? { texto: 'Atenção ao limite', classe: 'bg-amber-50 text-amber-700' }
+        : { texto: 'Dentro do limite', classe: 'bg-emerald-50 text-emerald-700' }
+
+  // ─── Agrupamento por CATEGORIA (para os cards de categoria) ───
+  // Soma por categoria + guarda os lançamentos para exibir ao expandir.
+  const categoriasFatura = (() => {
+    const mapa = new Map()
+    for (const l of linhas) {
+      const chave = l.categorias?.id || 'sem-categoria'
+      if (!mapa.has(chave)) {
+        mapa.set(chave, {
+          chave,
+          nome: l.categorias?.nome || 'Sem categoria',
+          icone: l.categorias?.icone || null,
+          total: 0,
+          itens: [],
+        })
+      }
+      const g = mapa.get(chave)
+      g.total += l.valor
+      g.itens.push(l)
+    }
+    return Array.from(mapa.values())
+      .map(g => ({ ...g, pct: totalFatura > 0 ? Math.round((g.total / totalFatura) * 100) : 0 }))
+      .sort((a, b) => b.total - a.total)
+  })()
   const nomeMes = new Date(refData.ano, refData.mes - 1)
     .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 
@@ -324,40 +366,82 @@ function VerFatura({ cartao, onVoltar }) {
         </div>
       )}
 
-      <div className={`card bg-gradient-to-br ${ehMesAtual ? 'from-indigo-50 to-purple-50 border-indigo-100' : 'from-amber-50 to-orange-50 border-amber-100'}`}>
-        <p className={`text-sm font-medium ${ehMesAtual ? 'text-indigo-700' : 'text-amber-700'}`}>
-          {ehMesAtual ? 'Total da fatura' : 'Total previsto'}
-        </p>
-        <p className={`text-3xl font-bold ${ehMesAtual ? 'text-indigo-800' : 'text-amber-800'}`}>{formatCurrency(totalFatura)}</p>
+      {/* ── Card principal da fatura ──
+          Valor da fatura, limite disponível, fechamento, vencimento e status.
+          Visual sóbrio, alinhado ao app; sem excesso de cores. */}
+      <div className="card">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm text-gray-500">{ehMesAtual ? 'Valor da fatura atual' : 'Valor previsto'}</p>
+            <p className="text-3xl font-bold text-gray-900 mt-0.5 break-words">{formatCurrency(totalFatura)}</p>
+          </div>
+          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${statusFatura.classe}`}>
+            {statusFatura.texto}
+          </span>
+        </div>
+
+        {/* Limite disponível + barra de uso */}
+        <div className="mt-4">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-500">Limite disponível</span>
+            <span className="font-semibold text-gray-900">
+              {formatCurrency(limiteDisponivelCartao)}
+              <span className="text-gray-400 font-normal"> / {formatCurrency(cartao.limite_total)}</span>
+            </span>
+          </div>
+          <BarraLimite usado={comprometido} total={Number(cartao.limite_total)} cor={cartao.cor || '#6366f1'} />
+        </div>
+
+        {/* Fechamento e vencimento */}
+        <div className="grid grid-cols-2 gap-3 mt-4">
+          <div className="bg-gray-50 rounded-xl px-3 py-2">
+            <p className="text-xs text-gray-400">Fechamento</p>
+            <p className="text-sm font-semibold text-gray-900">Dia {cartao.dia_fechamento}</p>
+          </div>
+          <div className="bg-gray-50 rounded-xl px-3 py-2">
+            <p className="text-xs text-gray-400">Vencimento</p>
+            <p className="text-sm font-semibold text-gray-900">Dia {cartao.dia_vencimento}</p>
+          </div>
+        </div>
       </div>
 
-      {/* Resumo do cartão */}
+      {/* Resumo do cartão — valores com min-w-0/break-words p/ não cortar no mobile */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="card">
+        <div className="card min-w-0">
           <p className="text-xs text-gray-500 mb-0.5">Fatura atual</p>
-          <p className="text-sm font-bold text-indigo-600">{formatCurrency(totalFaturaAtual)}</p>
+          <p className="text-sm font-bold text-indigo-600 break-words">{formatCurrency(totalFaturaAtual)}</p>
         </div>
-        <div className="card">
+        <div className="card min-w-0">
           <p className="text-xs text-gray-500 mb-0.5">Próxima fatura</p>
-          <p className="text-sm font-bold text-gray-700">{formatCurrency(totalProximaFatura)}</p>
+          <p className="text-sm font-bold text-gray-700 break-words">{formatCurrency(totalProximaFatura)}</p>
         </div>
-        <div className="card">
+        <div className="card min-w-0">
           <p className="text-xs text-gray-500 mb-0.5">Parcelas futuras</p>
-          <p className="text-sm font-bold text-orange-600">{formatCurrency(comprasFuturasParceladas)}</p>
+          <p className="text-sm font-bold text-orange-600 break-words">{formatCurrency(comprasFuturasParceladas)}</p>
         </div>
       </div>
 
       {erro && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{erro}</p>}
 
-      {/* Lista de compras da fatura em foco */}
-      <div className="card">
-        <h2 className="text-base font-semibold text-gray-900 mb-4">
-          Compras <span className="text-sm font-normal text-gray-400">({linhas.length})</span>
-        </h2>
+      {/* ── Gastos por categoria ──
+          Cards compactos: nome, valor e % da categoria na fatura. Toque para
+          ver os lançamentos daquela categoria (com opção de remover compra). */}
+      <div>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <h2 className="text-base font-semibold text-gray-900">
+            Gastos por categoria <span className="text-sm font-normal text-gray-400">({categoriasFatura.length})</span>
+          </h2>
+          {ehMesAtual && linhas.length > 0 && (
+            <button onClick={() => setModalCompra(true)} className="text-xs font-medium text-blue-600 hover:underline flex-shrink-0">
+              + Nova compra
+            </button>
+          )}
+        </div>
+
         {carregando ? (
           <div className="flex items-center justify-center py-12"><Loader2 size={24} className="animate-spin text-blue-500" /></div>
         ) : linhas.length === 0 ? (
-          <div className="text-center py-12">
+          <div className="card text-center py-12">
             <Receipt size={36} className="text-gray-200 mx-auto mb-3" />
             <p className="text-sm text-gray-500">Nenhuma compra nesta fatura.</p>
             {ehMesAtual && (
@@ -365,38 +449,65 @@ function VerFatura({ cartao, onVoltar }) {
             )}
           </div>
         ) : (
-          <div className="space-y-3">
-            {linhas.map((l) => {
-              const nomeCategoria = l.categorias?.nome
+          <div className="grid grid-cols-2 gap-3">
+            {categoriasFatura.map(cat => {
+              const aberta = categoriaAberta === cat.chave
               return (
-                <div key={l.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors group">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                      {l.categorias?.icone ? <span className="text-base">{l.categorias.icone}</span> : <CreditCard size={16} className="text-indigo-600" />}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{l.descricao}</p>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <span className="flex items-center gap-1 text-xs text-gray-400"><Calendar size={11} />{formatDate(l.data)}</span>
-                        <span className="text-xs text-indigo-600 font-medium">
-                          {l.totalParcelas > 1 ? `${l.parcela}/${l.totalParcelas}` : 'À vista'}
-                        </span>
+                <div
+                  key={cat.chave}
+                  className={`card min-w-0 ${aberta ? 'col-span-2' : ''}`}
+                >
+                  {/* Cabeçalho tocável do card de categoria */}
+                  <button
+                    type="button"
+                    onClick={() => setCategoriaAberta(aberta ? null : cat.chave)}
+                    className="w-full text-left"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
+                        {cat.icone ? <span className="text-sm">{cat.icone}</span> : <CreditCard size={14} className="text-gray-400" />}
                       </div>
+                      <p className="text-sm font-medium text-gray-900 truncate min-w-0">{cat.nome}</p>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {nomeCategoria && (
-                      <span className={`hidden sm:inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${corCategoria(nomeCategoria)}`}>{nomeCategoria}</span>
-                    )}
-                    <span className="text-sm font-bold text-gray-900 ml-1">{formatCurrency(l.valor)}</span>
-                    {ehMesAtual && !l.origemParcelamento && (
-                      <button onClick={() => handleRemover(l.id)} disabled={removendo === l.id}
-                        aria-label="Remover compra"
-                        className="touch-target rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
-                        {removendo === l.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-                      </button>
-                    )}
-                  </div>
+                    <p className="text-base font-bold text-gray-900 mt-2 break-words">{formatCurrency(cat.total)}</p>
+                    <div className="flex items-center justify-between gap-2 mt-1">
+                      <span className="text-xs text-gray-400">{cat.pct}% da fatura</span>
+                      <span className="text-xs text-gray-400">{cat.itens.length} {cat.itens.length === 1 ? 'item' : 'itens'}</span>
+                    </div>
+                    {/* Mini barra do percentual (discreta) */}
+                    <div className="w-full bg-gray-100 rounded-full h-1.5 mt-2">
+                      <div className="h-1.5 rounded-full bg-indigo-400" style={{ width: `${cat.pct}%` }} />
+                    </div>
+                  </button>
+
+                  {/* Lançamentos da categoria (expandido) */}
+                  {aberta && (
+                    <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+                      {cat.itens.map(l => (
+                        <div key={l.id} className="flex items-center justify-between gap-3 group">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{l.descricao}</p>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <span className="flex items-center gap-1 text-xs text-gray-400"><Calendar size={11} />{formatDate(l.data)}</span>
+                              <span className="text-xs text-indigo-600 font-medium">
+                                {l.totalParcelas > 1 ? `${l.parcela}/${l.totalParcelas}` : 'À vista'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <span className="text-sm font-bold text-gray-900 whitespace-nowrap">{formatCurrency(l.valor)}</span>
+                            {ehMesAtual && !l.origemParcelamento && (
+                              <button onClick={() => handleRemover(l.id)} disabled={removendo === l.id}
+                                aria-label="Remover compra"
+                                className="touch-target rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
+                                {removendo === l.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )
             })}

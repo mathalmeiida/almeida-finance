@@ -98,7 +98,9 @@ export function useDespesas(mes, ano) {
     if (!usuario) return
     buscar()
     buscarRecorrentes()
-  }, [usuario, mes, ano])
+    // Depende do ID (não do objeto) para não refazer o fetch quando o Supabase
+    // apenas renova o token e recria o objeto `usuario` com o mesmo id.
+  }, [usuario?.id, mes, ano])
 
   async function buscar() {
     setCarregando(true)
@@ -202,7 +204,47 @@ export function useDespesas(mes, ano) {
     return data
   }
 
+  // ─── Pagamento antecipado ───
+  // Marca a despesa como paga em "pago_em" (data do pagamento), SEM alterar a
+  // "data" (vencimento original). Opcionalmente registra a forma/conta usada.
+  // O saldo passa a considerar pago_em (ver useProjecao), evitando dupla baixa.
+  async function anteciparPagamento(id, { pago_em, forma_pagamento } = {}) {
+    const campos = { pago_em: pago_em || new Date().toISOString().split('T')[0] }
+    // Só sobrescreve a forma de pagamento se o usuário escolher uma.
+    if (forma_pagamento) campos.forma_pagamento = forma_pagamento
+    const { data, error } = await supabase
+      .from('despesas')
+      .update(campos)
+      .eq('id', id)
+      .select(`*, categorias (id, nome, icone, cor)`)
+      .single()
+    if (error) throw error
+    setDespesas(prev => prev.map(d => d.id === id ? data : d))
+    buscarRecorrentes()
+    return data
+  }
+
+  // Desfaz a antecipação (volta pago_em para NULL). Mantido para permitir
+  // corrigir um pagamento marcado por engano, sem apagar a despesa.
+  async function desfazerAntecipacao(id) {
+    const { data, error } = await supabase
+      .from('despesas')
+      .update({ pago_em: null })
+      .eq('id', id)
+      .select(`*, categorias (id, nome, icone, cor)`)
+      .single()
+    if (error) throw error
+    setDespesas(prev => prev.map(d => d.id === id ? data : d))
+    buscarRecorrentes()
+    return data
+  }
+
   const total = despesas.reduce((acc, d) => acc + Number(d.valor), 0)
 
-  return { despesas, recorrentes, total, carregando, erro, criar, atualizar, remover, alterarTipo, recarregar: buscar }
+  return {
+    despesas, recorrentes, total, carregando, erro,
+    criar, atualizar, remover, alterarTipo,
+    anteciparPagamento, desfazerAntecipacao,
+    recarregar: buscar,
+  }
 }

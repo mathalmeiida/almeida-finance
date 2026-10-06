@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 // Contexto que disponibiliza o usuário atual para todo o app
@@ -8,6 +8,9 @@ export function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(undefined) // undefined = ainda verificando
   const [perfil, setPerfil] = useState(null)
   const [carregando, setCarregando] = useState(true)
+  // Guarda o ID do usuário atual para comparar entre eventos de auth sem
+  // depender da referência do objeto (que muda em cada TOKEN_REFRESHED).
+  const usuarioIdRef = useRef(null)
 
   // Busca o perfil complementar do usuário na tabela "perfis"
   async function buscarPerfil(userId) {
@@ -23,6 +26,7 @@ export function AuthProvider({ children }) {
     // 1. Verifica se já existe uma sessão ativa ao carregar o app
     supabase.auth.getSession().then(({ data: { session } }) => {
       const user = session?.user ?? null
+      usuarioIdRef.current = user ? user.id : null
       setUsuario(user)
       if (user) buscarPerfil(user.id)
       setCarregando(false)
@@ -32,12 +36,23 @@ export function AuthProvider({ children }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         const user = session?.user ?? null
-        setUsuario(user)
-        if (user) {
-          buscarPerfil(user.id)
-        } else {
-          setPerfil(null)
+        // Estabiliza a identidade do usuário: só troca o objeto no estado quando
+        // o ID realmente muda (login/logout). Eventos como TOKEN_REFRESHED trazem
+        // um NOVO objeto `user` com o MESMO id — se o setássemos, a nova referência
+        // re-dispararia os efeitos [usuario,...] de todos os hooks (receitas,
+        // despesas etc.), fazendo as listas recarregarem e "piscarem" vazias.
+        const idAnterior = usuarioIdRef.current
+        const idNovo = user ? user.id : null
+        const mudouUsuario = idAnterior !== idNovo
+        usuarioIdRef.current = idNovo
+
+        if (mudouUsuario) {
+          setUsuario(user)
+          if (user) buscarPerfil(user.id)
+          else setPerfil(null)
         }
+        // Se o id não mudou (ex.: refresh de token), mantém o objeto `usuario`
+        // atual intacto — nenhum efeito dependente é re-disparado.
         setCarregando(false)
       }
     )
@@ -52,6 +67,11 @@ export function AuthProvider({ children }) {
       password: senha,
       options: {
         data: { nome }, // enviado ao trigger que cria o perfil
+        // Para onde o link "Confirmar cadastro" do e-mail deve voltar. Usa a
+        // origem atual (produção na Vercel ou localhost) + a rota de callback,
+        // que processa o retorno na MESMA aba. Esta URL precisa estar liberada
+        // em Authentication → URL Configuration → Redirect URLs no Supabase.
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     })
     if (error) throw error

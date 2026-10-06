@@ -88,7 +88,7 @@
   /* Reserva de espaço para a barra inferior no mobile (altura + safe-area).
      ~64px da barra + inset. Só aplicada abaixo de md. */
   .pb-mobilenav {
-    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
   }
   /* Área de toque mínima recomendada (~44px) para ícones/botões pequenos. */
   .touch-target {

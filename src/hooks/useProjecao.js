@@ -123,22 +123,33 @@ export function useProjecao() {
   const hojeStr = new Date().toISOString().split('T')[0]
   const marcoStr = perfil?.saldo_base_data || hojeStr
 
-  // Lançamentos já ocorridos (marco <= data <= hoje), do mês atual em memória.
+  // Data em que a despesa EFETIVAMENTE saiu do bolso: se foi paga
+  // antecipadamente (pago_em preenchido), usa pago_em; senão, a "data" de
+  // vencimento. Fonte ÚNICA de efetivação → o pagamento é contado uma só vez:
+  // ao antecipar, entra em "já ocorrido"; e deixa de ser contado nos "futuros".
+  const dataEfetivaDespesa = (d) => d.pago_em || d.data
+
+  // Lançamentos já ocorridos (marco <= efetiva <= hoje), do mês atual em memória.
   const receitasAteHoje = receitas
     .filter(r => r.data >= marcoStr && r.data <= hojeStr)
     .reduce((acc, r) => acc + Number(r.valor), 0)
   const despesasAteHoje = despesas
-    .filter(d => d.data >= marcoStr && d.data <= hojeStr)
+    .filter(d => {
+      const ef = dataEfetivaDespesa(d)
+      return ef >= marcoStr && ef <= hojeStr
+    })
     .reduce((acc, d) => acc + Number(d.valor), 0)
 
   const saldoDisponivelAgora = saldoBase + receitasAteHoje - despesasAteHoje
 
-  // Lançamentos FUTUROS dentro do mês atual (hoje < data <= fim do mês).
+  // Lançamentos FUTUROS dentro do mês atual (efetiva > hoje). Despesas pagas
+  // antecipadamente (pago_em <= hoje) saem daqui automaticamente, pois já
+  // entraram em "despesasAteHoje" — nunca são subtraídas duas vezes.
   const receitasFuturasMes = receitas
     .filter(r => r.data > hojeStr)
     .reduce((acc, r) => acc + Number(r.valor), 0)
   const despesasFuturasMes = despesas
-    .filter(d => d.data > hojeStr)
+    .filter(d => dataEfetivaDespesa(d) > hojeStr)
     .reduce((acc, d) => acc + Number(d.valor), 0)
 
   // Compromissos de parcelas e faturas do mês são tratados como compromissos

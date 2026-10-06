@@ -4,7 +4,6 @@ import { useAuth } from '../contexts/AuthContext'
 import { useZerarDados } from '../hooks/useZerarDados'
 import Modal from '../components/Modal'
 
-const PALAVRA_CONFIRMACAO = 'ZERAR'
 const PALAVRA_ENCERRAR = 'ENCERRAR'
 
 export default function Configuracoes() {
@@ -12,7 +11,6 @@ export default function Configuracoes() {
   const { zerarDados } = useZerarDados()
 
   const [modalAberto, setModalAberto] = useState(false)
-  const [texto, setTexto] = useState('')
   const [zerando, setZerando] = useState(false)
   const [erro, setErro] = useState('')
 
@@ -23,11 +21,9 @@ export default function Configuracoes() {
   const [erroEncerrar, setErroEncerrar] = useState('')
 
   const nome = perfil?.nome || usuario?.email?.split('@')[0] || 'Usuário'
-  const confirmacaoValida = texto.trim().toUpperCase() === PALAVRA_CONFIRMACAO
   const encerrarValido = textoEncerrar.trim().toUpperCase() === PALAVRA_ENCERRAR
 
   function abrirModal() {
-    setTexto('')
     setErro('')
     setModalAberto(true)
   }
@@ -39,7 +35,6 @@ export default function Configuracoes() {
   }
 
   async function handleZerar() {
-    if (!confirmacaoValida) return
     setZerando(true)
     setErro('')
     try {
@@ -155,35 +150,14 @@ export default function Configuracoes() {
       </div>
 
       {/* Modal de confirmação — Zerar dados */}
-      <Modal aberto={modalAberto} onFechar={() => !zerando && setModalAberto(false)} titulo="Zerar todos os dados">
+      <Modal aberto={modalAberto} onFechar={() => !zerando && setModalAberto(false)} titulo="Zerar todas as informações">
         <div className="space-y-4">
           <div className="flex items-start gap-2.5 bg-red-50 border border-red-100 rounded-xl p-3">
             <AlertTriangle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-red-700">
-              Esta ação apagará <strong>todas as informações financeiras cadastradas</strong> e fará o
-              Almeida Finance voltar ao estado inicial. Sua conta e seu acesso continuarão ativos.
+              Tem certeza de que deseja zerar todas as suas informações?
+              Esta ação não poderá ser desfeita.
             </p>
-          </div>
-
-          <div className="text-sm text-gray-600">
-            Serão apagados: receitas, despesas, parcelamentos, cartões, compras e faturas, metas,
-            categorias personalizadas e configurações como reserva de emergência e limite diário.
-            <strong> Esta ação não pode ser desfeita.</strong>
-          </div>
-
-          <div>
-            <label className="label">
-              Para confirmar, digite <strong className="text-red-600">{PALAVRA_CONFIRMACAO}</strong>
-            </label>
-            <input
-              type="text"
-              value={texto}
-              onChange={e => setTexto(e.target.value)}
-              placeholder={PALAVRA_CONFIRMACAO}
-              className="input"
-              autoFocus
-              disabled={zerando}
-            />
           </div>
 
           {erro && (
@@ -202,12 +176,12 @@ export default function Configuracoes() {
             <button
               type="button"
               onClick={handleZerar}
-              disabled={!confirmacaoValida || zerando}
+              disabled={zerando}
               className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {zerando
                 ? <><Loader2 size={15} className="animate-spin" /> Zerando...</>
-                : 'Zerar todos os dados'}
+                : 'Confirmar'}
             </button>
           </div>
         </div>

@@ -159,3 +159,8 @@ export const numeroParaMoeda = (valor) => {
     maximumFractionDigits: 2,
   })
 }
+
+// Exibe o valor em moeda ou mascarado ("R$ ••••"), conforme a preferência de
+// ocultar valores. Apenas visual — não altera cálculo algum.
+export const exibirMoeda = (value, ocultar) =>
+  ocultar ? 'R$ ••••' : formatCurrency(value)

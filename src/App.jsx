@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { OcultarValoresProvider } from './contexts/OcultarValoresContext'
 import Layout from './components/Layout'
 
 // Páginas autenticadas
@@ -20,6 +21,7 @@ import Login from './pages/auth/Login'
 import Cadastro from './pages/auth/Cadastro'
 import RecuperarSenha from './pages/auth/RecuperarSenha'
 import RedefinirSenha from './pages/auth/RedefinirSenha'
+import ConfirmarEmail from './pages/auth/ConfirmarEmail'
 
 // Tela de carregamento enquanto verifica a sessão
 function Carregando() {
@@ -104,6 +106,11 @@ function Rotas() {
       {/* Redefinir senha: rota independente — o usuário chega com sessão de recuperação
           vinda do link do e-mail, então NÃO passa por RotaPublica/RotaPrivada */}
       <Route path="/redefinir-senha" element={<RedefinirSenha />} />
+      {/* Confirmação de e-mail: destino do link "Confirmar cadastro". Rota
+          independente — processa o retorno do Supabase (code/#access_token) na
+          MESMA aba, mostra a mensagem e redireciona. Não passa pelos guards
+          para o redirect automático não interromper o processamento. */}
+      <Route path="/auth/callback" element={<ConfirmarEmail />} />
 
       {/* Rotas privadas — todas dentro do Layout */}
       <Route
@@ -140,7 +147,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Rotas />
+        <OcultarValoresProvider>
+          <Rotas />
+        </OcultarValoresProvider>
       </AuthProvider>
     </BrowserRouter>
   )

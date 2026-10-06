@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { TrendingUp, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil } from 'lucide-react'
+import { TrendingUp, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useReceitas } from '../hooks/useReceitas'
 import { useCategorias } from '../hooks/useCategorias'
 import Modal from '../components/Modal'
@@ -10,12 +10,12 @@ import { formatCurrency, formatDate, corCategoria } from '../lib/utils'
 const mesAtual = new Date().getMonth() + 1
 const anoAtual = new Date().getFullYear()
 
-function FormReceita({ onSalvar, onCancelar, carregando, receitaInicial, textoBotao }) {
+function FormReceita({ onSalvar, onCancelar, carregando, receitaInicial, textoBotao, dataPadrao }) {
   const { categorias } = useCategorias('receita')
   const [form, setForm] = useState({
     descricao: receitaInicial?.descricao ?? '',
     valor: receitaInicial != null ? String(receitaInicial.valor) : '',
-    data: receitaInicial?.data ?? new Date().toISOString().split('T')[0],
+    data: receitaInicial?.data ?? dataPadrao ?? new Date().toISOString().split('T')[0],
     // padrão: recorrente (a maioria das receitas é mensal); na edição usa o valor salvo
     recorrente: receitaInicial != null ? !!receitaInicial.recorrente : true,
     categoria: receitaInicial?.categoria ?? '',
@@ -106,14 +106,28 @@ function FormReceita({ onSalvar, onCancelar, carregando, receitaInicial, textoBo
 }
 
 export default function Receitas() {
-  const { receitas, total, carregando, erro, criar, atualizar, remover } = useReceitas(mesAtual, anoAtual)
+  // Mês/ano navegáveis: permite ver receitas cadastradas para meses futuros
+  // (ou passados) sem alterar nenhum dado — apenas o período consultado.
+  const [ref, setRef] = useState({ mes: mesAtual, ano: anoAtual })
+  const { receitas, total, carregando, erro, criar, atualizar, remover } = useReceitas(ref.mes, ref.ano)
   const [modalAberto, setModalAberto] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [removendo, setRemovendo] = useState(null)
   const [erroAcao, setErroAcao] = useState('')
   const [receitaEditando, setReceitaEditando] = useState(null) // null = modo criação
 
-  const nomeMes = new Date(anoAtual, mesAtual - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+  const nomeMes = new Date(ref.ano, ref.mes - 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+  const ehMesCorrente = ref.mes === mesAtual && ref.ano === anoAtual
+
+  // Navega entre meses (−1 / +1), ajustando a virada de ano.
+  function navegarMes(delta) {
+    setRef(prev => {
+      const total = (prev.ano * 12 + (prev.mes - 1)) + delta
+      return { ano: Math.floor(total / 12), mes: (total % 12) + 1 }
+    })
+  }
+  // Data padrão de nova receita = dia 1 do mês em visualização.
+  const dataPadraoNova = `${ref.ano}-${String(ref.mes).padStart(2, '0')}-01`
 
   // Atalho do botão "+" (menu inferior mobile): ?novo=1 abre o modal já existente.
   const [searchParams, setSearchParams] = useSearchParams()
@@ -180,7 +194,24 @@ export default function Receitas() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Receitas</h1>
-          <p className="text-sm text-gray-500 mt-1 capitalize">{nomeMes}</p>
+          {/* Navegação de mês: permite ver receitas de meses futuros/passados */}
+          <div className="flex items-center gap-2 mt-1">
+            <button onClick={() => navegarMes(-1)} aria-label="Mês anterior"
+              className="touch-target -ml-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100">
+              <ChevronLeft size={18} />
+            </button>
+            <p className="text-sm text-gray-500 capitalize min-w-[8rem] text-center">{nomeMes}</p>
+            <button onClick={() => navegarMes(1)} aria-label="Próximo mês"
+              className="touch-target rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100">
+              <ChevronRight size={18} />
+            </button>
+            {!ehMesCorrente && (
+              <button onClick={() => setRef({ mes: mesAtual, ano: anoAtual })}
+                className="text-xs font-medium text-blue-600 hover:underline ml-1">
+                Hoje
+              </button>
+            )}
+          </div>
         </div>
         <button onClick={handleAbrirNova} className="btn-primary flex items-center gap-2 self-start sm:self-auto">
           <Plus size={16} /> Nova receita
@@ -285,6 +316,7 @@ export default function Receitas() {
           onCancelar={fecharModal}
           carregando={salvando}
           receitaInicial={receitaEditando}
+          dataPadrao={dataPadraoNova}
           textoBotao={receitaEditando ? 'Salvar alterações' : 'Salvar receita'}
         />
       </Modal>

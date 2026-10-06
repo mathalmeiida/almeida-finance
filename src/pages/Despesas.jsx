@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { TrendingDown, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, CreditCard, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
+import { TrendingDown, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, CreditCard, CheckCircle2, ChevronDown, ChevronUp, CalendarClock, Zap } from 'lucide-react'
 import { useDespesas } from '../hooks/useDespesas'
+import { useDespesaTipoExcecoes } from '../hooks/useDespesaTipoExcecoes'
 import { useParcelamentos, valorParcelaNoMes, calcularParcelas } from '../hooks/useParcelamentos'
 import { useCategorias } from '../hooks/useCategorias'
 import { useCartoes } from '../hooks/useCartoes'
@@ -60,6 +61,14 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
     setForm(prev => ({ ...prev, [name]: value }))
   }
 
+  // ─── Tipo manual (Fixa/Variável) — só no modo edição ───
+  // Inicia com o tipo atual da despesa. "escopoTipo" define, para recorrentes,
+  // se a mudança vale só neste mês (exceção) ou neste e nos próximos (registro).
+  const [tipoManual, setTipoManual] = useState(despesaInicial?.tipo_despesa === 'fixa' ? 'fixa' : 'variavel')
+  const [escopoTipo, setEscopoTipo] = useState('proximos') // 'mes' | 'proximos'
+  const despesaEhRecorrente = !!despesaInicial?.recorrente
+  const tipoMudou = editando && tipoManual !== (despesaInicial?.tipo_despesa || 'variavel')
+
   const ehCartaoCredito = form.forma_pagamento === 'cartao_credito'
   // Parcelada só é possível no cartão de crédito; edição nunca vira parcelamento.
   const ehParcelada = !editando && ehCartaoCredito && form.comoCompra === 'parcelada'
@@ -91,10 +100,16 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
 
     // ── Caminho DESPESA (à vista / 1x no cartão / outras formas) ──
     const catSelecionada = categorias.find(c => c.id === form.categoria_id)
-    const tipo_despesa = classificarDespesa({
-      descricao: form.descricao,
-      categoria: catSelecionada?.nome || '',
-    })
+    // Tipo (fixa/variável):
+    //  - Criação: classificação automática (regra atual, inalterada).
+    //  - Edição: respeita a escolha MANUAL do usuário (não reclassifica, para
+    //    não sobrescrever a decisão dele).
+    const tipo_despesa = editando
+      ? tipoManual
+      : classificarDespesa({
+          descricao: form.descricao,
+          categoria: catSelecionada?.nome || '',
+        })
     // Frequência final + duração:
     //  - Mensal "sem data para terminar" → frequencia 'mensal', sem limite.
     //  - Mensal "por quantos meses?"     → frequencia 'por_meses' + recorrencia_meses.
@@ -118,6 +133,11 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
       categoria_id: form.categoria_id || null,
       tipo_despesa,
       forma_pagamento: form.forma_pagamento || null,
+      // Só na edição: escopo da mudança de tipo para despesas recorrentes.
+      // 'mes' = somente este mês (vira exceção mensal); 'proximos' = este e os
+      // próximos (altera o registro). Para não-recorrentes é sempre o registro.
+      _escopoTipo: editando ? escopoTipo : undefined,
+      _tipoAlterado: editando ? (tipoManual !== (despesaInicial?.tipo_despesa || 'variavel')) : false,
     })
   }
 
@@ -149,6 +169,13 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
             type="date" className="input" required />
         </div>
       </div>
+
+      {/* Dica discreta para contas fixas de valor variável (água, energia...) */}
+      <p className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2 leading-snug">
+        💡 Dica: para despesas fixas que variam de valor, como água e energia, informe
+        inicialmente o maior valor de conta que você teve neste ano. Após o pagamento,
+        você poderá corrigir manualmente para o valor realmente pago.
+      </p>
 
       <div>
         <label className="label">Categoria</label>
@@ -291,10 +318,59 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
         </div>
       )}
 
-      <p className="text-xs text-gray-400 flex items-center gap-1">
-        <span>✨</span>
-        A classificação como <strong>Fixa</strong> ou <strong>Variável</strong> será feita automaticamente ao salvar.
-      </p>
+      {/* Classificação: automática na criação; MANUAL (Fixa/Variável) na edição. */}
+      {!editando ? (
+        <p className="text-xs text-gray-400 flex items-center gap-1">
+          <span>✨</span>
+          A classificação como <strong>Fixa</strong> ou <strong>Variável</strong> será feita automaticamente ao salvar.
+        </p>
+      ) : (
+        <div className="rounded-xl border border-gray-200 p-3">
+          <label className="label">Tipo da despesa</label>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button"
+              onClick={() => setTipoManual('fixa')}
+              className={`p-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                tipoManual === 'fixa' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+              }`}>
+              🧱 Fixa
+            </button>
+            <button type="button"
+              onClick={() => setTipoManual('variavel')}
+              className={`p-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                tipoManual === 'variavel' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+              }`}>
+              📊 Variável
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-1.5">
+            Fixa = valor estável todo mês (aluguel, assinatura). Variável = valor que oscila (mercado, lazer).
+          </p>
+
+          {/* Pergunta de escopo — só quando é recorrente E o tipo mudou. */}
+          {despesaEhRecorrente && tipoMudou && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <label className="label">Deseja aplicar esta alteração somente neste mês ou neste e nos próximos meses?</label>
+              <div className="grid grid-cols-1 gap-2 mt-1">
+                <button type="button"
+                  onClick={() => setEscopoTipo('mes')}
+                  className={`p-2.5 rounded-xl border-2 text-sm font-medium text-left transition-all ${
+                    escopoTipo === 'mes' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                  }`}>
+                  Somente este mês
+                </button>
+                <button type="button"
+                  onClick={() => setEscopoTipo('proximos')}
+                  className={`p-2.5 rounded-xl border-2 text-sm font-medium text-left transition-all ${
+                    escopoTipo === 'proximos' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                  }`}>
+                  Este e os próximos meses
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex gap-3 pt-1">
         <button type="button" onClick={onCancelar} className="btn-secondary flex-1">Cancelar</button>
@@ -372,9 +448,91 @@ function ModalNovaDespesa({
   )
 }
 
+// ─── Modal: confirmar antecipação de pagamento ───────────────────────────────
+// Mostra valor, data original (vencimento), data do pagamento (editável, padrão
+// hoje) e a forma/conta usada. Ao confirmar, marca a despesa como paga em
+// "pago_em" — o saldo reflete a saída sem contar duas vezes (ver useProjecao).
+function ModalAnteciparPagamento({ aberto, despesa, onConfirmar, onFechar, salvando }) {
+  const hojeISO = new Date().toISOString().split('T')[0]
+  const [dataPagamento, setDataPagamento] = useState(hojeISO)
+  const [forma, setForma] = useState('')
+
+  useEffect(() => {
+    if (aberto && despesa) {
+      setDataPagamento(hojeISO)
+      setForma(despesa.forma_pagamento || '')
+    }
+  }, [aberto, despesa, hojeISO])
+
+  if (!despesa) return null
+
+  return (
+    <Modal aberto={aberto} onFechar={onFechar} titulo="Antecipar pagamento">
+      <div className="space-y-4">
+        <div className="rounded-xl bg-gray-50 border border-gray-200 p-3 space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-gray-500">Despesa</span>
+            <span className="text-sm font-medium text-gray-900 truncate">{despesa.descricao}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-gray-500">Valor</span>
+            <span className="text-sm font-bold text-red-500 whitespace-nowrap">-{formatCurrency(despesa.valor)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-gray-500">Vencimento original</span>
+            <span className="text-sm font-medium text-gray-900">{formatDate(despesa.data)}</span>
+          </div>
+        </div>
+
+        <div>
+          <label className="label">Data do pagamento</label>
+          <input
+            type="date" value={dataPagamento}
+            onChange={(e) => setDataPagamento(e.target.value)}
+            className="input"
+          />
+        </div>
+
+        <div>
+          <label className="label">Forma / conta utilizada <span className="text-gray-400">(opcional)</span></label>
+          <select value={forma} onChange={(e) => setForma(e.target.value)} className="input">
+            <option value="">Não informado</option>
+            {FORMAS_PAGAMENTO.map(f => (
+              <option key={f.value} value={f.value}>{f.icone} {f.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <p className="text-xs text-gray-400 leading-snug">
+          A despesa será marcada como <strong>paga antecipadamente</strong> e o seu saldo será
+          atualizado. O vencimento original é mantido para o histórico.
+        </p>
+
+        <div className="flex gap-3 pt-1">
+          <button type="button" onClick={onFechar} className="btn-secondary flex-1">Cancelar</button>
+          <button
+            type="button"
+            disabled={salvando}
+            onClick={() => onConfirmar({ pago_em: dataPagamento || hojeISO, forma_pagamento: forma || null })}
+            className="btn-primary flex-1 flex items-center justify-center gap-2"
+          >
+            {salvando ? <><Loader2 size={15} className="animate-spin" /> Confirmando...</> : 'Confirmar pagamento'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function Despesas() {
-  const { despesas, total, carregando, criar, atualizar, remover, alterarTipo } = useDespesas(mesAtual, anoAtual)
+  const {
+    despesas, total, carregando, criar, atualizar, remover, alterarTipo,
+    anteciparPagamento, desfazerAntecipacao,
+  } = useDespesas(mesAtual, anoAtual)
+  const { salvarExcecao, tipoNoMes } = useDespesaTipoExcecoes()
+  // Competência do mês exibido (mês fixo atual nesta tela): 'YYYY-MM'.
+  const anoMesAtual = `${anoAtual}-${String(mesAtual).padStart(2, '0')}`
   const {
     parcelamentos,
     totalMesAtual,
@@ -400,6 +558,9 @@ export default function Despesas() {
   const [despesaEditando, setDespesaEditando] = useState(null) // null = modo criação
   const [parcelamentoEditando, setParcelamentoEditando] = useState(null)
   const [salvandoEdicaoParc, setSalvandoEdicaoParc] = useState(false)
+  // Antecipação de pagamento
+  const [despesaAntecipar, setDespesaAntecipar] = useState(null)
+  const [antecipando, setAntecipando] = useState(false)
 
   const nomeMes = new Date(anoAtual, mesAtual - 1)
     .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
@@ -420,18 +581,37 @@ export default function Despesas() {
   const totalParcelasVariaveisMes = parcelasDoMes
     .filter(x => x.tipo_despesa !== 'fixa').reduce((a, x) => a + x.valor, 0)
 
-  // Totais por tipo — despesas à vista + parcela do mês
+  // Totais por tipo — despesas à vista + parcela do mês.
+  // O tipo das despesas à vista respeita a EXCEÇÃO do mês (tipoNoMes), se houver.
   const totalFixas =
-    despesas.filter(d => d.tipo_despesa === 'fixa').reduce((a, d) => a + Number(d.valor), 0)
+    despesas.filter(d => tipoNoMes(d, anoMesAtual) === 'fixa').reduce((a, d) => a + Number(d.valor), 0)
     + totalParcelasFixasMes
   const totalVariaveis =
-    despesas.filter(d => d.tipo_despesa !== 'fixa').reduce((a, d) => a + Number(d.valor), 0)
+    despesas.filter(d => tipoNoMes(d, anoMesAtual) !== 'fixa').reduce((a, d) => a + Number(d.valor), 0)
     + totalParcelasVariaveisMes
   const totalGeral = totalFixas + totalVariaveis
 
   const receitaBase = resumoMes.receitaTotal || 0
   const pctFixas = receitaBase > 0 ? Math.round((totalFixas / receitaBase) * 100) : 0
   const pctVariaveis = receitaBase > 0 ? Math.round((totalVariaveis / receitaBase) * 100) : 0
+
+  // ─── Próximos vencimentos (para antecipar) ───
+  // Despesas à vista do mês com vencimento FUTURO (data > hoje) e ainda NÃO
+  // pagas antecipadamente (pago_em vazio). Mostra dias restantes e permite
+  // antecipar o pagamento. Ordenado pelo vencimento mais próximo.
+  const hojeStrLocal = new Date().toISOString().split('T')[0]
+  const hojeMeiaNoite = new Date(hojeStrLocal + 'T12:00:00')
+  const proximosVencimentos = despesas
+    .filter(d => !d.pago_em && d.data > hojeStrLocal)
+    .map(d => {
+      const dt = new Date(d.data + 'T12:00:00')
+      const diasFaltam = Math.round((dt - hojeMeiaNoite) / 86400000)
+      return { despesa: d, diasFaltam }
+    })
+    .sort((a, b) => a.diasFaltam - b.diasFaltam)
+
+  // Despesas já pagas antecipadamente neste mês (para feedback ao usuário).
+  const pagasAntecipadamente = despesas.filter(d => d.pago_em)
 
   // Parcelamentos ativos / concluídos (para a aba Parceladas)
   const parcAtivos = parcelamentos.filter(p => p.ativo)
@@ -440,10 +620,11 @@ export default function Despesas() {
   // Filtros/abas
   const abas = ['Todas', 'Fixas', 'Variáveis', 'Parceladas']
 
-  // Despesas (à vista) filtradas conforme a aba
+  // Despesas (à vista) filtradas conforme a aba — usa o tipo do MÊS (exceção
+  // mensal quando existir), para o filtro bater com o rótulo exibido.
   const despesasVisiveis = (() => {
-    if (filtro === 'Fixas') return despesas.filter(d => d.tipo_despesa === 'fixa')
-    if (filtro === 'Variáveis') return despesas.filter(d => d.tipo_despesa !== 'fixa')
+    if (filtro === 'Fixas') return despesas.filter(d => tipoNoMes(d, anoMesAtual) === 'fixa')
+    if (filtro === 'Variáveis') return despesas.filter(d => tipoNoMes(d, anoMesAtual) !== 'fixa')
     if (filtro === 'Parceladas') return [] // aba parceladas mostra os parcelamentos, não as despesas à vista
     return despesas // Todas
   })()
@@ -498,9 +679,25 @@ export default function Despesas() {
     setErroAcao('')
     try {
       if (despesaEditando) {
-        await atualizar(despesaEditando.id, dados)
+        // Separa os metadados de controle do tipo (não são colunas da despesa).
+        const { _escopoTipo, _tipoAlterado, ...payload } = dados
+
+        // Caso ESPECIAL: despesa recorrente + mudança de tipo "somente este mês".
+        // Não altera o tipo_despesa do registro base — grava uma EXCEÇÃO mensal.
+        // Os demais campos editados seguem no update normal (sem o tipo).
+        if (despesaEditando.recorrente && _tipoAlterado && _escopoTipo === 'mes') {
+          const { tipo_despesa, ...semTipo } = payload
+          await atualizar(despesaEditando.id, semTipo)       // demais campos
+          await salvarExcecao(despesaEditando.id, anoMesAtual, tipo_despesa) // só este mês
+        } else {
+          // Demais casos (não recorrente, ou "este e próximos"): atualiza o
+          // registro normalmente — o tipo_despesa do payload já reflete a escolha.
+          await atualizar(despesaEditando.id, payload)
+        }
       } else {
-        const nova = await criar(dados)
+        // Remove metadados de controle (não são colunas da tabela despesas).
+        const { _escopoTipo, _tipoAlterado, ...payload } = dados
+        const nova = await criar(payload)
         setUltimaDespesa(nova)
       }
       fecharModal()
@@ -534,6 +731,33 @@ export default function Despesas() {
       }
     } catch {
       setErroAcao('Erro ao alterar classificação.')
+    }
+  }
+
+  // ─── Antecipar pagamento ───
+  async function handleConfirmarAntecipacao({ pago_em, forma_pagamento }) {
+    if (!despesaAntecipar) return
+    setAntecipando(true)
+    setErroAcao('')
+    try {
+      await anteciparPagamento(despesaAntecipar.id, { pago_em, forma_pagamento })
+      setDespesaAntecipar(null)
+    } catch {
+      setErroAcao('Erro ao antecipar o pagamento. Tente novamente.')
+    } finally {
+      setAntecipando(false)
+    }
+  }
+
+  // Desfaz a antecipação (volta pago_em para NULL). A despesa volta a ser
+  // "futura" e deixa de impactar o saldo até o vencimento chegar.
+  async function handleDesfazerAntecipacao(id) {
+    if (!confirm('Desfazer o pagamento antecipado desta despesa?')) return
+    setErroAcao('')
+    try {
+      await desfazerAntecipacao(id)
+    } catch {
+      setErroAcao('Erro ao desfazer a antecipação. Tente novamente.')
     }
   }
 
@@ -612,33 +836,33 @@ export default function Despesas() {
 
       {/* Três cards de resumo */}
       <div className="grid grid-cols-3 gap-3">
-        <div className="card">
+        <div className="card min-w-0">
           <div className="w-9 h-9 bg-red-50 rounded-xl flex items-center justify-center mb-2">
             <TrendingDown size={16} className="text-red-500" />
           </div>
           <p className="text-xs text-gray-500 mb-0.5">Total do mês</p>
-          <p className="text-lg font-bold text-gray-900">{formatCurrency(totalGeral)}</p>
+          <p className="text-lg font-bold text-gray-900 break-words">{formatCurrency(totalGeral)}</p>
           <p className="text-xs text-gray-400 mt-0.5">
             {despesas.length} à vista
             {parcelasDoMes.length > 0 ? ` + ${parcelasDoMes.length} parcela${parcelasDoMes.length !== 1 ? 's' : ''}` : ''}
           </p>
         </div>
-        <div className="card">
+        <div className="card min-w-0">
           <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center mb-2">
             <span className="text-sm">📌</span>
           </div>
           <p className="text-xs text-gray-500 mb-0.5">Fixas</p>
-          <p className="text-lg font-bold text-blue-700">{formatCurrency(totalFixas)}</p>
+          <p className="text-lg font-bold text-blue-700 break-words">{formatCurrency(totalFixas)}</p>
           {receitaBase > 0
             ? <p className="text-xs text-blue-500 mt-0.5">{pctFixas}% da renda</p>
             : <p className="text-xs text-gray-400 mt-0.5">—</p>}
         </div>
-        <div className="card">
+        <div className="card min-w-0">
           <div className="w-9 h-9 bg-gray-100 rounded-xl flex items-center justify-center mb-2">
             <span className="text-sm">🛒</span>
           </div>
           <p className="text-xs text-gray-500 mb-0.5">Variáveis</p>
-          <p className="text-lg font-bold text-gray-700">{formatCurrency(totalVariaveis)}</p>
+          <p className="text-lg font-bold text-gray-700 break-words">{formatCurrency(totalVariaveis)}</p>
           {receitaBase > 0
             ? <p className="text-xs text-gray-500 mt-0.5">{pctVariaveis}% da renda</p>
             : <p className="text-xs text-gray-400 mt-0.5">—</p>}
@@ -656,6 +880,50 @@ export default function Despesas() {
 
       {erroAcao && (
         <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{erroAcao}</p>
+      )}
+
+      {/* ─── Antecipar próximos vencimentos ─── */}
+      {/* Só aparece quando há despesas com vencimento futuro ainda não pagas. */}
+      {!carregando && proximosVencimentos.length > 0 && (
+        <div className="card">
+          <div className="flex items-center gap-2 mb-3">
+            <CalendarClock size={18} className="text-blue-500 flex-shrink-0" />
+            <h2 className="text-base font-semibold text-gray-900">Próximos vencimentos</h2>
+          </div>
+          <div className="space-y-2">
+            {proximosVencimentos.map(({ despesa: d, diasFaltam }) => (
+              <div key={d.id}
+                className="flex items-center justify-between gap-3 p-3 rounded-xl bg-gray-50">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{d.descricao}</p>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span className="flex items-center gap-1 text-xs text-gray-400">
+                      <Calendar size={11} />{formatDate(d.data)}
+                    </span>
+                    <span className="text-xs font-medium text-blue-500">
+                      {diasFaltam === 1 ? 'Vence amanhã' : `Faltam ${diasFaltam} dias`}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-sm font-bold text-red-500 whitespace-nowrap">-{formatCurrency(d.valor)}</span>
+                  <button
+                    onClick={() => setDespesaAntecipar(d)}
+                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                  >
+                    <Zap size={13} /> Antecipar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          {pagasAntecipadamente.length > 0 && (
+            <p className="text-xs text-gray-400 mt-3 flex items-center gap-1">
+              <CheckCircle2 size={12} className="text-green-500" />
+              {pagasAntecipadamente.length} despesa{pagasAntecipadamente.length !== 1 ? 's' : ''} paga{pagasAntecipadamente.length !== 1 ? 's' : ''} antecipadamente neste mês.
+            </p>
+          )}
+        </div>
       )}
 
       {/* Abas de filtro */}
@@ -743,14 +1011,16 @@ export default function Despesas() {
               {/* Linhas de despesa à vista */}
               {despesasVisiveis.map(d => {
                 const nomeCategoria = d.categorias?.nome
-                const { label: tipoLabel, classes: tipoClasses } = labelTipoDespesa(d.tipo_despesa)
-                const tipoOposto = d.tipo_despesa === 'fixa' ? 'variavel' : 'fixa'
+                // Tipo exibido respeita a exceção do mês (se houver).
+                const tipoExibido = tipoNoMes(d, anoMesAtual)
+                const { label: tipoLabel, classes: tipoClasses } = labelTipoDespesa(tipoExibido)
+                const tipoOposto = tipoExibido === 'fixa' ? 'variavel' : 'fixa'
                 const labelOposto = tipoOposto === 'fixa' ? 'Fixa' : 'Variável'
                 return (
                   <div key={d.id}
                     className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors group">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <div className="w-9 h-9 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0">
                         {d.categorias?.icone
                           ? <span className="text-base">{d.categorias.icone}</span>
                           : <TrendingDown size={16} className="text-red-500" />}
@@ -771,6 +1041,19 @@ export default function Despesas() {
                             <span className="flex items-center gap-1 text-xs text-blue-500">
                               <RefreshCw size={10} />Recorrente
                             </span>
+                          )}
+                          {d.pago_em && (
+                            <>
+                              <span className="flex items-center gap-1 text-xs text-green-600">
+                                <CheckCircle2 size={11} />Pago antecipadamente
+                              </span>
+                              <button
+                                onClick={() => handleDesfazerAntecipacao(d.id)}
+                                className="text-xs text-gray-400 hover:text-blue-600 underline"
+                              >
+                                Desfazer
+                              </button>
+                            </>
                           )}
                         </div>
                       </div>
@@ -902,6 +1185,15 @@ export default function Despesas() {
           />
         )}
       </Modal>
+
+      {/* Modal: confirmar antecipação de pagamento */}
+      <ModalAnteciparPagamento
+        aberto={!!despesaAntecipar}
+        despesa={despesaAntecipar}
+        onConfirmar={handleConfirmarAntecipacao}
+        onFechar={() => setDespesaAntecipar(null)}
+        salvando={antecipando}
+      />
     </div>
   )
 }

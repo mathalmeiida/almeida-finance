@@ -137,6 +137,13 @@ CREATE TABLE IF NOT EXISTS public.despesas (
   frequencia    TEXT CHECK (frequencia IN ('nao_repete','mensal','semanal','diaria','por_meses')) DEFAULT 'nao_repete',
   -- Forma de pagamento (texto livre controlado pelo app). NULL = não informado.
   forma_pagamento TEXT,
+  -- Pagamento antecipado: data em que a despesa foi efetivamente paga.
+  -- NULL = segue a regra normal (afeta o saldo quando a "data" de vencimento
+  -- chega). Preenchida = paga nesse dia; o app usa pago_em (e não "data") como
+  -- o momento em que o dinheiro saiu, sem contar duas vezes. A "data"
+  -- (vencimento) nunca é alterada ao antecipar.
+  -- ALTER TABLE public.despesas ADD COLUMN IF NOT EXISTS pago_em DATE DEFAULT NULL;
+  pago_em       DATE DEFAULT NULL,
   criado_em     TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -154,6 +161,31 @@ ALTER TABLE public.despesas ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Usuário gerencia apenas as próprias despesas"
   ON public.despesas FOR ALL
+  USING (auth.uid() = usuario_id)
+  WITH CHECK (auth.uid() = usuario_id);
+
+
+-- ============================================================
+-- 4b. TABELA: despesas_tipo_excecoes
+-- Override MENSAL do tipo (fixa/variável) de uma despesa recorrente,
+-- sem alterar o registro base nem duplicar o lançamento. Afeta apenas
+-- o rótulo e os totais Fixas/Variáveis do mês indicado.
+-- (Criada pela migração 2026-10_editar_tipo_e_antecipar_pagamento.sql)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.despesas_tipo_excecoes (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  usuario_id    UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  despesa_id    UUID NOT NULL REFERENCES public.despesas(id) ON DELETE CASCADE,
+  ano_mes       TEXT NOT NULL CHECK (ano_mes ~ '^[0-9]{4}-[0-9]{2}$'),
+  tipo_despesa  TEXT NOT NULL CHECK (tipo_despesa IN ('fixa','variavel')),
+  criado_em     TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (despesa_id, ano_mes)
+);
+
+ALTER TABLE public.despesas_tipo_excecoes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Usuário gerencia apenas as próprias exceções de tipo"
+  ON public.despesas_tipo_excecoes FOR ALL
   USING (auth.uid() = usuario_id)
   WITH CHECK (auth.uid() = usuario_id);
 

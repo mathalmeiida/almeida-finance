@@ -35,7 +35,7 @@ const navGrupos = [
     { to: '/projecao',      label: 'Projeção',       icon: BarChart2,     corIcone: 'text-violet-400'   },
   ]},
   { titulo: 'Planejamento', itens: [
-    { to: '/posso-comprar', label: 'Posso Comprar?', icon: ShoppingCart,  corIcone: 'text-blue-400'     },
+    { to: '/posso-comprar', label: 'Simular compra', icon: ShoppingCart,  corIcone: 'text-blue-400'     },
     { to: '/metas',         label: 'Metas',          icon: Target,        corIcone: 'text-amber-400'    },
     { to: '/consultoria',   label: 'Consultoria',    icon: MessagesSquare, corIcone: 'text-cyan-400', badge: 'EM BREVE' },
   ]},
@@ -209,7 +209,7 @@ export default function Layout({ children }) {
         {/* Logo + subtítulo. Logo transparente sobre o próprio fundo da
             sidebar (sem quadrado/background atrás da imagem). */}
         <div className="px-5 pt-6 pb-5 border-b border-gray-100 flex flex-col items-center text-center">
-          <img src={logoAlmeida} alt="Almeida Finance" className="h-20 w-auto object-contain" />
+          <img src={logoAlmeida} alt="Almeida Finance" className="h-24 w-auto object-contain" />
           <p className="text-[13px] text-gray-500 mt-2">Controle financeiro</p>
         </div>
 
@@ -238,7 +238,7 @@ export default function Layout({ children }) {
       <div className="flex-1 md:ml-60 flex flex-col min-h-screen">
         {/* Header mobile compacto: logo à esquerda, avatar à direita */}
         <header className="md:hidden bg-white border-b border-gray-100 px-4 h-14 flex items-center justify-between sticky top-0 z-20 pt-safe">
-          <img src={logoAlmeida} alt="Almeida Finance" className="h-6 w-auto object-contain" />
+          <img src={logoAlmeida} alt="Almeida Finance" className="h-[38px] w-auto object-contain" />
           <NavLink
             to="/configuracoes"
             className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0"
@@ -270,7 +270,7 @@ export default function Layout({ children }) {
           </button>
         </div>
 
-        <BottomNavItem to="/posso-comprar" label="Comprar?" icon={ShoppingCart} corIcone="text-blue-400" />
+        <BottomNavItem to="/posso-comprar" label="Simular" icon={ShoppingCart} corIcone="text-blue-400" />
         <BottomNavItem label="Mais" icon={MoreHorizontal} onClick={() => setMaisAberto(true)} ativo={maisAtivo || maisAberto} />
       </nav>
 

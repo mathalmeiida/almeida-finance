@@ -2,13 +2,16 @@ import React, { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Zap, Sun, Plus, Pencil,
-  CheckCircle2, Circle, Rocket
+  CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useCategorias } from '../hooks/useCategorias'
+import { useCartoes } from '../hooks/useCartoes'
+import { useComprasCartao } from '../hooks/useComprasCartao'
 import { useAuth } from '../contexts/AuthContext'
+import { useOcultarValores } from '../contexts/OcultarValoresContext'
 import InputMoeda from '../components/InputMoeda'
-import { formatCurrency } from '../lib/utils'
+import { formatCurrency, exibirMoeda, FORMAS_PAGAMENTO } from '../lib/utils'
 import { classificarDespesa } from '../lib/classificarDespesa'
 import Modal from '../components/Modal'
 
@@ -19,11 +22,16 @@ const CATEGORIAS_COMUNS = ['Alimentação', 'Transporte', 'Lazer', 'Mercado', 'S
 
 function FormGastoRapido({ onSalvar, onCancelar, carregando, onMaisOpcoes }) {
   const { categorias } = useCategorias('despesa')
+  const { cartoes } = useCartoes()
   const [form, setForm] = useState({
     descricao: '',
     valor: '',
     categoria_id: '',
+    forma_pagamento: '',
+    cartao_id: '',
   })
+
+  const ehCartaoCredito = form.forma_pagamento === 'cartao_credito'
 
   // Ordena mostrando as categorias comuns primeiro (sem alterar os dados).
   const categoriasOrdenadas = [...categorias].sort((a, b) => {
@@ -49,13 +57,19 @@ function FormGastoRapido({ onSalvar, onCancelar, carregando, onMaisOpcoes }) {
       descricao: form.descricao,
       categoria: catSelecionada?.nome || '',
     })
+    const descricao = form.descricao?.trim() || (catSelecionada?.nome ?? 'Gasto')
     onSalvar({
-      descricao: form.descricao?.trim() || (catSelecionada?.nome ?? 'Gasto'),
+      descricao,
       valor: valorNum,
       data: new Date().toISOString().split('T')[0],
       recorrente: false,
       categoria_id: form.categoria_id || null,
       tipo_despesa,
+      // Forma de pagamento escolhida. Quando for cartão de crédito, também vai
+      // o cartão selecionado — o Dashboard decide gravar em compras_cartao
+      // (entra na fatura, NÃO desconta do saldo à vista) em vez de despesas.
+      forma_pagamento: form.forma_pagamento || null,
+      cartao_id: ehCartaoCredito ? (form.cartao_id || null) : null,
     }, catSelecionada?.nome || 'Sem categoria')
   }
 
@@ -85,6 +99,43 @@ function FormGastoRapido({ onSalvar, onCancelar, carregando, onMaisOpcoes }) {
           className="input" placeholder="Ex.: Padaria" />
       </div>
 
+      {/* Forma de pagamento. Reaproveita FORMAS_PAGAMENTO (mesma lista do app). */}
+      <div>
+        <label className="label">Forma de pagamento</label>
+        <select name="forma_pagamento" value={form.forma_pagamento} onChange={handleChange} className="input">
+          <option value="">Selecionar forma</option>
+          {FORMAS_PAGAMENTO.map(f => (
+            <option key={f.value} value={f.value}>{f.icone} {f.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Cartão de crédito → escolher o cartão. A compra entra na FATURA do
+          cartão (não desconta do saldo à vista). */}
+      {ehCartaoCredito && (
+        cartoes.length === 0 ? (
+          <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-500">
+            Você ainda não tem cartões cadastrados.
+            <Link to="/cartoes" className="block mt-2 text-blue-600 font-medium hover:underline">
+              + Cadastrar cartão
+            </Link>
+          </div>
+        ) : (
+          <div>
+            <label className="label">Em qual cartão?</label>
+            <select name="cartao_id" value={form.cartao_id} onChange={handleChange} className="input" required>
+              <option value="">Selecionar cartão</option>
+              {cartoes.map(c => (
+                <option key={c.id} value={c.id}>{c.nome}{c.banco ? ` • ${c.banco}` : ''}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">
+              Este gasto entrará na fatura do cartão, sem descontar do seu saldo disponível agora.
+            </p>
+          </div>
+        )
+      )}
+
       <button type="submit" disabled={carregando}
         className="btn-primary w-full flex items-center justify-center gap-2 py-3">
         {carregando
@@ -103,11 +154,12 @@ function FormGastoRapido({ onSalvar, onCancelar, carregando, onMaisOpcoes }) {
 }
 
 function SummaryCard({ title, value, icon: Icon, color, bgColor, subtitle, carregando }) {
+  const { ocultar } = useOcultarValores()
   return (
     <div className="card flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-gray-500">{title}</span>
-        <div className={`w-9 h-9 rounded-xl ${bgColor} flex items-center justify-center`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium text-gray-500 min-w-0 truncate">{title}</span>
+        <div className={`w-9 h-9 rounded-xl ${bgColor} flex items-center justify-center flex-shrink-0`}>
           <Icon size={18} className={color} />
         </div>
       </div>
@@ -115,7 +167,11 @@ function SummaryCard({ title, value, icon: Icon, color, bgColor, subtitle, carre
         {carregando ? (
           <div className="h-8 w-28 bg-gray-100 rounded-lg animate-pulse" />
         ) : (
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(value)}</p>
+          // Fonte menor em telas estreitas (2 colunas) para o valor não cortar;
+          // volta ao tamanho atual a partir de sm. Quebra segura como fallback.
+          <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight break-words">
+            {exibirMoeda(value, ocultar)}
+          </p>
         )}
         {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
       </div>
@@ -298,6 +354,7 @@ function CardQuantoPossoGastar({
   reservaAtual = 0, metaReserva = 0, onEditarReservaAtual,
   saldoConfigurado = false, previsaoFimMes = 0,
 }) {
+  const { ocultar } = useOcultarValores()
   const [personalizando, setPersonalizando] = useState(false)
   const [pctCustom, setPctCustom] = useState('')
   // Estado local do percentual (atualização otimista): o clique reflete na hora,
@@ -526,7 +583,7 @@ function CardQuantoPossoGastar({
           <div className="mt-3 pt-3 border-t border-white/15">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-white/80">
-                Reserva de emergência atual: <strong className="text-white">{formatCurrency(reservaAtual)}</strong>
+                Reserva de emergência atual: <strong className="text-white">{exibirMoeda(reservaAtual, ocultar)}</strong>
               </span>
               <button
                 onClick={onEditarReservaAtual}
@@ -539,7 +596,7 @@ function CardQuantoPossoGastar({
             {temMeta && (
               <>
                 <div className="flex items-center justify-between text-xs text-white/80 mt-2">
-                  <span>Meta: <strong className="text-white">{formatCurrency(metaReserva)}</strong></span>
+                  <span>Meta: <strong className="text-white">{exibirMoeda(metaReserva, ocultar)}</strong></span>
                   <span>{pct.toFixed(1).replace('.', ',')}%</span>
                 </div>
                 {/* Barra de progresso */}
@@ -826,11 +883,139 @@ function CardComecePorAqui({ itens, totalConcluidos, onIrPara, onContinuar }) {
   )
 }
 
+// ─── Card destaque "Quanto posso gastar hoje?" (foco principal da Home) ───────
+// Reaproveita o limite diário (calcularLimiteDiario) e os gastos reais de hoje.
+// NÃO recalcula regra nova: limiteHoje vem da mesma fonte do card detalhado.
+function CardGastoHoje({
+  carregando, limiteHoje, gastosHoje, disponivelHoje,
+  jaFezCheckin, onRegistrarGasto, onNaoGasteiHoje,
+}) {
+  if (carregando) {
+    return (
+      <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5">
+        <div className="h-4 w-48 bg-black/20 rounded animate-pulse" />
+        <div className="h-10 w-40 bg-black/20 rounded-lg animate-pulse mt-3" />
+      </div>
+    )
+  }
+
+  // Status do DIA, com base no quanto já foi gasto frente ao limite diário.
+  // 🟢 dentro | 🟡 perto do limite (>= 80%) | 🔴 ultrapassou.
+  let status
+  if (limiteHoje <= 0) {
+    // Sem limite calculado (sem renda/saldo). Mantém neutro.
+    status = null
+  } else if (gastosHoje > limiteHoje) {
+    status = {
+      cor: '🔴',
+      texto: `Você ultrapassou seu planejamento diário em ${formatCurrency(gastosHoje - limiteHoje)}.`,
+    }
+  } else if (gastosHoje >= limiteHoje * 0.8) {
+    status = { cor: '🟡', texto: 'Você está próximo do seu limite de hoje.' }
+  } else {
+    status = { cor: '🟢', texto: 'Você está dentro do planejado hoje.' }
+  }
+
+  return (
+    <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-4 text-white">
+      <div className="flex items-center gap-2 text-white/90">
+        <Sun size={18} />
+        <span className="text-sm font-medium">Quanto posso gastar hoje?</span>
+      </div>
+
+      {/* Valor diário em grande destaque */}
+      <p className="text-3xl sm:text-4xl font-bold mt-1 leading-tight break-words">
+        {formatCurrency(Math.max(0, limiteHoje))}
+      </p>
+      <p className="text-xs text-white/80 mt-1">
+        Esse é o valor estimado que você pode gastar hoje sem comprometer seu planejamento.
+      </p>
+
+      {/* Gastos de hoje × Disponível hoje */}
+      <div className="grid grid-cols-2 gap-2.5 mt-3">
+        <div className="bg-black/15 rounded-xl px-3 py-2">
+          <p className="text-xs text-white/70">Gastos de hoje</p>
+          <p className="text-lg font-bold break-words">{formatCurrency(gastosHoje)}</p>
+        </div>
+        <div className="bg-black/15 rounded-xl px-3 py-2">
+          <p className="text-xs text-white/70">Disponível hoje</p>
+          <p className={`text-lg font-bold break-words ${disponivelHoje < 0 ? 'text-red-200' : ''}`}>
+            {formatCurrency(disponivelHoje)}
+          </p>
+        </div>
+      </div>
+
+      {/* Status do dia */}
+      {status && (
+        <div className="flex items-start gap-2 mt-2.5 bg-black/15 rounded-xl px-3 py-2">
+          <span className="flex-shrink-0">{status.cor}</span>
+          <span className="text-sm font-medium">{status.texto}</span>
+        </div>
+      )}
+
+      {/* Ações: "Registrar gasto" é a AÇÃO PRINCIPAL (destaque: botão branco,
+          maior, com sombra). "Não gastei hoje" fica como ação secundária
+          (contorno discreto sobre o verde). */}
+      <div className="flex flex-col sm:flex-row gap-2 mt-3">
+        <button
+          onClick={onRegistrarGasto}
+          className="flex-[1.4] flex items-center justify-center gap-2 bg-emerald-700 text-white font-bold text-base px-4 py-3 rounded-xl shadow-md hover:bg-emerald-800 active:scale-[0.99] transition-all"
+        >
+          <Plus size={18} strokeWidth={2.5} className="text-white" /> Registrar gasto
+        </button>
+        <button
+          onClick={onNaoGasteiHoje}
+          disabled={jaFezCheckin}
+          className={`flex-1 flex items-center justify-center gap-2 font-medium text-sm px-4 py-2.5 rounded-xl border transition-colors ${
+            jaFezCheckin
+              ? 'bg-black/10 text-white/70 border-transparent cursor-default'
+              : 'bg-transparent text-white/90 border-white/40 hover:bg-black/15'
+          }`}
+        >
+          <Check size={15} /> {jaFezCheckin ? 'Dia sem gastos registrado' : 'Não gastei hoje'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Card "Próximos vencimentos" ──────────────────────────────────────────────
+// Mostra APENAS despesas com data futura próxima (hoje+1 .. hoje+7) já
+// carregadas do mês. Não inventa nada: se a lista estiver vazia, nem renderiza.
+function CardProximosVencimentos({ itens }) {
+  if (!itens || itens.length === 0) return null
+  return (
+    <div className="card">
+      <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+        <CalendarClock size={18} className="text-blue-600 flex-shrink-0" />
+        Próximos vencimentos
+      </h2>
+      <ul className="mt-3 space-y-2">
+        {itens.map(item => (
+          <li key={item.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-3 py-2.5">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">{item.descricao}</p>
+              <p className="text-xs text-gray-500">{item.quando}</p>
+            </div>
+            <span className="text-sm font-semibold text-gray-900 flex-shrink-0 whitespace-nowrap">
+              {formatCurrency(item.valor)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const { perfil, atualizarPreferenciasLimite } = useAuth()
+  const { ocultar, alternar } = useOcultarValores()
   const {
     resumoMes, projecao, carregando, receitas, despesas, parcelamentos, criarDespesa,
   } = useProjecao()
+  // Para gastos no cartão de crédito: grava em compras_cartao (entra na fatura,
+  // não desconta do saldo à vista). Demais formas seguem em despesas.
+  const { criar: criarCompraCartao } = useComprasCartao()
   const navigate = useNavigate()
 
   const [modalGasto, setModalGasto] = useState(false)
@@ -853,10 +1038,18 @@ export default function Dashboard() {
     else if (novo === 'reserva') { setModalReservaAtual(true); searchParams.delete('novo'); setSearchParams(searchParams, { replace: true }) }
   }, [searchParams, setSearchParams])
 
-  const sobraPositiva = resumoMes.sobraPrevista >= 0
   const hoje = new Date()
   const nomeMes = hoje.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-  const saudacao = perfil?.nome ? `Olá, ${perfil.nome.split(' ')[0]}` : 'Olá'
+  // Saudação automática pelo horário de BRASÍLIA (independe do fuso do aparelho).
+  // 05–11: Bom dia | 12–17: Boa tarde | 18–04: Boa noite.
+  const horaBrasilia = parseInt(
+    new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', hour12: false, timeZone: 'America/Sao_Paulo' })
+      .format(new Date()), 10) % 24  // normaliza eventual "24" para 0
+  const periodo = horaBrasilia >= 5 && horaBrasilia < 12 ? 'Bom dia'
+    : horaBrasilia >= 12 && horaBrasilia < 18 ? 'Boa tarde'
+    : 'Boa noite'
+  const primeiroNome = perfil?.nome ? perfil.nome.split(' ')[0] : ''
+  const saudacao = primeiroNome ? `${periodo}, ${primeiroNome}` : periodo
 
   // Aviso de projeção zerada: há dados mas nenhum é recorrente
   const temReceitas = receitas.length > 0
@@ -905,17 +1098,113 @@ export default function Dashboard() {
   const compromissosFuturosMes = resumoMes.compromissosFuturosMes
   const carregandoLimite = carregando
 
+  // ─── "Quanto posso gastar hoje?" (card destaque) ───
+  const hojeISO = hoje.toISOString().split('T')[0]
+  // Limite diário de hoje — MESMA fonte do card detalhado (calcularLimiteDiario).
+  const limiteHoje = calcularLimiteDiario({
+    receitaMes,
+    compromissosMes,
+    reservaPct: reservaPercentual,
+    modo: modoLimite,
+    limiteManual,
+    hoje,
+    baseLivre: saldoConfigurado ? previsaoFimMes : undefined,
+  })
+  // Gastos de HOJE: soma das despesas (à vista, não recorrentes) com data de hoje.
+  // Usa os dados já em memória — mesmo padrão do saldo disponível.
+  const gastosDeHoje = despesas
+    .filter(d => d.data === hojeISO && !d.recorrente)
+    .reduce((acc, d) => acc + (Number(d.valor) || 0), 0)
+  const disponivelHoje = limiteHoje - gastosDeHoje
+
+  // Check-in "Não gastei hoje": registro LOCAL por data (não cria despesa).
+  const CHAVE_CHECKIN = 'almeida_checkin_sem_gasto'
+  const [checkinData, setCheckinData] = useState(() => {
+    try { return localStorage.getItem(CHAVE_CHECKIN) || '' } catch { return '' }
+  })
+  const jaFezCheckin = checkinData === hojeISO
+  function marcarNaoGasteiHoje() {
+    try { localStorage.setItem(CHAVE_CHECKIN, hojeISO) } catch { /* ignora */ }
+    setCheckinData(hojeISO)
+    setConfirmacaoGasto({
+      msg: '✓ Dia sem gastos registrado. Continue assim!',
+      limite: Math.max(0, limiteHoje),
+    })
+  }
+
+  // ─── Próximos vencimentos ───
+  // Despesas com data futura próxima (amanhã até +7 dias), dentro do que já foi
+  // carregado do mês. Rótulo "Vence amanhã" / "Vence em X dias" / data.
+  const proximosVencimentos = (() => {
+    const base = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())
+    const limiteDias = 7
+    return despesas
+      .map(d => {
+        if (!d.data) return null
+        const dt = new Date(d.data + 'T12:00:00')
+        const dataDia = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate())
+        const diffDias = Math.round((dataDia - base) / 86400000)
+        if (diffDias < 1 || diffDias > limiteDias) return null
+        const quando = diffDias === 1
+          ? 'Vence amanhã'
+          : `Vence em ${diffDias} dias`
+        return {
+          id: d.id,
+          descricao: d.descricao || 'Despesa',
+          valor: Number(d.valor) || 0,
+          quando,
+          diffDias,
+        }
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.diffDias - b.diffDias)
+      .slice(0, 5)
+  })()
+
   // ─── Handler do Gasto rápido ───
   async function handleSalvarGasto(dados, categoriaNome) {
     setSalvandoGasto(true)
     setErroGasto('')
     try {
-      await criarDespesa(dados)   // atualiza o estado interno → indicadores recalculam
+      const valorGasto = Number(dados.valor) || 0
+      const noCartaoCredito = dados.forma_pagamento === 'cartao_credito' && dados.cartao_id
+
+      if (noCartaoCredito) {
+        // ── Gasto no CARTÃO DE CRÉDITO ──
+        // Grava como compra à vista (1x) em compras_cartao. A fatura é projetada
+        // pela regra de fechamento (faturaCartao). NÃO entra em "despesas", logo
+        // NÃO desconta do saldo disponível agora — evita lançamento duplicado.
+        await criarCompraCartao({
+          cartao_id: dados.cartao_id,
+          descricao: dados.descricao,
+          valor_total: valorGasto,
+          data_compra: dados.data, // hoje
+          numero_parcelas: 1,
+          categoria_id: dados.categoria_id || null,
+        })
+        setModalGasto(false)
+        // O limite diário NÃO muda (compra no crédito não sai do saldo de hoje).
+        const limite = calcularLimiteDiario({
+          receitaMes, compromissosMes,
+          reservaPct: reservaPercentual, modo: modoLimite, limiteManual, hoje,
+          baseLivre: saldoConfigurado ? previsaoFimMes : undefined,
+        })
+        setConfirmacaoGasto({
+          msg: `✓ Gasto de ${formatCurrency(valorGasto)} lançado na fatura do cartão`,
+          limite: Math.max(0, limite),
+        })
+        return
+      }
+
+      // ── Demais formas (Pix, dinheiro, débito, boleto, etc.) ──
+      // Fluxo atual: grava em despesas (à vista, hoje) e desconta do saldo.
+      // Remove campos que não são colunas de "despesas".
+      const { cartao_id, ...despesa } = dados
+      await criarDespesa(despesa)   // atualiza o estado interno → indicadores recalculam
       setModalGasto(false)
       // Confirmação curta + limite diário restante (MESMA fórmula do card,
       // via calcularLimiteDiario). O gasto é à vista → entra em compromissos,
       // então somamos o valor para refletir o limite JÁ atualizado.
-      const valorGasto = Number(dados.valor) || 0
       const limite = calcularLimiteDiario({
         receitaMes,
         compromissosMes: compromissosMes + valorGasto,
@@ -927,7 +1216,7 @@ export default function Dashboard() {
         baseLivre: saldoConfigurado ? (previsaoFimMes - valorGasto) : undefined,
       })
       setConfirmacaoGasto({
-        msg: `✓ Gasto de ${formatCurrency(dados.valor)} registrado em ${categoriaNome}`,
+        msg: `✓ Gasto de ${formatCurrency(valorGasto)} registrado em ${categoriaNome}`,
         limite: Math.max(0, limite),
       })
     } catch {
@@ -1012,20 +1301,10 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Cabeçalho */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{saudacao} 👋</h1>
-          <p className="text-sm text-gray-500 mt-1 capitalize">Resumo financeiro de {nomeMes}</p>
-        </div>
-        {/* No mobile, a inclusão de gastos passa a ser pelo botão "+" do menu
-            inferior; aqui o botão fica só no desktop. */}
-        <button
-          onClick={() => setModalGasto(true)}
-          className="btn-primary hidden sm:flex items-center gap-2 flex-shrink-0"
-        >
-          <Zap size={16} /> <span>Gasto rápido</span>
-        </button>
+      {/* 1 ─ Saudação (por horário de Brasília) */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">{saudacao}</h1>
+        <p className="text-sm text-gray-500 mt-1 capitalize">Resumo financeiro de {nomeMes}</p>
       </div>
 
       {erroGasto && (
@@ -1042,6 +1321,102 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* 2 ─ DESTAQUE: Quanto posso gastar hoje? (foco principal da Home) */}
+      <CardGastoHoje
+        carregando={carregando}
+        limiteHoje={limiteHoje}
+        gastosHoje={gastosDeHoje}
+        disponivelHoje={disponivelHoje}
+        jaFezCheckin={jaFezCheckin}
+        onRegistrarGasto={() => setModalGasto(true)}
+        onNaoGasteiHoje={marcarNaoGasteiHoje}
+      />
+
+      {/* 3 ─ Vai fazer uma compra? (simulação existente) — fundo escuro
+          sofisticado para posicionar o simulador como ferramenta SECUNDÁRIA,
+          deixando o card verde "Quanto posso gastar hoje?" como destaque. */}
+      <div className="bg-gray-100 border border-gray-200 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 bg-blue-600/20 rounded-xl flex items-center justify-center flex-shrink-0">
+            <ShoppingCart size={20} className="text-blue-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-white font-semibold">Vai fazer uma compra?</p>
+            <p className="text-gray-400 text-sm">Antes de comprar, veja como esse gasto pode impactar seu planejamento.</p>
+          </div>
+        </div>
+        <Link
+          to="/posso-comprar"
+          className="flex items-center gap-2 bg-blue-600 text-white font-semibold text-sm px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors whitespace-nowrap flex-shrink-0"
+        >
+          Simular compra <ArrowRight size={16} className="text-white" />
+        </Link>
+      </div>
+
+      {/* 4 ─ Resumo do mês: Receitas, Despesas, Saldo Atual (com olho), Reserva */}
+      <div>
+        <h2 className="text-base font-semibold text-gray-900 mb-3">Resumo do mês</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <SummaryCard
+            title="Receitas"
+            value={resumoMes.receitaTotal}
+            icon={TrendingUp}
+            color="text-green-600"
+            bgColor="bg-green-50"
+            subtitle={carregando ? '' : `${resumoMes.qtdReceitas} receita${resumoMes.qtdReceitas !== 1 ? 's' : ''}`}
+            carregando={carregando}
+          />
+          <SummaryCard
+            title="Despesas"
+            value={resumoMes.despesaTotal}
+            icon={TrendingDown}
+            color="text-red-500"
+            bgColor="bg-red-50"
+            subtitle={carregando ? '' : `${resumoMes.qtdDespesas} despesa${resumoMes.qtdDespesas !== 1 ? 's' : ''}`}
+            carregando={carregando}
+          />
+          {/* Saldo Atual — com ícone de olho para ocultar/exibir */}
+          <div className="card flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium text-gray-500 min-w-0 truncate">Saldo atual</span>
+              <button
+                onClick={alternar}
+                aria-label={ocultar ? 'Mostrar valores' : 'Ocultar valores'}
+                className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0 text-blue-600 hover:bg-blue-100"
+              >
+                {ocultar ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+            <div>
+              {carregando ? (
+                <div className="h-8 w-28 bg-gray-100 rounded-lg animate-pulse" />
+              ) : (
+                <p className="text-xl sm:text-2xl font-bold break-words text-gray-900">
+                  {exibirMoeda(saldoConfigurado ? saldoDisponivelAgora : resumoMes.sobraPrevista, ocultar)}
+                </p>
+              )}
+              {!carregando && (
+                <p className="text-xs text-gray-400 mt-1">
+                  {saldoConfigurado ? 'Dinheiro disponível agora' : 'Saldo após compromissos'}
+                </p>
+              )}
+            </div>
+          </div>
+          <SummaryCard
+            title="Reserva de emergência"
+            value={reservaAtual}
+            icon={Wallet}
+            color="text-emerald-600"
+            bgColor="bg-emerald-50"
+            subtitle={carregando ? '' : (metaReserva > 0 ? `Meta: ${formatCurrency(metaReserva)}` : 'Sem meta definida')}
+            carregando={carregando}
+          />
+        </div>
+      </div>
+
+      {/* 5 ─ Próximos vencimentos (só se houver despesas com vencimento próximo) */}
+      {!carregando && <CardProximosVencimentos itens={proximosVencimentos} />}
+
       {/* Card: Saldo disponível agora + Previsão até o fim do mês.
           A reserva de emergência NÃO entra aqui (fica no card abaixo). */}
       {!carregando && (
@@ -1050,9 +1425,19 @@ export default function Dashboard() {
             <>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm text-gray-500">Saldo disponível agora</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-gray-500">Saldo disponível agora</p>
+                    {/* Olho: oculta/mostra os valores financeiros (só visual) */}
+                    <button
+                      onClick={alternar}
+                      aria-label={ocultar ? 'Mostrar valores' : 'Ocultar valores'}
+                      className="text-gray-400 hover:text-gray-700 p-0.5"
+                    >
+                      {ocultar ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
                   <p className={`text-3xl font-bold ${saldoDisponivelAgora >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
-                    {formatCurrency(saldoDisponivelAgora)}
+                    {exibirMoeda(saldoDisponivelAgora, ocultar)}
                   </p>
                 </div>
                 <button
@@ -1067,12 +1452,12 @@ export default function Dashboard() {
                 <div className="bg-gray-50 rounded-xl p-3">
                   <p className="text-xs text-gray-400">Previsão até o fim do mês</p>
                   <p className={`text-lg font-bold ${previsaoFimMes >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                    {formatCurrency(previsaoFimMes)}
+                    {exibirMoeda(previsaoFimMes, ocultar)}
                   </p>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-3">
                   <p className="text-xs text-gray-400">Compromissos a pagar</p>
-                  <p className="text-lg font-bold text-red-500">{formatCurrency(compromissosFuturosMes)}</p>
+                  <p className="text-lg font-bold text-red-500">{exibirMoeda(compromissosFuturosMes, ocultar)}</p>
                 </div>
               </div>
               <p className="text-xs text-gray-400 mt-2">
@@ -1134,65 +1519,6 @@ export default function Dashboard() {
         saldoConfigurado={saldoConfigurado}
         previsaoFimMes={previsaoFimMes}
       />
-
-      {/* Cards de resumo */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard
-          title="Receitas do mês"
-          value={resumoMes.receitaTotal}
-          icon={TrendingUp}
-          color="text-green-600"
-          bgColor="bg-green-50"
-          subtitle={carregando ? '' : `${resumoMes.qtdReceitas} receita${resumoMes.qtdReceitas !== 1 ? 's' : ''}`}
-          carregando={carregando}
-        />
-        <SummaryCard
-          title="Despesas do mês"
-          value={resumoMes.despesaTotal}
-          icon={TrendingDown}
-          color="text-red-500"
-          bgColor="bg-red-50"
-          subtitle={carregando ? '' : `${resumoMes.qtdDespesas} despesa${resumoMes.qtdDespesas !== 1 ? 's' : ''}`}
-          carregando={carregando}
-        />
-        <SummaryCard
-          title="Parcelas do mês"
-          value={resumoMes.parcelasTotalExibicao}
-          icon={CreditCard}
-          color="text-orange-500"
-          bgColor="bg-orange-50"
-          subtitle={carregando ? '' : `${resumoMes.qtdParcelasExibicao} ativo${resumoMes.qtdParcelasExibicao !== 1 ? 's' : ''}`}
-          carregando={carregando}
-        />
-        <SummaryCard
-          title="Saldo após compromissos"
-          value={resumoMes.sobraPrevista}
-          icon={Wallet}
-          color={sobraPositiva ? 'text-blue-600' : 'text-red-600'}
-          bgColor={sobraPositiva ? 'bg-blue-50' : 'bg-red-50'}
-          subtitle={carregando ? '' : 'Antes da reserva de emergência'}
-          carregando={carregando}
-        />
-      </div>
-
-      {/* Banner "Posso Comprar?" */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-black/20 rounded-xl flex items-center justify-center">
-            <ShoppingCart size={20} className="text-white" />
-          </div>
-          <div>
-            <p className="text-white font-semibold">Vai fazer uma compra?</p>
-            <p className="text-blue-200 text-sm">Simule o impacto no seu orçamento antes de decidir.</p>
-          </div>
-        </div>
-        <Link
-          to="/posso-comprar"
-          className="flex items-center gap-2 bg-white text-blue-600 font-semibold text-sm px-4 py-2 rounded-xl hover:bg-blue-50 transition-colors whitespace-nowrap"
-        >
-          Simular agora <ArrowRight size={16} />
-        </Link>
-      </div>
 
       {/* Gráfico de projeção */}
       <div className="card">

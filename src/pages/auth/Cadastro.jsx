@@ -55,7 +55,8 @@ export default function Cadastro() {
             <h2 className="text-xl font-bold text-gray-900 mb-2">Conta criada!</h2>
             <p className="text-gray-500 text-sm mb-6">
               Enviamos um e-mail de confirmação para <strong>{form.email}</strong>.
-              Clique no link do e-mail para ativar sua conta e depois faça login.
+              Clique em <strong>"Confirmar cadastro"</strong> no e-mail: você será
+              trazido de volta ao Almeida Finance automaticamente para ativar a conta.
             </p>
             <Link to="/login" className="btn-primary block text-center">
               Ir para o login

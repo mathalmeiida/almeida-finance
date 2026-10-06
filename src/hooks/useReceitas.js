@@ -11,7 +11,9 @@ export function useReceitas(mes, ano) {
   useEffect(() => {
     if (!usuario) return
     buscar()
-  }, [usuario, mes, ano])
+    // Depende do ID (não do objeto) para não refazer o fetch quando o Supabase
+    // apenas renova o token e recria o objeto `usuario` com o mesmo id.
+  }, [usuario?.id, mes, ano])
 
   async function buscar() {
     setCarregando(true)
@@ -47,8 +49,27 @@ export function useReceitas(mes, ano) {
       .select()
       .single()
     if (error) throw error
-    setReceitas(prev => [data, ...prev])
+    // Só injeta a nova receita na lista em memória se ela pertencer ao mês/ano
+    // atualmente filtrado. Caso contrário (ex.: receita cadastrada para um mês
+    // futuro enquanto vemos outro mês), NÃO a adicionamos aqui — ela apareceria
+    // no mês errado e "sumiria" no próximo refetch. Ela foi salva no banco e
+    // aparece normalmente ao navegar até o mês correspondente à sua data.
+    if (pertenceAoMesFiltrado(data?.data)) {
+      setReceitas(prev => [data, ...prev])
+    }
     return data
+  }
+
+  // Verifica se uma data 'YYYY-MM-DD' cai no mês/ano filtrado por este hook.
+  // Sem filtro (mes/ano indefinidos) considera que tudo pertence (comportamento
+  // antigo preservado). Comparação por string, sem new Date(), para não sofrer
+  // deslocamento de timezone.
+  function pertenceAoMesFiltrado(dataISO) {
+    if (mes === undefined || ano === undefined) return true
+    if (!dataISO) return true
+    const inicio = `${ano}-${String(mes).padStart(2, '0')}-01`
+    const fim = new Date(ano, mes, 0).toISOString().split('T')[0]
+    return dataISO >= inicio && dataISO <= fim
   }
 
   async function atualizar(id, dados) {
