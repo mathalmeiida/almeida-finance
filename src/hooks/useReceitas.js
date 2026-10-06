@@ -5,12 +5,18 @@ import { useAuth } from '../contexts/AuthContext'
 export function useReceitas(mes, ano) {
   const { usuario } = useAuth()
   const [receitas, setReceitas] = useState([])
+  // TODAS as receitas recorrentes do usuário (sem filtro de mês). Usado para
+  // projetar, na tela de Receitas, as recorrentes iniciadas em meses anteriores
+  // ao mês visualizado. NÃO entra em `receitas` (que o useProjecao consome),
+  // para não causar dupla contagem no saldo/projeção.
+  const [recorrentes, setRecorrentes] = useState([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState(null)
 
   useEffect(() => {
     if (!usuario) return
     buscar()
+    buscarRecorrentes()
     // Depende do ID (não do objeto) para não refazer o fetch quando o Supabase
     // apenas renova o token e recria o objeto `usuario` com o mesmo id.
   }, [usuario?.id, mes, ano])
@@ -42,6 +48,21 @@ export function useReceitas(mes, ano) {
     }
   }
 
+  // Busca todas as receitas recorrentes (independente do mês selecionado).
+  async function buscarRecorrentes() {
+    try {
+      const { data, error } = await supabase
+        .from('receitas')
+        .select('*')
+        .eq('usuario_id', usuario.id)
+        .eq('recorrente', true)
+      if (error) throw error
+      setRecorrentes(data || [])
+    } catch {
+      // Silencioso: sem recorrentes, a tela mostra apenas as do próprio mês.
+    }
+  }
+
   async function criar(dados) {
     const { data, error } = await supabase
       .from('receitas')
@@ -57,6 +78,7 @@ export function useReceitas(mes, ano) {
     if (pertenceAoMesFiltrado(data?.data)) {
       setReceitas(prev => [data, ...prev])
     }
+    buscarRecorrentes() // mantém a projeção de recorrentes atualizada
     return data
   }
 
@@ -81,6 +103,7 @@ export function useReceitas(mes, ano) {
       .single()
     if (error) throw error
     setReceitas(prev => prev.map(r => r.id === id ? data : r))
+    buscarRecorrentes()
     return data
   }
 
@@ -91,9 +114,10 @@ export function useReceitas(mes, ano) {
       .eq('id', id)
     if (error) throw error
     setReceitas(prev => prev.filter(r => r.id !== id))
+    buscarRecorrentes()
   }
 
   const total = receitas.reduce((acc, r) => acc + Number(r.valor), 0)
 
-  return { receitas, total, carregando, erro, criar, atualizar, remover, recarregar: buscar }
+  return { receitas, recorrentes, total, carregando, erro, criar, atualizar, remover, recarregar: buscar }
 }

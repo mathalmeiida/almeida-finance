@@ -36,6 +36,15 @@ CREATE TABLE IF NOT EXISTS public.perfis (
 -- ALTER TABLE public.perfis
 --   ADD COLUMN IF NOT EXISTS saldo_base NUMERIC(12,2),
 --   ADD COLUMN IF NOT EXISTS saldo_base_data DATE;
+-- Gasto diário: modo de cálculo e valor manual.
+--   modo_limite  = 'auto' (calculado pelo app, padrão) | 'manual' (valor fixo).
+--   limite_diario = valor em R$ definido manualmente pelo usuário (quando manual).
+-- Mantêm o ajuste manual salvo mesmo após recarregar a página / novo login.
+-- ALTER TABLE public.perfis
+--   ADD COLUMN IF NOT EXISTS modo_limite TEXT DEFAULT 'auto'
+--     CHECK (modo_limite IN ('auto','manual')),
+--   ADD COLUMN IF NOT EXISTS limite_diario NUMERIC(12,2)
+--     CHECK (limite_diario IS NULL OR limite_diario >= 0);
 
 -- RLS: cada usuário acessa apenas o próprio perfil
 ALTER TABLE public.perfis ENABLE ROW LEVEL SECURITY;

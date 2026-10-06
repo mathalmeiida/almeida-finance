@@ -109,7 +109,7 @@ export default function Receitas() {
   // Mês/ano navegáveis: permite ver receitas cadastradas para meses futuros
   // (ou passados) sem alterar nenhum dado — apenas o período consultado.
   const [ref, setRef] = useState({ mes: mesAtual, ano: anoAtual })
-  const { receitas, total, carregando, erro, criar, atualizar, remover } = useReceitas(ref.mes, ref.ano)
+  const { receitas, recorrentes, total, carregando, erro, criar, atualizar, remover } = useReceitas(ref.mes, ref.ano)
   const [modalAberto, setModalAberto] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [removendo, setRemovendo] = useState(null)
@@ -128,6 +128,37 @@ export default function Receitas() {
   }
   // Data padrão de nova receita = dia 1 do mês em visualização.
   const dataPadraoNova = `${ref.ano}-${String(ref.mes).padStart(2, '0')}-01`
+
+  // ─── Receitas recorrentes projetadas ───
+  // Uma receita recorrente mensal (recorrente = true) deve aparecer no mês de
+  // início E em todos os meses seguintes. Como existe só UMA linha no banco
+  // (com a data do mês de início), projetamos aqui — sem gravar nada — as
+  // recorrentes iniciadas em meses ANTERIORES ao visualizado. As do próprio mês
+  // (incluindo recorrentes que começam neste mês) já vêm em `receitas`.
+  const inicioMesVis = `${ref.ano}-${String(ref.mes).padStart(2, '0')}-01`
+  const projetadas = recorrentes
+    // começou antes do mês visualizado (data < 1º dia do mês visualizado)
+    .filter(r => r.data < inicioMesVis)
+    // evita duplicar: se por algum motivo já estiver na lista do mês, ignora
+    .filter(r => !receitas.some(x => x.id === r.id))
+    .map(r => {
+      // Projeta a data para o mês visualizado, mantendo o dia (limitado ao
+      // último dia do mês). Sem new Date() sobre r.data para evitar timezone:
+      // extrai o dia por fatiamento da string 'YYYY-MM-DD'.
+      const diaOriginal = parseInt(r.data.slice(8, 10), 10) || 1
+      const ultimoDia = new Date(ref.ano, ref.mes, 0).getDate()
+      const dia = Math.min(diaOriginal, ultimoDia)
+      const dataProjetada = `${ref.ano}-${String(ref.mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
+      // Marca como projeção para a UI (ex.: desabilitar remover de item virtual).
+      return { ...r, data: dataProjetada, _projetada: true }
+    })
+
+  // Lista exibida = receitas reais do mês + recorrentes projetadas de meses
+  // anteriores. Ordena por data desc (mesmo critério da query).
+  const receitasExibidas = [...receitas, ...projetadas]
+    .sort((a, b) => (a.data < b.data ? 1 : a.data > b.data ? -1 : 0))
+  // Total do mês visualizado considerando as recorrentes projetadas.
+  const totalExibido = receitasExibidas.reduce((acc, r) => acc + Number(r.valor), 0)
 
   // Atalho do botão "+" (menu inferior mobile): ?novo=1 abre o modal já existente.
   const [searchParams, setSearchParams] = useSearchParams()
@@ -226,7 +257,7 @@ export default function Receitas() {
           </div>
           <div>
             <p className="text-sm text-green-700 font-medium">Total de receitas no mês</p>
-            <p className="text-3xl font-bold text-green-800">{formatCurrency(total)}</p>
+            <p className="text-3xl font-bold text-green-800">{formatCurrency(totalExibido)}</p>
           </div>
         </div>
       </div>
@@ -237,14 +268,14 @@ export default function Receitas() {
       <div className="card">
         <h2 className="text-base font-semibold text-gray-900 mb-4">
           Receitas cadastradas
-          <span className="ml-2 text-sm font-normal text-gray-400">({receitas.length})</span>
+          <span className="ml-2 text-sm font-normal text-gray-400">({receitasExibidas.length})</span>
         </h2>
 
         {carregando ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 size={24} className="animate-spin text-blue-500" />
           </div>
-        ) : receitas.length === 0 ? (
+        ) : receitasExibidas.length === 0 ? (
           <div className="text-center py-12">
             <TrendingUp size={36} className="text-gray-200 mx-auto mb-3" />
             <p className="text-sm text-gray-500">Nenhuma receita cadastrada este mês.</p>
@@ -254,7 +285,7 @@ export default function Receitas() {
           </div>
         ) : (
           <div className="space-y-3">
-            {receitas.map(r => (
+            {receitasExibidas.map(r => (
               <div key={r.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors group">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-9 h-9 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -281,23 +312,33 @@ export default function Receitas() {
                     </span>
                   )}
                   <span className="text-sm font-bold text-green-600 whitespace-nowrap">+{formatCurrency(r.valor)}</span>
-                  {/* Ações: sempre visíveis no mobile (sem hover); revelam no hover no desktop */}
-                  <button
-                    onClick={() => handleEditar(r)}
-                    title="Editar receita"
-                    aria-label="Editar receita"
-                    className="touch-target rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
-                  >
-                    <Pencil size={15} />
-                  </button>
-                  <button
-                    onClick={() => handleRemover(r.id)}
-                    disabled={removendo === r.id}
-                    aria-label="Remover receita"
-                    className="touch-target rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
-                  >
-                    {removendo === r.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-                  </button>
+                  {/* Ações. Itens PROJETADOS (recorrência de meses anteriores)
+                      não têm ações aqui: editar/remover deve ser feito no mês de
+                      origem para afetar toda a recorrência de forma consistente. */}
+                  {r._projetada ? (
+                    <span className="text-xs text-gray-400 italic whitespace-nowrap pl-1">
+                      recorrente
+                    </span>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleEditar(r)}
+                        title="Editar receita"
+                        aria-label="Editar receita"
+                        className="touch-target rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        onClick={() => handleRemover(r.id)}
+                        disabled={removendo === r.id}
+                        aria-label="Remover receita"
+                        className="touch-target rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all"
+                      >
+                        {removendo === r.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}

@@ -548,6 +548,14 @@ function CardQuantoPossoGastar({
         </p>
       )}
 
+      {/* Indica claramente que o valor exibido foi definido manualmente */}
+      {ehManual && limiteManualNum > 0 && (
+        <div className="mt-2 flex items-center gap-1.5 text-xs text-white/90">
+          <Pencil size={12} />
+          <span>Valor definido manualmente por você.</span>
+        </div>
+      )}
+
       {ehManual && !orcamentoNegativo && (
         <div className="mt-2 bg-black/15 rounded-lg px-3 py-2">
           <p className="text-xs text-white/90">
@@ -562,13 +570,31 @@ function CardQuantoPossoGastar({
         </div>
       )}
 
-      {/* Botão editar limite — só no modo manual */}
+      {/* Ações do modo manual: ajustar o valor e voltar ao cálculo automático */}
       {ehManual && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            onClick={onEditarLimite}
+            className="flex items-center gap-1 text-xs font-medium text-white/90 bg-black/15 hover:bg-black/25 px-2.5 py-1.5 rounded-lg transition-colors"
+          >
+            <Pencil size={12} /> {limiteManualNum > 0 ? 'Ajustar gasto diário' : 'Definir gasto diário'}
+          </button>
+          <button
+            onClick={() => onTrocarModo('auto')}
+            className="flex items-center gap-1 text-xs font-medium text-white/90 bg-black/15 hover:bg-black/25 px-2.5 py-1.5 rounded-lg transition-colors"
+          >
+            Voltar para cálculo automático
+          </button>
+        </div>
+      )}
+
+      {/* No modo automático, atalho para ativar o ajuste manual */}
+      {!ehManual && (
         <button
-          onClick={onEditarLimite}
+          onClick={() => onTrocarModo('manual')}
           className="mt-3 flex items-center gap-1 text-xs font-medium text-white/90 bg-black/15 hover:bg-black/25 px-2.5 py-1.5 rounded-lg transition-colors"
         >
-          <Pencil size={12} /> {limiteManualNum > 0 ? 'Editar meu limite' : 'Definir meu limite'}
+          <Pencil size={12} /> Ajustar gasto diário
         </button>
       )}
 
@@ -1256,12 +1282,16 @@ export default function Dashboard() {
 
   async function handleSalvarLimite(valor) {
     setSalvandoLimite(true)
+    setErroGasto('')
     try {
       // Salvar um limite manual também fixa o modo em "manual"
       await atualizarPreferenciasLimite({ limite_diario: valor, modo_limite: 'manual' })
       setModalLimite(false)
     } catch {
-      // mantém o modal aberto; erro silencioso para não quebrar o layout
+      // Mostra o erro (em vez de falhar em silêncio): o motivo mais provável é
+      // o banco ainda não ter as colunas limite_diario / modo_limite.
+      setModalLimite(false)
+      setErroGasto('Não foi possível salvar seu gasto diário. Verifique se o banco tem as colunas "limite_diario" e "modo_limite".')
     } finally {
       setSalvandoLimite(false)
     }
