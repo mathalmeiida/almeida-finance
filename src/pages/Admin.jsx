@@ -1,11 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react'
 import {
   Users, UserPlus, Activity, CheckCircle2, Loader2, ShieldCheck,
-  MoreVertical, Eye, UserX, UserCheck, AlertTriangle
+  MoreVertical, Eye, UserX, UserCheck, AlertTriangle, MessageCircle, CalendarClock
 } from 'lucide-react'
 import { useAdminUsuarios } from '../hooks/useAdminUsuarios'
+import { useConsultoriaInteresses } from '../hooks/useConsultoria'
 import { useAuth } from '../contexts/AuthContext'
 import Modal from '../components/Modal'
+import AdminConsultorias from './admin/AdminConsultorias'
+import AdminAgenda from './admin/AdminAgenda'
 
 // Formata um TIMESTAMPTZ (ISO) para data pt-BR; traço se nulo.
 function fmtData(iso) {
@@ -114,11 +117,31 @@ function LinhaDetalhe({ rotulo, valor }) {
 export default function Admin() {
   const { usuario: usuarioLogado } = useAuth()
   const { usuarios, carregando, erro, metricas, desativar, reativar } = useAdminUsuarios()
+  // Interesses de consultoria — FONTE ÚNICA, compartilhada com a aba
+  // Consultorias (via props). Assim o badge e a lista usam o MESMO array:
+  // mudar o status atualiza o indicador na hora, sem precisar recarregar.
+  const { interesses, carregando: carregandoInteresses, atualizarStatus } = useConsultoriaInteresses()
+  const novasSolicitacoes = interesses.filter(i => i.status === 'novo').length
+
+  const [aba, setAba] = useState('usuarios') // 'usuarios' | 'consultorias' | 'agenda'
+  // Interesse selecionado para virar agendamento (passa da aba Consultorias → Agenda).
+  const [interesseParaAgendar, setInteresseParaAgendar] = useState(null)
 
   const [detalhe, setDetalhe] = useState(null)       // usuário em "ver detalhes"
   const [confirmando, setConfirmando] = useState(null) // usuário a desativar
   const [processando, setProcessando] = useState(false)
   const [erroAcao, setErroAcao] = useState('')
+
+  function agendarInteresse(interesse) {
+    setInteresseParaAgendar(interesse)
+    setAba('agenda')
+  }
+
+  const ABAS = [
+    { id: 'usuarios',     label: 'Usuários',     icon: Users },
+    { id: 'consultorias', label: 'Consultorias', icon: MessageCircle, badge: novasSolicitacoes },
+    { id: 'agenda',       label: 'Agenda',       icon: CalendarClock },
+  ]
 
   async function confirmarDesativar() {
     if (!confirmando) return
@@ -148,11 +171,72 @@ export default function Admin() {
         <ShieldCheck size={22} className="text-blue-600" />
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Painel administrativo</h1>
-          <p className="text-sm text-gray-500">Visão geral dos usuários do Almeida Finance</p>
+          <p className="text-sm text-gray-500">Gestão do Almeida Finance</p>
         </div>
       </div>
 
-      {carregando ? (
+      {/* Navegação por abas (rolável no mobile, sem scroll horizontal da página) */}
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+        {ABAS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setAba(t.id)}
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
+              aba === t.id ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <t.icon size={15} />
+            {t.label}
+            {/* Indicador de novas solicitações de consultoria */}
+            {t.badge > 0 && (
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                aba === t.id ? 'bg-white/25 text-white' : 'bg-red-500 text-white'
+              }`}>
+                {t.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Aba: Consultorias ── (recebe a FONTE ÚNICA de interesses) */}
+      {aba === 'consultorias' && (
+        <AdminConsultorias
+          interesses={interesses}
+          carregando={carregandoInteresses}
+          atualizarStatus={atualizarStatus}
+          onAgendar={agendarInteresse}
+        />
+      )}
+
+      {/* Aviso de novas solicitações — card no topo do painel (qualquer aba). */}
+      {novasSolicitacoes > 0 && aba !== 'consultorias' && (
+        <button
+          onClick={() => setAba('consultorias')}
+          className="w-full card border-red-200 bg-red-50/50 flex items-center gap-3 text-left hover:bg-red-50 transition-colors"
+        >
+          <span className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+            <MessageCircle size={18} className="text-red-600" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-gray-900">
+              {novasSolicitacoes} nova{novasSolicitacoes > 1 ? 's' : ''} solicitaç{novasSolicitacoes > 1 ? 'ões' : 'ão'} de consultoria
+            </span>
+            <span className="block text-xs text-gray-500">Toque para ver os clientes interessados</span>
+          </span>
+        </button>
+      )}
+
+      {/* ── Aba: Agenda ── */}
+      {aba === 'agenda' && (
+        <AdminAgenda
+          interesseParaAgendar={interesseParaAgendar}
+          onConsumido={() => setInteresseParaAgendar(null)}
+        />
+      )}
+
+      {/* ── Aba: Usuários ── */}
+      {aba === 'usuarios' && (carregando ? (
         <div className="flex items-center justify-center py-24">
           <Loader2 size={28} className="animate-spin text-blue-500" />
         </div>
@@ -306,7 +390,7 @@ export default function Admin() {
             )}
           </div>
         </>
-      )}
+      ))}
 
       {/* Modal: Ver detalhes */}
       {detalhe && (

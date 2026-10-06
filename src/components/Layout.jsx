@@ -17,6 +17,7 @@ import {
   PiggyBank,
   X,
   LogOut,
+  ArrowLeft,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import logoAlmeida from '../assets/Logo Corporativo Almeida Finance.png'
@@ -37,7 +38,7 @@ const navGrupos = [
   { titulo: 'Planejamento', itens: [
     { to: '/posso-comprar', label: 'Simular compra', icon: ShoppingCart,  corIcone: 'text-blue-400'     },
     { to: '/metas',         label: 'Metas',          icon: Target,        corIcone: 'text-amber-400'    },
-    { to: '/consultoria',   label: 'Consultoria',    icon: MessagesSquare, corIcone: 'text-cyan-400', badge: 'EM BREVE' },
+    { to: '/consultoria',   label: 'Consultoria',    icon: MessagesSquare, corIcone: 'text-cyan-400' },
   ]},
   { titulo: 'Conta', itens: [
     { to: '/configuracoes', label: 'Configurações',  icon: Settings,      corIcone: 'text-gray-400'     },
@@ -53,7 +54,7 @@ const maisItems = [
   { to: '/cartoes',       label: 'Cartões',        icon: CreditCard,    corIcone: 'text-sky-400'    },
   { to: '/projecao',      label: 'Projeção',       icon: BarChart2,     corIcone: 'text-violet-400' },
   { to: '/metas',         label: 'Metas',          icon: Target,        corIcone: 'text-amber-400'  },
-  { to: '/consultoria',   label: 'Consultoria',    icon: MessagesSquare, corIcone: 'text-cyan-400', badge: 'EM BREVE' },
+  { to: '/consultoria',   label: 'Consultoria',    icon: MessagesSquare, corIcone: 'text-cyan-400' },
   { to: '/configuracoes', label: 'Configurações',  icon: Settings,      corIcone: 'text-gray-400'   },
   { to: '/admin',         label: 'Admin',          icon: ShieldCheck,   corIcone: 'text-violet-400', adminOnly: true },
 ]
@@ -183,6 +184,15 @@ export default function Layout({ children }) {
   // Alguma rota do "Mais" está ativa? (destaca o botão Mais na barra inferior)
   const maisAtivo = itensMais.some(i => location.pathname.startsWith(i.to) && i.to !== '/')
 
+  // Home não tem seta de voltar; as demais telas internas sim.
+  const ehHome = location.pathname === '/'
+  // Volta respeitando o histórico de navegação. Se não houver histórico
+  // (ex.: entrou direto por link), cai na Home como destino seguro.
+  function voltar() {
+    if (window.history.length > 1) navigate(-1)
+    else navigate('/')
+  }
+
   // Fecha os sheets ao trocar de rota
   useEffect(() => { setMaisAberto(false); setAcoesAberto(false) }, [location.pathname])
 
@@ -236,9 +246,20 @@ export default function Layout({ children }) {
 
       {/* ── Conteúdo principal ── */}
       <div className="flex-1 md:ml-60 flex flex-col min-h-screen">
-        {/* Header mobile compacto: logo à esquerda, avatar à direita */}
+        {/* Header mobile compacto. Na Home: logo à esquerda. Nas telas internas:
+            seta de voltar à esquerda. Avatar sempre à direita. */}
         <header className="md:hidden bg-white border-b border-gray-100 px-4 h-14 flex items-center justify-between sticky top-0 z-20 pt-safe">
-          <img src={logoAlmeida} alt="Almeida Finance" className="h-[38px] w-auto object-contain" />
+          {ehHome ? (
+            <img src={logoAlmeida} alt="Almeida Finance" className="h-[38px] w-auto object-contain" />
+          ) : (
+            <button
+              onClick={voltar}
+              aria-label="Voltar"
+              className="touch-target -ml-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 flex items-center justify-center"
+            >
+              <ArrowLeft size={22} />
+            </button>
+          )}
           <NavLink
             to="/configuracoes"
             className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0"
@@ -247,6 +268,19 @@ export default function Layout({ children }) {
             <span className="text-xs font-bold text-blue-700">{iniciais}</span>
           </NavLink>
         </header>
+
+        {/* Barra de voltar no DESKTOP (que não tem header). Só fora da Home. */}
+        {!ehHome && (
+          <div className="hidden md:block px-8 pt-6">
+            <button
+              onClick={voltar}
+              aria-label="Voltar"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
+            >
+              <ArrowLeft size={18} /> Voltar
+            </button>
+          </div>
+        )}
 
         {/* Conteúdo da página. No mobile reserva espaço para a barra inferior. */}
         <main className="flex-1 p-4 md:p-8 max-w-6xl w-full mx-auto pb-mobilenav md:pb-8">

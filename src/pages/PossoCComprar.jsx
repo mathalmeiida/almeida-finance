@@ -2,13 +2,15 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ShoppingCart, AlertTriangle, CheckCircle2, XCircle, Calculator, Info, Loader2,
-  TrendingUp, Plus, RotateCcw
+  TrendingUp, Plus, RotateCcw, Home, Car
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useAuth } from '../contexts/AuthContext'
 import { formatCurrency } from '../lib/utils'
 import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
+import SimuladorFinanciamento from './SimuladorFinanciamento'
+import SimuladorAutomovel from './SimuladorAutomovel'
 
 // Dias restantes no mês (inclui hoje) — mesma regra usada na Home para o
 // "disponível por dia". Reutilizada aqui para não criar cálculo conflitante.
@@ -291,9 +293,9 @@ function ConteudoResultado({ resultado, config, onRegistrar, onSimularOutro }) {
 }
 
 // ─────────────────────────────────────────────
-// Componente principal
+// Simulador de COMPRA (função original, preservada integralmente)
 // ─────────────────────────────────────────────
-export default function PossoComprar() {
+function SimuladorCompra() {
   const { projecao, carregando, resumoMes } = useProjecao()
   const { perfil } = useAuth()
   const navigate = useNavigate()
@@ -352,12 +354,7 @@ export default function PossoComprar() {
   const semDados = !carregando && resumoMes.receitaTotal === 0 && resumoMes.despesaTotal === 0
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Posso Comprar?</h1>
-        <p className="text-sm text-gray-500 mt-1">Simule o impacto de uma compra no seu orçamento</p>
-      </div>
-
+    <div className="space-y-6">
       {/* Aviso legal */}
       <div className="flex items-start gap-2.5 bg-blue-50 border border-blue-100 rounded-xl p-3">
         <Info size={16} className="text-blue-500 flex-shrink-0 mt-0.5" />
@@ -494,6 +491,56 @@ export default function PossoComprar() {
           </Modal>
         )}
       </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────
+// Componente principal — alterna entre "Compra" (função original, intacta)
+// e "Financiamento imobiliário" (novo simulador). A aba Compra é o padrão.
+// ─────────────────────────────────────────────
+export default function PossoComprar() {
+  const [aba, setAba] = useState('compra') // 'compra' | 'imovel' | 'automovel'
+
+  // Rótulos curtos p/ caber as 3 opções no mobile (320px) sem apertar.
+  const ABAS = [
+    { id: 'compra',    label: 'Compra',    icon: ShoppingCart },
+    { id: 'imovel',    label: 'Imóvel',    icon: Home },
+    { id: 'automovel', label: 'Automóvel', icon: Car },
+  ]
+
+  const subtitulo = {
+    compra: 'Simule o impacto de uma compra no seu orçamento',
+    imovel: 'Simule um financiamento imobiliário para planejar sua compra',
+    automovel: 'Simule o financiamento de um veículo e veja o custo real',
+  }[aba]
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Posso Comprar?</h1>
+        <p className="text-sm text-gray-500 mt-1">{subtitulo}</p>
+      </div>
+
+      {/* Seletor de abas. Grid de 3 colunas no mobile (cabe em 320px);
+          vira linha automática a partir de sm. Sem scroll horizontal. */}
+      <div className="grid grid-cols-3 sm:flex gap-2">
+        {ABAS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setAba(t.id)}
+            className={`inline-flex items-center justify-center gap-1.5 px-2 sm:px-3 py-2 rounded-xl text-sm font-medium transition-colors min-w-0 ${
+              aba === t.id ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            <t.icon size={15} className="flex-shrink-0" /> <span className="truncate">{t.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {aba === 'compra' && <SimuladorCompra />}
+      {aba === 'imovel' && <SimuladorFinanciamento />}
+      {aba === 'automovel' && <SimuladorAutomovel />}
     </div>
   )
 }

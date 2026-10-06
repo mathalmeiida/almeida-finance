@@ -43,6 +43,15 @@
     @apply bg-white rounded-2xl shadow-sm border border-gray-200 p-5;
   }
 
+  /* Em telas muito estreitas (≤360px, ex.: iPhone SE/alguns Android), reduz o
+     padding interno dos cards para dar mais largura aos valores e evitar que
+     números fiquem apertados em grids de 3 colunas. Não afeta telas maiores. */
+  @media (max-width: 360px) {
+    .card {
+      @apply p-4;
+    }
+  }
+
   .btn-primary {
     @apply bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition-colors duration-200;
   }

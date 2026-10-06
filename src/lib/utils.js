@@ -47,6 +47,33 @@ const CORES_CATEGORIA = {
 export const corCategoria = (nome) =>
   CORES_CATEGORIA[nome] || 'bg-gray-100 text-gray-600'
 
+// ─── WhatsApp / telefone BR ───────────────────────────────────────────────────
+// Mantém só dígitos (máx. 11: DDD + 9 dígitos).
+export const somenteDigitosTelefone = (v) => String(v || '').replace(/\D/g, '').slice(0, 11)
+
+// Aplica a máscara brasileira (11) 99999-9999 progressivamente.
+export const mascararTelefone = (v) => {
+  const d = somenteDigitosTelefone(v)
+  if (d.length === 0) return ''
+  if (d.length <= 2) return `(${d}`
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+}
+
+// Telefone BR válido = 10 (fixo) ou 11 (celular) dígitos.
+export const telefoneValido = (v) => {
+  const d = somenteDigitosTelefone(v)
+  return d.length === 10 || d.length === 11
+}
+
+// Link wa.me a partir dos dígitos (prefixa 55 = Brasil se não vier).
+export const linkWhatsApp = (digitos) => {
+  const d = String(digitos || '').replace(/\D/g, '')
+  const comPais = d.startsWith('55') ? d : `55${d}`
+  return `https://wa.me/${comPais}`
+}
+
 // Formas de pagamento (valor salvo no banco + rótulo com ícone para exibição)
 export const FORMAS_PAGAMENTO = [
   { value: 'cartao_credito',   label: 'Cartão de crédito',  icone: '💳' },

@@ -55,15 +55,19 @@ export default function ConfirmarEmail() {
 
         const { data: { session } } = await supabase.auth.getSession()
 
-        setEstado('sucesso')
         if (session) {
-          // Já autenticado nesta aba → leva direto ao app após a mensagem.
-          setMensagem('E-mail confirmado com sucesso! Redirecionando para sua conta...')
-          setTimeout(() => navigate('/', { replace: true }), 1800)
+          // Autenticado nesta aba → vai DIRETO para a Home. A AreaAutenticada
+          // decide automaticamente entre onboarding (onboarding_concluido=false)
+          // e a Home (concluído) — não precisamos repetir essa lógica aqui.
+          // Mantemos o loading até a navegação para nunca exibir tela branca.
+          setEstado('processando')
+          setMensagem('E-mail confirmado! Entrando na sua conta...')
+          navigate('/', { replace: true })
         } else {
-          // E-mail confirmado, mas sem sessão (ex.: confirmação exige login).
+          // E-mail confirmado, mas sem sessão (ex.: provedor exige login manual).
+          setEstado('sucesso')
           setMensagem('E-mail confirmado com sucesso! Agora você pode entrar na sua conta.')
-          setTimeout(() => navigate('/login', { replace: true }), 2500)
+          setTimeout(() => navigate('/login', { replace: true }), 2200)
         }
       } catch (err) {
         setEstado('erro')
@@ -73,6 +77,33 @@ export default function ConfirmarEmail() {
 
     processar()
   }, [navigate])
+
+  // Reenvia o e-mail de confirmação (quando o link expira/invalida). Pede o
+  // e-mail porque, sem sessão, não temos como saber qual é.
+  const [reenviando, setReenviando] = useState(false)
+  const [emailReenvio, setEmailReenvio] = useState('')
+  const [avisoReenvio, setAvisoReenvio] = useState('')
+  async function reenviarEmail(e) {
+    e?.preventDefault?.()
+    const email = emailReenvio.trim()
+    if (!email) { setAvisoReenvio('Informe o e-mail usado no cadastro.'); return }
+    setReenviando(true); setAvisoReenvio('')
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      })
+      if (error) throw error
+      setAvisoReenvio('Enviamos um novo link de confirmação. Verifique seu e-mail.')
+    } catch (err) {
+      setAvisoReenvio(err?.message?.toLowerCase().includes('rate')
+        ? 'Muitas tentativas. Aguarde alguns minutos e tente de novo.'
+        : 'Não foi possível reenviar agora. Tente novamente em instantes.')
+    } finally {
+      setReenviando(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
@@ -109,8 +140,28 @@ export default function ConfirmarEmail() {
                 <AlertCircle size={32} className="text-red-500" />
               </div>
               <h2 className="text-xl font-bold text-gray-900 mb-2">Não foi possível confirmar</h2>
-              <p className="text-gray-500 text-sm mb-6">{mensagem}</p>
-              <Link to="/login" className="btn-primary block text-center">
+              <p className="text-gray-500 text-sm mb-5">{mensagem}</p>
+
+              {/* Reenviar o e-mail de confirmação */}
+              <form onSubmit={reenviarEmail} className="text-left">
+                <label className="label">Reenviar confirmação para:</label>
+                <input
+                  type="email" value={emailReenvio}
+                  onChange={(e) => setEmailReenvio(e.target.value)}
+                  placeholder="seu@email.com" className="input" autoComplete="email"
+                />
+                <button type="submit" disabled={reenviando}
+                  className="btn-primary w-full mt-3 flex items-center justify-center gap-2">
+                  {reenviando ? 'Enviando...' : 'Reenviar e-mail de confirmação'}
+                </button>
+              </form>
+              {avisoReenvio && (
+                <p className="text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 mt-3">
+                  {avisoReenvio}
+                </p>
+              )}
+
+              <Link to="/login" className="block text-center text-sm text-blue-600 hover:underline mt-4">
                 Ir para o login
               </Link>
             </>

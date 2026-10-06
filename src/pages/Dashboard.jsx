@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Zap, Sun, Plus, Pencil,
-  CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock
+  CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useCategorias } from '../hooks/useCategorias'
@@ -1331,15 +1331,77 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* 1 ─ Saudação (por horário de Brasília) */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">{saudacao}</h1>
-        <p className="text-sm text-gray-500 mt-1 capitalize">Resumo financeiro de {nomeMes}</p>
+      {/* 1 ─ Saudação (horário de Brasília) + botão de ocultar/mostrar valores */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-gray-900 truncate">{saudacao}</h1>
+          <p className="text-sm text-gray-500 mt-1 capitalize">Resumo financeiro de {nomeMes}</p>
+        </div>
+        <button
+          onClick={alternar}
+          aria-label={ocultar ? 'Mostrar valores' : 'Ocultar valores'}
+          className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0 text-gray-500 hover:text-gray-900 hover:bg-gray-200 transition-colors"
+        >
+          {ocultar ? <EyeOff size={18} /> : <Eye size={18} />}
+        </button>
       </div>
 
       {erroGasto && (
         <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{erroGasto}</p>
       )}
+
+      {/* Saldo disponível em destaque — foco imediato da Home. Reusa o mesmo
+          saldo derivado (saldoDisponivelAgora quando configurado; senão a sobra
+          prevista) e o botão de ocultar valores. */}
+      {!carregando && (
+        <div className="card">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm text-gray-500">Saldo disponível</p>
+            {saldoConfigurado && (
+              <button
+                onClick={() => setModalSaldo(true)}
+                className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 flex-shrink-0"
+              >
+                <Pencil size={12} /> Atualizar
+              </button>
+            )}
+          </div>
+          <p className={`text-3xl sm:text-4xl font-bold mt-1 leading-tight break-words ${
+            (saldoConfigurado ? saldoDisponivelAgora : resumoMes.sobraPrevista) >= 0 ? 'text-gray-900' : 'text-red-600'
+          }`}>
+            {exibirMoeda(saldoConfigurado ? saldoDisponivelAgora : resumoMes.sobraPrevista, ocultar)}
+          </p>
+          {!saldoConfigurado && (
+            <button onClick={() => setModalSaldo(true)}
+              className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700">
+              <Wallet size={13} /> Informar meu saldo atual
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Atalhos rápidos — reaproveitam os fluxos JÁ existentes (modais/rotas),
+          sem duplicar lógica. +Receita e Cartão navegam; os demais abrem modais. */}
+      <div className="grid grid-cols-5 gap-2">
+        {[
+          { label: 'Receita',  icon: TrendingUp,   cor: 'text-green-600',  bg: 'bg-green-50',  onClick: () => navigate('/receitas?novo=1') },
+          { label: 'Despesa',  icon: TrendingDown, cor: 'text-red-500',    bg: 'bg-red-50',    onClick: () => navigate('/despesas?novo=1') },
+          { label: 'Gasto',    icon: Zap,          cor: 'text-amber-600',  bg: 'bg-amber-50',  onClick: () => setModalGasto(true) },
+          { label: 'Cartão',   icon: CreditCard,   cor: 'text-sky-600',    bg: 'bg-sky-50',    onClick: () => navigate('/cartoes') },
+          { label: 'Reserva',  icon: PiggyBank,    cor: 'text-violet-600', bg: 'bg-violet-50', onClick: () => setModalReservaAtual(true) },
+        ].map(a => (
+          <button
+            key={a.label}
+            onClick={a.onClick}
+            className="flex flex-col items-center gap-1.5 min-w-0"
+          >
+            <span className={`w-full aspect-square max-h-14 rounded-2xl ${a.bg} flex items-center justify-center`}>
+              <a.icon size={20} className={a.cor} />
+            </span>
+            <span className="text-[11px] font-medium text-gray-600 truncate w-full text-center">{a.label}</span>
+          </button>
+        ))}
+      </div>
 
       {/* Confirmação curta do gasto rápido + limite diário restante */}
       {confirmacaoGasto && (
@@ -1386,7 +1448,7 @@ export default function Dashboard() {
       {/* 4 ─ Resumo do mês: Receitas, Despesas, Saldo Atual (com olho), Reserva */}
       <div>
         <h2 className="text-base font-semibold text-gray-900 mb-3">Resumo do mês</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           <SummaryCard
             title="Receitas"
             value={resumoMes.receitaTotal}
@@ -1406,36 +1468,28 @@ export default function Dashboard() {
             carregando={carregando}
           />
           {/* Saldo Atual — com ícone de olho para ocultar/exibir */}
-          <div className="card flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-medium text-gray-500 min-w-0 truncate">Saldo atual</span>
-              <button
-                onClick={alternar}
-                aria-label={ocultar ? 'Mostrar valores' : 'Ocultar valores'}
-                className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0 text-blue-600 hover:bg-blue-100"
-              >
-                {ocultar ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-            <div>
-              {carregando ? (
-                <div className="h-8 w-28 bg-gray-100 rounded-lg animate-pulse" />
-              ) : (
-                <p className="text-xl sm:text-2xl font-bold break-words text-gray-900">
-                  {exibirMoeda(saldoConfigurado ? saldoDisponivelAgora : resumoMes.sobraPrevista, ocultar)}
-                </p>
-              )}
-              {!carregando && (
-                <p className="text-xs text-gray-400 mt-1">
-                  {saldoConfigurado ? 'Dinheiro disponível agora' : 'Saldo após compromissos'}
-                </p>
-              )}
-            </div>
-          </div>
+          <SummaryCard
+            title="Disponível para gastar"
+            value={resumoMes.sobraPrevista}
+            icon={Wallet}
+            color={resumoMes.sobraPrevista >= 0 ? 'text-blue-600' : 'text-red-600'}
+            bgColor={resumoMes.sobraPrevista >= 0 ? 'bg-blue-50' : 'bg-red-50'}
+            subtitle={carregando ? '' : 'No mês, após compromissos'}
+            carregando={carregando}
+          />
+          <SummaryCard
+            title="Gasto diário sugerido"
+            value={Math.max(0, limiteHoje)}
+            icon={Sun}
+            color="text-amber-600"
+            bgColor="bg-amber-50"
+            subtitle={carregando ? '' : 'Por dia até o fim do mês'}
+            carregando={carregando}
+          />
           <SummaryCard
             title="Reserva de emergência"
             value={reservaAtual}
-            icon={Wallet}
+            icon={PiggyBank}
             color="text-emerald-600"
             bgColor="bg-emerald-50"
             subtitle={carregando ? '' : (metaReserva > 0 ? `Meta: ${formatCurrency(metaReserva)}` : 'Sem meta definida')}

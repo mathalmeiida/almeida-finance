@@ -1,14 +1,26 @@
 import React, { useState } from 'react'
-import { User, Mail, AlertTriangle, Loader2, Trash2, LogOut } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { User, Mail, AlertTriangle, Loader2, Trash2, LogOut, Sparkles } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useZerarDados } from '../hooks/useZerarDados'
 import Modal from '../components/Modal'
+
+// Mesma chave lida em App.jsx (AreaAutenticada) para reabrir o onboarding.
+const CHAVE_REFAZER = 'almeida_refazer_onboarding'
 
 const PALAVRA_ENCERRAR = 'ENCERRAR'
 
 export default function Configuracoes() {
   const { usuario, perfil, ehAdmin, encerrarMinhaConta } = useAuth()
   const { zerarDados } = useZerarDados()
+  const navigate = useNavigate()
+
+  // Reabre o fluxo de configuração financeira (onboarding). Não apaga dados:
+  // é o mesmo fluxo do 1º acesso, útil para revisar/complementar informações.
+  function refazerConfiguracao() {
+    try { localStorage.setItem(CHAVE_REFAZER, '1') } catch { /* ignore */ }
+    navigate('/') // a Home (AreaAutenticada) detecta a flag e abre o onboarding
+  }
 
   const [modalAberto, setModalAberto] = useState(false)
   const [zerando, setZerando] = useState(false)
@@ -93,6 +105,28 @@ export default function Configuracoes() {
               <p className="text-xs text-gray-400">E-mail</p>
               <p className="text-sm font-medium text-gray-900">{usuario?.email}</p>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Refazer configuração financeira (reabre o onboarding) */}
+      <div className="card">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Sparkles size={16} className="text-blue-700" />
+          </div>
+          <div className="flex-1">
+            <h2 className="text-base font-semibold text-gray-900">Refazer configuração financeira</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Revise saldo, receitas, despesas, cartão e reserva no mesmo passo a passo do primeiro
+              acesso. Seus dados atuais não são apagados.
+            </p>
+            <button
+              onClick={refazerConfiguracao}
+              className="mt-3 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm"
+            >
+              <Sparkles size={15} /> Refazer configuração
+            </button>
           </div>
         </div>
       </div>
