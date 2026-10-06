@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
 import {
-  CreditCard, Plus, Pencil, Trash2, Loader2, ArrowLeft, Calendar, Receipt
+  CreditCard, Plus, Pencil, Trash2, Loader2, ArrowLeft, Calendar, Receipt, FileText, CheckCircle2
 } from 'lucide-react'
 import { useCartoes } from '../hooks/useCartoes'
 import { useComprasCartao } from '../hooks/useComprasCartao'
+import { useFaturasCartao } from '../hooks/useFaturasCartao'
 import { useCategorias } from '../hooks/useCategorias'
 import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
@@ -11,6 +12,7 @@ import { formatCurrency, formatDate, labelMes } from '../lib/utils'
 import { calcularParcelas, useParcelamentos } from '../hooks/useParcelamentos'
 import {
   valorFaturaCartaoNoMes, limiteComprometido, linhasFaturaCompleta,
+  anoMesChave, faturaInformadaNoMes, totalFaturaComOverride,
 } from '../lib/faturaCartao'
 
 const hoje = new Date()
@@ -212,12 +214,83 @@ function somaMeses(ano, mes, delta) {
   return { ano: Math.floor(total / 12), mes: (total % 12) + 1 }
 }
 
+const NOMES_MES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+
+// ─── Formulário: informar o TOTAL da fatura (opção rápida) ────────────────────
+// Grava em faturas_cartao via upsert (cartao_id + ano_mes). O mês de referência
+// é escolhido explicitamente; pré-seleciona o mês em foco. O vencimento é
+// opcional (padrão: dia de vencimento do cartão).
+function FormFatura({ cartao, faturaInicial, refData, onSalvar, onCancelar, carregando }) {
+  const anoMesInicial = faturaInicial?.ano_mes || anoMesChave(refData.ano, refData.mes)
+  const [valor, setValor] = useState(faturaInicial != null ? String(faturaInicial.valor_total) : '')
+  const [anoMes, setAnoMes] = useState(anoMesInicial)
+  const [vencimentoDia, setVencimentoDia] = useState(
+    faturaInicial?.vencimento_dia != null ? String(faturaInicial.vencimento_dia) : String(cartao.dia_vencimento)
+  )
+  const [erro, setErro] = useState('')
+
+  // Opções de mês: 6 meses atrás até 6 à frente (a partir do mês atual).
+  const opcoesMes = Array.from({ length: 13 }, (_, i) => {
+    const { ano, mes } = somaMeses(anoAtual, mesAtual, i - 6)
+    return { value: anoMesChave(ano, mes), label: `${NOMES_MES[mes - 1]} de ${ano}` }
+  })
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    const v = Number(valor) || 0
+    if (v <= 0) { setErro('Informe o valor total da fatura.'); return }
+    const dia = parseInt(vencimentoDia, 10)
+    onSalvar({
+      ano_mes: anoMes,
+      valor_total: v,
+      vencimento_dia: (dia >= 1 && dia <= 31) ? dia : null,
+    })
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="label">Valor total da fatura (R$)</label>
+        <InputMoeda valor={valor} onChangeValor={setValor} className="input" autoFocus />
+        <p className="text-xs text-gray-400 mt-1">
+          Este valor entra no seu orçamento como o gasto do cartão no mês. Se você detalhar compras,
+          elas servem só como composição — não somam a este total.
+        </p>
+      </div>
+      <div>
+        <label className="label">Mês de referência</label>
+        <select value={anoMes} onChange={(e) => setAnoMes(e.target.value)} className="input">
+          {opcoesMes.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="label">Dia de vencimento <span className="text-gray-400">(opcional)</span></label>
+        <input type="number" min="1" max="31" inputMode="numeric" value={vencimentoDia}
+          onChange={(e) => setVencimentoDia(e.target.value)} className="input" placeholder={`Ex: ${cartao.dia_vencimento}`} />
+      </div>
+
+      {erro && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2">{erro}</p>}
+
+      <div className="flex gap-3 pt-1">
+        <button type="button" onClick={onCancelar} className="btn-secondary flex-1">Cancelar</button>
+        <button type="submit" disabled={carregando} className="btn-primary flex-1 flex items-center justify-center gap-2">
+          {carregando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : 'Salvar fatura'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
 // ─── Visão: Ver fatura de um cartão (atual ou projetada) ──────────────────────
 function VerFatura({ cartao, onVoltar }) {
   const { compras, carregando, criar, remover } = useComprasCartao(cartao.id)
   const { parcelamentos } = useParcelamentos()
+  // Faturas informadas por total (deste cartão).
+  const { faturas: faturasInformadas, salvarFatura, removerFatura } = useFaturasCartao(cartao.id)
   const [modalCompra, setModalCompra] = useState(false)
+  const [modalFatura, setModalFatura] = useState(false)
   const [salvando, setSalvando] = useState(false)
+  const [salvandoFatura, setSalvandoFatura] = useState(false)
   const [removendo, setRemovendo] = useState(null)
   const [erro, setErro] = useState('')
   // Mês/ano exibido: começa no atual; "Próximas faturas" muda isto
@@ -232,7 +305,14 @@ function VerFatura({ cartao, onVoltar }) {
   const linhas = linhasFaturaCompleta(
     compras, parcelamentosDoCartao, cartao.dia_fechamento, refData.ano, refData.mes
   )
-  const totalFatura = linhas.reduce((a, l) => a + l.valor, 0)
+  // Soma das compras/parcelas DETALHADAS no mês em foco.
+  const totalDetalhado = linhas.reduce((a, l) => a + l.valor, 0)
+  // Total informado para este mês (se houver) e o total EXIBIDO (override).
+  const faturaInformada = faturaInformadaNoMes(faturasInformadas, cartao.id, refData.ano, refData.mes)
+  const totalFatura = faturaInformada ? (Number(faturaInformada.valor_total) || 0) : totalDetalhado
+  // Quanto da fatura informada ainda não foi detalhado em compras.
+  const naoDetalhado = faturaInformada ? Math.max(0, totalFatura - totalDetalhado) : 0
+  const faturaCompleta = faturaInformada && totalDetalhado >= totalFatura - 0.005
 
   // Limite disponível do cartão (mesma função usada nos cards da lista).
   const comprometido = limiteComprometido(compras, cartao.dia_fechamento, hoje)
@@ -272,7 +352,9 @@ function VerFatura({ cartao, onVoltar }) {
       g.itens.push(l)
     }
     return Array.from(mapa.values())
-      .map(g => ({ ...g, pct: totalFatura > 0 ? Math.round((g.total / totalFatura) * 100) : 0 }))
+      // % relativo ao que foi DETALHADO (composição das compras), não ao total
+      // informado — assim as fatias somam 100% do detalhamento.
+      .map(g => ({ ...g, pct: totalDetalhado > 0 ? Math.round((g.total / totalDetalhado) * 100) : 0 }))
       .sort((a, b) => b.total - a.total)
   })()
   const nomeMes = new Date(refData.ano, refData.mes - 1)
@@ -282,7 +364,8 @@ function VerFatura({ cartao, onVoltar }) {
   const proximosMeses = Array.from({ length: 6 }, (_, i) => {
     const { ano, mes } = somaMeses(anoAtual, mesAtual, i)
     const ls = linhasFaturaCompleta(compras, parcelamentosDoCartao, cartao.dia_fechamento, ano, mes)
-    const total = ls.reduce((a, l) => a + l.valor, 0)
+    // Total respeitando o override (total informado substitui a soma no mês).
+    const total = totalFaturaComOverride(compras, parcelamentosDoCartao, faturasInformadas, cartao.id, cartao.dia_fechamento, ano, mes)
     const qtdParcelas = ls.filter(l => l.totalParcelas > 1).length
     const qtdAvista = ls.length - qtdParcelas
     return {
@@ -327,6 +410,26 @@ function VerFatura({ cartao, onVoltar }) {
     }
   }
 
+  // Salva o TOTAL informado da fatura para o mês escolhido (upsert).
+  async function handleSalvarFatura({ ano_mes, valor_total, vencimento_dia }) {
+    setSalvandoFatura(true); setErro('')
+    try {
+      await salvarFatura({ cartao_id: cartao.id, ano_mes, valor_total, vencimento_dia })
+      setModalFatura(false)
+    } catch {
+      setErro('Erro ao salvar a fatura. Tente novamente.')
+    } finally {
+      setSalvandoFatura(false)
+    }
+  }
+
+  // Remove o total informado do mês em foco (volta a valer a soma das compras).
+  async function handleRemoverFaturaInformada() {
+    if (!faturaInformada) return
+    if (!confirm('Remover o total informado desta fatura? Voltará a valer a soma das compras.')) return
+    try { await removerFatura(faturaInformada.id) } catch { setErro('Erro ao remover o total informado.') }
+  }
+
   async function handleRemover(id) {
     if (!confirm('Remover esta compra?')) return
     setRemovendo(id)
@@ -350,9 +453,17 @@ function VerFatura({ cartao, onVoltar }) {
           </p>
         </div>
         {ehMesAtual && (
-          <button onClick={() => setModalCompra(true)} className="btn-primary flex items-center gap-2 self-start sm:self-auto">
-            <Plus size={16} /> Nova compra
-          </button>
+          <div className="flex flex-col items-stretch sm:items-end gap-1.5 w-full sm:w-auto">
+            {/* Ação PRINCIPAL: informar o total da fatura (rápido). */}
+            <button onClick={() => setModalFatura(true)} className="btn-primary flex items-center justify-center gap-2">
+              <FileText size={16} /> Informar fatura
+            </button>
+            {/* Ação SECUNDÁRIA: detalhar compras individualmente. */}
+            <button onClick={() => setModalCompra(true)}
+              className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center justify-center gap-1.5">
+              <Plus size={15} /> Nova compra
+            </button>
+          </div>
         )}
       </div>
 
@@ -400,9 +511,49 @@ function VerFatura({ cartao, onVoltar }) {
           </div>
           <div className="bg-gray-50 rounded-xl px-3 py-2">
             <p className="text-xs text-gray-400">Vencimento</p>
-            <p className="text-sm font-semibold text-gray-900">Dia {cartao.dia_vencimento}</p>
+            <p className="text-sm font-semibold text-gray-900">
+              {faturaInformada?.vencimento_dia ? `Dia ${faturaInformada.vencimento_dia}` : `Dia ${cartao.dia_vencimento}`}
+            </p>
           </div>
         </div>
+
+        {/* Indicador de detalhamento — só quando há TOTAL INFORMADO para o mês.
+            O total informado é o que vai ao orçamento; as compras são detalhe. */}
+        {faturaInformada && (
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="min-w-0">
+                <p className="text-xs text-gray-400">Total da fatura</p>
+                <p className="text-sm font-bold text-gray-900 break-words">{formatCurrency(totalFatura)}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-400">Compras detalhadas</p>
+                <p className="text-sm font-bold text-indigo-600 break-words">{formatCurrency(totalDetalhado)}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-gray-400">Ainda não detalhado</p>
+                <p className="text-sm font-bold text-amber-600 break-words">{formatCurrency(naoDetalhado)}</p>
+              </div>
+            </div>
+            {faturaCompleta && (
+              <p className="mt-2 flex items-center justify-center gap-1.5 text-xs font-medium text-emerald-700">
+                <CheckCircle2 size={14} /> Fatura 100% detalhada
+              </p>
+            )}
+            {ehMesAtual && (
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+                <button onClick={() => setModalFatura(true)}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-1">
+                  <Pencil size={12} /> Editar total
+                </button>
+                <button onClick={handleRemoverFaturaInformada}
+                  className="text-xs font-medium text-gray-400 hover:text-red-500 inline-flex items-center gap-1">
+                  <Trash2 size={12} /> Remover total informado
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Resumo do cartão — valores com min-w-0/break-words p/ não cortar no mobile */}
@@ -542,13 +693,28 @@ function VerFatura({ cartao, onVoltar }) {
       <Modal aberto={modalCompra} onFechar={() => setModalCompra(false)} titulo="Nova compra no cartão">
         <FormCompra cartoes={[cartao]} cartaoIdFixo={cartao.id} onSalvar={handleSalvar} onCancelar={() => setModalCompra(false)} carregando={salvando} />
       </Modal>
+
+      <Modal aberto={modalFatura} onFechar={() => setModalFatura(false)} titulo="Informar total da fatura">
+        <FormFatura
+          cartao={cartao}
+          faturaInicial={faturaInformada}
+          refData={refData}
+          onSalvar={handleSalvarFatura}
+          onCancelar={() => setModalFatura(false)}
+          carregando={salvandoFatura}
+        />
+      </Modal>
     </div>
   )
 }
 
 // ─── Card individual de cartão ────────────────────────────────────────────────
-function CardCartao({ cartao, compras, onVerFatura, onEditar, onRemover, removendo }) {
-  const fatura = valorFaturaCartaoNoMes(compras, cartao.dia_fechamento, anoAtual, mesAtual)
+function CardCartao({ cartao, compras, faturaMes, onVerFatura, onEditar, onRemover, removendo }) {
+  // "Fatura atual" respeita o total informado (override) quando houver; o
+  // fallback usa a soma das compras (comportamento anterior).
+  const fatura = faturaMes != null
+    ? faturaMes
+    : valorFaturaCartaoNoMes(compras, cartao.dia_fechamento, anoAtual, mesAtual)
   const comprometido = limiteComprometido(compras, cartao.dia_fechamento, hoje)
   const disponivel = Math.max(0, Number(cartao.limite_total) - comprometido)
 
@@ -611,6 +777,8 @@ function CardCartao({ cartao, compras, onVerFatura, onEditar, onRemover, removen
 export default function Cartoes() {
   const { cartoes, carregando, criar, atualizar, remover } = useCartoes()
   const { compras } = useComprasCartao() // todas as compras (para resumo e cards)
+  const { parcelamentos } = useParcelamentos()
+  const { faturas: faturasInformadas } = useFaturasCartao() // totais informados
 
   const [faturaAberta, setFaturaAberta] = useState(null) // cartão em visão de fatura
   const [modalCartao, setModalCartao] = useState(false)
@@ -621,10 +789,14 @@ export default function Cartoes() {
 
   // Compras agrupadas por cartão (para passar a cada card sem refazer query)
   const comprasPorCartao = (cartaoId) => compras.filter(c => c.cartao_id === cartaoId)
+  const parcelamentosPorCartao = (cartaoId) => parcelamentos.filter(p => p.cartao_id === cartaoId)
+  // Fatura do mês atual de um cartão RESPEITANDO o total informado (override).
+  const faturaMesAtualCartao = (c) => totalFaturaComOverride(
+    comprasPorCartao(c.id), parcelamentosPorCartao(c.id), faturasInformadas, c.id, c.dia_fechamento, anoAtual, mesAtual
+  )
 
-  // Resumo
-  const faturasMes = cartoes.reduce((acc, c) =>
-    acc + valorFaturaCartaoNoMes(comprasPorCartao(c.id), c.dia_fechamento, anoAtual, mesAtual), 0)
+  // Resumo — usa o override (total informado substitui a soma no mês).
+  const faturasMes = cartoes.reduce((acc, c) => acc + faturaMesAtualCartao(c), 0)
   const limiteTotal = cartoes.reduce((acc, c) => acc + Number(c.limite_total), 0)
   const limiteDisponivel = cartoes.reduce((acc, c) =>
     acc + Math.max(0, Number(c.limite_total) - limiteComprometido(comprasPorCartao(c.id), c.dia_fechamento, hoje)), 0)
@@ -702,6 +874,7 @@ export default function Cartoes() {
               key={c.id}
               cartao={c}
               compras={comprasPorCartao(c.id)}
+              faturaMes={faturaMesAtualCartao(c)}
               onVerFatura={setFaturaAberta}
               onEditar={abrirEdicao}
               onRemover={handleRemover}

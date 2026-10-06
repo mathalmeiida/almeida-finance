@@ -139,6 +139,35 @@ export function totalFaturaCompleta(compras, parcelamentos, diaFechamento, ano, 
     .reduce((acc, l) => acc + l.valor, 0)
 }
 
+// Converte (ano, mes) → 'YYYY-MM' (chave da tabela faturas_cartao).
+export function anoMesChave(ano, mes) {
+  return `${ano}-${String(mes).padStart(2, '0')}`
+}
+
+/**
+ * Retorna o TOTAL INFORMADO de um cartão em um mês, se existir; senão null.
+ * `faturasInformadas` = linhas da tabela faturas_cartao (do cartão ou de todos).
+ */
+export function faturaInformadaNoMes(faturasInformadas, cartaoId, ano, mes) {
+  if (!faturasInformadas || faturasInformadas.length === 0) return null
+  const chave = anoMesChave(ano, mes)
+  const f = faturasInformadas.find(x => x.cartao_id === cartaoId && x.ano_mes === chave)
+  return f ? f : null
+}
+
+/**
+ * Total da fatura de um cartão num mês RESPEITANDO o override:
+ *   - se existe total informado para (cartão, mês) → usa valor_total (SUBSTITUI);
+ *   - senão → soma projetada (totalFaturaCompleta).
+ * Esta é a FONTE ÚNICA do valor que entra no orçamento, garantindo que o total
+ * informado nunca seja somado às compras detalhadas (evita duplicidade).
+ */
+export function totalFaturaComOverride(compras, parcelamentos, faturasInformadas, cartaoId, diaFechamento, ano, mes) {
+  const informada = faturaInformadaNoMes(faturasInformadas, cartaoId, ano, mes)
+  if (informada) return Number(informada.valor_total) || 0
+  return totalFaturaCompleta(compras, parcelamentos, diaFechamento, ano, mes)
+}
+
 /**
  * Limite comprometido de um cartão = soma do valor restante de todas as
  * compras ainda não totalmente pagas. Para simplificar e refletir o uso real

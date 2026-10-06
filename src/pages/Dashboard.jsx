@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Zap, Sun, Plus, Pencil,
-  CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank
+  CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank, AlertTriangle
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useCategorias } from '../hooks/useCategorias'
@@ -189,32 +189,41 @@ function ResumoProjecao({ projecao }) {
 
   return (
     <div className="space-y-5">
-      {/* Resumo do próximo mês */}
-      <div className={`rounded-2xl p-4 border ${dispPositivo ? 'bg-blue-50 border-blue-100' : 'bg-red-50 border-red-100'}`}>
-        <p className="text-xs font-medium text-gray-500 mb-3">
-          Resumo de <span className="capitalize font-semibold text-gray-700">{proximo?.mes}</span> (próximo mês)
-        </p>
+      {/* Resumo do próximo mês — card no padrão dark do app (bg-white = surface
+          escura do tema; borda discreta). O negativo NÃO pinta o card inteiro:
+          é sinalizado por um badge de alerta e pelos valores em vermelho. */}
+      <div className="card">
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <p className="text-xs font-medium text-gray-500">
+            Resumo de <span className="capitalize font-semibold text-gray-700">{proximo?.mes}</span> (próximo mês)
+          </p>
+          {!dispPositivo && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full flex-shrink-0">
+              <AlertTriangle size={12} /> Negativo
+            </span>
+          )}
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-gray-400">Receitas previstas</p>
-            <p className="text-sm font-bold text-green-600">{formatCurrency(proximo?.receitas ?? 0)}</p>
+            <p className="text-sm font-bold text-green-600 break-words">{formatCurrency(proximo?.receitas ?? 0)}</p>
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-gray-400">Compromissos previstos</p>
-            <p className="text-sm font-bold text-red-500">{formatCurrency(proximo?.despesas ?? 0)}</p>
+            <p className="text-sm font-bold text-red-500 break-words">{formatCurrency(proximo?.despesas ?? 0)}</p>
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-gray-400">Reserva planejada</p>
-            <p className="text-sm font-bold text-amber-600">{formatCurrency(proximo?.reserva ?? 0)}</p>
+            <p className="text-sm font-bold text-amber-600 break-words">{formatCurrency(proximo?.reserva ?? 0)}</p>
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs text-gray-400">Disponível para gastar</p>
-            <p className={`text-sm font-bold ${dispPositivo ? 'text-blue-600' : 'text-red-600'}`}>
+            <p className={`text-sm font-bold break-words ${dispPositivo ? 'text-blue-600' : 'text-red-600'}`}>
               {formatCurrency(dispProx)}
             </p>
           </div>
         </div>
-        <p className={`text-sm font-semibold ${dispPositivo ? 'text-blue-700' : 'text-red-700'}`}>
+        <p className={`text-sm font-semibold ${dispPositivo ? 'text-blue-600' : 'text-red-600'}`}>
           {dispPositivo
             ? `Você terá ${formatCurrency(dispProx)} livres após a reserva`
             : `Você ficará ${formatCurrency(Math.abs(dispProx))} no negativo após a reserva`}

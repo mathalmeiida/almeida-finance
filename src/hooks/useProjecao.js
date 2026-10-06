@@ -4,7 +4,8 @@ import { useDespesas, valorDespesaRecorrenteNoMes } from './useDespesas'
 import { useParcelamentos, valorParcelaNoMes } from './useParcelamentos'
 import { useCartoes } from './useCartoes'
 import { useComprasCartao } from './useComprasCartao'
-import { totalFaturaCompleta } from '../lib/faturaCartao'
+import { useFaturasCartao } from './useFaturasCartao'
+import { totalFaturaComOverride } from '../lib/faturaCartao'
 import { useAuth } from '../contexts/AuthContext'
 import { labelMes } from '../lib/utils'
 
@@ -28,6 +29,8 @@ export function useProjecao() {
   const { parcelamentos, carregando: carregandoP } = useParcelamentos()
   const { cartoes, carregando: carregandoCartoes } = useCartoes()
   const { compras: comprasCartao, carregando: carregandoCompras } = useComprasCartao()
+  // Faturas informadas por total (substituem a soma das compras no mês/cartão).
+  const { faturas: faturasInformadas, carregando: carregandoFaturas } = useFaturasCartao()
   const { perfil } = useAuth()
 
   // Percentual de reserva de emergência escolhido no Dashboard (padrão 20%).
@@ -36,7 +39,7 @@ export function useProjecao() {
     ? Number(perfil.reserva_percentual)
     : 20
 
-  const carregando = carregandoR || carregandoD || carregandoP || carregandoCartoes || carregandoCompras
+  const carregando = carregandoR || carregandoD || carregandoP || carregandoCartoes || carregandoCompras || carregandoFaturas
 
   // Soma das faturas de todos os cartões em um mês/ano específico.
   // USA A MESMA FONTE da tela Cartões → "Ver fatura"/"Próximas faturas"
@@ -53,8 +56,10 @@ export function useProjecao() {
     return cartoes.reduce((acc, c) => {
       const comprasDoCartao = comprasCartao.filter(cp => cp.cartao_id === c.id)
       const parcelamentosDoCartao = parcelamentos.filter(p => p.cartao_id === c.id)
-      const total = totalFaturaCompleta(
-        comprasDoCartao, parcelamentosDoCartao, c.dia_fechamento, ano, mes
+      // Override: se há TOTAL INFORMADO para (cartão, mês), ele substitui a soma
+      // das compras/parcelamentos daquele cartão/mês — nunca soma (sem duplicar).
+      const total = totalFaturaComOverride(
+        comprasDoCartao, parcelamentosDoCartao, faturasInformadas, c.id, c.dia_fechamento, ano, mes
       )
       return acc + total
     }, 0)
@@ -228,7 +233,7 @@ export function useProjecao() {
     return meses
   }, [carregando, totalReceitas, totalDespesas, totalParcelas, totalFaturasCartao,
       receitasRecorrentes, despesas, recorrentes, parcelamentos, cartoes, comprasCartao,
-      reservaPct])
+      faturasInformadas, reservaPct])
 
   return {
     carregando,
