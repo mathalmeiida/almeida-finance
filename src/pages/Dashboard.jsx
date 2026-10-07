@@ -14,6 +14,7 @@ import InputMoeda from '../components/InputMoeda'
 import { formatCurrency, exibirMoeda, FORMAS_PAGAMENTO } from '../lib/utils'
 import { classificarDespesa } from '../lib/classificarDespesa'
 import Modal from '../components/Modal'
+import HorizonteFinanceiro from '../components/HorizonteFinanceiro'
 
 // ─── Modal de Gasto rápido ────────────────────────────────────────────────────
 // Categorias comuns de gasto do dia a dia — aparecem primeiro no seletor
@@ -179,7 +180,9 @@ function SummaryCard({ title, value, icon: Icon, color, bgColor, subtitle, carre
   )
 }
 
-// ─── Resumo da projeção em números (substitui o gráfico) ──────────────────────
+// ─── Resumo da projeção: SÓ o card do próximo mês (versão compacta da Home) ───
+// A tabela completa dos 12 meses foi movida para TabelaProjecao12Meses, exibida
+// num modal via "Ver detalhes". Mesmos valores/cálculos — só a exibição mudou.
 function ResumoProjecao({ projecao }) {
   // Próximo mês = índice 1 (índice 0 é o mês atual). Fallback para o atual se só houver 1.
   const proximo = projecao[1] || projecao[0]
@@ -188,133 +191,48 @@ function ResumoProjecao({ projecao }) {
   const dispPositivo = dispProx >= 0
 
   return (
-    <div className="space-y-5">
-      {/* Resumo do próximo mês — card no padrão dark do app (bg-white = surface
-          escura do tema; borda discreta). O negativo NÃO pinta o card inteiro:
-          é sinalizado por um badge de alerta e pelos valores em vermelho. */}
-      <div className="card">
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <p className="text-xs font-medium text-gray-500">
-            Resumo de <span className="capitalize font-semibold text-gray-700">{proximo?.mes}</span> (próximo mês)
-          </p>
-          {!dispPositivo && (
-            <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full flex-shrink-0">
-              <AlertTriangle size={12} /> Negativo
-            </span>
-          )}
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-          <div className="min-w-0">
-            <p className="text-xs text-gray-400">Receitas previstas</p>
-            <p className="text-sm font-bold text-green-600 break-words">{formatCurrency(proximo?.receitas ?? 0)}</p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-gray-400">Compromissos previstos</p>
-            <p className="text-sm font-bold text-red-500 break-words">{formatCurrency(proximo?.despesas ?? 0)}</p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-gray-400">Reserva planejada</p>
-            <p className="text-sm font-bold text-amber-600 break-words">{formatCurrency(proximo?.reserva ?? 0)}</p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-gray-400">Disponível para gastar</p>
-            <p className={`text-sm font-bold break-words ${dispPositivo ? 'text-blue-600' : 'text-red-600'}`}>
-              {formatCurrency(dispProx)}
-            </p>
-          </div>
-        </div>
-        <p className={`text-sm font-semibold ${dispPositivo ? 'text-blue-600' : 'text-red-600'}`}>
-          {dispPositivo
-            ? `Você terá ${formatCurrency(dispProx)} livres após a reserva`
-            : `Você ficará ${formatCurrency(Math.abs(dispProx))} no negativo após a reserva`}
+    <div className="card">
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <p className="text-xs font-medium text-gray-500">
+          Resumo de <span className="capitalize font-semibold text-gray-700">{proximo?.mes}</span> (próximo mês)
         </p>
+        {!dispPositivo && (
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full flex-shrink-0">
+            <AlertTriangle size={12} /> Negativo
+          </span>
+        )}
       </div>
-
-      {/* Projeção dos 12 meses — tabela no desktop, cards no mobile */}
-      {/* Desktop (md+): tabela */}
-      <div className="hidden md:block overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left border-b border-gray-100">
-              <th className="pb-2 text-xs font-medium text-gray-500">Mês</th>
-              <th className="pb-2 text-xs font-medium text-gray-500 text-right">Receitas</th>
-              <th className="pb-2 text-xs font-medium text-gray-500 text-right">Compromissos</th>
-              <th className="pb-2 text-xs font-medium text-gray-500 text-right">Reserva</th>
-              <th className="pb-2 text-xs font-medium text-gray-500 text-right">Disponível</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {projecao.map((m, i) => {
-              const positivo = m.disponivel >= 0
-              return (
-                <tr key={i} className={m.ehMesAtual ? 'bg-blue-50/40' : ''}>
-                  <td className="py-2.5 text-gray-700">
-                    <span className="capitalize">{m.mes}</span>
-                    {m.ehMesAtual && (
-                      <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">atual</span>
-                    )}
-                  </td>
-                  <td className="py-2.5 text-right text-green-600">{formatCurrency(m.receitas)}</td>
-                  <td className="py-2.5 text-right text-red-500">{formatCurrency(m.despesas)}</td>
-                  <td className="py-2.5 text-right text-amber-600">{formatCurrency(m.reserva)}</td>
-                  <td className="py-2.5 text-right">
-                    {positivo ? (
-                      <span className="font-semibold text-blue-600">{formatCurrency(m.disponivel)}</span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-lg">
-                        ⚠️ {formatCurrency(m.disponivel)}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+        <div className="min-w-0">
+          <p className="text-xs text-gray-400">Receitas previstas</p>
+          <p className="text-sm font-bold text-green-600 break-words">{formatCurrency(proximo?.receitas ?? 0)}</p>
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs text-gray-400">Compromissos previstos</p>
+          <p className="text-sm font-bold text-red-500 break-words">{formatCurrency(proximo?.despesas ?? 0)}</p>
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs text-gray-400">Reserva planejada</p>
+          <p className="text-sm font-bold text-amber-600 break-words">{formatCurrency(proximo?.reserva ?? 0)}</p>
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs text-gray-400">Disponível para gastar</p>
+          <p className={`text-sm font-bold break-words ${dispPositivo ? 'text-blue-600' : 'text-red-600'}`}>
+            {formatCurrency(dispProx)}
+          </p>
+        </div>
       </div>
-
-      {/* Mobile (<md): cada mês como card vertical, sem scroll horizontal */}
-      <div className="md:hidden space-y-2.5">
-        {projecao.map((m, i) => {
-          const positivo = m.disponivel >= 0
-          return (
-            <div
-              key={i}
-              className={`rounded-xl border p-3 ${m.ehMesAtual ? 'border-blue-200 bg-blue-50/40' : 'border-gray-100 bg-white'}`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="capitalize font-semibold text-gray-800 text-sm">{m.mes}</span>
-                {m.ehMesAtual && (
-                  <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">atual</span>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-                <div>
-                  <p className="text-[11px] text-gray-400">Receitas</p>
-                  <p className="text-sm font-semibold text-green-600">{formatCurrency(m.receitas)}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] text-gray-400">Compromissos</p>
-                  <p className="text-sm font-semibold text-red-500">{formatCurrency(m.despesas)}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] text-gray-400">Reserva</p>
-                  <p className="text-sm font-semibold text-amber-600">{formatCurrency(m.reserva)}</p>
-                </div>
-                <div>
-                  <p className="text-[11px] text-gray-400">Disponível</p>
-                  <p className={`text-sm font-bold ${positivo ? 'text-blue-600' : 'text-red-600'}`}>
-                    {positivo ? '' : '⚠️ '}{formatCurrency(m.disponivel)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+      <p className={`text-sm font-semibold ${dispPositivo ? 'text-blue-600' : 'text-red-600'}`}>
+        {dispPositivo
+          ? `Você terá ${formatCurrency(dispProx)} livres após a reserva`
+          : `Você ficará ${formatCurrency(Math.abs(dispProx))} no negativo após a reserva`}
+      </p>
     </div>
   )
 }
+
+// (A tabela de 12 meses foi substituída pelo "Horizonte financeiro" — fluxo de
+//  caixa diário — em src/components/HorizonteFinanceiro.jsx.)
 
 // Dias restantes no mês, incluindo hoje
 function diasRestantesNoMes(ref = new Date()) {
@@ -923,7 +841,7 @@ function CardComecePorAqui({ itens, totalConcluidos, onIrPara, onContinuar }) {
 // NÃO recalcula regra nova: limiteHoje vem da mesma fonte do card detalhado.
 function CardGastoHoje({
   carregando, limiteHoje, gastosHoje, disponivelHoje,
-  jaFezCheckin, onRegistrarGasto, onNaoGasteiHoje,
+  jaFezCheckin, onRegistrarGasto, onNaoGasteiHoje, somenteLeitura,
 }) {
   if (carregando) {
     return (
@@ -990,7 +908,8 @@ function CardGastoHoje({
 
       {/* Ações: "Registrar gasto" é a AÇÃO PRINCIPAL (destaque: botão branco,
           maior, com sombra). "Não gastei hoje" fica como ação secundária
-          (contorno discreto sobre o verde). */}
+          (contorno discreto sobre o verde). Ocultas no modo consultoria. */}
+      {!somenteLeitura && (
       <div className="flex flex-col sm:flex-row gap-2 mt-3">
         <button
           onClick={onRegistrarGasto}
@@ -1010,6 +929,7 @@ function CardGastoHoje({
           <Check size={15} /> {jaFezCheckin ? 'Dia sem gastos registrado' : 'Não gastei hoje'}
         </button>
       </div>
+      )}
     </div>
   )
 }
@@ -1043,10 +963,12 @@ function CardProximosVencimentos({ itens }) {
 }
 
 export default function Dashboard() {
-  const { perfil, atualizarPreferenciasLimite } = useAuth()
+  const { perfil, atualizarPreferenciasLimite, somenteLeitura } = useAuth()
   const { ocultar, alternar } = useOcultarValores()
   const {
     resumoMes, projecao, carregando, receitas, despesas, parcelamentos, criarDespesa,
+    // dados brutos para o Horizonte financeiro (fluxo de caixa diário)
+    recorrentes, cartoes, comprasCartao, faturasInformadas, reservaPct,
   } = useProjecao()
   // Para gastos no cartão de crédito: grava em compras_cartao (entra na fatura,
   // não desconta do saldo à vista). Demais formas seguem em despesas.
@@ -1063,6 +985,7 @@ export default function Dashboard() {
   const [salvandoReservaAtual, setSalvandoReservaAtual] = useState(false)
   const [modalSaldo, setModalSaldo] = useState(false)
   const [salvandoSaldo, setSalvandoSaldo] = useState(false)
+  const [modalProjecao, setModalProjecao] = useState(false) // detalhes dos 12 meses
 
   // Atalho do botão "+" (menu inferior mobile): ?novo=gasto|reserva abre o
   // modal JÁ existente desta página. Depois limpa o parâmetro da URL.
@@ -1074,7 +997,6 @@ export default function Dashboard() {
   }, [searchParams, setSearchParams])
 
   const hoje = new Date()
-  const nomeMes = hoje.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
   // Saudação automática pelo horário de BRASÍLIA (independe do fuso do aparelho).
   // 05–11: Bom dia | 12–17: Boa tarde | 18–04: Boa noite.
   const horaBrasilia = parseInt(
@@ -1085,6 +1007,13 @@ export default function Dashboard() {
     : 'Boa noite'
   const primeiroNome = perfil?.nome ? perfil.nome.split(' ')[0] : ''
   const saudacao = primeiroNome ? `${periodo}, ${primeiroNome}` : periodo
+  // Data de HOJE por extenso (pt-BR), SEMPRE no fuso de Brasília e independente
+  // do mês selecionado no Dashboard. Ex.: "terça-feira, 06 de outubro de 2026"
+  // (a 1ª letra vira maiúscula pelo CSS "capitalize" no parágrafo).
+  const dataHojeExtenso = new Intl.DateTimeFormat('pt-BR', {
+    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+    timeZone: 'America/Sao_Paulo',
+  }).format(new Date())
 
   // Aviso de projeção zerada: há dados mas nenhum é recorrente
   const temReceitas = receitas.length > 0
@@ -1344,7 +1273,8 @@ export default function Dashboard() {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-gray-900 truncate">{saudacao}</h1>
-          <p className="text-sm text-gray-500 mt-1 capitalize">Resumo financeiro de {nomeMes}</p>
+          <p className="text-sm font-semibold text-gray-700 mt-1">Resumo Financeiro</p>
+          <p className="text-sm text-gray-500 capitalize">{dataHojeExtenso}</p>
         </div>
         <button
           onClick={alternar}
@@ -1390,7 +1320,9 @@ export default function Dashboard() {
       )}
 
       {/* Atalhos rápidos — reaproveitam os fluxos JÁ existentes (modais/rotas),
-          sem duplicar lógica. +Receita e Cartão navegam; os demais abrem modais. */}
+          sem duplicar lógica. +Receita e Cartão navegam; os demais abrem modais.
+          Ocultos no modo consultoria (somente leitura). */}
+      {!somenteLeitura && (
       <div className="grid grid-cols-5 gap-2">
         {[
           { label: 'Receita',  icon: TrendingUp,   cor: 'text-green-600',  bg: 'bg-green-50',  onClick: () => navigate('/receitas?novo=1') },
@@ -1411,6 +1343,7 @@ export default function Dashboard() {
           </button>
         ))}
       </div>
+      )}
 
       {/* Confirmação curta do gasto rápido + limite diário restante */}
       {confirmacaoGasto && (
@@ -1431,6 +1364,7 @@ export default function Dashboard() {
         jaFezCheckin={jaFezCheckin}
         onRegistrarGasto={() => setModalGasto(true)}
         onNaoGasteiHoje={marcarNaoGasteiHoje}
+        somenteLeitura={somenteLeitura}
       />
 
       {/* 3 ─ Vai fazer uma compra? (simulação existente) — fundo escuro
@@ -1620,12 +1554,14 @@ export default function Dashboard() {
             <h2 className="text-base font-semibold text-gray-900">Projeção dos próximos 12 meses</h2>
             <p className="text-xs text-gray-400 mt-0.5">Receitas e despesas recorrentes, parcelas, faturas e reserva de emergência</p>
           </div>
-          <Link
-            to="/projecao"
-            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium"
+          <button
+            type="button"
+            onClick={() => setModalProjecao(true)}
+            disabled={carregando || projecao.length === 0}
+            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
           >
             Ver detalhes <ArrowRight size={14} />
-          </Link>
+          </button>
         </div>
 
         {/* Aviso quando não há itens recorrentes cadastrados */}
@@ -1668,6 +1604,21 @@ export default function Dashboard() {
           <ResumoProjecao projecao={projecao} />
         )}
       </div>
+
+      {/* Modal: Horizonte financeiro (fluxo de caixa diário) — abre pelo "Ver detalhes" */}
+      <Modal aberto={modalProjecao} onFechar={() => setModalProjecao(false)} titulo="Horizonte financeiro">
+        <HorizonteFinanceiro
+          receitas={receitas}
+          despesas={despesas}
+          recorrentes={recorrentes}
+          parcelamentos={parcelamentos}
+          cartoes={cartoes}
+          comprasCartao={comprasCartao}
+          faturasInformadas={faturasInformadas}
+          reservaPct={reservaPct}
+          saldoInicial={resumoMes.saldoConfigurado ? resumoMes.saldoDisponivelAgora : 0}
+        />
+      </Modal>
 
       {/* Modal de Gasto rápido */}
       <Modal aberto={modalGasto} onFechar={() => setModalGasto(false)} titulo="Gasto rápido">

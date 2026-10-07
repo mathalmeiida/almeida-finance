@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
 
 // ─── Exceções mensais do tipo (Fixa/Variável) de despesas recorrentes ─────────
 // Uma despesa recorrente é UM único registro. Para permitir classificá-la como
@@ -12,15 +13,16 @@ import { useAuth } from '../contexts/AuthContext'
 // caso contrário, o tipo do próprio registro. Afeta SOMENTE rótulo e os totais
 // Fixas/Variáveis do mês — nunca valor, data, recorrência ou saldo.
 export function useDespesaTipoExcecoes() {
-  const { usuario } = useAuth()
+  // LEITURAS usam idEfetivo (cliente no modo consultoria); ESCRITAS usam usuario.id.
+  const { usuario, idEfetivo, modoConsultoria } = useAuth()
   const [excecoes, setExcecoes] = useState([])
   const [carregando, setCarregando] = useState(true)
 
   useEffect(() => {
-    if (!usuario) return
+    if (!idEfetivo) return
     buscar()
-    // Depende do ID (não do objeto) — mesmo padrão de useDespesas/useReceitas.
-  }, [usuario?.id])
+    // Depende do ID efetivo — recarrega ao entrar/sair do modo consultoria.
+  }, [idEfetivo])
 
   async function buscar() {
     setCarregando(true)
@@ -28,7 +30,7 @@ export function useDespesaTipoExcecoes() {
       const { data, error } = await supabase
         .from('despesas_tipo_excecoes')
         .select('*')
-        .eq('usuario_id', usuario.id)
+        .eq('usuario_id', idEfetivo)
       if (error) throw error
       setExcecoes(data || [])
     } catch {
@@ -42,6 +44,7 @@ export function useDespesaTipoExcecoes() {
   // Cria/atualiza a exceção de tipo para (despesa_id, ano_mes). Upsert pela
   // restrição UNIQUE (despesa_id, ano_mes) — nunca duplica.
   async function salvarExcecao(despesaId, anoMes, tipo) {
+    bloquearSeConsultoria(modoConsultoria)
     const { data, error } = await supabase
       .from('despesas_tipo_excecoes')
       .upsert(
@@ -60,6 +63,7 @@ export function useDespesaTipoExcecoes() {
 
   // Remove a exceção de um mês (volta a valer o tipo do registro base).
   async function removerExcecao(despesaId, anoMes) {
+    bloquearSeConsultoria(modoConsultoria)
     const { error } = await supabase
       .from('despesas_tipo_excecoes')
       .delete()

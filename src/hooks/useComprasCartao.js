@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
 
 /**
  * Compras de cartão do usuário.
@@ -8,15 +9,16 @@ import { useAuth } from '../contexts/AuthContext'
  * ou buscar todas (para somar faturas no resumo e no Dashboard).
  */
 export function useComprasCartao(cartaoId = null) {
-  const { usuario } = useAuth()
+  // LEITURAS usam idEfetivo (cliente no modo consultoria); ESCRITAS usam usuario.id.
+  const { usuario, idEfetivo, modoConsultoria } = useAuth()
   const [compras, setCompras] = useState([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState(null)
 
   useEffect(() => {
-    if (!usuario) return
+    if (!idEfetivo) return
     buscar()
-  }, [usuario, cartaoId])
+  }, [idEfetivo, cartaoId])
 
   async function buscar() {
     setCarregando(true)
@@ -25,7 +27,7 @@ export function useComprasCartao(cartaoId = null) {
       let query = supabase
         .from('compras_cartao')
         .select(`*, categorias (id, nome, icone, cor)`)
-        .eq('usuario_id', usuario.id)
+        .eq('usuario_id', idEfetivo)
         .order('data_compra', { ascending: false })
 
       if (cartaoId) query = query.eq('cartao_id', cartaoId)
@@ -41,6 +43,7 @@ export function useComprasCartao(cartaoId = null) {
   }
 
   async function criar(dados) {
+    bloquearSeConsultoria(modoConsultoria)
     const { data, error } = await supabase
       .from('compras_cartao')
       .insert([{ ...dados, usuario_id: usuario.id }])
@@ -52,6 +55,7 @@ export function useComprasCartao(cartaoId = null) {
   }
 
   async function atualizar(id, dados) {
+    bloquearSeConsultoria(modoConsultoria)
     const { data, error } = await supabase
       .from('compras_cartao')
       .update(dados)
@@ -64,6 +68,7 @@ export function useComprasCartao(cartaoId = null) {
   }
 
   async function remover(id) {
+    bloquearSeConsultoria(modoConsultoria)
     const { error } = await supabase
       .from('compras_cartao')
       .delete()

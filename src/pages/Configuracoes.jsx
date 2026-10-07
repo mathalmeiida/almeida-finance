@@ -1,9 +1,98 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, Mail, AlertTriangle, Loader2, Trash2, LogOut, Sparkles } from 'lucide-react'
+import { User, Mail, AlertTriangle, Loader2, Trash2, LogOut, Sparkles, Eye, EyeOff, Clock } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useZerarDados } from '../hooks/useZerarDados'
+import { useConsultoriaAcessos } from '../hooks/useConsultoriaAcessos'
+import { supabase } from '../lib/supabase'
 import Modal from '../components/Modal'
+
+// Card que lista os acessos de consultoria do CLIENTE (consultores autorizados
+// ou com solicitação pendente) e permite revogar/recusar. Só aparece se houver
+// algum vínculo relevante. Busca o nome dos consultores para exibir.
+function AcessosConsultoria() {
+  const { comoCliente, autorizar, recusar, revogar, carregando } = useConsultoriaAcessos()
+  const [nomes, setNomes] = useState({}) // consultor_id → nome
+  const [agindo, setAgindo] = useState(null) // id em processamento
+
+  // Mostra apenas vínculos ativos/relevantes (autorizado ou pendente).
+  const relevantes = comoCliente.filter(a => a.status === 'autorizado' || a.status === 'pendente')
+
+  useEffect(() => {
+    let vivo = true
+    async function buscarNomes() {
+      const ids = [...new Set(relevantes.map(a => a.consultor_id))]
+      if (ids.length === 0) return
+      const { data } = await supabase.from('perfis').select('id, nome, email').in('id', ids)
+      if (vivo && data) {
+        const mapa = {}
+        for (const p of data) mapa[p.id] = p.nome || p.email || 'Consultor'
+        setNomes(mapa)
+      }
+    }
+    buscarNomes()
+    return () => { vivo = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [relevantes.length])
+
+  async function acao(fn, id) {
+    setAgindo(id)
+    try { await fn(id) } finally { setAgindo(null) }
+  }
+
+  if (carregando || relevantes.length === 0) return null
+
+  return (
+    <div className="card">
+      <h2 className="text-base font-semibold text-gray-900 mb-1">Acessos de consultoria</h2>
+      <p className="text-sm text-gray-500 mb-4">
+        Consultores que podem (ou pediram para) visualizar seus dados financeiros em
+        modo somente leitura. Você controla o acesso aqui.
+      </p>
+      <div className="space-y-3">
+        {relevantes.map(a => {
+          const nome = nomes[a.consultor_id] || 'Consultor'
+          const ocupado = agindo === a.id
+          return (
+            <div key={a.id} className="flex items-center justify-between gap-3 border border-gray-200 rounded-xl p-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">{nome}</p>
+                {a.status === 'autorizado' ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-green-700">
+                    <Eye size={12} /> Acesso autorizado
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs text-amber-700">
+                    <Clock size={12} /> Aguardando sua autorização
+                  </span>
+                )}
+              </div>
+              {a.status === 'autorizado' ? (
+                <button
+                  onClick={() => acao(revogar, a.id)}
+                  disabled={ocupado}
+                  className="btn-secondary flex items-center gap-1.5 !py-1.5 !px-3 text-sm flex-shrink-0"
+                >
+                  {ocupado ? <Loader2 size={14} className="animate-spin" /> : <EyeOff size={14} />}
+                  Revogar
+                </button>
+              ) : (
+                <div className="flex gap-2 flex-shrink-0">
+                  <button onClick={() => acao(recusar, a.id)} disabled={ocupado}
+                    className="btn-secondary !py-1.5 !px-3 text-sm">Recusar</button>
+                  <button onClick={() => acao(autorizar, a.id)} disabled={ocupado}
+                    className="btn-primary !py-1.5 !px-3 text-sm flex items-center gap-1.5">
+                    {ocupado ? <Loader2 size={14} className="animate-spin" /> : null} Autorizar
+                  </button>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 // Mesma chave lida em App.jsx (AreaAutenticada) para reabrir o onboarding.
 const CHAVE_REFAZER = 'almeida_refazer_onboarding'
@@ -108,6 +197,9 @@ export default function Configuracoes() {
           </div>
         </div>
       </div>
+
+      {/* Acessos de consultoria (autorizar/recusar/revogar) */}
+      <AcessosConsultoria />
 
       {/* Refazer configuração financeira (reabre o onboarding) */}
       <div className="card">

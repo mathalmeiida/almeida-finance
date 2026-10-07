@@ -75,20 +75,33 @@ export const linkWhatsApp = (digitos) => {
 }
 
 // Formas de pagamento (valor salvo no banco + rótulo com ícone para exibição)
+// Formas de pagamento SELECIONÁVEIS em novos lançamentos (seletores do app).
+// "Dinheiro" e "Outro" foram removidos daqui a pedido: não aparecem mais em
+// nenhum seletor. Registros antigos salvos com esses valores continuam sendo
+// EXIBIDOS normalmente (ver FORMAS_PAGAMENTO_LEGADAS + formaPagamentoLabel).
 export const FORMAS_PAGAMENTO = [
   { value: 'cartao_credito',   label: 'Cartão de crédito',  icone: '💳' },
   { value: 'cartao_debito',    label: 'Cartão de débito',   icone: '💳' },
   { value: 'pix',              label: 'Pix',                icone: '⚡' },
   { value: 'boleto',           label: 'Boleto',             icone: '🧾' },
-  { value: 'dinheiro',         label: 'Dinheiro',           icone: '💵' },
   { value: 'debito_automatico',label: 'Débito automático',  icone: '🏦' },
   { value: 'transferencia',    label: 'Transferência',      icone: '🔄' },
+]
+
+// Formas DESCONTINUADAS: não são oferecidas em novos lançamentos, mas ainda
+// precisam de rótulo/ícone para exibir corretamente registros antigos que já
+// foram salvos no banco com esses valores. Não entram em nenhum <select>.
+export const FORMAS_PAGAMENTO_LEGADAS = [
+  { value: 'dinheiro',         label: 'Dinheiro',           icone: '💵' },
   { value: 'outro',            label: 'Outro',              icone: '💠' },
 ]
 
-// Retorna "💳 Cartão de crédito" a partir do valor salvo; vazio se não houver
+// Retorna "💳 Cartão de crédito" a partir do valor salvo; vazio se não houver.
+// Procura nas formas atuais E nas legadas, para que lançamentos antigos salvos
+// como "dinheiro"/"outro" continuem exibidos normalmente nas listas.
 export const formaPagamentoLabel = (value) => {
   const f = FORMAS_PAGAMENTO.find(f => f.value === value)
+    || FORMAS_PAGAMENTO_LEGADAS.find(f => f.value === value)
   return f ? `${f.icone} ${f.label}` : ''
 }
 

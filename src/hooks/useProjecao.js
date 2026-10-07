@@ -267,6 +267,11 @@ export function useProjecao() {
     despesas,
     recorrentes,
     parcelamentos,
+    // dados brutos de cartão + reserva (para o Horizonte financeiro — fluxo diário)
+    cartoes,
+    comprasCartao,
+    faturasInformadas,
+    reservaPct,
     // mês/ano de referência
     mesAtual,
     anoAtual,

@@ -103,4 +103,30 @@
   .touch-target {
     @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
   }
+
+  /* Esconde a barra de rolagem mantendo o scroll funcional (carrosséis).
+     Usado no Horizonte financeiro para deslizar entre meses sem barra visível. */
+  .scrollbar-none {
+    -ms-overflow-style: none;      /* IE/Edge */
+    scrollbar-width: none;          /* Firefox */
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;                  /* Chrome/Safari/WebKit */
+  }
+
+  /* Animação da logo na splash screen: fade + leve zoom de entrada. */
+  @keyframes splash-logo {
+    0%   { opacity: 0; transform: scale(0.9); }
+    60%  { opacity: 1; }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  .animate-splash-logo {
+    animation: splash-logo 0.6s ease-out both;
+  }
+
+  /* Fade-out suave da splash inteira quando o App sinaliza a saída. */
+  .splash-fade-out {
+    opacity: 0;
+    transition: opacity 0.5s ease-in;
+  }
 }

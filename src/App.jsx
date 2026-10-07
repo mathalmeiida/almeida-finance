@@ -6,6 +6,9 @@ import { useOnboarding } from './hooks/useOnboarding'
 import Layout from './components/Layout'
 import Onboarding from './pages/Onboarding'
 import ErrorBoundary from './components/ErrorBoundary'
+import Splash from './components/Splash'
+import SolicitacaoConsultoria from './components/SolicitacaoConsultoria'
+import { useConsultoriaAcessos } from './hooks/useConsultoriaAcessos'
 
 // Páginas autenticadas
 import Dashboard from './pages/Dashboard'
@@ -76,8 +79,24 @@ const CHAVE_REFAZER = 'almeida_refazer_onboarding'
 // Decide, para o usuário já autenticado, entre: conta desativada, onboarding
 // (primeiro acesso OU refazer) ou o app normal.
 function AreaAutenticada({ children }) {
-  const { usuario, perfil, contaDesativada } = useAuth()
+  const { usuario, perfil, contaDesativada, modoConsultoria } = useAuth()
   const { verificando, precisaOnboarding, concluir } = useOnboarding()
+  // Solicitações de consultoria direcionadas a ESTE usuário (como cliente).
+  const { pendentesParaMim, autorizar, recusar } = useConsultoriaAcessos()
+  const [respondendoConsultoria, setRespondendoConsultoria] = useState(false)
+
+  // Responde (autoriza/recusa) a solicitação de consultoria pendente mais recente.
+  const responderConsultoria = useCallback(async (status) => {
+    const alvo = pendentesParaMim[0]
+    if (!alvo) return
+    setRespondendoConsultoria(true)
+    try {
+      if (status === 'autorizado') await autorizar(alvo.id)
+      else await recusar(alvo.id)
+    } finally {
+      setRespondendoConsultoria(false)
+    }
+  }, [pendentesParaMim, autorizar, recusar])
 
   // Flag de "refazer" lida do localStorage (setada em Configurações).
   const [refazer, setRefazer] = useState(() => {
@@ -108,6 +127,18 @@ function AreaAutenticada({ children }) {
   // Onboarding: primeiro acesso (precisaOnboarding) OU refazer manual.
   if (precisaOnboarding || refazer) {
     return <Onboarding aoConcluir={encerrarOnboarding} />
+  }
+  // Solicitação de consultoria pendente para o cliente: mostra a tela de
+  // autorização antes do app. Não aplica quando o próprio usuário está no modo
+  // consultoria (visualizando outra conta) — ali ele é o consultor, não o alvo.
+  if (!modoConsultoria && pendentesParaMim.length > 0) {
+    return (
+      <SolicitacaoConsultoria
+        solicitacao={pendentesParaMim[0]}
+        aoResponder={responderConsultoria}
+        processando={respondendoConsultoria}
+      />
+    )
   }
   return children
 }
@@ -179,8 +210,28 @@ function Rotas() {
 }
 
 export default function App() {
+  // Splash de abertura (~2s no total). O AuthProvider e as rotas ficam montados
+  // por baixo, então a sessão carrega durante a splash e, quando ela some, o app
+  // cai direto em Login ou Home sem piscar.
+  //  - fade-in da logo: ~0,6s (no CSS .animate-splash-logo)
+  //  - permanece visível até ~1,5s
+  //  - fade-out suave de 0,5s (1,5s → 2,0s)
+  //  - remove a splash em ~2,0s
+  const [mostrarSplash, setMostrarSplash] = useState(true)
+  const [saindoSplash, setSaindoSplash] = useState(false)
+
+  useEffect(() => {
+    const tFadeOut = setTimeout(() => setSaindoSplash(true), 1500)
+    const tRemover = setTimeout(() => setMostrarSplash(false), 2000)
+    return () => {
+      clearTimeout(tFadeOut)
+      clearTimeout(tRemover)
+    }
+  }, [])
+
   return (
     <ErrorBoundary>
+      {mostrarSplash && <Splash saindo={saindoSplash} />}
       <BrowserRouter>
         <AuthProvider>
           <OcultarValoresProvider>

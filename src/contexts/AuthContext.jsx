@@ -12,6 +12,17 @@ export function AuthProvider({ children }) {
   // depender da referência do objeto (que muda em cada TOKEN_REFRESHED).
   const usuarioIdRef = useRef(null)
 
+  // ── Modo Consultoria (somente leitura) ──────────────────────────────────────
+  // Quando o admin (consultor) ativa "Visualizar como cliente", guardamos aqui
+  // o alvo { id, nome }. Enquanto houver alvo, o app opera em modo consultoria:
+  //  - idEfetivo passa a ser o id do CLIENTE (as LEITURAS financeiras usam ele);
+  //  - perfilEfetivo passa a ser o perfil do CLIENTE (nome, reserva, saldo_base);
+  //  - a UI entra em somente-leitura (botões de criar/editar ficam ocultos).
+  // A segurança real está no banco: a RLS só devolve os dados do cliente se
+  // existir uma autorização ('autorizado') — ver migration consultoria_acessos.
+  const [consultoriaAlvo, setConsultoriaAlvo] = useState(null) // { id, nome } | null
+  const [perfilCliente, setPerfilCliente] = useState(null)
+
   // Busca o perfil complementar do usuário na tabela "perfis"
   async function buscarPerfil(userId) {
     const { data } = await supabase
@@ -121,6 +132,11 @@ export function AuthProvider({ children }) {
   // Aceita um objeto com qualquer um dos campos: { limite_diario, modo_limite }
   async function atualizarPreferenciasLimite(campos) {
     if (!usuario) return
+    // No modo consultoria o app está em somente leitura: não grava preferências
+    // (evitaria escrever no perfil do próprio admin e corromper a exibição).
+    if (consultoriaAlvo) {
+      throw new Error('Modo Consultoria: visualização somente leitura. Edição desativada.')
+    }
     const { data, error } = await supabase
       .from('perfis')
       .update(campos)
@@ -169,9 +185,48 @@ export function AuthProvider({ children }) {
     return data
   }
 
+  // ── Modo Consultoria ────────────────────────────────────────────────────────
+  // Entra no modo "Visualizar como cliente". Carrega o perfil do cliente (o
+  // banco só devolve se o acesso estiver 'autorizado'). Em caso de bloqueio da
+  // RLS, não entra no modo (data vem null) e lança para a UI avisar.
+  async function entrarModoConsultoria(cliente) {
+    if (!cliente?.id) throw new Error('Cliente inválido.')
+    const { data, error } = await supabase
+      .from('perfis')
+      .select('*')
+      .eq('id', cliente.id)
+      .single()
+    if (error || !data) {
+      throw new Error('Sem autorização para visualizar os dados deste cliente.')
+    }
+    setPerfilCliente(data)
+    setConsultoriaAlvo({ id: cliente.id, nome: data.nome || cliente.nome || cliente.email || 'cliente' })
+    return data
+  }
+
+  // Sai do modo consultoria e volta a ver os próprios dados.
+  function sairModoConsultoria() {
+    setConsultoriaAlvo(null)
+    setPerfilCliente(null)
+  }
+
+  // Se o usuário trocar (logout/login), encerra qualquer modo consultoria ativo.
+  useEffect(() => {
+    sairModoConsultoria()
+  }, [usuario?.id])
+
+  const modoConsultoria = consultoriaAlvo != null
+  // id que as LEITURAS financeiras devem usar: o do cliente no modo consultoria,
+  // senão o do próprio usuário autenticado.
+  const idEfetivo = modoConsultoria ? consultoriaAlvo.id : (usuario?.id ?? null)
+  // Perfil que a UI deve exibir (nome, reserva, saldo_base): o do cliente no
+  // modo consultoria, senão o próprio.
+  const perfilEfetivo = modoConsultoria ? perfilCliente : perfil
+
   const valor = {
     usuario,
-    perfil,
+    perfil: perfilEfetivo,     // no modo consultoria, reflete o perfil do cliente
+    perfilProprio: perfil,     // perfil real do usuário logado (nunca muda)
     carregando,
     cadastrar,
     entrar,
@@ -182,11 +237,20 @@ export function AuthProvider({ children }) {
     atualizarPreferenciasLimite,
     marcarOnboardingConcluido,
     encerrarMinhaConta,
+    // ehAdmin usa SEMPRE o papel real do usuário logado (não o do cliente).
     ehAdmin: perfil?.papel === 'admin',
-    // Conta desativada por um administrador (soft-disable). Só é verdade quando
-    // o perfil já carregou e tem ativo === false.
+    // Conta desativada por um administrador (soft-disable). Baseado no perfil
+    // real do logado — nunca no do cliente visualizado.
     contaDesativada: perfil != null && perfil.ativo === false,
     autenticado: !!usuario,
+    // ── Modo Consultoria ──
+    modoConsultoria,                                  // bool: estamos visualizando um cliente?
+    consultoriaAlvo,                                  // { id, nome } | null
+    idEfetivo,                                        // id usado nas LEITURAS financeiras
+    idUsuarioLogado: usuario?.id ?? null,             // id real do logado (p/ escritas)
+    somenteLeitura: modoConsultoria,                  // UI deve bloquear edição
+    entrarModoConsultoria,
+    sairModoConsultoria,
   }
 
   return (

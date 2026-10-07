@@ -1,14 +1,50 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Users, UserPlus, Activity, CheckCircle2, Loader2, ShieldCheck,
-  MoreVertical, Eye, UserX, UserCheck, AlertTriangle, MessageCircle, CalendarClock
+  MoreVertical, Eye, UserX, UserCheck, AlertTriangle, MessageCircle, CalendarClock,
+  RotateCcw, Clock, EyeOff
 } from 'lucide-react'
 import { useAdminUsuarios } from '../hooks/useAdminUsuarios'
 import { useConsultoriaInteresses } from '../hooks/useConsultoria'
+import { useConsultoriaAcessos } from '../hooks/useConsultoriaAcessos'
 import { useAuth } from '../contexts/AuthContext'
 import Modal from '../components/Modal'
 import AdminConsultorias from './admin/AdminConsultorias'
 import AdminAgenda from './admin/AdminAgenda'
+
+// Rótulo do status de acesso de consultoria de um cliente (visão do consultor).
+function BadgeAcessoConsultoria({ status }) {
+  if (status === 'pendente') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+        <Clock size={12} /> Aguardando autorização
+      </span>
+    )
+  }
+  if (status === 'autorizado') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+        <CheckCircle2 size={12} /> Acesso autorizado
+      </span>
+    )
+  }
+  if (status === 'recusado') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
+        <UserX size={12} /> Acesso recusado
+      </span>
+    )
+  }
+  if (status === 'revogado') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">
+        <EyeOff size={12} /> Acesso revogado
+      </span>
+    )
+  }
+  return <span className="text-xs text-gray-400">—</span>
+}
 
 // Formata um TIMESTAMPTZ (ISO) para data pt-BR; traço se nulo.
 function fmtData(iso) {
@@ -52,7 +88,11 @@ function BadgeStatus({ ativo }) {
 }
 
 // Menu de ações (três pontos) por linha.
-function MenuAcoes({ usuario, ehPropriaConta, onVerDetalhes, onDesativar, onReativar }) {
+function MenuAcoes({
+  usuario, ehPropriaConta, acesso,
+  onVerDetalhes, onDesativar, onReativar, onReiniciarOnboarding,
+  onSolicitarConsultoria, onVisualizarComoCliente,
+}) {
   const [aberto, setAberto] = useState(false)
   const ref = useRef(null)
 
@@ -64,6 +104,13 @@ function MenuAcoes({ usuario, ehPropriaConta, onVerDetalhes, onDesativar, onReat
     return () => document.removeEventListener('mousedown', clicarFora)
   }, [aberto])
 
+  const statusAcesso = acesso?.status
+  const autorizado = statusAcesso === 'autorizado'
+  // "Solicitar acesso" aparece quando ainda não há vínculo ativo (sem acesso,
+  // recusado ou revogado). Enquanto pendente, mostramos "Cancelar solicitação".
+  const podeSolicitar = !statusAcesso || statusAcesso === 'recusado' || statusAcesso === 'revogado'
+  const pendente = statusAcesso === 'pendente'
+
   return (
     <div className="relative inline-block text-left" ref={ref}>
       <button
@@ -74,13 +121,50 @@ function MenuAcoes({ usuario, ehPropriaConta, onVerDetalhes, onDesativar, onReat
         <MoreVertical size={16} />
       </button>
       {aberto && (
-        <div className="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-1">
+        <div className="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-20 py-1">
           <button
             onClick={() => { setAberto(false); onVerDetalhes(usuario) }}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
           >
             <Eye size={15} /> Ver detalhes
           </button>
+          <button
+            onClick={() => { setAberto(false); onReiniciarOnboarding(usuario) }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+          >
+            <RotateCcw size={15} /> Reiniciar onboarding
+          </button>
+
+          {/* ── Acesso de consultoria — nunca para a própria conta admin ── */}
+          {!ehPropriaConta && (
+            <>
+              <div className="my-1 border-t border-gray-100" />
+              {autorizado ? (
+                <button
+                  onClick={() => { setAberto(false); onVisualizarComoCliente(usuario) }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-blue-700 hover:bg-blue-50"
+                >
+                  <Eye size={15} /> Visualizar como cliente
+                </button>
+              ) : pendente ? (
+                <button
+                  onClick={() => { setAberto(false); onSolicitarConsultoria(usuario, acesso) }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-amber-700 hover:bg-amber-50"
+                >
+                  <Clock size={15} /> Cancelar solicitação
+                </button>
+              ) : podeSolicitar ? (
+                <button
+                  onClick={() => { setAberto(false); onSolicitarConsultoria(usuario, acesso) }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  <MessageCircle size={15} /> Solicitar acesso para consultoria
+                </button>
+              ) : null}
+            </>
+          )}
+
+          <div className="my-1 border-t border-gray-100" />
           {usuario.ativo ? (
             <button
               onClick={() => { setAberto(false); onDesativar(usuario) }}
@@ -115,13 +199,17 @@ function LinhaDetalhe({ rotulo, valor }) {
 }
 
 export default function Admin() {
-  const { usuario: usuarioLogado } = useAuth()
-  const { usuarios, carregando, erro, metricas, desativar, reativar } = useAdminUsuarios()
+  const { usuario: usuarioLogado, entrarModoConsultoria } = useAuth()
+  const navigate = useNavigate()
+  const { usuarios, carregando, erro, metricas, desativar, reativar, reiniciarOnboarding } = useAdminUsuarios()
   // Interesses de consultoria — FONTE ÚNICA, compartilhada com a aba
   // Consultorias (via props). Assim o badge e a lista usam o MESMO array:
   // mudar o status atualiza o indicador na hora, sem precisar recarregar.
   const { interesses, carregando: carregandoInteresses, atualizarStatus } = useConsultoriaInteresses()
   const novasSolicitacoes = interesses.filter(i => i.status === 'novo').length
+
+  // Acessos de consultoria (autorizações). statusPorCliente: clienteId → linha.
+  const { statusPorCliente, solicitarAcesso, cancelarSolicitacao } = useConsultoriaAcessos()
 
   const [aba, setAba] = useState('usuarios') // 'usuarios' | 'consultorias' | 'agenda'
   // Interesse selecionado para virar agendamento (passa da aba Consultorias → Agenda).
@@ -129,8 +217,47 @@ export default function Admin() {
 
   const [detalhe, setDetalhe] = useState(null)       // usuário em "ver detalhes"
   const [confirmando, setConfirmando] = useState(null) // usuário a desativar
+  const [reiniciando, setReiniciando] = useState(null) // usuário a reiniciar onboarding
+  // Solicitação/cancelamento de acesso de consultoria: { usuario, acesso } | null
+  const [consultoriaAlvo, setConsultoriaAlvo] = useState(null)
   const [processando, setProcessando] = useState(false)
   const [erroAcao, setErroAcao] = useState('')
+
+  // Abre o modal de solicitar/cancelar acesso de consultoria.
+  function abrirConsultoria(usuario, acesso) {
+    setErroAcao('')
+    setConsultoriaAlvo({ usuario, acesso: acesso || null })
+  }
+
+  // Confirma a solicitação (ou o cancelamento, se já estava pendente).
+  async function confirmarConsultoria() {
+    if (!consultoriaAlvo) return
+    const { usuario, acesso } = consultoriaAlvo
+    setProcessando(true); setErroAcao('')
+    try {
+      if (acesso?.status === 'pendente') {
+        await cancelarSolicitacao(acesso.id)
+      } else {
+        await solicitarAcesso(usuario.id)
+      }
+      setConsultoriaAlvo(null)
+    } catch (e) {
+      setErroAcao(e.message || 'Não foi possível concluir a ação.')
+    } finally {
+      setProcessando(false)
+    }
+  }
+
+  // Entra no modo "Visualizar como cliente" (somente leitura) e vai à Home.
+  async function visualizarComoCliente(usuario) {
+    setErroAcao('')
+    try {
+      await entrarModoConsultoria({ id: usuario.id, nome: usuario.nome, email: usuario.email })
+      navigate('/')
+    } catch (e) {
+      setErroAcao(e.message || 'Não foi possível abrir a visualização do cliente.')
+    }
+  }
 
   function agendarInteresse(interesse) {
     setInteresseParaAgendar(interesse)
@@ -162,6 +289,19 @@ export default function Admin() {
       await reativar(u.id)
     } catch (e) {
       setErroAcao(e.message || 'Não foi possível reativar a conta.')
+    }
+  }
+
+  async function confirmarReiniciarOnboarding() {
+    if (!reiniciando) return
+    setProcessando(true); setErroAcao('')
+    try {
+      await reiniciarOnboarding(reiniciando.id)
+      setReiniciando(null)
+    } catch (e) {
+      setErroAcao(e.message || 'Não foi possível reiniciar o onboarding.')
+    } finally {
+      setProcessando(false)
     }
   }
 
@@ -286,6 +426,7 @@ export default function Admin() {
                       <th className="pb-2 pr-4 text-xs font-medium text-gray-500">Cadastro</th>
                       <th className="pb-2 pr-4 text-xs font-medium text-gray-500">Último acesso</th>
                       <th className="pb-2 pr-4 text-xs font-medium text-gray-500">Onboarding</th>
+                      <th className="pb-2 pr-4 text-xs font-medium text-gray-500">Consultoria</th>
                       <th className="pb-2 pr-4 text-xs font-medium text-gray-500">Status</th>
                       <th className="pb-2 text-xs font-medium text-gray-500 text-right">Ações</th>
                     </tr>
@@ -293,6 +434,7 @@ export default function Admin() {
                   <tbody className="divide-y divide-gray-50">
                     {usuarios.map(u => {
                       const ehPropriaConta = u.id === usuarioLogado?.id
+                      const acesso = statusPorCliente[u.id]
                       return (
                         <tr key={u.id} className={u.ativo === false ? 'bg-red-50/30' : ''}>
                           <td className="py-2.5 pr-4 text-gray-800">
@@ -320,15 +462,23 @@ export default function Admin() {
                             )}
                           </td>
                           <td className="py-2.5 pr-4">
+                            {ehPropriaConta ? <span className="text-xs text-gray-400">—</span>
+                              : <BadgeAcessoConsultoria status={acesso?.status} />}
+                          </td>
+                          <td className="py-2.5 pr-4">
                             <BadgeStatus ativo={u.ativo !== false} />
                           </td>
                           <td className="py-2.5 text-right">
                             <MenuAcoes
                               usuario={u}
                               ehPropriaConta={ehPropriaConta}
+                              acesso={acesso}
                               onVerDetalhes={setDetalhe}
                               onDesativar={setConfirmando}
                               onReativar={handleReativar}
+                              onReiniciarOnboarding={setReiniciando}
+                              onSolicitarConsultoria={abrirConsultoria}
+                              onVisualizarComoCliente={visualizarComoCliente}
                             />
                           </td>
                         </tr>
@@ -342,6 +492,7 @@ export default function Admin() {
               <div className="md:hidden space-y-3">
                 {usuarios.map(u => {
                   const ehPropriaConta = u.id === usuarioLogado?.id
+                  const acesso = statusPorCliente[u.id]
                   return (
                     <div
                       key={u.id}
@@ -362,9 +513,13 @@ export default function Admin() {
                           <MenuAcoes
                             usuario={u}
                             ehPropriaConta={ehPropriaConta}
+                            acesso={acesso}
                             onVerDetalhes={setDetalhe}
                             onDesativar={setConfirmando}
                             onReativar={handleReativar}
+                            onReiniciarOnboarding={setReiniciando}
+                            onSolicitarConsultoria={abrirConsultoria}
+                            onVisualizarComoCliente={visualizarComoCliente}
                           />
                         </div>
                       </div>
@@ -377,9 +532,15 @@ export default function Admin() {
                           <p className="text-[11px] text-gray-400">Último acesso</p>
                           <p className="text-xs text-gray-700">{fmtDataHora(u.ultimo_acesso)}</p>
                         </div>
-                        <div className="col-span-2">
+                        <div>
                           <p className="text-[11px] text-gray-400">Onboarding</p>
                           <p className="text-xs text-gray-700">{u.onboarding_concluido ? 'Concluído' : 'Pendente'}</p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] text-gray-400">Consultoria</p>
+                          {ehPropriaConta
+                            ? <p className="text-xs text-gray-400">—</p>
+                            : <div className="mt-0.5"><BadgeAcessoConsultoria status={acesso?.status} /></div>}
                         </div>
                       </div>
                     </div>
@@ -412,6 +573,17 @@ export default function Admin() {
               rotulo="Status da conta"
               valor={detalhe.ativo !== false ? 'Ativo' : 'Desativado'}
             />
+            <LinhaDetalhe
+              rotulo="Acesso de consultoria"
+              valor={(() => {
+                const s = statusPorCliente[detalhe.id]?.status
+                if (s === 'pendente') return 'Aguardando autorização'
+                if (s === 'autorizado') return 'Acesso autorizado'
+                if (s === 'recusado') return 'Acesso recusado'
+                if (s === 'revogado') return 'Acesso revogado'
+                return 'Sem solicitação'
+              })()}
+            />
           </div>
         </Modal>
       )}
@@ -440,6 +612,74 @@ export default function Admin() {
           </div>
         </Modal>
       )}
+
+      {/* Modal: confirmação de reinício do onboarding */}
+      {reiniciando && (
+        <Modal aberto={true} onFechar={() => !processando && setReiniciando(null)} titulo="Reiniciar onboarding deste usuário?">
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-3">
+              <RotateCcw size={18} className="text-blue-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-blue-800">
+                Na próxima vez que <strong>{reiniciando.nome || reiniciando.email}</strong> acessar
+                o Almeida Finance, ele começará novamente pela primeira etapa do onboarding.
+                Nenhum dado financeiro é apagado — receitas, despesas, cartões, parcelas e saldo
+                permanecem intactos.
+              </p>
+            </div>
+            {erroAcao && <p className="text-xs text-red-500">{erroAcao}</p>}
+            <div className="flex gap-3">
+              <button onClick={() => setReiniciando(null)} disabled={processando}
+                className="btn-secondary flex-1">Cancelar</button>
+              <button onClick={confirmarReiniciarOnboarding} disabled={processando}
+                className="btn-primary flex-1 flex items-center justify-center gap-2">
+                {processando ? <><Loader2 size={15} className="animate-spin" /> Reiniciando...</> : 'Confirmar reinício'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal: solicitar / cancelar acesso de consultoria */}
+      {consultoriaAlvo && (() => {
+        const ehCancelamento = consultoriaAlvo.acesso?.status === 'pendente'
+        const nome = consultoriaAlvo.usuario.nome || consultoriaAlvo.usuario.email
+        return (
+          <Modal
+            aberto={true}
+            onFechar={() => !processando && setConsultoriaAlvo(null)}
+            titulo={ehCancelamento ? 'Cancelar solicitação?' : 'Solicitar acesso para consultoria?'}
+          >
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-3">
+                <MessageCircle size={18} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-blue-800">
+                  {ehCancelamento ? (
+                    <>A solicitação pendente para <strong>{nome}</strong> será cancelada.</>
+                  ) : (
+                    <>
+                      Será enviada a <strong>{nome}</strong> uma solicitação para visualizar os
+                      dados financeiros durante a consultoria. O acesso só é liberado depois que
+                      o cliente <strong>autorizar</strong>, é <strong>somente leitura</strong> e
+                      pode ser revogado por ele a qualquer momento.
+                    </>
+                  )}
+                </p>
+              </div>
+              {erroAcao && <p className="text-xs text-red-500">{erroAcao}</p>}
+              <div className="flex gap-3">
+                <button onClick={() => setConsultoriaAlvo(null)} disabled={processando}
+                  className="btn-secondary flex-1">Voltar</button>
+                <button onClick={confirmarConsultoria} disabled={processando}
+                  className="btn-primary flex-1 flex items-center justify-center gap-2">
+                  {processando
+                    ? <><Loader2 size={15} className="animate-spin" /> Processando...</>
+                    : (ehCancelamento ? 'Cancelar solicitação' : 'Enviar solicitação')}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )
+      })()}
     </div>
   )
 }

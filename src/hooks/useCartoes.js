@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
 
 export function useCartoes() {
-  const { usuario } = useAuth()
+  // LEITURAS usam idEfetivo (cliente no modo consultoria); ESCRITAS usam usuario.id.
+  const { usuario, idEfetivo, modoConsultoria } = useAuth()
   const [cartoes, setCartoes] = useState([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState(null)
 
   useEffect(() => {
-    if (!usuario) return
+    if (!idEfetivo) return
     buscar()
-  }, [usuario])
+  }, [idEfetivo])
 
   async function buscar() {
     setCarregando(true)
@@ -20,7 +22,7 @@ export function useCartoes() {
       const { data, error } = await supabase
         .from('cartoes')
         .select('*')
-        .eq('usuario_id', usuario.id)
+        .eq('usuario_id', idEfetivo)
         .order('criado_em', { ascending: true })
       if (error) throw error
       setCartoes(data || [])
@@ -32,6 +34,7 @@ export function useCartoes() {
   }
 
   async function criar(dados) {
+    bloquearSeConsultoria(modoConsultoria)
     const { data, error } = await supabase
       .from('cartoes')
       .insert([{ ...dados, usuario_id: usuario.id }])
@@ -43,6 +46,7 @@ export function useCartoes() {
   }
 
   async function atualizar(id, dados) {
+    bloquearSeConsultoria(modoConsultoria)
     const { data, error } = await supabase
       .from('cartoes')
       .update(dados)
@@ -55,6 +59,7 @@ export function useCartoes() {
   }
 
   async function remover(id) {
+    bloquearSeConsultoria(modoConsultoria)
     const { error } = await supabase
       .from('cartoes')
       .delete()

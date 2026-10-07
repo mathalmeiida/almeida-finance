@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
 import { labelMes } from '../lib/utils'
 import { classificarDespesa } from '../lib/classificarDespesa'
 
@@ -54,15 +55,16 @@ export function valorParcelaNoMes(p, ano, mes) {
 }
 
 export function useParcelamentos() {
-  const { usuario } = useAuth()
+  // LEITURAS usam idEfetivo (cliente no modo consultoria); ESCRITAS usam usuario.id.
+  const { usuario, idEfetivo, modoConsultoria } = useAuth()
   const [parcelamentos, setParcelamentos] = useState([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState(null)
 
   useEffect(() => {
-    if (!usuario) return
+    if (!idEfetivo) return
     buscar()
-  }, [usuario])
+  }, [idEfetivo])
 
   async function buscar() {
     setCarregando(true)
@@ -71,7 +73,7 @@ export function useParcelamentos() {
       const { data, error } = await supabase
         .from('parcelamentos')
         .select(`*, categorias (id, nome, icone, cor)`)
-        .eq('usuario_id', usuario.id)
+        .eq('usuario_id', idEfetivo)
         .order('criado_em', { ascending: false })
       if (error) throw error
 
@@ -148,6 +150,7 @@ export function useParcelamentos() {
   }
 
   async function criar(dados) {
+    bloquearSeConsultoria(modoConsultoria)
     const { data, error } = await supabase
       .from('parcelamentos')
       .insert([{ ...dados, usuario_id: usuario.id }])
@@ -160,6 +163,7 @@ export function useParcelamentos() {
 
   // Atualiza um parcelamento existente pelo ID (UPDATE, sem duplicar)
   async function atualizar(id, dados) {
+    bloquearSeConsultoria(modoConsultoria)
     const { data, error } = await supabase
       .from('parcelamentos')
       .update(dados)
@@ -178,6 +182,7 @@ export function useParcelamentos() {
 
   // Quitação antecipada: registra a data de hoje, preserva o histórico
   async function quitar(id) {
+    bloquearSeConsultoria(modoConsultoria)
     const hoje = new Date().toISOString().split('T')[0]
     const { error } = await supabase
       .from('parcelamentos')
@@ -193,6 +198,7 @@ export function useParcelamentos() {
   }
 
   async function remover(id) {
+    bloquearSeConsultoria(modoConsultoria)
     const { error } = await supabase
       .from('parcelamentos')
       .delete()

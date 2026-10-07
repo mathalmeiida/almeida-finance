@@ -62,6 +62,24 @@ export function useAdminUsuarios() {
   const desativar = useCallback((id) => definirAtivo(id, false), [definirAtivo])
   const reativar = useCallback((id) => definirAtivo(id, true), [definirAtivo])
 
+  // Reinicia o onboarding de UMA conta: marca perfis.onboarding_concluido = false.
+  // NÃO toca em nenhuma tabela financeira (receitas, despesas, cartões, metas,
+  // parcelamentos, saldo, reserva) nem em e-mail/senha/conta — altera apenas
+  // esta flag. Na próxima vez que o usuário entrar, o fluxo de onboarding abre
+  // de novo (useOnboarding lê este campo). A escrita em perfis de OUTRA conta
+  // só é permitida ao admin pela policy de UPDATE do banco (public.e_admin()).
+  const reiniciarOnboarding = useCallback(async (id) => {
+    const { data, error } = await supabase
+      .from('perfis')
+      .update({ onboarding_concluido: false })
+      .eq('id', id)
+      .select('id, nome, email, criado_em, ultimo_acesso, onboarding_concluido, papel, ativo')
+      .single()
+    if (error) throw error
+    setUsuarios(prev => prev.map(u => (u.id === id ? data : u)))
+    return data
+  }, [])
+
   useEffect(() => {
     if (ehAdmin) buscar()
     else { setUsuarios([]); setCarregando(false) }
@@ -84,6 +102,7 @@ export function useAdminUsuarios() {
     metricas: { total, novos7, novos30, ativos30, onboardingConcluido },
     desativar,
     reativar,
+    reiniciarOnboarding,
     recarregar: buscar,
   }
 }

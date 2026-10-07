@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
 
 export function useReceitas(mes, ano) {
-  const { usuario } = useAuth()
+  // idEfetivo = id do cliente no modo consultoria, senão o próprio. As LEITURAS
+  // usam idEfetivo; as ESCRITAS seguem usando usuario.id (o banco também bloqueia
+  // escrita cruzada: não há policy de escrita para o consultor).
+  const { usuario, idEfetivo, modoConsultoria } = useAuth()
   const [receitas, setReceitas] = useState([])
   // TODAS as receitas recorrentes do usuário (sem filtro de mês). Usado para
   // projetar, na tela de Receitas, as recorrentes iniciadas em meses anteriores
@@ -14,12 +18,13 @@ export function useReceitas(mes, ano) {
   const [erro, setErro] = useState(null)
 
   useEffect(() => {
-    if (!usuario) return
+    if (!idEfetivo) return
     buscar()
     buscarRecorrentes()
-    // Depende do ID (não do objeto) para não refazer o fetch quando o Supabase
-    // apenas renova o token e recria o objeto `usuario` com o mesmo id.
-  }, [usuario?.id, mes, ano])
+    // Depende do ID efetivo (não do objeto) para não refazer o fetch quando o
+    // Supabase apenas renova o token, e para recarregar ao entrar/sair do modo
+    // consultoria.
+  }, [idEfetivo, mes, ano])
 
   async function buscar() {
     setCarregando(true)
@@ -28,7 +33,7 @@ export function useReceitas(mes, ano) {
       let query = supabase
         .from('receitas')
         .select('*')
-        .eq('usuario_id', usuario.id)
+        .eq('usuario_id', idEfetivo)
         .order('data', { ascending: false })
 
       // Filtra pelo mês/ano se informado
@@ -54,7 +59,7 @@ export function useReceitas(mes, ano) {
       const { data, error } = await supabase
         .from('receitas')
         .select('*')
-        .eq('usuario_id', usuario.id)
+        .eq('usuario_id', idEfetivo)
         .eq('recorrente', true)
       if (error) throw error
       setRecorrentes(data || [])
@@ -64,6 +69,7 @@ export function useReceitas(mes, ano) {
   }
 
   async function criar(dados) {
+    bloquearSeConsultoria(modoConsultoria)
     const { data, error } = await supabase
       .from('receitas')
       .insert([{ ...dados, usuario_id: usuario.id }])
@@ -95,6 +101,7 @@ export function useReceitas(mes, ano) {
   }
 
   async function atualizar(id, dados) {
+    bloquearSeConsultoria(modoConsultoria)
     const { data, error } = await supabase
       .from('receitas')
       .update(dados)
@@ -108,6 +115,7 @@ export function useReceitas(mes, ano) {
   }
 
   async function remover(id) {
+    bloquearSeConsultoria(modoConsultoria)
     const { error } = await supabase
       .from('receitas')
       .delete()

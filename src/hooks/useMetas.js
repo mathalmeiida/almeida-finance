@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
 
 export function useMetas() {
-  const { usuario } = useAuth()
+  // LEITURAS usam idEfetivo (cliente no modo consultoria); ESCRITAS usam usuario.id.
+  const { usuario, idEfetivo, modoConsultoria } = useAuth()
   const [metas, setMetas] = useState([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState(null)
 
   useEffect(() => {
-    if (!usuario) return
+    if (!idEfetivo) return
     buscar()
-  }, [usuario])
+  }, [idEfetivo])
 
   async function buscar() {
     setCarregando(true)
@@ -20,7 +22,7 @@ export function useMetas() {
       const { data, error } = await supabase
         .from('metas')
         .select('*')
-        .eq('usuario_id', usuario.id)
+        .eq('usuario_id', idEfetivo)
         .order('criado_em', { ascending: false })
       if (error) throw error
       setMetas(data || [])
@@ -32,6 +34,7 @@ export function useMetas() {
   }
 
   async function criar(dados) {
+    bloquearSeConsultoria(modoConsultoria)
     const { data, error } = await supabase
       .from('metas')
       .insert([{ ...dados, usuario_id: usuario.id }])
@@ -43,6 +46,7 @@ export function useMetas() {
   }
 
   async function atualizar(id, dados) {
+    bloquearSeConsultoria(modoConsultoria)
     const { data, error } = await supabase
       .from('metas')
       .update(dados)
@@ -55,6 +59,7 @@ export function useMetas() {
   }
 
   async function remover(id) {
+    bloquearSeConsultoria(modoConsultoria)
     const { error } = await supabase
       .from('metas')
       .delete()

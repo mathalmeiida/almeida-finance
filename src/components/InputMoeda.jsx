@@ -19,7 +19,7 @@ export default function InputMoeda({
   valor,
   onChangeValor,
   className = 'input',
-  placeholder = 'R$ 0,00',
+  placeholder,
   prefixo = 'R$',
   ...rest
 }) {
@@ -42,6 +42,12 @@ export default function InputMoeda({
   }
 
   const comPrefixo = prefixo != null && prefixo !== ''
+  // Placeholder coerente com o prefixo para NUNCA duplicar o "R$":
+  //  - COM prefixo fixo (span "R$"): o placeholder é só "0,00" (o "R$" já vem
+  //    do span à esquerda; se o placeholder trouxesse "R$ 0,00" apareceria
+  //    "R$ R$ 0,00" quando o campo está vazio).
+  //  - SEM prefixo: o placeholder inclui "R$ 0,00" para manter a dica visual.
+  const placeholderFinal = placeholder ?? (comPrefixo ? '0,00' : 'R$ 0,00')
   return (
     <div className="relative">
       {comPrefixo && (
@@ -54,7 +60,7 @@ export default function InputMoeda({
         inputMode="numeric"
         value={texto}
         onChange={handleChange}
-        placeholder={placeholder}
+        placeholder={placeholderFinal}
         className={`${className}${comPrefixo ? ' pl-9' : ''}`}
         {...rest}
       />

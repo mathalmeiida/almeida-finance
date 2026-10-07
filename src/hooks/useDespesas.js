@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
 
 // Normaliza a frequência de uma despesa, com retrocompatibilidade:
 // despesas antigas só têm "recorrente" + "recorrencia_meses".
@@ -85,7 +86,8 @@ export function despesaRecorrenteAtivaNoMes(d, ano, mes) {
 }
 
 export function useDespesas(mes, ano) {
-  const { usuario } = useAuth()
+  // LEITURAS usam idEfetivo (cliente no modo consultoria); ESCRITAS usam usuario.id.
+  const { usuario, idEfetivo, modoConsultoria } = useAuth()
   const [despesas, setDespesas] = useState([])
   // Todas as despesas recorrentes do usuário (sem filtro de mês).
   // Necessário para a projeção considerar recorrências com início em
@@ -95,12 +97,12 @@ export function useDespesas(mes, ano) {
   const [erro, setErro] = useState(null)
 
   useEffect(() => {
-    if (!usuario) return
+    if (!idEfetivo) return
     buscar()
     buscarRecorrentes()
-    // Depende do ID (não do objeto) para não refazer o fetch quando o Supabase
-    // apenas renova o token e recria o objeto `usuario` com o mesmo id.
-  }, [usuario?.id, mes, ano])
+    // Depende do ID efetivo: recarrega ao renovar sessão e ao entrar/sair do
+    // modo consultoria.
+  }, [idEfetivo, mes, ano])
 
   async function buscar() {
     setCarregando(true)
@@ -112,7 +114,7 @@ export function useDespesas(mes, ano) {
           *,
           categorias (id, nome, icone, cor)
         `)
-        .eq('usuario_id', usuario.id)
+        .eq('usuario_id', idEfetivo)
         .order('data', { ascending: false })
 
       if (mes !== undefined && ano !== undefined) {
@@ -137,7 +139,7 @@ export function useDespesas(mes, ano) {
       const { data, error } = await supabase
         .from('despesas')
         .select(`*, categorias (id, nome, icone, cor)`)
-        .eq('usuario_id', usuario.id)
+        .eq('usuario_id', idEfetivo)
         .eq('recorrente', true)
       if (error) throw error
       setRecorrentes(data || [])
@@ -147,6 +149,7 @@ export function useDespesas(mes, ano) {
   }
 
   async function criar(dados) {
+    bloquearSeConsultoria(modoConsultoria)
     const { data, error } = await supabase
       .from('despesas')
       .insert([{ ...dados, usuario_id: usuario.id }])
@@ -159,6 +162,7 @@ export function useDespesas(mes, ano) {
   }
 
   async function atualizar(id, dados) {
+    bloquearSeConsultoria(modoConsultoria)
     const { data, error } = await supabase
       .from('despesas')
       .update(dados)
@@ -181,6 +185,7 @@ export function useDespesas(mes, ano) {
   }
 
   async function remover(id) {
+    bloquearSeConsultoria(modoConsultoria)
     const { error } = await supabase
       .from('despesas')
       .delete()
@@ -192,6 +197,7 @@ export function useDespesas(mes, ano) {
 
   // Permite corrigir manualmente a classificação automática (fixa/variavel)
   async function alterarTipo(id, tipo) {
+    bloquearSeConsultoria(modoConsultoria)
     const { data, error } = await supabase
       .from('despesas')
       .update({ tipo_despesa: tipo })
@@ -209,6 +215,7 @@ export function useDespesas(mes, ano) {
   // "data" (vencimento original). Opcionalmente registra a forma/conta usada.
   // O saldo passa a considerar pago_em (ver useProjecao), evitando dupla baixa.
   async function anteciparPagamento(id, { pago_em, forma_pagamento } = {}) {
+    bloquearSeConsultoria(modoConsultoria)
     const campos = { pago_em: pago_em || new Date().toISOString().split('T')[0] }
     // Só sobrescreve a forma de pagamento se o usuário escolher uma.
     if (forma_pagamento) campos.forma_pagamento = forma_pagamento
@@ -227,6 +234,7 @@ export function useDespesas(mes, ano) {
   // Desfaz a antecipação (volta pago_em para NULL). Mantido para permitir
   // corrigir um pagamento marcado por engano, sem apagar a despesa.
   async function desfazerAntecipacao(id) {
+    bloquearSeConsultoria(modoConsultoria)
     const { data, error } = await supabase
       .from('despesas')
       .update({ pago_em: null })

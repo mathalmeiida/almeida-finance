@@ -18,6 +18,7 @@ import {
   X,
   LogOut,
   ArrowLeft,
+  Eye,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import logoAlmeida from '../assets/Logo Corporativo Almeida Finance.png'
@@ -172,7 +173,7 @@ function BottomNavItem({ to, label, icon: Icon, onClick, ativo, corIcone }) {
 export default function Layout({ children }) {
   const [maisAberto, setMaisAberto] = useState(false)
   const [acoesAberto, setAcoesAberto] = useState(false)
-  const { sair, usuario, perfil, ehAdmin } = useAuth()
+  const { sair, usuario, perfil, ehAdmin, modoConsultoria, consultoriaAlvo, sairModoConsultoria, somenteLeitura } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -246,6 +247,26 @@ export default function Layout({ children }) {
 
       {/* ── Conteúdo principal ── */}
       <div className="flex-1 md:ml-60 flex flex-col min-h-screen">
+        {/* ── Banner GLOBAL "Modo Consultoria" ──
+            Fica fixo no topo de todas as telas internas enquanto o consultor
+            visualiza os dados de um cliente (somente leitura). */}
+        {modoConsultoria && (
+          <div className="sticky top-0 z-40 bg-blue-600 text-white px-4 py-2 flex items-center justify-between gap-3 pt-safe">
+            <span className="flex items-center gap-2 text-sm font-medium min-w-0">
+              <Eye size={16} className="flex-shrink-0" />
+              <span className="truncate">
+                Modo Consultoria — Visualizando {consultoriaAlvo?.nome || 'cliente'}
+              </span>
+            </span>
+            <button
+              onClick={sairModoConsultoria}
+              className="flex-shrink-0 text-xs font-semibold bg-white/20 hover:bg-white/30 rounded-lg px-3 py-1.5 transition-colors"
+            >
+              Sair da visualização
+            </button>
+          </div>
+        )}
+
         {/* Header mobile compacto. Na Home: logo à esquerda. Nas telas internas:
             seta de voltar à esquerda. Avatar sempre à direita. */}
         <header className="md:hidden bg-white border-b border-gray-100 px-4 h-14 flex items-center justify-between sticky top-0 z-20 pt-safe">
@@ -293,15 +314,19 @@ export default function Layout({ children }) {
         <BottomNavItem to="/" label="Início" icon={LayoutDashboard} corIcone="text-blue-400" />
         <BottomNavItem to="/despesas" label="Despesas" icon={TrendingDown} corIcone="text-rose-400" />
 
-        {/* Botão central "+" em destaque (ações rápidas) */}
+        {/* Botão central "+" em destaque (ações rápidas).
+            Oculto no modo consultoria (somente leitura): o consultor não cria
+            nem edita dados do cliente. */}
         <div className="flex-1 flex justify-center">
-          <button
-            onClick={() => setAcoesAberto(true)}
-            aria-label="Adicionar"
-            className="-mt-5 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white shadow-lg shadow-blue-600/30 flex items-center justify-center transition-all"
-          >
-            <Plus size={26} />
-          </button>
+          {!somenteLeitura && (
+            <button
+              onClick={() => setAcoesAberto(true)}
+              aria-label="Adicionar"
+              className="-mt-5 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white shadow-lg shadow-blue-600/30 flex items-center justify-center transition-all"
+            >
+              <Plus size={26} />
+            </button>
+          )}
         </div>
 
         <BottomNavItem to="/posso-comprar" label="Simular" icon={ShoppingCart} corIcone="text-blue-400" />
