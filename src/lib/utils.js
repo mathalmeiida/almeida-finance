@@ -1,6 +1,63 @@
 // Formata valor para Real brasileiro
-export const formatCurrency = (value) =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value ?? 0)
+// ─── Ocultar valores (global) ────────────────────────────────────────────────
+// Preferência de ocultar valores financeiros, mantida em nível de módulo para
+// que TODA chamada a formatCurrency() seja mascarada automaticamente em todo o
+// app (Home, receitas, despesas, cartões, reserva, projeções, Horizonte...),
+// sem precisar alterar cada ponto de exibição. É apenas visual: não altera
+// nenhum cálculo ou dado. Quem controla o estado é o OcultarValoresProvider,
+// que chama definirOcultarValoresGlobal() sempre que a preferência muda.
+// Observação: NÃO afeta a digitação monetária (formatarMoedaDigitada,
+// moedaParaNumero, numeroParaMoeda), usadas no InputMoeda.
+export const MASCARA_VALOR = 'R$ ••••'
+let _ocultarValoresGlobal = false
+export const definirOcultarValoresGlobal = (v) => { _ocultarValoresGlobal = !!v }
+
+export const formatCurrency = (value) => {
+  if (_ocultarValoresGlobal) return MASCARA_VALOR
+  // Segurança de EXIBIÇÃO: nunca mostrar "R$ NaN"/"R$ Infinity" ao usuário.
+  // Os cálculos financeiros já se protegem com `Number(x) || 0` na origem; este
+  // tratamento é só a última barreira visual para um valor inválido que
+  // escape até aqui (null/undefined/NaN/Infinity) → exibe R$ 0,00. NÃO altera
+  // nenhum cálculo nem esconde um valor numérico real (inclusive negativos).
+  const num = Number(value)
+  const seguro = Number.isFinite(num) ? num : 0
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(seguro)
+}
+
+// ─── "Hoje" no fuso de Brasília ───────────────────────────────────────────────
+// FONTE ÚNICA da data de HOJE para toda a lógica financeira (lançamentos do dia,
+// gasto do dia, saldo "até hoje", limite diário, Horizonte).
+//
+// Por que existe: usar new Date().toISOString().split('T')[0] devolve a data em
+// UTC. Para quem está no Brasil (UTC−3), das 21h à meia-noite isso já "vira" o
+// dia seguinte — fazendo um gasto da noite ser gravado com a data de amanhã e
+// sumir do "hoje". Aqui fixamos o dia no fuso America/Sao_Paulo, igual à
+// saudação/datas exibidas, para o "hoje" ser consistente.
+//
+// Importante: isto NÃO altera datas já gravadas (vencimentos/lançamentos) nem o
+// cálculo de fim de mês — serve apenas para obter "o dia de hoje".
+const TZ_BRASIL = 'America/Sao_Paulo'
+
+// Retorna a data de hoje como 'YYYY-MM-DD' no fuso de Brasília.
+// (en-CA formata como ISO curto: 2026-10-07.)
+export const hojeISO = () =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ_BRASIL, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date())
+
+// Partes numéricas de hoje no fuso de Brasília: { ano, mes (1-12), dia }.
+// Útil para montar Date "local ao meio-dia" sem risco de deslocamento de fuso.
+export const partesHojeBrasil = () => {
+  const [ano, mes, dia] = hojeISO().split('-').map(Number)
+  return { ano, mes, dia }
+}
+
+// Objeto Date representando hoje (meio-dia, para evitar bordas de fuso) com base
+// no dia de Brasília. Use quando precisar de um Date e não de string.
+export const hojeDateBrasil = () => {
+  const { ano, mes, dia } = partesHojeBrasil()
+  return new Date(ano, mes - 1, dia, 12, 0, 0, 0)
+}
 
 // Formata data para pt-BR
 export const formatDate = (dateString) => {
@@ -201,6 +258,8 @@ export const numeroParaMoeda = (valor) => {
 }
 
 // Exibe o valor em moeda ou mascarado ("R$ ••••"), conforme a preferência de
-// ocultar valores. Apenas visual — não altera cálculo algum.
+// ocultar valores. Apenas visual — não altera cálculo algum. Mantido por
+// compatibilidade com os pontos que já passam o "ocultar" explicitamente; como
+// o formatCurrency agora também respeita o estado global, o resultado é o mesmo.
 export const exibirMoeda = (value, ocultar) =>
-  ocultar ? 'R$ ••••' : formatCurrency(value)
+  ocultar ? MASCARA_VALOR : formatCurrency(value)

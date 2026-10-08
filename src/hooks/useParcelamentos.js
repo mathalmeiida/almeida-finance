@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
-import { labelMes } from '../lib/utils'
+import { labelMes, hojeISO } from '../lib/utils'
 import { classificarDespesa } from '../lib/classificarDespesa'
 
 /**
@@ -183,7 +183,7 @@ export function useParcelamentos() {
   // Quitação antecipada: registra a data de hoje, preserva o histórico
   async function quitar(id) {
     bloquearSeConsultoria(modoConsultoria)
-    const hoje = new Date().toISOString().split('T')[0]
+    const hoje = hojeISO() // data de hoje no fuso de Brasília
     const { error } = await supabase
       .from('parcelamentos')
       .update({ quitado_em: hoje })

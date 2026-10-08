@@ -5,17 +5,16 @@ import { useReceitas } from '../hooks/useReceitas'
 import { useCategorias } from '../hooks/useCategorias'
 import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
-import { formatCurrency, formatDate, corCategoria } from '../lib/utils'
+import { formatCurrency, formatDate, corCategoria, hojeISO, partesHojeBrasil } from '../lib/utils'
 
-const mesAtual = new Date().getMonth() + 1
-const anoAtual = new Date().getFullYear()
+const { ano: anoAtual, mes: mesAtual } = partesHojeBrasil()
 
 function FormReceita({ onSalvar, onCancelar, carregando, receitaInicial, textoBotao, dataPadrao }) {
   const { categorias } = useCategorias('receita')
   const [form, setForm] = useState({
     descricao: receitaInicial?.descricao ?? '',
     valor: receitaInicial != null ? String(receitaInicial.valor) : '',
-    data: receitaInicial?.data ?? dataPadrao ?? new Date().toISOString().split('T')[0],
+    data: receitaInicial?.data ?? dataPadrao ?? hojeISO(),
     // padrão: recorrente (a maioria das receitas é mensal); na edição usa o valor salvo
     recorrente: receitaInicial != null ? !!receitaInicial.recorrente : true,
     categoria: receitaInicial?.categoria ?? '',

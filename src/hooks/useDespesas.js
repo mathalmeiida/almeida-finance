@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
+import { hojeISO } from '../lib/utils'
 
 // Normaliza a frequência de uma despesa, com retrocompatibilidade:
 // despesas antigas só têm "recorrente" + "recorrencia_meses".
@@ -216,7 +217,7 @@ export function useDespesas(mes, ano) {
   // O saldo passa a considerar pago_em (ver useProjecao), evitando dupla baixa.
   async function anteciparPagamento(id, { pago_em, forma_pagamento } = {}) {
     bloquearSeConsultoria(modoConsultoria)
-    const campos = { pago_em: pago_em || new Date().toISOString().split('T')[0] }
+    const campos = { pago_em: pago_em || hojeISO() }
     // Só sobrescreve a forma de pagamento se o usuário escolher uma.
     if (forma_pagamento) campos.forma_pagamento = forma_pagamento
     const { data, error } = await supabase

@@ -9,7 +9,7 @@ import { useCartoes } from '../hooks/useCartoes'
 import { useProjecao } from '../hooks/useProjecao'
 import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
-import { formatCurrency, formatDate, corCategoria, FORMAS_PAGAMENTO, formaPagamentoLabel } from '../lib/utils'
+import { formatCurrency, formatDate, corCategoria, FORMAS_PAGAMENTO, formaPagamentoLabel, hojeISO } from '../lib/utils'
 import { classificarDespesa, labelTipoDespesa } from '../lib/classificarDespesa'
 import { FormParcelamento, CardParcelamento } from './Parcelamentos'
 
@@ -43,7 +43,7 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
   const [form, setForm] = useState({
     descricao: despesaInicial?.descricao ?? '',
     valor: despesaInicial != null ? String(despesaInicial.valor) : '',
-    data: despesaInicial?.data ?? new Date().toISOString().split('T')[0],
+    data: despesaInicial?.data ?? hojeISO(),
     frequencia: freqInicial(despesaInicial),
     categoria_id: despesaInicial?.categoria_id ?? '',
     forma_pagamento: despesaInicial?.forma_pagamento ?? '',
@@ -453,16 +453,16 @@ function ModalNovaDespesa({
 // hoje) e a forma/conta usada. Ao confirmar, marca a despesa como paga em
 // "pago_em" — o saldo reflete a saída sem contar duas vezes (ver useProjecao).
 function ModalAnteciparPagamento({ aberto, despesa, onConfirmar, onFechar, salvando }) {
-  const hojeISO = new Date().toISOString().split('T')[0]
-  const [dataPagamento, setDataPagamento] = useState(hojeISO)
+  const hojeStr = hojeISO() // data de hoje no fuso de Brasília
+  const [dataPagamento, setDataPagamento] = useState(hojeStr)
   const [forma, setForma] = useState('')
 
   useEffect(() => {
     if (aberto && despesa) {
-      setDataPagamento(hojeISO)
+      setDataPagamento(hojeStr)
       setForma(despesa.forma_pagamento || '')
     }
-  }, [aberto, despesa, hojeISO])
+  }, [aberto, despesa, hojeStr])
 
   if (!despesa) return null
 
@@ -599,7 +599,7 @@ export default function Despesas() {
   // Despesas à vista do mês com vencimento FUTURO (data > hoje) e ainda NÃO
   // pagas antecipadamente (pago_em vazio). Mostra dias restantes e permite
   // antecipar o pagamento. Ordenado pelo vencimento mais próximo.
-  const hojeStrLocal = new Date().toISOString().split('T')[0]
+  const hojeStrLocal = hojeISO() // data de hoje no fuso de Brasília
   const hojeMeiaNoite = new Date(hojeStrLocal + 'T12:00:00')
   const proximosVencimentos = despesas
     .filter(d => !d.pago_em && d.data > hojeStrLocal)

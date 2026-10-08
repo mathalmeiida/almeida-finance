@@ -71,10 +71,14 @@ function ContaDesativada() {
   )
 }
 
-// Gatilho de "refazer configuração financeira": a tela de Configurações grava
-// esta flag no localStorage e redireciona para a Home; aqui o onboarding é
-// reaberto mesmo que a conta já tenha dados (não depende de conta vazia).
+// Gatilho de "refazer configuração financeira": a tela de Configurações (e o
+// card "Complete sua configuração" da Home) gravam esta flag no localStorage e
+// redirecionam para a Home; aqui o onboarding é reaberto mesmo que a conta já
+// tenha dados (não depende de conta vazia).
 const CHAVE_REFAZER = 'almeida_refazer_onboarding'
+// Etapa onde o onboarding deve começar quando reaberto pelo card da Home
+// (ex.: 'renda', 'despesas', 'reserva'). Vazio = começa do início.
+const CHAVE_ETAPA_ONBOARDING = 'almeida_onboarding_etapa'
 
 // Decide, para o usuário já autenticado, entre: conta desativada, onboarding
 // (primeiro acesso OU refazer) ou o app normal.
@@ -98,23 +102,41 @@ function AreaAutenticada({ children }) {
     }
   }, [pendentesParaMim, autorizar, recusar])
 
-  // Flag de "refazer" lida do localStorage (setada em Configurações).
+  // Flag de "refazer" lida do localStorage (setada em Configurações ou no card
+  // "Complete sua configuração" da Home).
   const [refazer, setRefazer] = useState(() => {
     try { return localStorage.getItem(CHAVE_REFAZER) === '1' } catch { return false }
   })
+  // Etapa inicial do onboarding (quando aberto pelo card da Home apontando para
+  // um item pendente específico). Vazio = começa do início.
+  const [etapaInicial, setEtapaInicial] = useState(() => {
+    try { return localStorage.getItem(CHAVE_ETAPA_ONBOARDING) || '' } catch { return '' }
+  })
 
-  // Reage caso a flag seja alterada em outra aba/fluxo.
+  // Reage caso a flag seja alterada em outra aba/fluxo (evento nativo 'storage')
+  // ou na MESMA aba (evento customizado disparado pelo card da Home).
   useEffect(() => {
     function sync() {
-      try { setRefazer(localStorage.getItem(CHAVE_REFAZER) === '1') } catch { /* ignore */ }
+      try {
+        setRefazer(localStorage.getItem(CHAVE_REFAZER) === '1')
+        setEtapaInicial(localStorage.getItem(CHAVE_ETAPA_ONBOARDING) || '')
+      } catch { /* ignore */ }
     }
     window.addEventListener('storage', sync)
-    return () => window.removeEventListener('storage', sync)
+    window.addEventListener('almeida-refazer-onboarding', sync)
+    return () => {
+      window.removeEventListener('storage', sync)
+      window.removeEventListener('almeida-refazer-onboarding', sync)
+    }
   }, [])
 
   const encerrarOnboarding = useCallback(async () => {
-    try { localStorage.removeItem(CHAVE_REFAZER) } catch { /* ignore */ }
+    try {
+      localStorage.removeItem(CHAVE_REFAZER)
+      localStorage.removeItem(CHAVE_ETAPA_ONBOARDING)
+    } catch { /* ignore */ }
     setRefazer(false)
+    setEtapaInicial('')
     await concluir() // grava onboarding_concluido = true
   }, [concluir])
 
@@ -126,7 +148,7 @@ function AreaAutenticada({ children }) {
   if (verificando) return <Carregando />
   // Onboarding: primeiro acesso (precisaOnboarding) OU refazer manual.
   if (precisaOnboarding || refazer) {
-    return <Onboarding aoConcluir={encerrarOnboarding} />
+    return <Onboarding aoConcluir={encerrarOnboarding} etapaInicial={etapaInicial} />
   }
   // Solicitação de consultoria pendente para o cliente: mostra a tela de
   // autorização antes do app. Não aplica quando o próprio usuário está no modo

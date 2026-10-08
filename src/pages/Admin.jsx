@@ -3,15 +3,17 @@ import { useNavigate } from 'react-router-dom'
 import {
   Users, UserPlus, Activity, CheckCircle2, Loader2, ShieldCheck,
   MoreVertical, Eye, UserX, UserCheck, AlertTriangle, MessageCircle, CalendarClock,
-  RotateCcw, Clock, EyeOff
+  RotateCcw, Clock, EyeOff, MessageSquarePlus
 } from 'lucide-react'
 import { useAdminUsuarios } from '../hooks/useAdminUsuarios'
 import { useConsultoriaInteresses } from '../hooks/useConsultoria'
 import { useConsultoriaAcessos } from '../hooks/useConsultoriaAcessos'
+import { useFeedbacks } from '../hooks/useFeedbacks'
 import { useAuth } from '../contexts/AuthContext'
 import Modal from '../components/Modal'
 import AdminConsultorias from './admin/AdminConsultorias'
 import AdminAgenda from './admin/AdminAgenda'
+import AdminFeedbacks from './admin/AdminFeedbacks'
 
 // Rótulo do status de acesso de consultoria de um cliente (visão do consultor).
 function BadgeAcessoConsultoria({ status }) {
@@ -207,6 +209,13 @@ export default function Admin() {
   // mudar o status atualiza o indicador na hora, sem precisar recarregar.
   const { interesses, carregando: carregandoInteresses, atualizarStatus } = useConsultoriaInteresses()
   const novasSolicitacoes = interesses.filter(i => i.status === 'novo').length
+  // Feedbacks — fonte única compartilhada com a aba Feedbacks (badge + lista).
+  const {
+    feedbacks,
+    carregando: carregandoFeedbacks,
+    atualizarStatus: atualizarStatusFeedback,
+  } = useFeedbacks()
+  const novosFeedbacks = feedbacks.filter(f => f.status === 'novo').length
 
   // Acessos de consultoria (autorizações). statusPorCliente: clienteId → linha.
   const { statusPorCliente, solicitarAcesso, cancelarSolicitacao } = useConsultoriaAcessos()
@@ -268,6 +277,7 @@ export default function Admin() {
     { id: 'usuarios',     label: 'Usuários',     icon: Users },
     { id: 'consultorias', label: 'Consultorias', icon: MessageCircle, badge: novasSolicitacoes },
     { id: 'agenda',       label: 'Agenda',       icon: CalendarClock },
+    { id: 'feedbacks',    label: 'Feedbacks',    icon: MessageSquarePlus, badge: novosFeedbacks },
   ]
 
   async function confirmarDesativar() {
@@ -372,6 +382,15 @@ export default function Admin() {
         <AdminAgenda
           interesseParaAgendar={interesseParaAgendar}
           onConsumido={() => setInteresseParaAgendar(null)}
+        />
+      )}
+
+      {/* ── Aba: Feedbacks ── (fonte única de feedbacks) */}
+      {aba === 'feedbacks' && (
+        <AdminFeedbacks
+          feedbacks={feedbacks}
+          carregando={carregandoFeedbacks}
+          atualizarStatus={atualizarStatusFeedback}
         />
       )}
 

@@ -2,19 +2,27 @@ import React, { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Zap, Sun, Plus, Pencil,
-  CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank, AlertTriangle
+  CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank, AlertTriangle, MessageCircle, BarChart2
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useCategorias } from '../hooks/useCategorias'
 import { useCartoes } from '../hooks/useCartoes'
 import { useComprasCartao } from '../hooks/useComprasCartao'
+import { useConsultoriaInteresses } from '../hooks/useConsultoria'
 import { useAuth } from '../contexts/AuthContext'
 import { useOcultarValores } from '../contexts/OcultarValoresContext'
 import InputMoeda from '../components/InputMoeda'
-import { formatCurrency, exibirMoeda, FORMAS_PAGAMENTO } from '../lib/utils'
+import { formatCurrency, exibirMoeda, FORMAS_PAGAMENTO, hojeISO as hojeISOBrasil, hojeDateBrasil } from '../lib/utils'
 import { classificarDespesa } from '../lib/classificarDespesa'
+import { parcelaCompraNoMes, totalFaturaComOverride } from '../lib/faturaCartao'
 import Modal from '../components/Modal'
 import HorizonteFinanceiro from '../components/HorizonteFinanceiro'
+import { gerarHorizonte } from '../lib/horizonteFinanceiro'
+
+// Chaves lidas em App.jsx (AreaAutenticada) para reabrir o onboarding e saber
+// em qual etapa começar. Mesmas chaves usadas pela tela de Configurações.
+const CHAVE_REFAZER = 'almeida_refazer_onboarding'
+const CHAVE_ETAPA_ONBOARDING = 'almeida_onboarding_etapa'
 
 // ─── Modal de Gasto rápido ────────────────────────────────────────────────────
 // Categorias comuns de gasto do dia a dia — aparecem primeiro no seletor
@@ -62,7 +70,7 @@ function FormGastoRapido({ onSalvar, onCancelar, carregando, onMaisOpcoes }) {
     onSalvar({
       descricao,
       valor: valorNum,
-      data: new Date().toISOString().split('T')[0],
+      data: hojeISOBrasil(),
       recorrente: false,
       categoria_id: form.categoria_id || null,
       tipo_despesa,
@@ -274,6 +282,96 @@ function statusOrcamento(receita, disponivel) {
 // ─── Card "Quanto posso gastar?" — modos Automático e Manual ──────────────────
 const OPCOES_RESERVA = [10, 15, 20, 25, 30]
 
+// Deriva os valores de exibição do "Quanto posso gastar?" a partir das MESMAS
+// entradas usadas no card detalhado — NÃO é um cálculo novo, apenas a mesma
+// fórmula consolidada em um lugar, para o resumo compacto e o detalhado nunca
+// divergirem. (auto = (base − reserva); manual = base; limite = disp/dias.)
+function derivarResumoGastar({
+  modo, receitaMes, compromissosMes, limiteManual, hoje,
+  pct, saldoConfigurado, previsaoFimMes,
+}) {
+  const dias = diasRestantesNoMes(hoje)
+  const ehManual = modo === 'manual'
+  const reserva = receitaMes > 0 ? receitaMes * (pct / 100) : 0
+  const baseLivre = saldoConfigurado ? previsaoFimMes : (receitaMes - compromissosMes)
+  const disponivelAuto = baseLivre - reserva
+  const disponivelMes = ehManual ? baseLivre : disponivelAuto
+  const limiteAuto = disponivelAuto > 0 && dias > 0 ? disponivelAuto / dias : 0
+  const limiteManualNum = Number(limiteManual) || 0
+  const limiteExibido = ehManual ? limiteManualNum : limiteAuto
+  const status = statusOrcamento(receitaMes, disponivelMes)
+  const orcamentoNegativo = disponivelMes < 0
+  const manualAcimaDoRecomendado = ehManual && limiteManualNum > limiteAuto && limiteAuto > 0
+  return {
+    dias, ehManual, reserva, baseLivre, disponivelAuto,
+    disponivelMes, limiteAuto, limiteManualNum, limiteExibido,
+    status, orcamentoNegativo, manualAcimaDoRecomendado,
+  }
+}
+
+// ─── Resumo compacto "Quanto posso gastar?" (Home) ────────────────────────────
+// Visual escuro/neutro (sem o fundo azul predominante). Mostra só: Disponível no
+// mês, gasto por dia e o status. Botão abre o planejamento completo (modal com o
+// CardQuantoPossoGastar detalhado). Mesmos valores (derivarResumoGastar).
+function CardResumoGastar({
+  carregando, modo, receitaMes, compromissosMes, limiteManual, hoje,
+  reservaPercentual, saldoConfigurado = false, previsaoFimMes = 0, onVerCompleto,
+}) {
+  const { ocultar } = useOcultarValores()
+  if (carregando) {
+    return (
+      <div className="card">
+        <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
+        <div className="h-16 w-full bg-gray-100 rounded-xl animate-pulse mt-3" />
+      </div>
+    )
+  }
+  const pct = reservaPercentual != null ? Number(reservaPercentual) : 20
+  const { disponivelMes, limiteExibido, status, orcamentoNegativo } = derivarResumoGastar({
+    modo, receitaMes, compromissosMes, limiteManual, hoje,
+    pct, saldoConfigurado, previsaoFimMes,
+  })
+  // Cor do pontinho de status conforme o emoji devolvido por statusOrcamento.
+  const corStatus = status?.cor === '🔴' ? 'bg-red-500'
+    : status?.cor === '🟡' ? 'bg-amber-500'
+    : 'bg-green-500'
+
+  return (
+    <div className="card">
+      <div className="flex items-center gap-2">
+        <Sun size={18} className="text-blue-500 flex-shrink-0" />
+        <h2 className="text-base font-semibold text-gray-900">Quanto posso gastar?</h2>
+      </div>
+
+      {/* Área única: "Disponível no mês" em destaque e, abaixo, o equivalente
+          por dia em texto menor. Mesmos cálculos (disponivelMes / limiteExibido). */}
+      <div className="bg-gray-50 rounded-xl px-3 py-3 mt-3">
+        <p className="text-xs text-gray-400">Disponível no mês</p>
+        <p className={`text-2xl font-bold leading-tight break-words ${orcamentoNegativo ? 'text-red-500' : 'text-gray-900'}`}>
+          {exibirMoeda(disponivelMes, ocultar)}
+        </p>
+        <p className="text-xs text-gray-400 mt-1">
+          Equivale a <span className="font-medium text-gray-500">{exibirMoeda(Math.max(0, limiteExibido), ocultar)}</span> por dia
+        </p>
+      </div>
+
+      {status && (
+        <div className="flex items-center gap-2 mt-3">
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${corStatus}`} />
+          <span className="text-sm text-gray-600">{status.texto}</span>
+        </div>
+      )}
+
+      <button
+        onClick={onVerCompleto}
+        className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
+      >
+        Ver planejamento completo <ArrowRight size={14} />
+      </button>
+    </div>
+  )
+}
+
 function CardQuantoPossoGastar({
   carregando, modo, onTrocarModo,
   receitaMes, compromissosMes, limiteManual, onEditarLimite, hoje,
@@ -306,7 +404,7 @@ function CardQuantoPossoGastar({
 
   if (carregando) {
     return (
-      <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5">
+      <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-5">
         <div className="flex items-center gap-2 text-white/90 mb-3">
           <Sun size={18} />
           <span className="text-sm font-medium">Quanto posso gastar?</span>
@@ -316,34 +414,18 @@ function CardQuantoPossoGastar({
     )
   }
 
-  const dias = diasRestantesNoMes(hoje)
-  const ehManual = modo === 'manual'
-
   // Reserva de emergência (só afeta o modo automático). Usa o estado local
   // otimista para refletir o clique imediatamente. Padrão 20%.
   const pct = pctLocal
-  const reserva = receitaMes > 0 ? receitaMes * (pct / 100) : 0
-
-  // Base do orçamento livre:
-  //  - Se o usuário informou o saldo atual, parte do dinheiro REAL de hoje e
-  //    das entradas/compromissos futuros do mês (previsaoFimMes já é
-  //    saldoAgora + receitas futuras − compromissos futuros). A reserva fica
-  //    separada e só é descontada no modo automático.
-  //  - Se ainda NÃO informou o saldo, mantém o comportamento anterior
-  //    (receita do mês − compromissos), para não quebrar quem não configurou.
-  const baseLivre = saldoConfigurado ? previsaoFimMes : (receitaMes - compromissosMes)
-
-  const disponivelAuto = baseLivre - reserva
-  const disponivelManual = baseLivre
-  const disponivelMes = ehManual ? disponivelManual : disponivelAuto
-
-  const limiteAuto = disponivelAuto > 0 && dias > 0 ? disponivelAuto / dias : 0
-  const limiteManualNum = Number(limiteManual) || 0
-  const limiteExibido = ehManual ? limiteManualNum : limiteAuto
-
-  const status = statusOrcamento(receitaMes, disponivelMes)
-  const orcamentoNegativo = disponivelMes < 0
-  const manualAcimaDoRecomendado = ehManual && limiteManualNum > limiteAuto && limiteAuto > 0
+  // Deriva TODOS os valores pela MESMA função do resumo compacto (sem duplicar
+  // fórmula). A reserva fica separada e só é descontada no modo automático.
+  const {
+    dias, ehManual, reserva, limiteAuto, limiteManualNum,
+    disponivelMes, limiteExibido, status, orcamentoNegativo, manualAcimaDoRecomendado,
+  } = derivarResumoGastar({
+    modo, receitaMes, compromissosMes, limiteManual, hoje,
+    pct, saldoConfigurado, previsaoFimMes,
+  })
 
   function aplicarCustom(e) {
     e.preventDefault()
@@ -356,7 +438,7 @@ function CardQuantoPossoGastar({
   }
 
   return (
-    <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5 text-white">
+    <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-5 text-white">
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
           <Sun size={18} />
@@ -366,13 +448,13 @@ function CardQuantoPossoGastar({
         <div className="flex bg-black/15 rounded-lg p-0.5 text-xs font-medium flex-shrink-0">
           <button
             onClick={() => onTrocarModo('auto')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${!ehManual ? 'bg-white/90 text-emerald-700' : 'text-white/80'}`}
+            className={`px-3 py-1.5 rounded-md transition-colors ${!ehManual ? 'bg-white/90 text-blue-700' : 'text-white/80'}`}
           >
             Automático
           </button>
           <button
             onClick={() => onTrocarModo('manual')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${ehManual ? 'bg-white/90 text-emerald-700' : 'text-white/80'}`}
+            className={`px-3 py-1.5 rounded-md transition-colors ${ehManual ? 'bg-white/90 text-blue-700' : 'text-white/80'}`}
           >
             Manual
           </button>
@@ -390,14 +472,14 @@ function CardQuantoPossoGastar({
             {OPCOES_RESERVA.map(op => (
               <button key={op} type="button" onClick={() => { selecionarPct(op); setPersonalizando(false) }}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  !personalizando && pct === op ? 'bg-white/90 text-emerald-700' : 'bg-black/20 text-white/80 hover:bg-black/30'
+                  !personalizando && pct === op ? 'bg-white/90 text-blue-700' : 'bg-black/20 text-white/80 hover:bg-black/30'
                 }`}>
                 {op}%
               </button>
             ))}
             <button type="button" onClick={() => setPersonalizando(v => !v)}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                personalizando || !OPCOES_RESERVA.includes(pct) ? 'bg-white/90 text-emerald-700' : 'bg-black/20 text-white/80 hover:bg-black/30'
+                personalizando || !OPCOES_RESERVA.includes(pct) ? 'bg-white/90 text-blue-700' : 'bg-black/20 text-white/80 hover:bg-black/30'
               }`}>
               Personalizado
             </button>
@@ -408,7 +490,7 @@ function CardQuantoPossoGastar({
                 onChange={e => setPctCustom(e.target.value)}
                 placeholder="Ex: 18" autoFocus
                 className="flex-1 bg-white/90 text-gray-900 rounded-md px-2 py-1 text-sm focus:outline-none" />
-              <button type="submit" className="bg-white/90 text-emerald-700 text-xs font-semibold px-3 rounded-md">OK</button>
+              <button type="submit" className="bg-white/90 text-blue-700 text-xs font-semibold px-3 rounded-md">OK</button>
             </form>
           )}
           <p className="text-xs text-white/60 mt-2">Este valor está sendo separado do seu orçamento de gastos.</p>
@@ -838,126 +920,261 @@ function CardComecePorAqui({ itens, totalConcluidos, onIrPara, onContinuar }) {
 
 // ─── Card destaque "Quanto posso gastar hoje?" (foco principal da Home) ───────
 // Reaproveita o limite diário (calcularLimiteDiario) e os gastos reais de hoje.
-// NÃO recalcula regra nova: limiteHoje vem da mesma fonte do card detalhado.
+// NÃO recalcula regra nova: limiteHoje e os demais valores vêm da MESMA fonte
+// do card detalhado (derivarResumoGastar) — nada é somado/descontado de novo.
+//
+// Card PRINCIPAL e ÚNICO "Quanto posso gastar?" (visual azul). Unifica o que
+// antes eram dois cards (o azul "hoje" + o escuro "resumo"), sem repetir
+// informação:
+//   • Disponível para gastar HOJE (limiteHoje) em destaque + frase curta.
+//   • Disponível no MÊS (disponivelMes) como informação complementar.
+//   • Status real do orçamento.
+//   • "Ver planejamento completo" → abre a visualização detalhada existente.
 function CardGastoHoje({
-  carregando, limiteHoje, gastosHoje, disponivelHoje,
-  jaFezCheckin, onRegistrarGasto, onNaoGasteiHoje, somenteLeitura,
+  carregando, limiteHoje, onVerCompleto,
+  modo, receitaMes, compromissosMes, limiteManual, hoje,
+  reservaPercentual, saldoConfigurado = false, previsaoFimMes = 0,
 }) {
+  const { ocultar } = useOcultarValores()
   if (carregando) {
     return (
-      <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5">
+      <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-5">
         <div className="h-4 w-48 bg-black/20 rounded animate-pulse" />
         <div className="h-10 w-40 bg-black/20 rounded-lg animate-pulse mt-3" />
       </div>
     )
   }
 
-  // Status do DIA, com base no quanto já foi gasto frente ao limite diário.
-  // 🟢 dentro | 🟡 perto do limite (>= 80%) | 🔴 ultrapassou.
-  let status
-  if (limiteHoje <= 0) {
-    // Sem limite calculado (sem renda/saldo). Mantém neutro.
-    status = null
-  } else if (gastosHoje > limiteHoje) {
-    status = {
-      cor: '🔴',
-      texto: `Você ultrapassou seu planejamento diário em ${formatCurrency(gastosHoje - limiteHoje)}.`,
-    }
-  } else if (gastosHoje >= limiteHoje * 0.8) {
-    status = { cor: '🟡', texto: 'Você está próximo do seu limite de hoje.' }
-  } else {
-    status = { cor: '🟢', texto: 'Você está dentro do planejado hoje.' }
-  }
+  // Disponível no mês + status — MESMA derivação do card detalhado (sem recalcular
+  // regra). "limiteExibido" (gasto/dia) não é mostrado aqui porque o destaque já
+  // é o disponível de HOJE; evitamos repetir a mesma ideia duas vezes.
+  const pct = reservaPercentual != null ? Number(reservaPercentual) : 20
+  const { disponivelMes, status, orcamentoNegativo } = derivarResumoGastar({
+    modo, receitaMes, compromissosMes, limiteManual, hoje,
+    pct, saldoConfigurado, previsaoFimMes,
+  })
+  // Pontinho de status (semântico) legível sobre o azul.
+  const corStatus = status?.cor === '🔴' ? 'bg-red-300'
+    : status?.cor === '🟡' ? 'bg-amber-300'
+    : 'bg-green-300'
 
   return (
-    <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-4 text-white">
+    <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-4 text-white">
       <div className="flex items-center gap-2 text-white/90">
-        <Sun size={18} />
-        <span className="text-sm font-medium">Quanto posso gastar hoje?</span>
+        <Sun size={16} />
+        <span className="text-sm font-medium">Quanto posso gastar?</span>
       </div>
 
-      {/* Valor diário em grande destaque */}
-      <p className="text-3xl sm:text-4xl font-bold mt-1 leading-tight break-words">
-        {formatCurrency(Math.max(0, limiteHoje))}
+      {/* Principal: disponível para gastar HOJE */}
+      <p className="text-xs text-white/80 mt-2">Disponível para gastar hoje</p>
+      <p className="text-3xl sm:text-4xl font-bold mt-0.5 leading-tight break-words">
+        {exibirMoeda(Math.max(0, limiteHoje), ocultar)}
       </p>
-      <p className="text-xs text-white/80 mt-1">
-        Esse é o valor estimado que você pode gastar hoje sem comprometer seu planejamento.
+      <p className="text-xs text-white/80 mt-0.5">
+        Sem comprometer seu planejamento
       </p>
 
-      {/* Gastos de hoje × Disponível hoje */}
-      <div className="grid grid-cols-2 gap-2.5 mt-3">
-        <div className="bg-black/15 rounded-xl px-3 py-2">
-          <p className="text-xs text-white/70">Gastos de hoje</p>
-          <p className="text-lg font-bold break-words">{formatCurrency(gastosHoje)}</p>
-        </div>
-        <div className="bg-black/15 rounded-xl px-3 py-2">
-          <p className="text-xs text-white/70">Disponível hoje</p>
-          <p className={`text-lg font-bold break-words ${disponivelHoje < 0 ? 'text-red-200' : ''}`}>
-            {formatCurrency(disponivelHoje)}
+      {/* Separador discreto */}
+      <div className="border-t border-white/15 my-3" />
+
+      {/* Complementar: disponível no mês + status */}
+      <div className="flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs text-white/80">Disponível no mês</p>
+          <p className={`text-lg font-bold leading-tight break-words ${orcamentoNegativo ? 'text-red-200' : ''}`}>
+            {exibirMoeda(disponivelMes, ocultar)}
           </p>
         </div>
+        {status && (
+          <div className="flex items-center gap-1.5 flex-shrink-0 bg-black/15 rounded-full px-2.5 py-1">
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${corStatus}`} />
+            <span className="text-xs font-medium text-white/90">{status.texto}</span>
+          </div>
+        )}
       </div>
 
-      {/* Status do dia */}
-      {status && (
-        <div className="flex items-start gap-2 mt-2.5 bg-black/15 rounded-xl px-3 py-2">
-          <span className="flex-shrink-0">{status.cor}</span>
-          <span className="text-sm font-medium">{status.texto}</span>
-        </div>
-      )}
-
-      {/* Ações: "Registrar gasto" é a AÇÃO PRINCIPAL (destaque: botão branco,
-          maior, com sombra). "Não gastei hoje" fica como ação secundária
-          (contorno discreto sobre o verde). Ocultas no modo consultoria. */}
-      {!somenteLeitura && (
-      <div className="flex flex-col sm:flex-row gap-2 mt-3">
+      {onVerCompleto && (
         <button
-          onClick={onRegistrarGasto}
-          className="flex-[1.4] flex items-center justify-center gap-2 bg-emerald-700 text-white font-bold text-base px-4 py-3 rounded-xl shadow-md hover:bg-emerald-800 active:scale-[0.99] transition-all"
+          onClick={onVerCompleto}
+          className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-white/90 hover:text-white transition-colors"
         >
-          <Plus size={18} strokeWidth={2.5} className="text-white" /> Registrar gasto
+          Ver planejamento completo <ArrowRight size={15} />
         </button>
-        <button
-          onClick={onNaoGasteiHoje}
-          disabled={jaFezCheckin}
-          className={`flex-1 flex items-center justify-center gap-2 font-medium text-sm px-4 py-2.5 rounded-xl border transition-colors ${
-            jaFezCheckin
-              ? 'bg-black/10 text-white/70 border-transparent cursor-default'
-              : 'bg-transparent text-white/90 border-white/40 hover:bg-black/15'
-          }`}
-        >
-          <Check size={15} /> {jaFezCheckin ? 'Dia sem gastos registrado' : 'Não gastei hoje'}
-        </button>
-      </div>
       )}
     </div>
   )
 }
 
-// ─── Card "Próximos vencimentos" ──────────────────────────────────────────────
-// Mostra APENAS despesas com data futura próxima (hoje+1 .. hoje+7) já
-// carregadas do mês. Não inventa nada: se a lista estiver vazia, nem renderiza.
-function CardProximosVencimentos({ itens }) {
-  if (!itens || itens.length === 0) return null
+// ─── Card "Seu dia financeiro" ────────────────────────────────────────────────
+// Usa os MESMOS dados do cálculo diário (limiteHoje, gastosDeHoje) — não
+// recalcula nada. Mostra "Gastou até agora" e "Ainda disponível", um anel de
+// progresso em CSS puro (sem biblioteca) com o % do limite usado, uma mensagem
+// contextual não alarmista e o botão que reaproveita o fluxo de gasto rápido.
+function CardSeuDiaFinanceiro({
+  carregando, limiteHoje, gastosHoje, gastosCartaoHoje = 0, disponivelHoje,
+  onRegistrarGasto, onNaoGasteiHoje, jaFezCheckin, somenteLeitura,
+}) {
+  const { ocultar } = useOcultarValores()
+  if (carregando) {
+    return (
+      <div className="card">
+        <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
+        <div className="h-20 w-full bg-gray-100 rounded-xl animate-pulse mt-3" />
+      </div>
+    )
+  }
+
+  const temLimite = limiteHoje > 0
+  // % do limite diário já utilizado (0–100 para o anel; o número real pode passar
+  // de 100 quando estoura, mas o anel satura em 100).
+  const pctUsadoReal = temLimite ? (gastosHoje / limiteHoje) * 100 : 0
+  const pctAnel = Math.min(100, Math.max(0, pctUsadoReal))
+  const pctLabel = Math.round(pctUsadoReal)
+
+  // Cor do anel conforme o uso (laranja = atenção/gastos; vermelho = estourou).
+  const corAnel =
+    pctUsadoReal > 100 ? '#ef4444'          // red-500
+    : pctUsadoReal >= 80 ? '#f59e0b'        // amber-500
+    : '#3b82f6'                             // blue-500 (dentro do planejado)
+
+  // Mensagem contextual, não alarmista.
+  let mensagem
+  if (!temLimite) {
+    mensagem = 'Cadastre renda e saldo para acompanhar seu limite diário.'
+  } else if (gastosHoje <= 0) {
+    mensagem = 'Você ainda não registrou gastos hoje.'
+  } else if (gastosHoje > limiteHoje) {
+    mensagem = ocultar
+      ? 'Você ultrapassou seu planejamento diário de hoje.'
+      : `Você ultrapassou seu planejamento diário em ${formatCurrency(gastosHoje - limiteHoje)}.`
+  } else {
+    mensagem = ocultar
+      ? 'Você ainda pode gastar hoje sem comprometer seu planejamento.'
+      : `Você ainda pode gastar ${formatCurrency(Math.max(0, disponivelHoje))} hoje sem comprometer seu planejamento.`
+  }
+
+  // "Não gastei hoje" só faz sentido quando NÃO houve gasto algum hoje (inclui
+  // cartão de crédito, pois gastosHoje já soma à vista + cartão de hoje). Se há
+  // qualquer gasto, o botão não aparece.
+  const semGastoHoje = gastosHoje <= 0
+
   return (
     <div className="card">
-      <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-        <CalendarClock size={18} className="text-blue-600 flex-shrink-0" />
-        Próximos vencimentos
+      <div className="flex items-center gap-3">
+        {/* Anel de progresso em CSS (conic-gradient) — sem biblioteca */}
+        <div
+          className="relative w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0"
+          style={{ background: `conic-gradient(${corAnel} ${pctAnel * 3.6}deg, var(--anel-trilha, #2d333b) 0deg)` }}
+          role="img"
+          aria-label={temLimite ? `${pctLabel}% do limite diário utilizado` : 'Limite diário indisponível'}
+        >
+          <div className="absolute inset-[5px] rounded-full bg-white flex flex-col items-center justify-center">
+            <span className="text-sm font-bold text-gray-900 leading-none">{temLimite ? `${pctLabel}%` : '—'}</span>
+            <span className="text-[9px] text-gray-400 leading-none mt-0.5">do limite</span>
+          </div>
+        </div>
+
+        {/* Gastou até agora × Ainda disponível — próximos ao anel */}
+        <div className="grid grid-cols-2 gap-3 flex-1 min-w-0">
+          <div className="min-w-0">
+            <p className="text-xs text-gray-400">Gastou até agora</p>
+            <p className="text-lg font-bold text-gray-900 break-words leading-tight">{exibirMoeda(gastosHoje, ocultar)}</p>
+            {gastosCartaoHoje > 0 && (
+              <p className="text-[11px] text-gray-400 flex items-center gap-1">
+                <CreditCard size={11} className="flex-shrink-0" />
+                Cartão — {exibirMoeda(gastosCartaoHoje, ocultar)}
+              </p>
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-gray-400">Ainda disponível</p>
+            <p className={`text-lg font-bold break-words leading-tight ${disponivelHoje < 0 ? 'text-red-500' : 'text-green-600'}`}>
+              {exibirMoeda(Math.max(0, disponivelHoje), ocultar)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <p className="text-sm text-gray-500 mt-2.5">{mensagem}</p>
+
+      {!somenteLeitura && (
+        <div className="flex flex-col sm:flex-row gap-2 mt-2.5">
+          <button
+            onClick={onRegistrarGasto}
+            className="btn-primary flex-1 flex items-center justify-center gap-2"
+          >
+            <Plus size={16} strokeWidth={2.5} /> Registrar gasto de hoje
+          </button>
+          {/* Só aparece quando ainda não houve NENHUM gasto hoje. */}
+          {semGastoHoje && (
+            <button
+              onClick={onNaoGasteiHoje}
+              disabled={jaFezCheckin}
+              className={`flex-1 flex items-center justify-center gap-2 font-medium text-sm px-4 py-2.5 rounded-lg border transition-colors ${
+                jaFezCheckin
+                  ? 'bg-gray-100 text-gray-400 border-transparent cursor-default'
+                  : 'bg-transparent text-gray-600 border-gray-300 hover:bg-gray-100'
+              }`}
+            >
+              <Check size={15} /> {jaFezCheckin ? 'Dia sem gastos' : 'Não gastei hoje'}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Card "Próximos 7 dias" ───────────────────────────────────────────────────
+// Compromissos previstos nos próximos 7 dias, a partir dos dados REAIS já
+// carregados: despesas com vencimento no período (inclui recorrentes do mês,
+// cuja "data" é o vencimento) + faturas de cartão cujo dia_vencimento cai no
+// período (valor = fatura do mês do cartão, FONTE ÚNICA, sem duplicar com as
+// despesas). Mostra o total e no máximo os 3 primeiros.
+function CardProximos7Dias({ total, itens, onVerTodos }) {
+  const { ocultar } = useOcultarValores()
+  const tem = itens && itens.length > 0
+  return (
+    <div className="card">
+      <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2 min-w-0">
+        <CalendarClock size={18} className="text-blue-500 flex-shrink-0" />
+        <span className="truncate">Próximos 7 dias</span>
       </h2>
-      <ul className="mt-3 space-y-2">
-        {itens.map(item => (
-          <li key={item.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-3 py-2.5">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{item.descricao}</p>
-              <p className="text-xs text-gray-500">{item.quando}</p>
-            </div>
-            <span className="text-sm font-semibold text-gray-900 flex-shrink-0 whitespace-nowrap">
-              {formatCurrency(item.valor)}
-            </span>
-          </li>
-        ))}
-      </ul>
+
+      {!tem ? (
+        <p className="text-sm text-gray-500 mt-3">Nenhum compromisso previsto para os próximos 7 dias.</p>
+      ) : (
+        <>
+          {/* Total apresentado de forma clara, não isolado no canto. */}
+          <p className="text-sm text-gray-600 mt-1">
+            <span className="font-semibold text-gray-900">{exibirMoeda(total, ocultar)}</span> em compromissos previstos
+          </p>
+          <ul className="mt-3 space-y-2">
+            {itens.slice(0, 3).map(item => (
+              <li key={item.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-3 py-2.5">
+                <div className="min-w-0 flex items-center gap-2.5">
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.cor || 'bg-gray-300'}`} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{item.descricao}</p>
+                    <p className="text-xs text-gray-500">{item.quando}</p>
+                  </div>
+                </div>
+                <span className="text-sm font-semibold text-gray-900 flex-shrink-0 whitespace-nowrap">
+                  {exibirMoeda(item.valor, ocultar)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {onVerTodos && (
+            <button
+              onClick={onVerTodos}
+              className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
+            >
+              Ver todos os compromissos <ArrowRight size={14} />
+            </button>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -973,8 +1190,12 @@ export default function Dashboard() {
   // Para gastos no cartão de crédito: grava em compras_cartao (entra na fatura,
   // não desconta do saldo à vista). Demais formas seguem em despesas.
   const { criar: criarCompraCartao } = useComprasCartao()
+  // Consultoria — SOMENTE LEITURA aqui, para o card compacto da Home refletir o
+  // estado (registrado ou não). O registro de interesse continua acontecendo na
+  // página /consultoria (mesma fonte/hook, sem duplicar lógica).
+  const { interesses: interessesConsultoria } = useConsultoriaInteresses()
+  const jaRegistrouConsultoria = (interessesConsultoria?.length ?? 0) > 0
   const navigate = useNavigate()
-
   const [modalGasto, setModalGasto] = useState(false)
   const [salvandoGasto, setSalvandoGasto] = useState(false)
   const [erroGasto, setErroGasto] = useState('')
@@ -986,6 +1207,7 @@ export default function Dashboard() {
   const [modalSaldo, setModalSaldo] = useState(false)
   const [salvandoSaldo, setSalvandoSaldo] = useState(false)
   const [modalProjecao, setModalProjecao] = useState(false) // detalhes dos 12 meses
+  const [modalPlanejamento, setModalPlanejamento] = useState(false) // "Quanto posso gastar?" completo
 
   // Atalho do botão "+" (menu inferior mobile): ?novo=gasto|reserva abre o
   // modal JÁ existente desta página. Depois limpa o parâmetro da URL.
@@ -996,7 +1218,9 @@ export default function Dashboard() {
     else if (novo === 'reserva') { setModalReservaAtual(true); searchParams.delete('novo'); setSearchParams(searchParams, { replace: true }) }
   }, [searchParams, setSearchParams])
 
-  const hoje = new Date()
+  // "Hoje" ancorado no fuso de Brasília (meio-dia local) — usado em dias
+  // restantes do mês, competência do cartão e no "hoje" dos cálculos do dia.
+  const hoje = hojeDateBrasil()
   // Saudação automática pelo horário de BRASÍLIA (independe do fuso do aparelho).
   // 05–11: Bom dia | 12–17: Boa tarde | 18–04: Boa noite.
   const horaBrasilia = parseInt(
@@ -1029,7 +1253,13 @@ export default function Dashboard() {
   // Cada item apenas VERIFICA dados que já existem e aponta para o fluxo atual.
   // Não há cadastro novo aqui — reutiliza as telas/rotas existentes.
   const temParcelamentos = (parcelamentos?.length ?? 0) > 0
-  const temReserva = (Number(perfil?.reserva_atual) || 0) > 0 || (Number(perfil?.meta_reserva) || 0) > 0
+  // Reserva "concluída": o usuário RESPONDEU a etapa (marcador reserva_configurada,
+  // válido inclusive para R$ 0,00 informado conscientemente) OU — retrocompat para
+  // contas antigas, antes do marcador existir — já tem valor/meta de reserva.
+  const temReserva =
+    perfil?.reserva_configurada === true ||
+    (Number(perfil?.reserva_atual) || 0) > 0 ||
+    (Number(perfil?.meta_reserva) || 0) > 0
   // Ordem: 1) Saldo atual, 2) Receitas, 3) Despesas, 4) Reserva.
   const onboardingItens = [
     { chave: 'saldo',       label: 'Saldo atual',                  to: '/',         concluido: resumoMes.saldoConfigurado },
@@ -1063,7 +1293,7 @@ export default function Dashboard() {
   const carregandoLimite = carregando
 
   // ─── "Quanto posso gastar hoje?" (card destaque) ───
-  const hojeISO = hoje.toISOString().split('T')[0]
+  const hojeISO = hojeISOBrasil() // 'YYYY-MM-DD' no fuso de Brasília
   // Limite diário de hoje — MESMA fonte do card detalhado (calcularLimiteDiario).
   const limiteHoje = calcularLimiteDiario({
     receitaMes,
@@ -1074,11 +1304,34 @@ export default function Dashboard() {
     hoje,
     baseLivre: saldoConfigurado ? previsaoFimMes : undefined,
   })
-  // Gastos de HOJE: soma das despesas (à vista, não recorrentes) com data de hoje.
+  // Gastos de HOJE (à vista): despesas não-recorrentes com data de hoje.
   // Usa os dados já em memória — mesmo padrão do saldo disponível.
-  const gastosDeHoje = despesas
+  const gastosAvistaHoje = despesas
     .filter(d => d.data === hojeISO && !d.recorrente)
     .reduce((acc, d) => acc + (Number(d.valor) || 0), 0)
+
+  // Gastos de HOJE no CARTÃO DE CRÉDITO: compras lançadas em compras_cartao com
+  // data_compra = hoje. IMPORTANTE (sem duplicidade e por competência):
+  //  - usamos SOMENTE o valor da PARCELA do mês atual (parcelaCompraNoMes), não
+  //    o valor total. Assim, uma compra de R$1.200 em 12x entra como ~R$100 hoje,
+  //    e não R$1.200. À vista entra pelo valor cheio.
+  //  - isto é apenas o reflexo em "Gastos de hoje"/"Disponível hoje". A compra
+  //    continua projetada na fatura/orçamento do mês pela MESMA fonte única
+  //    (faturasNoMes/totalFaturaComOverride), que já evita a dupla contagem
+  //    entre compra e fatura. Não tocamos no saldo bancário (saldo_base).
+  const anoHojeNum = hoje.getFullYear()
+  const mesHojeNum = hoje.getMonth() + 1
+  const gastosCartaoHoje = (comprasCartao || [])
+    .filter(c => c.data_compra === hojeISO)
+    .reduce((acc, c) => {
+      const cartao = (cartoes || []).find(ct => ct.id === c.cartao_id)
+      if (!cartao) return acc
+      const p = parcelaCompraNoMes(c, cartao.dia_fechamento, anoHojeNum, mesHojeNum)
+      return acc + (p ? p.valor : 0)
+    }, 0)
+
+  // Total exibido em "Gastos de hoje" = à vista + cartão de crédito de hoje.
+  const gastosDeHoje = gastosAvistaHoje + gastosCartaoHoje
   const disponivelHoje = limiteHoje - gastosDeHoje
 
   // Check-in "Não gastei hoje": registro LOCAL por data (não cria despesa).
@@ -1099,31 +1352,73 @@ export default function Dashboard() {
   // ─── Próximos vencimentos ───
   // Despesas com data futura próxima (amanhã até +7 dias), dentro do que já foi
   // carregado do mês. Rótulo "Vence amanhã" / "Vence em X dias" / data.
-  const proximosVencimentos = (() => {
+  // ─── "Próximos 7 dias" (card da Home) ───
+  // Compromissos previstos nos próximos 7 dias a partir dos dados REAIS, SEM
+  // duplicar. Duas fontes complementares, que não se sobrepõem:
+  //   (1) despesas com vencimento (data) em [hoje+1 .. hoje+7] — inclui as
+  //       recorrentes do mês (a "data" é o vencimento). Despesas pagas via
+  //       cartão de crédito NÃO entram em "despesas", então não há sobreposição
+  //       com a fatura abaixo.
+  //   (2) faturas de cartão: para cada cartão, se o dia_vencimento cair no
+  //       período, uma linha com o TOTAL da fatura do mês (fonte única
+  //       totalFaturaComOverride — mesma do orçamento, nunca somada às compras).
+  const proximos7Dias = (() => {
     const base = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())
     const limiteDias = 7
-    return despesas
+    const rotuloQuando = (diffDias) =>
+      diffDias === 1 ? 'Amanhã' : `Em ${diffDias} dias`
+
+    // (1) Despesas por vencimento
+    const deDespesas = (despesas || [])
       .map(d => {
         if (!d.data) return null
         const dt = new Date(d.data + 'T12:00:00')
         const dataDia = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate())
         const diffDias = Math.round((dataDia - base) / 86400000)
         if (diffDias < 1 || diffDias > limiteDias) return null
-        const quando = diffDias === 1
-          ? 'Vence amanhã'
-          : `Vence em ${diffDias} dias`
         return {
-          id: d.id,
+          id: `desp-${d.id}`,
           descricao: d.descricao || 'Despesa',
           valor: Number(d.valor) || 0,
-          quando,
           diffDias,
+          quando: rotuloQuando(diffDias),
+          cor: 'bg-red-400',
         }
       })
       .filter(Boolean)
-      .sort((a, b) => a.diffDias - b.diffDias)
-      .slice(0, 5)
+
+    // (2) Faturas de cartão por dia_vencimento dentro do período
+    const deFaturas = (cartoes || [])
+      .map(c => {
+        const diaVenc = Number(c.dia_vencimento)
+        if (!(diaVenc >= 1 && diaVenc <= 31)) return null
+        // Próxima ocorrência do dia de vencimento a partir de amanhã.
+        let venc = new Date(base.getFullYear(), base.getMonth(), diaVenc)
+        if (venc <= base) venc = new Date(base.getFullYear(), base.getMonth() + 1, diaVenc)
+        const diffDias = Math.round((venc - base) / 86400000)
+        if (diffDias < 1 || diffDias > limiteDias) return null
+        const comprasDoCartao = (comprasCartao || []).filter(cp => cp.cartao_id === c.id)
+        const parcelamentosDoCartao = (parcelamentos || []).filter(p => p.cartao_id === c.id)
+        // Fatura referente à competência do mês de vencimento.
+        const total = totalFaturaComOverride(
+          comprasDoCartao, parcelamentosDoCartao, faturasInformadas,
+          c.id, c.dia_fechamento, venc.getFullYear(), venc.getMonth() + 1
+        )
+        if (total <= 0) return null
+        return {
+          id: `fat-${c.id}`,
+          descricao: `Cartão de crédito${c.nome ? ` — ${c.nome}` : ''}`,
+          valor: total,
+          diffDias,
+          quando: rotuloQuando(diffDias),
+          cor: 'bg-blue-400',
+        }
+      })
+      .filter(Boolean)
+
+    return [...deDespesas, ...deFaturas].sort((a, b) => a.diffDias - b.diffDias)
   })()
+  const totalProximos7 = proximos7Dias.reduce((acc, i) => acc + (Number(i.valor) || 0), 0)
 
   // ─── Handler do Gasto rápido ───
   async function handleSalvarGasto(dados, categoriaNome) {
@@ -1242,7 +1537,7 @@ export default function Dashboard() {
     try {
       await atualizarPreferenciasLimite({
         saldo_base: valor,
-        saldo_base_data: new Date().toISOString().split('T')[0],
+        saldo_base_data: hojeISOBrasil(),
       })
       setModalSaldo(false) // fecha só em caso de sucesso
     } catch (err) {
@@ -1267,14 +1562,64 @@ export default function Dashboard() {
     }
   }
 
+  // Reabre o onboarding (mesmo fluxo do 1º acesso) na etapa pendente escolhida.
+  // Não cria dados novos: grava a flag que o AreaAutenticada (App.jsx) observa e
+  // abre o <Onboarding/> — e informa em qual etapa começar. Reutiliza o mesmo
+  // mecanismo de "Refazer configuração" das Configurações, sem duplicar lógica.
+  function continuarConfiguracao(chave) {
+    try {
+      localStorage.setItem(CHAVE_REFAZER, '1')
+      if (chave) localStorage.setItem(CHAVE_ETAPA_ONBOARDING, chave)
+      else localStorage.removeItem(CHAVE_ETAPA_ONBOARDING)
+    } catch { /* ignora indisponibilidade do localStorage */ }
+    // Dispara o 'storage' manualmente nesta mesma aba (o evento nativo só chega
+    // em OUTRAS abas) para o AreaAutenticada reagir imediatamente.
+    try { window.dispatchEvent(new Event('almeida-refazer-onboarding')) } catch { /* ignora */ }
+    navigate('/')
+  }
+
+  // ─── Resumo do Horizonte Financeiro (reaproveita o MESMO motor do Horizonte,
+  // gerarHorizonte — sem cálculo paralelo). Deriva: saldo atual, saldo no fim do
+  // mês, saldo no próximo mês e a 1ª data (nos próximos 30 dias) em que o saldo
+  // projetado fica negativo, se houver. */
+  const horizonteResumo = (() => {
+    if (carregando) return null
+    const saldoInicial = resumoMes.saldoConfigurado ? resumoMes.saldoDisponivelAgora : 0
+    const meses = gerarHorizonte({
+      receitas, despesas, recorrentes, parcelamentos,
+      cartoes, comprasCartao, faturasInformadas,
+      saldoInicial, reservaPct, meses: 3,
+    })
+    if (!meses.length) return null
+    const saldoAtual = meses[0].saldoInicial
+    const fimDoMes = meses[0].saldoFinal
+    const proximoMes = meses[1]?.saldoFinal ?? fimDoMes
+
+    // Primeiro dia (de hoje até +30 dias) com saldo projetado negativo.
+    const hojeData = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())
+    const limite = new Date(hojeData); limite.setDate(limite.getDate() + 30)
+    let dataNegativa = null
+    for (const m of meses) {
+      for (const d of m.dias) {
+        const dataDia = new Date(m.ano, m.mes - 1, d.dia)
+        if (dataDia < hojeData || dataDia > limite) continue
+        if (d.saldo < 0) { dataNegativa = dataDia; break }
+      }
+      if (dataNegativa) break
+    }
+    return { saldoAtual, fimDoMes, proximoMes, dataNegativa }
+  })()
+  const fmtDiaMes = (d) =>
+    `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+
   return (
-    <div className="space-y-6">
-      {/* 1 ─ Saudação (horário de Brasília) + botão de ocultar/mostrar valores */}
-      <div className="flex items-start justify-between gap-3">
+    <div className="space-y-5">
+      {/* 1 ─ Saudação (horário de Brasília) + botão global de ocultar valores.
+          Enxuto, sem ocupar altura excessiva. */}
+      <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-gray-900 truncate">{saudacao}</h1>
-          <p className="text-sm font-semibold text-gray-700 mt-1">Resumo Financeiro</p>
-          <p className="text-sm text-gray-500 capitalize">{dataHojeExtenso}</p>
+          <p className="text-sm text-gray-500 capitalize truncate">{dataHojeExtenso}</p>
         </div>
         <button
           onClick={alternar}
@@ -1285,64 +1630,20 @@ export default function Dashboard() {
         </button>
       </div>
 
+      {/* Card "Complete sua configuração" — NO TOPO enquanto a configuração não
+          está 100% concluída. Some ao concluir os 4 itens. Oculto no modo
+          consultoria (somente leitura). */}
+      {mostrarComecePorAqui && !somenteLeitura && (
+        <CardComecePorAqui
+          itens={onboardingItens}
+          totalConcluidos={totalConcluidos}
+          onIrPara={(item) => continuarConfiguracao(item?.chave)}
+          onContinuar={() => continuarConfiguracao(primeiroPendente?.chave)}
+        />
+      )}
+
       {erroGasto && (
         <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{erroGasto}</p>
-      )}
-
-      {/* Saldo disponível em destaque — foco imediato da Home. Reusa o mesmo
-          saldo derivado (saldoDisponivelAgora quando configurado; senão a sobra
-          prevista) e o botão de ocultar valores. */}
-      {!carregando && (
-        <div className="card">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-sm text-gray-500">Saldo disponível</p>
-            {saldoConfigurado && (
-              <button
-                onClick={() => setModalSaldo(true)}
-                className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 flex-shrink-0"
-              >
-                <Pencil size={12} /> Atualizar
-              </button>
-            )}
-          </div>
-          <p className={`text-3xl sm:text-4xl font-bold mt-1 leading-tight break-words ${
-            (saldoConfigurado ? saldoDisponivelAgora : resumoMes.sobraPrevista) >= 0 ? 'text-gray-900' : 'text-red-600'
-          }`}>
-            {exibirMoeda(saldoConfigurado ? saldoDisponivelAgora : resumoMes.sobraPrevista, ocultar)}
-          </p>
-          {!saldoConfigurado && (
-            <button onClick={() => setModalSaldo(true)}
-              className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700">
-              <Wallet size={13} /> Informar meu saldo atual
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Atalhos rápidos — reaproveitam os fluxos JÁ existentes (modais/rotas),
-          sem duplicar lógica. +Receita e Cartão navegam; os demais abrem modais.
-          Ocultos no modo consultoria (somente leitura). */}
-      {!somenteLeitura && (
-      <div className="grid grid-cols-5 gap-2">
-        {[
-          { label: 'Receita',  icon: TrendingUp,   cor: 'text-green-600',  bg: 'bg-green-50',  onClick: () => navigate('/receitas?novo=1') },
-          { label: 'Despesa',  icon: TrendingDown, cor: 'text-red-500',    bg: 'bg-red-50',    onClick: () => navigate('/despesas?novo=1') },
-          { label: 'Gasto',    icon: Zap,          cor: 'text-amber-600',  bg: 'bg-amber-50',  onClick: () => setModalGasto(true) },
-          { label: 'Cartão',   icon: CreditCard,   cor: 'text-sky-600',    bg: 'bg-sky-50',    onClick: () => navigate('/cartoes') },
-          { label: 'Reserva',  icon: PiggyBank,    cor: 'text-violet-600', bg: 'bg-violet-50', onClick: () => setModalReservaAtual(true) },
-        ].map(a => (
-          <button
-            key={a.label}
-            onClick={a.onClick}
-            className="flex flex-col items-center gap-1.5 min-w-0"
-          >
-            <span className={`w-full aspect-square max-h-14 rounded-2xl ${a.bg} flex items-center justify-center`}>
-              <a.icon size={20} className={a.cor} />
-            </span>
-            <span className="text-[11px] font-medium text-gray-600 truncate w-full text-center">{a.label}</span>
-          </button>
-        ))}
-      </div>
       )}
 
       {/* Confirmação curta do gasto rápido + limite diário restante */}
@@ -1350,34 +1651,62 @@ export default function Dashboard() {
         <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-3">
           <p className="text-sm font-medium text-green-700">{confirmacaoGasto.msg}</p>
           <p className="text-xs text-green-600 mt-0.5">
-            Você ainda pode gastar {formatCurrency(confirmacaoGasto.limite)} hoje.
+            Você ainda pode gastar {exibirMoeda(confirmacaoGasto.limite, ocultar)} hoje.
           </p>
         </div>
       )}
 
-      {/* 2 ─ DESTAQUE: Quanto posso gastar hoje? (foco principal da Home) */}
+      {/* 2 ─ PRINCIPAL e ÚNICO: "Quanto posso gastar?" (card azul). Unifica o
+          disponível de HOJE + o disponível no MÊS + status, e abre o
+          planejamento completo no modal. */}
       <CardGastoHoje
         carregando={carregando}
         limiteHoje={limiteHoje}
-        gastosHoje={gastosDeHoje}
-        disponivelHoje={disponivelHoje}
-        jaFezCheckin={jaFezCheckin}
-        onRegistrarGasto={() => setModalGasto(true)}
-        onNaoGasteiHoje={marcarNaoGasteiHoje}
-        somenteLeitura={somenteLeitura}
+        modo={modoLimite}
+        receitaMes={receitaMes}
+        compromissosMes={compromissosMes}
+        limiteManual={limiteManual}
+        hoje={hoje}
+        reservaPercentual={reservaPercentual}
+        saldoConfigurado={saldoConfigurado}
+        previsaoFimMes={previsaoFimMes}
+        onVerCompleto={() => setModalPlanejamento(true)}
       />
 
-      {/* 3 ─ Vai fazer uma compra? (simulação existente) — fundo escuro
-          sofisticado para posicionar o simulador como ferramenta SECUNDÁRIA,
-          deixando o card verde "Quanto posso gastar hoje?" como destaque. */}
-      <div className="bg-gray-100 border border-gray-200 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      {/* 3 ─ Atalhos rápidos — reaproveitam os fluxos JÁ existentes (modais/rotas),
+          sem duplicar lógica. Ocultos no modo consultoria (somente leitura). */}
+      {!somenteLeitura && (
+      <div className="grid grid-cols-5 gap-2 sm:gap-2.5">
+        {[
+          { label: 'Receita',  icon: TrendingUp,   cor: 'text-green-500',  anel: 'bg-green-500/10',  onClick: () => navigate('/receitas?novo=1') },
+          { label: 'Despesa',  icon: TrendingDown, cor: 'text-red-500',    anel: 'bg-red-500/10',    onClick: () => navigate('/despesas?novo=1') },
+          { label: 'Gasto',    icon: Zap,          cor: 'text-amber-500',  anel: 'bg-amber-500/10',  onClick: () => setModalGasto(true) },
+          { label: 'Cartão',   icon: CreditCard,   cor: 'text-blue-500',   anel: 'bg-blue-500/10',   onClick: () => navigate('/cartoes') },
+          { label: 'Reserva',  icon: PiggyBank,    cor: 'text-violet-500', anel: 'bg-violet-500/10', onClick: () => setModalReservaAtual(true) },
+        ].map(a => (
+          <button
+            key={a.label}
+            onClick={a.onClick}
+            className="group flex flex-col items-center justify-center gap-1.5 min-w-0 rounded-xl bg-gray-100 border border-gray-200 py-2.5 px-1 transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md hover:shadow-black/20 active:translate-y-0"
+          >
+            <span className={`w-8 h-8 rounded-full ${a.anel} flex items-center justify-center`}>
+              <a.icon size={17} className={a.cor} />
+            </span>
+            <span className="text-[11px] font-medium text-gray-600 group-hover:text-gray-800 truncate w-full text-center transition-colors">{a.label}</span>
+          </button>
+        ))}
+      </div>
+      )}
+
+      {/* 3b ─ Posso Comprar? (simulador) — logo após os atalhos. */}
+      <div className="bg-gray-100 border border-gray-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-10 h-10 bg-blue-600/20 rounded-xl flex items-center justify-center flex-shrink-0">
             <ShoppingCart size={20} className="text-blue-400" />
           </div>
           <div className="min-w-0">
-            <p className="text-white font-semibold">Vai fazer uma compra?</p>
-            <p className="text-gray-400 text-sm">Antes de comprar, veja como esse gasto pode impactar seu planejamento.</p>
+            <p className="text-white font-semibold">Posso Comprar?</p>
+            <p className="text-gray-400 text-sm">Veja se cabe no seu orçamento.</p>
           </div>
         </div>
         <Link
@@ -1388,181 +1717,86 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      {/* 4 ─ Resumo do mês: Receitas, Despesas, Saldo Atual (com olho), Reserva */}
-      <div>
-        <h2 className="text-base font-semibold text-gray-900 mb-3">Resumo do mês</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          <SummaryCard
-            title="Receitas"
-            value={resumoMes.receitaTotal}
-            icon={TrendingUp}
-            color="text-green-600"
-            bgColor="bg-green-50"
-            subtitle={carregando ? '' : `${resumoMes.qtdReceitas} receita${resumoMes.qtdReceitas !== 1 ? 's' : ''}`}
-            carregando={carregando}
-          />
-          <SummaryCard
-            title="Despesas"
-            value={resumoMes.despesaTotal}
-            icon={TrendingDown}
-            color="text-red-500"
-            bgColor="bg-red-50"
-            subtitle={carregando ? '' : `${resumoMes.qtdDespesas} despesa${resumoMes.qtdDespesas !== 1 ? 's' : ''}`}
-            carregando={carregando}
-          />
-          {/* Saldo Atual — com ícone de olho para ocultar/exibir */}
-          <SummaryCard
-            title="Disponível para gastar"
-            value={resumoMes.sobraPrevista}
-            icon={Wallet}
-            color={resumoMes.sobraPrevista >= 0 ? 'text-blue-600' : 'text-red-600'}
-            bgColor={resumoMes.sobraPrevista >= 0 ? 'bg-blue-50' : 'bg-red-50'}
-            subtitle={carregando ? '' : 'No mês, após compromissos'}
-            carregando={carregando}
-          />
-          <SummaryCard
-            title="Gasto diário sugerido"
-            value={Math.max(0, limiteHoje)}
-            icon={Sun}
-            color="text-amber-600"
-            bgColor="bg-amber-50"
-            subtitle={carregando ? '' : 'Por dia até o fim do mês'}
-            carregando={carregando}
-          />
-          <SummaryCard
-            title="Reserva de emergência"
-            value={reservaAtual}
-            icon={PiggyBank}
-            color="text-emerald-600"
-            bgColor="bg-emerald-50"
-            subtitle={carregando ? '' : (metaReserva > 0 ? `Meta: ${formatCurrency(metaReserva)}` : 'Sem meta definida')}
-            carregando={carregando}
-          />
-        </div>
-      </div>
+      {/* 4 ─ Seu dia financeiro (anel do % do limite + gastou/disponível) */}
+      <CardSeuDiaFinanceiro
+        carregando={carregando}
+        limiteHoje={limiteHoje}
+        gastosHoje={gastosDeHoje}
+        gastosCartaoHoje={gastosCartaoHoje}
+        disponivelHoje={disponivelHoje}
+        onRegistrarGasto={() => setModalGasto(true)}
+        onNaoGasteiHoje={marcarNaoGasteiHoje}
+        jaFezCheckin={jaFezCheckin}
+        somenteLeitura={somenteLeitura}
+      />
 
-      {/* 5 ─ Próximos vencimentos (só se houver despesas com vencimento próximo) */}
-      {!carregando && <CardProximosVencimentos itens={proximosVencimentos} />}
-
-      {/* Card: Saldo disponível agora + Previsão até o fim do mês.
-          A reserva de emergência NÃO entra aqui (fica no card abaixo). */}
+      {/* 5 ─ Próximos 7 dias (compromissos reais: despesas + faturas) */}
       {!carregando && (
-        <div className="card">
-          {saldoConfigurado ? (
-            <>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm text-gray-500">Saldo disponível agora</p>
-                    {/* Olho: oculta/mostra os valores financeiros (só visual) */}
-                    <button
-                      onClick={alternar}
-                      aria-label={ocultar ? 'Mostrar valores' : 'Ocultar valores'}
-                      className="text-gray-400 hover:text-gray-700 p-0.5"
-                    >
-                      {ocultar ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                  <p className={`text-3xl font-bold ${saldoDisponivelAgora >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
-                    {exibirMoeda(saldoDisponivelAgora, ocultar)}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setModalSaldo(true)}
-                  className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 flex-shrink-0 mt-1"
-                >
-                  <Pencil size={13} /> Atualizar saldo
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 mt-4">
-                <div className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-xs text-gray-400">Previsão até o fim do mês</p>
-                  <p className={`text-lg font-bold ${previsaoFimMes >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                    {exibirMoeda(previsaoFimMes, ocultar)}
-                  </p>
-                </div>
-                <div className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-xs text-gray-400">Compromissos a pagar</p>
-                  <p className="text-lg font-bold text-red-500">{exibirMoeda(compromissosFuturosMes, ocultar)}</p>
-                </div>
-              </div>
-              <p className="text-xs text-gray-400 mt-2">
-                O saldo mostra o dinheiro que você já tem. A reserva de emergência é separada.
-              </p>
-            </>
-          ) : (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-gray-900">Informe seu saldo atual</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Diga quanto você tem disponível hoje para o app calcular seu dinheiro em tempo real.
-                </p>
-              </div>
-              <button onClick={() => setModalSaldo(true)}
-                className="btn-primary flex items-center justify-center gap-2 flex-shrink-0">
-                <Wallet size={16} /> Informar saldo
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Card "Comece por aqui" — some automaticamente quando os 4 itens
-          estiverem concluídos. Cada item leva ao fluxo JÁ existente. */}
-      {mostrarComecePorAqui && (
-        <CardComecePorAqui
-          itens={onboardingItens}
-          totalConcluidos={totalConcluidos}
-          onIrPara={(item) => {
-            if (item.chave === 'saldo') setModalSaldo(true)
-            else if (item.chave === 'reserva') setModalReservaAtual(true)
-            else navigate(item.to)
-          }}
-          onContinuar={() => {
-            if (!primeiroPendente) return
-            if (primeiroPendente.chave === 'saldo') setModalSaldo(true)
-            else if (primeiroPendente.chave === 'reserva') setModalReservaAtual(true)
-            else navigate(primeiroPendente.to)
-          }}
+        <CardProximos7Dias
+          total={totalProximos7}
+          itens={proximos7Dias}
+          onVerTodos={() => navigate('/despesas')}
         />
       )}
 
-      {/* Card: Quanto posso gastar? (Automático | Manual) */}
-      <CardQuantoPossoGastar
-        carregando={carregandoLimite}
-        modo={modoLimite}
-        onTrocarModo={handleTrocarModo}
-        receitaMes={receitaMes}
-        compromissosMes={compromissosMes}
-        limiteManual={limiteManual}
-        onEditarLimite={() => setModalLimite(true)}
-        hoje={hoje}
-        reservaPercentual={reservaPercentual}
-        reservaAtual={reservaAtual}
-        metaReserva={metaReserva}
-        onEditarReservaAtual={() => setModalReservaAtual(true)}
-        onTrocarReserva={handleTrocarReserva}
-        saldoConfigurado={saldoConfigurado}
-        previsaoFimMes={previsaoFimMes}
-      />
-
-      {/* Gráfico de projeção */}
+      {/* 6 ─ Horizonte Financeiro (card-resumo + acesso ao Horizonte completo) */}
       <div className="card">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">Projeção dos próximos 12 meses</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Receitas e despesas recorrentes, parcelas, faturas e reserva de emergência</p>
-          </div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2 min-w-0">
+            <BarChart2 size={18} className="text-blue-500 flex-shrink-0" />
+            <span className="truncate">Horizonte Financeiro</span>
+          </h2>
           <button
             type="button"
             onClick={() => setModalProjecao(true)}
             disabled={carregando || projecao.length === 0}
             className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
           >
-            Ver detalhes <ArrowRight size={14} />
+            Ver completo <ArrowRight size={14} />
           </button>
         </div>
+
+        {/* Resumo do Horizonte: Saldo atual / Fim do mês / Próximo mês + status
+            real (data de saldo negativo), reaproveitando gerarHorizonte. */}
+        {horizonteResumo && (
+          <>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <div className="bg-gray-50 rounded-xl px-3 py-2.5 min-w-0">
+                <p className="text-xs text-gray-400">Saldo atual</p>
+                <p className={`text-base sm:text-lg font-bold leading-tight break-words ${horizonteResumo.saldoAtual >= 0 ? 'text-gray-900' : 'text-red-500'}`}>
+                  {exibirMoeda(horizonteResumo.saldoAtual, ocultar)}
+                </p>
+              </div>
+              <div className="bg-gray-50 rounded-xl px-3 py-2.5 min-w-0">
+                <p className="text-xs text-gray-400">Fim do mês</p>
+                <p className={`text-base sm:text-lg font-bold leading-tight break-words ${horizonteResumo.fimDoMes >= 0 ? 'text-gray-900' : 'text-red-500'}`}>
+                  {exibirMoeda(horizonteResumo.fimDoMes, ocultar)}
+                </p>
+              </div>
+              <div className="bg-gray-50 rounded-xl px-3 py-2.5 min-w-0">
+                <p className="text-xs text-gray-400">Próximo mês</p>
+                <p className={`text-base sm:text-lg font-bold leading-tight break-words ${horizonteResumo.proximoMes >= 0 ? 'text-gray-900' : 'text-red-500'}`}>
+                  {exibirMoeda(horizonteResumo.proximoMes, ocultar)}
+                </p>
+              </div>
+            </div>
+
+            {/* Status inteligente baseado nos dados reais do Horizonte */}
+            {horizonteResumo.dataNegativa ? (
+              <div className="flex items-center gap-2 mt-3 text-sm text-red-600">
+                <AlertTriangle size={16} className="flex-shrink-0" />
+                <span>Saldo pode ficar negativo em {fmtDiaMes(horizonteResumo.dataNegativa)}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 mt-3 text-sm text-green-600">
+                <CheckCircle2 size={16} className="flex-shrink-0" />
+                <span>Saldo positivo nos próximos 30 dias</span>
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="mt-4 pt-4 border-t border-gray-200" />
 
         {/* Aviso quando não há itens recorrentes cadastrados */}
         {mostrarAvisoProjecao && (
@@ -1605,8 +1839,189 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Modal: Horizonte financeiro (fluxo de caixa diário) — abre pelo "Ver detalhes" */}
-      <Modal aberto={modalProjecao} onFechar={() => setModalProjecao(false)} titulo="Horizonte financeiro">
+      {/* 7 ─ Consultoria (card compacto; estado reflete o registro — ação na
+          página /consultoria, sem duplicar a lógica de interesse). Oculto no
+          modo consultoria (somente leitura). */}
+      {!somenteLeitura && (
+        <div className="card">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
+              <MessageCircle size={19} className="text-blue-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base font-semibold text-gray-900 leading-snug">
+                Consultoria financeira com Matheus Almeida
+              </h2>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Planejamento personalizado para organizar sua vida financeira.
+              </p>
+
+              {jaRegistrouConsultoria ? (
+                <div className="flex items-center gap-2 mt-3">
+                  <CheckCircle2 size={16} className="text-green-500 flex-shrink-0" />
+                  <p className="text-sm text-gray-600 min-w-0">
+                    <span className="font-medium text-gray-800">Interesse registrado.</span>{' '}
+                    Você será avisado pelo WhatsApp quando houver disponibilidade.
+                  </p>
+                </div>
+              ) : (
+                <button
+                  onClick={() => navigate('/consultoria')}
+                  className="btn-primary mt-3 inline-flex items-center justify-center gap-2 text-sm"
+                >
+                  Quero saber mais sobre a consultoria <ArrowRight size={15} />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Apoio (abaixo da hierarquia principal) ── */}
+
+      {/* Resumo do mês: Receitas, Despesas, Disponível, Gasto diário, Reserva. */}
+      <div>
+        <h2 className="text-base font-semibold text-gray-900 mb-3">Resumo do mês</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <SummaryCard
+            title="Receitas"
+            value={resumoMes.receitaTotal}
+            icon={TrendingUp}
+            color="text-green-600"
+            bgColor="bg-green-50"
+            subtitle={carregando ? '' : `${resumoMes.qtdReceitas} receita${resumoMes.qtdReceitas !== 1 ? 's' : ''}`}
+            carregando={carregando}
+          />
+          <SummaryCard
+            title="Despesas"
+            value={resumoMes.despesaTotal}
+            icon={TrendingDown}
+            color="text-red-500"
+            bgColor="bg-red-50"
+            subtitle={carregando ? '' : `${resumoMes.qtdDespesas} despesa${resumoMes.qtdDespesas !== 1 ? 's' : ''}`}
+            carregando={carregando}
+          />
+          <SummaryCard
+            title="Disponível para gastar"
+            value={resumoMes.sobraPrevista}
+            icon={Wallet}
+            color={resumoMes.sobraPrevista >= 0 ? 'text-blue-600' : 'text-red-600'}
+            bgColor={resumoMes.sobraPrevista >= 0 ? 'bg-blue-50' : 'bg-red-50'}
+            subtitle={carregando ? '' : 'No mês, após compromissos'}
+            carregando={carregando}
+          />
+          <SummaryCard
+            title="Gasto diário sugerido"
+            value={Math.max(0, limiteHoje)}
+            icon={Sun}
+            color="text-amber-600"
+            bgColor="bg-amber-50"
+            subtitle={carregando ? '' : 'Por dia até o fim do mês'}
+            carregando={carregando}
+          />
+          <SummaryCard
+            title="Reserva de emergência"
+            value={reservaAtual}
+            icon={PiggyBank}
+            color="text-amber-600"
+            bgColor="bg-amber-50"
+            subtitle={carregando ? '' : (metaReserva > 0 ? `Meta: ${formatCurrency(metaReserva)}` : 'Sem meta definida')}
+            carregando={carregando}
+          />
+        </div>
+      </div>
+
+      {/* Saldo disponível agora + Previsão até o fim do mês.
+          A reserva de emergência NÃO entra aqui. */}
+      {!carregando && (
+        <div className="card">
+          {saldoConfigurado ? (
+            <>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-gray-500">Saldo disponível agora</p>
+                    <button
+                      onClick={alternar}
+                      aria-label={ocultar ? 'Mostrar valores' : 'Ocultar valores'}
+                      className="text-gray-400 hover:text-gray-700 p-0.5"
+                    >
+                      {ocultar ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <p className={`text-3xl font-bold ${saldoDisponivelAgora >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+                    {exibirMoeda(saldoDisponivelAgora, ocultar)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setModalSaldo(true)}
+                  className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 flex-shrink-0 mt-1"
+                >
+                  <Pencil size={13} /> Atualizar saldo
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <p className="text-xs text-gray-400">Saldo previsto no fim do mês</p>
+                  <p className={`text-lg font-bold ${previsaoFimMes >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                    {exibirMoeda(previsaoFimMes, ocultar)}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <p className="text-xs text-gray-400">Compromissos a pagar</p>
+                  <p className="text-lg font-bold text-red-500">{exibirMoeda(compromissosFuturosMes, ocultar)}</p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                O saldo mostra o dinheiro que você já tem. A reserva de emergência é separada.
+              </p>
+            </>
+          ) : (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Informe seu saldo atual</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Diga quanto você tem disponível hoje para o app calcular seu dinheiro em tempo real.
+                </p>
+              </div>
+              <button onClick={() => setModalSaldo(true)}
+                className="btn-primary flex items-center justify-center gap-2 flex-shrink-0">
+                <Wallet size={16} /> Informar saldo
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Modal: planejamento completo "Quanto posso gastar?" — todos os detalhes
+          (modos, reserva, renda/compromissos/disponível, ajuste diário, meta,
+          progresso e previsão) ficam aqui, fora da visão principal da Home.
+          Reutiliza o MESMO componente/cálculos — nada foi removido. */}
+      <Modal aberto={modalPlanejamento} onFechar={() => setModalPlanejamento(false)} titulo="Planejamento completo">
+        <CardQuantoPossoGastar
+          carregando={carregandoLimite}
+          modo={modoLimite}
+          onTrocarModo={handleTrocarModo}
+          receitaMes={receitaMes}
+          compromissosMes={compromissosMes}
+          limiteManual={limiteManual}
+          onEditarLimite={() => setModalLimite(true)}
+          hoje={hoje}
+          reservaPercentual={reservaPercentual}
+          reservaAtual={reservaAtual}
+          metaReserva={metaReserva}
+          onEditarReservaAtual={() => setModalReservaAtual(true)}
+          onTrocarReserva={handleTrocarReserva}
+          saldoConfigurado={saldoConfigurado}
+          previsaoFimMes={previsaoFimMes}
+        />
+      </Modal>
+
+      {/* Modal: Horizonte financeiro (fluxo de caixa diário) — abre pelo "Ver detalhes".
+          Painel mais largo (tamanho="lg") para os 5 indicadores do resumo caberem
+          lado a lado no desktop sem sobreposição. */}
+      <Modal aberto={modalProjecao} onFechar={() => setModalProjecao(false)} titulo="Horizonte financeiro" tamanho="lg">
         <HorizonteFinanceiro
           receitas={receitas}
           despesas={despesas}

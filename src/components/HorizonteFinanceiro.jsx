@@ -3,12 +3,15 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { formatCurrency } from '../lib/utils'
 import { gerarHorizonte } from '../lib/horizonteFinanceiro'
 
-// Resumo do topo (uma métrica) — valor SEMPRE em uma linha (sem quebrar centavos).
+// Resumo do topo (uma métrica): título ACIMA, valor ABAIXO. O valor pode
+// quebrar em até duas linhas quando for grande (ex.: acima de R$ 100.000,00),
+// evitando sobreposição em colunas estreitas. tabular-nums mantém os dígitos
+// alinhados. Respeita o "ocultar valores" (via formatCurrency).
 function ResumoItem({ rotulo, valor, cor = 'text-gray-900' }) {
   return (
-    <div className="min-w-0 text-center">
-      <p className="text-[11px] text-gray-400 leading-tight mb-0.5">{rotulo}</p>
-      <p className={`text-sm font-bold whitespace-nowrap tabular-nums ${cor}`}>
+    <div className="min-w-0 text-center rounded-lg bg-gray-50 px-2 py-2">
+      <p className="text-[11px] text-gray-400 leading-tight mb-1">{rotulo}</p>
+      <p className={`text-xs sm:text-sm font-bold tabular-nums leading-tight break-words ${cor}`}>
         {formatCurrency(valor)}
       </p>
     </div>
@@ -111,9 +114,12 @@ export default function HorizonteFinanceiro({
         <p className="text-xs text-gray-500 mb-2">
           Resumo de <span className="capitalize font-semibold text-gray-700">{mesSel.label}</span>
         </p>
-        {/* Grid responsivo: mobile 2 col (2+2+1), tablet 3 col (3+2),
-            desktop 5 col ocupando toda a largura com espaçamento maior. */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-3 lg:gap-x-6">
+        {/* Grid responsivo com cada indicador em sua "caixa": celular 2 colunas
+            (2+2+1), tablet 3 colunas, desktop 5 colunas lado a lado. Como o
+            modal agora é mais largo (tamanho="lg"), as 5 colunas têm espaço
+            folgado e os valores não se sobrepõem — mesmo acima de R$ 100.000,00
+            (quebram em 2 linhas se necessário). */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
           <ResumoItem rotulo="Saldo inicial" valor={mesSel.saldoInicial} cor="text-gray-700" />
           <ResumoItem rotulo="Entradas" valor={mesSel.entradas} cor="text-green-600" />
           <ResumoItem rotulo="Compromissos" valor={mesSel.saidas} cor="text-red-500" />

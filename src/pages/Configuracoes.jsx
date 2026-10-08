@@ -1,11 +1,112 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, Mail, AlertTriangle, Loader2, Trash2, LogOut, Sparkles, Eye, EyeOff, Clock } from 'lucide-react'
+import { User, Mail, AlertTriangle, Loader2, Trash2, LogOut, Sparkles, Eye, EyeOff, Clock, MessageSquarePlus, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useZerarDados } from '../hooks/useZerarDados'
 import { useConsultoriaAcessos } from '../hooks/useConsultoriaAcessos'
+import { useFeedbacks } from '../hooks/useFeedbacks'
 import { supabase } from '../lib/supabase'
 import Modal from '../components/Modal'
+
+// Card para o usuário ENVIAR um feedback (sugestão, dúvida ou problema). O
+// envio usa a mesma fonte/hook do painel Admin (useFeedbacks). RLS garante que
+// o registro é criado só em nome do próprio usuário.
+function EnviarFeedback() {
+  const { criar } = useFeedbacks()
+  const [tipo, setTipo] = useState('sugestao')
+  const [mensagem, setMensagem] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [enviado, setEnviado] = useState(false)
+  const [erro, setErro] = useState('')
+
+  const TIPOS = [
+    { value: 'sugestao', label: 'Sugestão' },
+    { value: 'duvida',   label: 'Dúvida' },
+    { value: 'problema', label: 'Problema' },
+  ]
+
+  async function handleEnviar(e) {
+    e.preventDefault()
+    if (!mensagem.trim() || enviando) return
+    setEnviando(true); setErro('')
+    try {
+      await criar({ tipo, mensagem })
+      setEnviado(true)
+      setMensagem('')
+      setTipo('sugestao')
+    } catch {
+      setErro('Não foi possível enviar seu feedback agora. Tente novamente.')
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <div className="card">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+          <MessageSquarePlus size={16} className="text-blue-700" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-semibold text-gray-900">Enviar feedback</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Tem uma sugestão, dúvida ou encontrou um problema? Conte pra gente.
+          </p>
+
+          {enviado ? (
+            <div className="flex items-center gap-2 mt-3">
+              <CheckCircle2 size={16} className="text-green-500 flex-shrink-0" />
+              <p className="text-sm text-gray-600">
+                <span className="font-medium text-gray-800">Feedback enviado.</span>{' '}
+                Obrigado! Vamos analisar com carinho.
+              </p>
+              <button
+                onClick={() => setEnviado(false)}
+                className="text-xs font-medium text-blue-600 hover:text-blue-700 ml-auto flex-shrink-0"
+              >
+                Enviar outro
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleEnviar} className="mt-3 space-y-3">
+              <div className="grid grid-cols-3 gap-2">
+                {TIPOS.map(t => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setTipo(t.value)}
+                    className={`py-2 rounded-lg text-sm font-medium border transition-colors ${
+                      tipo === t.value
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              <textarea
+                className="input min-h-[88px] resize-y"
+                placeholder="Escreva aqui sua sugestão, dúvida ou problema..."
+                value={mensagem}
+                onChange={(e) => setMensagem(e.target.value)}
+                maxLength={2000}
+              />
+              {erro && <p className="text-xs text-red-500">{erro}</p>}
+              <button
+                type="submit"
+                disabled={enviando || !mensagem.trim()}
+                className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {enviando ? <><Loader2 size={15} className="animate-spin" /> Enviando...</> : 'Enviar feedback'}
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // Card que lista os acessos de consultoria do CLIENTE (consultores autorizados
 // ou com solicitação pendente) e permite revogar/recusar. Só aparece se houver
@@ -200,6 +301,9 @@ export default function Configuracoes() {
 
       {/* Acessos de consultoria (autorizar/recusar/revogar) */}
       <AcessosConsultoria />
+
+      {/* Enviar feedback (sugestão / dúvida / problema) */}
+      <EnviarFeedback />
 
       {/* Refazer configuração financeira (reabre o onboarding) */}
       <div className="card">

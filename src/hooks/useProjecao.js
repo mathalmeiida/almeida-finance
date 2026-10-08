@@ -7,7 +7,7 @@ import { useComprasCartao } from './useComprasCartao'
 import { useFaturasCartao } from './useFaturasCartao'
 import { totalFaturaComOverride } from '../lib/faturaCartao'
 import { useAuth } from '../contexts/AuthContext'
-import { labelMes } from '../lib/utils'
+import { labelMes, hojeISO, partesHojeBrasil } from '../lib/utils'
 
 /**
  * Hook central de projeção financeira.
@@ -20,9 +20,9 @@ import { labelMes } from '../lib/utils'
  *   saldo     = receitas - despesas - parcelas
  */
 export function useProjecao() {
-  // Busca dados do mês atual (para não-recorrentes)
-  const mesAtual = new Date().getMonth() + 1
-  const anoAtual = new Date().getFullYear()
+  // Busca dados do mês atual (para não-recorrentes). Mês/ano no fuso de Brasília
+  // para o "mês atual" não virar antes da hora perto da virada do dia/mês.
+  const { ano: anoAtual, mes: mesAtual } = partesHojeBrasil()
 
   const { receitas, carregando: carregandoR } = useReceitas(mesAtual, anoAtual)
   const { despesas, recorrentes, carregando: carregandoD, criar: criarDespesa, recarregar: recarregarDespesas } = useDespesas(mesAtual, anoAtual)
@@ -125,7 +125,7 @@ export function useProjecao() {
   // A reserva de emergência NUNCA entra aqui — fica separada.
   const saldoConfigurado = perfil?.saldo_base != null
   const saldoBase = Number(perfil?.saldo_base) || 0
-  const hojeStr = new Date().toISOString().split('T')[0]
+  const hojeStr = hojeISO() // data de hoje no fuso de Brasília
   const marcoStr = perfil?.saldo_base_data || hojeStr
 
   // Data em que a despesa EFETIVAMENTE saiu do bolso: se foi paga

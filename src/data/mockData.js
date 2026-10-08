@@ -125,15 +125,7 @@ export const categoriasDespesa = [
   'Outros',
 ]
 
-// Utilitário de formatação de moeda
-export const formatCurrency = (value) => {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(value)
-}
-
-// Utilitário de formatação de data
-export const formatDate = (dateString) => {
-  return new Date(dateString + 'T12:00:00').toLocaleDateString('pt-BR')
-}
+// Observação: utilitários de formatação (formatCurrency/formatDate) foram
+// removidos daqui — a formatação oficial do app vive em src/lib/utils.js, que
+// respeita o "Ocultar valores". Mantê-los aqui era código morto (nenhum import)
+// e um risco de, por engano, burlar a máscara de privacidade.

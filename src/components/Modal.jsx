@@ -1,7 +1,16 @@
 import React, { useEffect } from 'react'
 import { X } from 'lucide-react'
 
-export default function Modal({ aberto, onFechar, titulo, children }) {
+// Larguras disponíveis para o painel no desktop. 'md' (padrão) preserva o
+// comportamento atual de todos os modais; 'lg'/'xl' são para conteúdos mais
+// largos (ex.: Horizonte Financeiro com 5 indicadores lado a lado).
+const LARGURAS = {
+  md: 'sm:max-w-md',
+  lg: 'sm:max-w-2xl',
+  xl: 'sm:max-w-4xl',
+}
+
+export default function Modal({ aberto, onFechar, titulo, children, tamanho = 'md' }) {
   // Fecha com ESC
   useEffect(() => {
     function handler(e) {
@@ -29,7 +38,7 @@ export default function Modal({ aberto, onFechar, titulo, children }) {
       {/* Painel — bottom sheet no mobile, card centralizado no desktop.
           Altura limitada à viewport (com safe-area no mobile) e scroll interno;
           o cabeçalho (título + X) fica fixo no topo. */}
-      <div className="relative bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90dvh] sm:max-h-[90vh] overflow-y-auto flex flex-col">
+      <div className={`relative bg-white w-full ${LARGURAS[tamanho] || LARGURAS.md} rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90dvh] sm:max-h-[90vh] overflow-y-auto flex flex-col`}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10 flex-shrink-0">
           <h3 className="text-base font-semibold text-gray-900 pr-2 truncate">{titulo}</h3>
           <button

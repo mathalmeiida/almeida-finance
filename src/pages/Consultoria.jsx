@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 import {
-  MessageCircle, UserCheck, CheckCircle2, Loader2, ArrowDown, Award,
+  MessageCircle, CheckCircle2, Loader2, ArrowDown, Award,
   GraduationCap, BadgeCheck, Wallet, PiggyBank, Target, LineChart, ListChecks, TrendingDown,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
@@ -163,55 +163,40 @@ export default function Consultoria() {
         </button>
       </section>
 
-      {/* ── 6. Consultoria existente (lógica preservada) ── */}
+      {/* ── 6. Consultoria (lógica preservada) ── Card ÚNICO e integrado:
+          cabeçalho + ação (ainda não registrou) OU confirmação compacta
+          (interesse já registrado). Visual fintech, azul = ação, verde só
+          como sinal de sucesso. */}
       <div ref={formRef} className="scroll-mt-4">
-        <div className="flex items-start gap-3 mb-4">
-          <div className="w-11 h-11 bg-blue-50 rounded-2xl flex items-center justify-center flex-shrink-0">
-            <MessageCircle size={22} className="text-blue-600" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-xl font-bold text-gray-900">Consultoria financeira com Matheus Almeida</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              Planejamento personalizado para organizar sua vida financeira.
-            </p>
-          </div>
-        </div>
-
-        {jaRegistrou ? (
-          // Estado: interesse registrado
-          <div className="card bg-gradient-to-br from-green-50 to-emerald-50 border-green-100">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-green-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                <CheckCircle2 size={20} className="text-white" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-base font-semibold text-green-900">Interesse registrado!</h3>
-                <p className="text-sm text-green-800 mt-1">
-                  Você será avisado pelo WhatsApp sobre a disponibilidade da consultoria.
-                </p>
-              </div>
+        <div className="card">
+          {/* Cabeçalho: título + subtítulo, com o ícone de conversa discreto ao lado */}
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
+              <MessageCircle size={19} className="text-blue-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base font-semibold text-gray-900 leading-snug">
+                Consultoria financeira com Matheus Almeida
+              </h2>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Planejamento personalizado para organizar sua vida financeira.
+              </p>
             </div>
           </div>
-        ) : (
-          <div className="space-y-6">
-            {/* Card em destaque */}
-            <div className="card bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-100">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <UserCheck size={20} className="text-white" />
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-base font-semibold text-blue-900">Atendimento personalizado</h3>
-                  <p className="text-sm text-blue-800 mt-1">
-                    Quer receber informações sobre disponibilidade e agendamento? Deixe seu WhatsApp e
-                    entraremos em contato por lá.
-                  </p>
-                </div>
-              </div>
-            </div>
 
-            {/* Formulário */}
-            <form onSubmit={handleSubmit} className="card space-y-4">
+          {jaRegistrou ? (
+            // Estado: interesse JÁ registrado — confirmação compacta (sem caixa
+            // verde grande). Pequeno check verde + texto discreto.
+            <div className="flex items-center gap-2.5 mt-4 pt-4 border-t border-gray-200">
+              <CheckCircle2 size={18} className="text-green-500 flex-shrink-0" />
+              <p className="text-sm text-gray-600 min-w-0">
+                <span className="font-medium text-gray-800">Interesse registrado.</span>{' '}
+                Você será avisado pelo WhatsApp quando houver disponibilidade.
+              </p>
+            </div>
+          ) : (
+            // Estado: AINDA não registrou — campos + ação azul no MESMO card.
+            <form onSubmit={handleSubmit} className="mt-4 pt-4 border-t border-gray-200 space-y-4">
               <div>
                 <label className="label">Nome</label>
                 <input
@@ -236,11 +221,11 @@ export default function Consultoria() {
                 className="btn-primary w-full flex items-center justify-center gap-2 py-2.5">
                 {salvando
                   ? <><Loader2 size={15} className="animate-spin" /> Registrando...</>
-                  : <><MessageCircle size={16} /> Quero ser avisado pelo WhatsApp</>}
+                  : <><MessageCircle size={16} /> Quero saber mais sobre a consultoria</>}
               </button>
             </form>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   )

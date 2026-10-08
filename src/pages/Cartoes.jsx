@@ -8,7 +8,7 @@ import { useFaturasCartao } from '../hooks/useFaturasCartao'
 import { useCategorias } from '../hooks/useCategorias'
 import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
-import { formatCurrency, formatDate, labelMes } from '../lib/utils'
+import { formatCurrency, formatDate, labelMes, hojeISO } from '../lib/utils'
 import { calcularParcelas, useParcelamentos } from '../hooks/useParcelamentos'
 import {
   valorFaturaCartaoNoMes, limiteComprometido, linhasFaturaCompleta,
@@ -104,7 +104,7 @@ function FormCompra({ cartoes, cartaoIdFixo, onSalvar, onCancelar, carregando })
     cartao_id: cartaoIdFixo ?? (cartoes[0]?.id ?? ''),
     descricao: '',
     valor_total: '',
-    data_compra: new Date().toISOString().split('T')[0],
+    data_compra: hojeISO(),
     categoria_id: '',
     tipo: 'avista',
     numero_parcelas: '2',

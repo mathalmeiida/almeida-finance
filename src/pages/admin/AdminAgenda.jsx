@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Loader2, Plus, Pencil, Trash2, MessageCircle, CalendarClock } from 'lucide-react'
 import { useAgendamentos } from '../../hooks/useConsultoria'
 import Modal from '../../components/Modal'
-import { mascararTelefone, somenteDigitosTelefone, linkWhatsApp } from '../../lib/utils'
+import { mascararTelefone, somenteDigitosTelefone, linkWhatsApp, hojeISO as hojeISOBrasil } from '../../lib/utils'
 
 const STATUS = {
   agendado:  { label: 'Agendado',  classe: 'bg-indigo-50 text-indigo-700' },
@@ -16,7 +16,7 @@ function fmtDataExtenso(dataISO) {
     weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric',
   })
 }
-const hojeISO = () => new Date().toISOString().split('T')[0]
+const hojeISO = () => hojeISOBrasil()
 
 // Formulário de agendamento (criar/editar).
 function FormAgendamento({ inicial, onSalvar, onCancelar, salvando }) {

@@ -29,6 +29,12 @@ CREATE TABLE IF NOT EXISTS public.perfis (
 -- ALTER TABLE public.perfis
 --   ADD COLUMN IF NOT EXISTS meta_reserva NUMERIC(12,2) DEFAULT 0
 --   CHECK (meta_reserva IS NULL OR meta_reserva >= 0);
+-- Marcador de progresso: TRUE quando o usuário RESPONDEU a etapa de reserva no
+-- onboarding (mesmo informando R$ 0,00). Distingue "ainda não respondeu" de
+-- "respondeu que possui R$ 0,00". NÃO afeta nenhum cálculo financeiro.
+-- (migration: 2026-10_reserva_configurada.sql)
+-- ALTER TABLE public.perfis
+--   ADD COLUMN IF NOT EXISTS reserva_configurada BOOLEAN NOT NULL DEFAULT FALSE;
 -- Saldo atual real informado pelo usuário ("Quanto você tem disponível hoje?").
 -- saldo_base = valor informado; saldo_base_data = marco temporal (a partir dele
 -- as receitas/despesas alteram o saldo, evitando dupla contagem do histórico).

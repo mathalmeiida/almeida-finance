@@ -1,22 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
 /**
  * Controla o fluxo de primeiro acesso (onboarding).
  *
- * FONTE PRINCIPAL: perfis.onboarding_concluido (persistido no Supabase, por
- * conta → funciona em qualquer dispositivo). Sem localStorage.
+ * FONTE PRINCIPAL e ÚNICA: perfis.onboarding_concluido (persistido no Supabase,
+ * por conta → funciona em qualquer dispositivo). Sem localStorage.
  *
  * Regra de exibição:
  *   - onboarding_concluido === true  → NUNCA mostra.
- *   - onboarding_concluido === false → mostra, EXCETO se o usuário já tiver
- *     dados financeiros (receita/despesa/cartão). Nesse caso ele é uma conta
- *     já configurada: não mostra e corrige a flag no banco (defesa extra, caso
- *     a migração não tenha coberto algum perfil).
- *
- * Observação: a Parte 2 do SQL já marcou onboarding_concluido = TRUE para as
- * contas existentes com dados. A checagem por dados aqui é só uma salvaguarda.
+ *   - onboarding_concluido === false → SEMPRE mostra o onboarding, inclusive
+ *     para contas que já têm dados financeiros (ex.: quando o Admin usa
+ *     "Reiniciar onboarding"). Os dados NÃO são apagados — o fluxo apenas
+ *     reaparece e as etapas vêm pré-preenchidas com o que já existe.
  */
 export function useOnboarding() {
   const { usuario, perfil, marcarOnboardingConcluido } = useAuth()
@@ -32,37 +28,24 @@ export function useOnboarding() {
 
     setVerificando(true)
     try {
-      // Fonte principal: campo persistido no banco.
-      if (perfil.onboarding_concluido === true) {
-        setPrecisaOnboarding(false)
-        return
-      }
-
-      // Salvaguarda: conta antiga sem a flag marcada mas que já tem dados.
-      const [receitas, despesas, cartoes] = await Promise.all([
-        supabase.from('receitas').select('id', { count: 'exact', head: true }).eq('usuario_id', usuario.id),
-        supabase.from('despesas').select('id', { count: 'exact', head: true }).eq('usuario_id', usuario.id),
-        supabase.from('cartoes').select('id', { count: 'exact', head: true }).eq('usuario_id', usuario.id),
-      ])
-      const totalDados =
-        (receitas.count ?? 0) + (despesas.count ?? 0) + (cartoes.count ?? 0)
-
-      if (totalDados > 0) {
-        // Já configurada: não mostra e corrige a flag no banco.
-        setPrecisaOnboarding(false)
-        try { await marcarOnboardingConcluido() } catch { /* não bloqueia o acesso */ }
-        return
-      }
-
-      // Conta nova e vazia, sem flag → mostra o onboarding.
-      setPrecisaOnboarding(true)
+      // Fonte principal e ÚNICA: a flag persistida no banco.
+      //  - true  → onboarding concluído, nunca mostra.
+      //  - false → mostra o onboarding. Isso vale tanto para contas novas e
+      //    vazias quanto para contas que o ADMIN reiniciou (onboarding_concluido
+      //    = false) MESMO que já tenham dados financeiros. Os dados NÃO são
+      //    apagados; o fluxo apenas reaparece e os campos vêm pré-preenchidos.
+      //
+      // Importante: NÃO auto-corrigimos mais a flag com base na existência de
+      // dados. Fazer isso anulava o "Reiniciar onboarding" do Admin para quem
+      // já tinha receitas/despesas (a flag voltava a true e o fluxo não abria).
+      setPrecisaOnboarding(perfil.onboarding_concluido !== true)
     } catch {
       // Em falha de rede, por segurança NÃO interrompe o acesso ao app.
       setPrecisaOnboarding(false)
     } finally {
       setVerificando(false)
     }
-  }, [usuario, perfil, marcarOnboardingConcluido])
+  }, [usuario, perfil])
 
   useEffect(() => {
     if (usuario) verificar()

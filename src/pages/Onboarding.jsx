@@ -1,34 +1,54 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import {
-  Wallet, TrendingUp, TrendingDown, CreditCard, ShieldCheck,
-  CheckCircle2, ArrowRight, ArrowLeft, Plus, Trash2, Loader2
+  Wallet, TrendingUp, TrendingDown, ShieldCheck, Sparkles,
+  CheckCircle2, ArrowRight, ArrowLeft, Plus, Trash2, Loader2,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useReceitas } from '../hooks/useReceitas'
 import { useDespesas } from '../hooks/useDespesas'
-import { useCartoes } from '../hooks/useCartoes'
 import { useCategorias } from '../hooks/useCategorias'
 import InputMoeda from '../components/InputMoeda'
 import { formatCurrency } from '../lib/utils'
 import { classificarDespesa } from '../lib/classificarDespesa'
+import { hojeISO as hojeISOBrasil } from '../lib/utils'
 
-const hojeISO = () => new Date().toISOString().split('T')[0]
+const hojeISO = () => hojeISOBrasil()
 
 // Opções de reserva — MESMAS do card de reserva do Dashboard. 20% é o padrão.
 const OPCOES_RESERVA = [10, 15, 20, 25, 30]
 
-// 6 telas: Saldo, Receitas, Despesas, Cartão, Reserva, Final.
-const TOTAL_ETAPAS = 6
+// Etapas do fluxo (índices internos):
+//   0 = Intro | 1 = Saldo | 2 = Renda | 3 = Despesas | 4 = Reserva | 5 = Final
+const INTRO = 0
+const SALDO = 1
+const RENDA = 2
+const DESPESAS = 3
+const RESERVA = 4
+const FINAL = 5
 
-// Barra de progresso enxuta.
+// A barra de progresso cobre apenas as 4 etapas de configuração (saldo, renda,
+// despesas, reserva) — "X de 4", igual ao card da Home.
+const ETAPAS_CONFIG = [SALDO, RENDA, DESPESAS, RESERVA]
+
+// Mapeia a chave vinda do card da Home ("Complete sua configuração") para a
+// etapa correspondente, para reabrir o fluxo exatamente no item pendente.
+const CHAVE_PARA_ETAPA = {
+  saldo: SALDO,
+  renda: RENDA,
+  despesas: DESPESAS,
+  reserva: RESERVA,
+}
+
+// Barra de progresso enxuta (apenas as 4 etapas de configuração).
 function Progresso({ etapa }) {
+  const indiceConfig = ETAPAS_CONFIG.indexOf(etapa)
   return (
     <div className="flex items-center gap-1.5 mb-6">
-      {Array.from({ length: TOTAL_ETAPAS }).map((_, i) => (
+      {ETAPAS_CONFIG.map((_, i) => (
         <div
           key={i}
           className={`h-1.5 flex-1 rounded-full transition-colors ${
-            i <= etapa ? 'bg-blue-600' : 'bg-gray-200'
+            indiceConfig >= 0 && i <= indiceConfig ? 'bg-blue-600' : 'bg-gray-200'
           }`}
         />
       ))}
@@ -49,69 +69,110 @@ function CabecalhoEtapa({ icone: Icone, cor, bg, titulo, subtitulo }) {
   )
 }
 
-export default function Onboarding({ aoConcluir }) {
-  const { atualizarPreferenciasLimite } = useAuth()
-  const { criar: criarReceita } = useReceitas()
-  const { criar: criarDespesa } = useDespesas()
-  const { criar: criarCartao } = useCartoes()
+// Linha de resumo da tela final.
+function LinhaResumo({ label, valor, cor = 'text-gray-900' }) {
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-gray-200 last:border-0">
+      <span className="text-sm text-gray-500">{label}</span>
+      <span className={`text-sm font-semibold ${cor}`}>{valor}</span>
+    </div>
+  )
+}
+
+export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
+  const { perfil, atualizarPreferenciasLimite } = useAuth()
+  // Hooks das MESMAS tabelas usadas no app — sem estrutura paralela.
+  const { receitas: receitasExistentes, criar: criarReceita } = useReceitas()
+  const { despesas: despesasExistentes, criar: criarDespesa } = useDespesas()
   const { categorias: categoriasReceita } = useCategorias('receita')
   const { categorias: categoriasDespesa } = useCategorias('despesa')
 
-  const [etapa, setEtapa] = useState(0)
+  const [etapa, setEtapa] = useState(INTRO)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+  // Guarda contra duplo clique: trava síncrona (o estado "salvando" é assíncrono
+  // e pode não refletir a tempo entre dois cliques muito rápidos).
+  const emGravacao = useRef(false)
 
-  // ETAPA 1 — Saldo atual
-  const [saldo, setSaldo] = useState('')
+  // ETAPA Saldo — pré-preenche com o saldo já informado (admin reset / revisão).
+  const [saldo, setSaldo] = useState(() => Number(perfil?.saldo_base) || 0)
 
-  // ETAPA 2 — Receitas (lista local; grava só ao avançar)
+  // ETAPA Renda — lista local; grava só ao avançar.
   const [receitas, setReceitas] = useState([]) // { descricao, valor, categoria, data, recorrente }
   const [recForm, setRecForm] = useState({
-    descricao: '', valor: '', categoria: '', data: hojeISO(), recorrente: true,
+    descricao: '', valor: 0, categoria: '', data: hojeISO(), recorrente: true,
   })
 
-  // ETAPA 3 — Despesas (lista local)
-  const [despesas, setDespesas] = useState([]) // { descricao, valor, categoria_id, data, frequencia, recorrencia_meses }
+  // ETAPA Despesas — lista local.
+  const [despesas, setDespesas] = useState([]) // { descricao, valor, categoria_id, data, frequencia, recorrenciaMeses }
   const [despForm, setDespForm] = useState({
-    descricao: '', valor: '', categoria_id: '', data: hojeISO(),
+    descricao: '', valor: 0, categoria_id: '', data: hojeISO(),
     frequencia: 'mensal', recorrenciaMeses: '',
   })
 
-  // ETAPA 4 — Cartão
-  const [usaCartao, setUsaCartao] = useState(null) // null | true | false
-  const [cartao, setCartao] = useState({
-    nome: '', banco: '', limite_total: '', dia_fechamento: '', dia_vencimento: '',
+  // ETAPA Reserva — pré-preenche com o que já existe no perfil.
+  const [reservaAtual, setReservaAtual] = useState(() => Number(perfil?.reserva_atual) || 0)
+  const [reservaPct, setReservaPct] = useState(() => Number(perfil?.reserva_percentual) || 20)
+  const [reservaCustom, setReservaCustom] = useState('')
+  const [modoCustom, setModoCustom] = useState(() => {
+    const pct = Number(perfil?.reserva_percentual) || 20
+    return !OPCOES_RESERVA.includes(pct)
   })
 
-  // ETAPA 5 — Reserva
-  const [reservaAtual, setReservaAtual] = useState('')
-  const [reservaPct, setReservaPct] = useState(20)
-  const [reservaCustom, setReservaCustom] = useState('')
-  const [modoCustom, setModoCustom] = useState(false)
+  // Se o fluxo foi reaberto pelo card da Home apontando para um item pendente,
+  // começa direto nessa etapa (sem passar pela intro). Caso contrário, intro.
+  useEffect(() => {
+    const alvo = CHAVE_PARA_ETAPA[etapaInicial]
+    if (alvo != null) setEtapa(alvo)
+    // Executa só na montagem (a etapa inicial não muda durante o fluxo).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const avancar = () => { setErro(''); setEtapa(e => Math.min(e + 1, TOTAL_ETAPAS - 1)) }
-  const voltar = () => { setErro(''); setEtapa(e => Math.max(e - 1, 0)) }
+  // Avança para a PRÓXIMA etapa de configuração (ou para o final). Como o fluxo
+  // pode ter sido iniciado no meio (card da Home), avançamos sempre em ordem.
+  const avancar = () => {
+    setErro('')
+    setEtapa((e) => Math.min(e + 1, FINAL))
+  }
+  const voltar = () => {
+    setErro('')
+    // Volta uma etapa; da primeira etapa de config (SALDO) retorna à intro.
+    setEtapa((e) => Math.max(e - 1, INTRO))
+  }
 
-  // ─── ETAPA 1: Saldo ───
+  // "Pular por enquanto": avança SEM salvar nada. Não cria dados fictícios nem
+  // valores zerados, não apaga o que já existe e NÃO marca a etapa como
+  // respondida/concluída — ela segue pendente no progresso da Home. Usado nas
+  // etapas opcionais (despesas e reserva).
+  const pular = () => {
+    if (salvando || emGravacao.current) return
+    avancar()
+  }
+
+  // ─── ETAPA Saldo ───
   async function salvarSaldo() {
+    if (emGravacao.current) return
+    emGravacao.current = true
     const valor = Number(saldo) || 0
-    if (valor <= 0) { setErro('Informe um valor de saldo válido.'); return }
     setSalvando(true); setErro('')
     try {
+      // Grava mesmo que seja 0 (o usuário pode realmente estar zerado hoje).
       await atualizarPreferenciasLimite({ saldo_base: valor, saldo_base_data: hojeISO() })
       avancar()
     } catch {
       setErro('Não foi possível salvar o saldo. Tente novamente.')
     } finally {
       setSalvando(false)
+      emGravacao.current = false
     }
   }
 
-  // ─── ETAPA 2: Receitas (lista local) ───
+  // ─── ETAPA Renda ───
+  // Adiciona a renda digitada à lista local. Retorna true se adicionou.
   function adicionarReceitaLocal() {
     const valor = Number(recForm.valor) || 0
-    if (!recForm.descricao.trim()) { setErro('Dê uma descrição à receita.'); return }
-    if (valor <= 0) { setErro('Informe um valor de receita válido.'); return }
+    if (!recForm.descricao.trim()) { setErro('Dê um nome à receita (ex.: Salário).'); return false }
+    if (valor <= 0) { setErro('Informe um valor de receita maior que zero.'); return false }
     setErro('')
     setReceitas(prev => [...prev, {
       descricao: recForm.descricao.trim(),
@@ -120,17 +181,41 @@ export default function Onboarding({ aoConcluir }) {
       data: recForm.data || hojeISO(),
       recorrente: !!recForm.recorrente,
     }])
-    setRecForm({ descricao: '', valor: '', categoria: '', data: hojeISO(), recorrente: true })
+    setRecForm({ descricao: '', valor: 0, categoria: '', data: hojeISO(), recorrente: true })
+    return true
   }
   function removerReceitaLocal(i) {
     setReceitas(prev => prev.filter((_, idx) => idx !== i))
   }
   async function salvarReceitas() {
-    if (receitas.length === 0) { avancar(); return }
+    if (emGravacao.current) return
+    // CORREÇÃO DO BUG DE AVANÇO: se o usuário preencheu a renda mas NÃO clicou
+    // em "Adicionar", nós a incluímos automaticamente aqui — antes era perdida
+    // silenciosamente e o fluxo "pulava" a etapa sem salvar nada.
+    let lista = receitas
+    const temFormPreenchido = recForm.descricao.trim() || (Number(recForm.valor) || 0) > 0
+    if (temFormPreenchido) {
+      const valor = Number(recForm.valor) || 0
+      if (!recForm.descricao.trim()) { setErro('Dê um nome à receita (ex.: Salário).'); return }
+      if (valor <= 0) { setErro('Informe um valor de receita maior que zero.'); return }
+      lista = [...receitas, {
+        descricao: recForm.descricao.trim(),
+        valor,
+        categoria: recForm.categoria || null,
+        data: recForm.data || hojeISO(),
+        recorrente: !!recForm.recorrente,
+      }]
+    }
+
+    // Nenhuma renda informada: segue adiante (etapa opcional).
+    if (lista.length === 0) { avancar(); return }
+
+    emGravacao.current = true
     setSalvando(true); setErro('')
     try {
-      // Grava cada receita usando a MESMA função/estrutura da tela Receitas.
-      for (const r of receitas) {
+      // Grava cada receita com a MESMA função/estrutura da tela Receitas.
+      // await em sequência garante que o salvamento terminou ANTES de avançar.
+      for (const r of lista) {
         await criarReceita({
           descricao: r.descricao,
           valor: r.valor,
@@ -139,19 +224,26 @@ export default function Onboarding({ aoConcluir }) {
           categoria: r.categoria,
         })
       }
+      // Só limpa a lista e avança APÓS gravar tudo com sucesso.
+      setReceitas([])
+      setRecForm({ descricao: '', valor: 0, categoria: '', data: hojeISO(), recorrente: true })
       avancar()
-    } catch {
-      setErro('Não foi possível salvar as receitas. Tente novamente.')
+    } catch (e) {
+      // NÃO avança em silêncio: mostra a mensagem clara pedida no requisito.
+      setErro(e?.message
+        ? `Não foi possível salvar sua renda. Tente novamente. (${e.message})`
+        : 'Não foi possível salvar sua renda. Tente novamente.')
     } finally {
       setSalvando(false)
+      emGravacao.current = false
     }
   }
 
-  // ─── ETAPA 3: Despesas (lista local) ───
+  // ─── ETAPA Despesas ───
   function adicionarDespesaLocal() {
     const valor = Number(despForm.valor) || 0
-    if (!despForm.descricao.trim()) { setErro('Dê uma descrição à despesa.'); return }
-    if (valor <= 0) { setErro('Informe um valor de despesa válido.'); return }
+    if (!despForm.descricao.trim()) { setErro('Dê um nome à despesa (ex.: Aluguel).'); return false }
+    if (valor <= 0) { setErro('Informe um valor de despesa maior que zero.'); return false }
     setErro('')
     setDespesas(prev => [...prev, {
       descricao: despForm.descricao.trim(),
@@ -161,16 +253,37 @@ export default function Onboarding({ aoConcluir }) {
       frequencia: despForm.frequencia,
       recorrenciaMeses: despForm.recorrenciaMeses,
     }])
-    setDespForm({ descricao: '', valor: '', categoria_id: '', data: hojeISO(), frequencia: 'mensal', recorrenciaMeses: '' })
+    setDespForm({ descricao: '', valor: 0, categoria_id: '', data: hojeISO(), frequencia: 'mensal', recorrenciaMeses: '' })
+    return true
   }
   function removerDespesaLocal(i) {
     setDespesas(prev => prev.filter((_, idx) => idx !== i))
   }
   async function salvarDespesas() {
-    if (despesas.length === 0) { avancar(); return }
+    if (emGravacao.current) return
+    // Mesma correção da renda: inclui a despesa digitada mas não "adicionada".
+    let lista = despesas
+    const temFormPreenchido = despForm.descricao.trim() || (Number(despForm.valor) || 0) > 0
+    if (temFormPreenchido) {
+      const valor = Number(despForm.valor) || 0
+      if (!despForm.descricao.trim()) { setErro('Dê um nome à despesa (ex.: Aluguel).'); return }
+      if (valor <= 0) { setErro('Informe um valor de despesa maior que zero.'); return }
+      lista = [...despesas, {
+        descricao: despForm.descricao.trim(),
+        valor,
+        categoria_id: despForm.categoria_id || null,
+        data: despForm.data || hojeISO(),
+        frequencia: despForm.frequencia,
+        recorrenciaMeses: despForm.recorrenciaMeses,
+      }]
+    }
+
+    if (lista.length === 0) { avancar(); return }
+
+    emGravacao.current = true
     setSalvando(true); setErro('')
     try {
-      for (const d of despesas) {
+      for (const d of lista) {
         const cat = categoriasDespesa.find(c => c.id === d.categoria_id)
         // Classificação automática fixa/variável — MESMA lógica do app.
         const tipo_despesa = classificarDespesa({
@@ -196,92 +309,148 @@ export default function Onboarding({ aoConcluir }) {
           tipo_despesa,
         })
       }
+      setDespesas([])
+      setDespForm({ descricao: '', valor: 0, categoria_id: '', data: hojeISO(), frequencia: 'mensal', recorrenciaMeses: '' })
       avancar()
-    } catch {
-      setErro('Não foi possível salvar as despesas. Tente novamente.')
+    } catch (e) {
+      setErro(e?.message
+        ? `Não foi possível salvar suas despesas. Tente novamente. (${e.message})`
+        : 'Não foi possível salvar suas despesas. Tente novamente.')
     } finally {
       setSalvando(false)
+      emGravacao.current = false
     }
   }
 
-  // ─── ETAPA 4: Cartão ───
-  async function salvarCartao() {
-    if (usaCartao !== true) { avancar(); return }
-    const limite = Number(cartao.limite_total) || 0
-    const fech = parseInt(cartao.dia_fechamento, 10)
-    const venc = parseInt(cartao.dia_vencimento, 10)
-    if (!cartao.nome.trim()) { setErro('Informe o nome do cartão.'); return }
-    if (limite <= 0) { setErro('Informe o limite do cartão.'); return }
-    if (!(fech >= 1 && fech <= 31)) { setErro('Dia de fechamento inválido (1 a 31).'); return }
-    if (!(venc >= 1 && venc <= 31)) { setErro('Dia de vencimento inválido (1 a 31).'); return }
-    setSalvando(true); setErro('')
-    try {
-      await criarCartao({
-        nome: cartao.nome.trim(),
-        banco: cartao.banco.trim() || null,
-        limite_total: limite,
-        dia_fechamento: fech,
-        dia_vencimento: venc,
-      })
-      avancar()
-    } catch {
-      setErro('Não foi possível salvar o cartão. Tente novamente.')
-    } finally {
-      setSalvando(false)
-    }
-  }
-
-  // ─── ETAPA 5: Reserva ───
+  // ─── ETAPA Reserva ───
   async function salvarReserva() {
+    if (emGravacao.current) return
     let pct = reservaPct
     if (modoCustom) {
       pct = parseInt(reservaCustom, 10)
       if (!(pct >= 0 && pct <= 100)) { setErro('Informe um percentual entre 0 e 100.'); return }
     }
     const valorReserva = Number(reservaAtual) || 0
+    emGravacao.current = true
     setSalvando(true); setErro('')
     try {
-      await atualizarPreferenciasLimite({
-        reserva_percentual: pct,
-        reserva_atual: valorReserva,
-      })
+      // Grava o percentual, o valor (R$ 0,00 é VÁLIDO: o usuário pode não ter
+      // reserva) e o marcador "reserva_configurada = true" — este distingue
+      // "respondeu R$ 0,00" de "ainda não respondeu". Se a coluna ainda não
+      // existir no banco (migration não aplicada), tenta de novo sem ela para
+      // não travar o fluxo.
+      try {
+        await atualizarPreferenciasLimite({
+          reserva_percentual: pct,
+          reserva_atual: valorReserva,
+          reserva_configurada: true,
+        })
+      } catch (eInterno) {
+        const msg = String(eInterno?.message || '').toLowerCase()
+        const colunaAusente =
+          msg.includes('reserva_configurada') ||
+          msg.includes('column') || msg.includes('coluna') || msg.includes('schema cache')
+        if (!colunaAusente) throw eInterno
+        // Fallback: grava sem o marcador (progresso cai no retrocompat valor>0).
+        await atualizarPreferenciasLimite({
+          reserva_percentual: pct,
+          reserva_atual: valorReserva,
+        })
+      }
       avancar()
-    } catch {
-      // Não bloqueia a conclusão do onboarding se a preferência falhar.
-      avancar()
+    } catch (e) {
+      setErro(e?.message
+        ? `Não foi possível salvar sua reserva. Tente novamente. (${e.message})`
+        : 'Não foi possível salvar sua reserva. Tente novamente.')
     } finally {
       setSalvando(false)
+      emGravacao.current = false
     }
   }
 
-  function finalizar() {
-    aoConcluir?.()
+  async function finalizar() {
+    if (emGravacao.current) return
+    emGravacao.current = true
+    setSalvando(true)
+    try {
+      await aoConcluir?.() // marca onboarding_concluido = true e volta à Home
+    } finally {
+      setSalvando(false)
+      emGravacao.current = false
+    }
   }
 
-  const cartaoChange = (e) => setCartao(prev => ({ ...prev, [e.target.name]: e.target.value }))
+  // ─── Resumo da tela final ───
+  // Soma o que foi configurado AGORA + o que já existia (admin reset / revisão),
+  // lendo das mesmas tabelas do app, para o resumo refletir o estado real.
+  const resumo = useMemo(() => {
+    const pctCustom = modoCustom ? (parseInt(reservaCustom, 10) || 0) : reservaPct
 
-  // Botão "Pular por enquanto" reutilizável.
-  function BotaoPular({ onClick }) {
-    return (
-      <button type="button" onClick={onClick} className="btn-secondary flex-1 text-sm">
-        Pular por enquanto
-      </button>
-    )
-  }
+    const rendaMensalNova = receitas
+      .filter(r => r.recorrente)
+      .reduce((acc, r) => acc + (Number(r.valor) || 0), 0)
+    const rendaMensalExistente = (receitasExistentes || [])
+      .filter(r => r.recorrente)
+      .reduce((acc, r) => acc + (Number(r.valor) || 0), 0)
+    const rendaMensal = rendaMensalNova + rendaMensalExistente
+
+    const despesasNovas = despesas
+      .filter(d => d.frequencia !== 'nao_repete')
+      .reduce((acc, d) => acc + (Number(d.valor) || 0), 0)
+    const despesasExistRecorrentes = (despesasExistentes || [])
+      .filter(d => d.recorrente)
+      .reduce((acc, d) => acc + (Number(d.valor) || 0), 0)
+    const despesasRecorrentes = despesasNovas + despesasExistRecorrentes
+
+    const reservaPlanejada = rendaMensal * (pctCustom / 100)
+    const disponivelEstimado = rendaMensal - despesasRecorrentes - reservaPlanejada
+
+    return {
+      saldo: Number(saldo) || 0,
+      rendaMensal,
+      despesasRecorrentes,
+      reservaPlanejada,
+      disponivelEstimado,
+      pct: pctCustom,
+    }
+  }, [saldo, receitas, despesas, receitasExistentes, despesasExistentes, reservaPct, reservaCustom, modoCustom])
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="card">
-          <Progresso etapa={etapa} />
+          {/* A barra de progresso só aparece nas etapas de configuração. */}
+          {ETAPAS_CONFIG.includes(etapa) && <Progresso etapa={etapa} />}
 
-          {/* ETAPA 1 — Saldo atual */}
-          {etapa === 0 && (
+          {/* ─── INTRO ─── */}
+          {etapa === INTRO && (
+            <div className="text-center py-4">
+              <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Sparkles size={30} className="text-blue-600" />
+              </div>
+              <h1 className="text-xl font-bold text-gray-900 mb-2">
+                Vamos configurar seu Almeida Finance
+              </h1>
+              <p className="text-sm text-gray-500 mb-6">
+                Leva poucos minutos. Essas informações serão usadas para calcular seu
+                orçamento, gasto diário, projeções e ajudar nas suas decisões financeiras.
+              </p>
+              <button
+                onClick={() => setEtapa(SALDO)}
+                className="btn-primary w-full flex items-center justify-center gap-2"
+              >
+                Começar <ArrowRight size={16} />
+              </button>
+            </div>
+          )}
+
+          {/* ─── ETAPA 1 — Saldo atual ─── */}
+          {etapa === SALDO && (
             <div className="py-2">
               <CabecalhoEtapa
                 icone={Wallet} cor="text-blue-600" bg="bg-blue-50"
                 titulo="Quanto você tem disponível hoje?"
-                subtitulo="Informe seu saldo atual para o app calcular seu dinheiro em tempo real."
+                subtitulo="É o dinheiro que você tem disponível agora. Esse valor será o ponto de partida das suas projeções."
               />
               <label className="label">Saldo atual (R$)</label>
               <InputMoeda
@@ -290,7 +459,6 @@ export default function Onboarding({ aoConcluir }) {
               />
               {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
               <div className="flex gap-2 mt-6">
-                <BotaoPular onClick={avancar} />
                 <button onClick={salvarSaldo} disabled={salvando}
                   className="btn-primary flex-1 flex items-center justify-center gap-2">
                   {salvando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : <>Continuar <ArrowRight size={16} /></>}
@@ -299,13 +467,13 @@ export default function Onboarding({ aoConcluir }) {
             </div>
           )}
 
-          {/* ETAPA 2 — Receitas */}
-          {etapa === 1 && (
+          {/* ─── ETAPA 2 — Renda ─── */}
+          {etapa === RENDA && (
             <div className="py-2">
               <CabecalhoEtapa
                 icone={TrendingUp} cor="text-green-600" bg="bg-green-50"
-                titulo="Quais são suas receitas?"
-                subtitulo="Salário, freelance, renda extra... Adicione quantas quiser."
+                titulo="Quanto você recebe?"
+                subtitulo="Salário, freelance, renda extra... Informe nome, valor, dia de recebimento e se repete todo mês."
               />
 
               {receitas.length > 0 && (
@@ -313,7 +481,8 @@ export default function Onboarding({ aoConcluir }) {
                   {receitas.map((r, i) => (
                     <li key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                       <span className="text-sm text-gray-800 truncate min-w-0">
-                        {r.descricao}{r.recorrente && <span className="text-xs text-blue-500 ml-1">• mensal</span>}
+                        {r.descricao}
+                        {r.recorrente && <span className="text-xs text-blue-500 ml-1">• mensal</span>}
                       </span>
                       <span className="flex items-center gap-2 flex-shrink-0">
                         <span className="text-sm font-semibold text-green-600">{formatCurrency(r.valor)}</span>
@@ -327,7 +496,7 @@ export default function Onboarding({ aoConcluir }) {
               )}
 
               <div className="space-y-2">
-                <input className="input" placeholder="Descrição (ex.: Salário)"
+                <input className="input" placeholder="Nome da receita (ex.: Salário)"
                   value={recForm.descricao}
                   onChange={(e) => setRecForm(p => ({ ...p, descricao: e.target.value }))} />
                 <div className="grid grid-cols-2 gap-2">
@@ -337,19 +506,19 @@ export default function Onboarding({ aoConcluir }) {
                   <input type="date" className="input" value={recForm.data}
                     onChange={(e) => setRecForm(p => ({ ...p, data: e.target.value }))} />
                 </div>
+                <p className="text-[11px] text-gray-400 -mt-1">O dia da data é usado como seu dia de recebimento.</p>
                 <select className="input" value={recForm.categoria}
                   onChange={(e) => setRecForm(p => ({ ...p, categoria: e.target.value }))}>
                   <option value="">Sem categoria</option>
                   {categoriasReceita.map(c => <option key={c.id} value={c.nome}>{c.icone} {c.nome}</option>)}
                 </select>
-                {/* Se repete todo mês */}
                 <div className="grid grid-cols-2 gap-2">
                   <button type="button"
                     onClick={() => setRecForm(p => ({ ...p, recorrente: true }))}
                     className={`p-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
                       recForm.recorrente ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
                     }`}>
-                    Repete todo mês
+                    Recebo todo mês
                   </button>
                   <button type="button"
                     onClick={() => setRecForm(p => ({ ...p, recorrente: false }))}
@@ -362,7 +531,7 @@ export default function Onboarding({ aoConcluir }) {
               </div>
               <button onClick={adicionarReceitaLocal}
                 className="btn-secondary w-full mt-2 flex items-center justify-center gap-1 text-sm">
-                <Plus size={15} /> Adicionar outra receita
+                <Plus size={15} /> Adicionar outra renda
               </button>
               {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
 
@@ -370,22 +539,21 @@ export default function Onboarding({ aoConcluir }) {
                 <button onClick={voltar} className="btn-secondary flex items-center gap-1 px-3">
                   <ArrowLeft size={16} />
                 </button>
-                <BotaoPular onClick={avancar} />
                 <button onClick={salvarReceitas} disabled={salvando}
                   className="btn-primary flex-1 flex items-center justify-center gap-2">
-                  {salvando ? <Loader2 size={15} className="animate-spin" /> : <>Continuar <ArrowRight size={16} /></>}
+                  {salvando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : <>Salvar e continuar <ArrowRight size={16} /></>}
                 </button>
               </div>
             </div>
           )}
 
-          {/* ETAPA 3 — Despesas */}
-          {etapa === 2 && (
+          {/* ─── ETAPA 3 — Despesas recorrentes ─── */}
+          {etapa === DESPESAS && (
             <div className="py-2">
               <CabecalhoEtapa
                 icone={TrendingDown} cor="text-red-500" bg="bg-red-50"
-                titulo="Quais são suas principais despesas?"
-                subtitulo="Aluguel, contas, assinaturas... A classificação fixa/variável é automática."
+                titulo="Quais contas você paga todos os meses?"
+                subtitulo="Aluguel, água, energia, internet, celular, faculdade, assinaturas... A classificação fixa/variável é automática."
               />
 
               {despesas.length > 0 && (
@@ -405,7 +573,7 @@ export default function Onboarding({ aoConcluir }) {
               )}
 
               <div className="space-y-2">
-                <input className="input" placeholder="Descrição (ex.: Aluguel)"
+                <input className="input" placeholder="Nome da despesa (ex.: Aluguel)"
                   value={despForm.descricao}
                   onChange={(e) => setDespForm(p => ({ ...p, descricao: e.target.value }))} />
                 <div className="grid grid-cols-2 gap-2">
@@ -415,12 +583,12 @@ export default function Onboarding({ aoConcluir }) {
                   <input type="date" className="input" value={despForm.data}
                     onChange={(e) => setDespForm(p => ({ ...p, data: e.target.value }))} />
                 </div>
+                <p className="text-[11px] text-gray-400 -mt-1">O dia da data é usado como vencimento.</p>
                 <select className="input" value={despForm.categoria_id}
                   onChange={(e) => setDespForm(p => ({ ...p, categoria_id: e.target.value }))}>
                   <option value="">Sem categoria</option>
                   {categoriasDespesa.map(c => <option key={c.id} value={c.id}>{c.icone} {c.nome}</option>)}
                 </select>
-                {/* Recorrência */}
                 <select className="input" value={despForm.frequencia}
                   onChange={(e) => setDespForm(p => ({ ...p, frequencia: e.target.value }))}>
                   <option value="nao_repete">Não repete (só uma vez)</option>
@@ -428,7 +596,6 @@ export default function Onboarding({ aoConcluir }) {
                   <option value="semanal">Toda semana</option>
                   <option value="diaria">Todo dia</option>
                 </select>
-                {/* Por quantos meses — só quando mensal */}
                 {despForm.frequencia === 'mensal' && (
                   <input className="input" type="number" min="1" max="120" inputMode="numeric"
                     placeholder="Por quantos meses? (deixe vazio p/ sem fim)"
@@ -446,99 +613,42 @@ export default function Onboarding({ aoConcluir }) {
                 <button onClick={voltar} className="btn-secondary flex items-center gap-1 px-3">
                   <ArrowLeft size={16} />
                 </button>
-                <BotaoPular onClick={avancar} />
                 <button onClick={salvarDespesas} disabled={salvando}
                   className="btn-primary flex-1 flex items-center justify-center gap-2">
-                  {salvando ? <Loader2 size={15} className="animate-spin" /> : <>Continuar <ArrowRight size={16} /></>}
+                  {salvando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : <>Salvar e continuar <ArrowRight size={16} /></>}
                 </button>
+              </div>
+
+              {/* "Pular por enquanto" — etapa de despesas é opcional. Avança sem
+                  criar nada; o progresso continua indicando despesas pendentes. */}
+              <div className="mt-3 text-center">
+                <button
+                  type="button"
+                  onClick={pular}
+                  disabled={salvando}
+                  className="text-sm text-gray-400 hover:text-gray-600 underline underline-offset-2 disabled:opacity-50"
+                >
+                  Pular por enquanto
+                </button>
+                <p className="text-xs text-gray-400 mt-1">Você poderá adicionar suas despesas depois.</p>
               </div>
             </div>
           )}
 
-          {/* ETAPA 4 — Cartão */}
-          {etapa === 3 && (
-            <div className="py-2">
-              <CabecalhoEtapa
-                icone={CreditCard} cor="text-indigo-600" bg="bg-indigo-50"
-                titulo="Quer cadastrar seus gastos no cartão?"
-                subtitulo="Isso ajuda a prever suas faturas nos próximos meses."
-              />
-
-              {usaCartao === null && (
-                <div className="grid grid-cols-2 gap-3">
-                  <button onClick={() => setUsaCartao(true)} className="btn-secondary py-3">Sim, cadastrar</button>
-                  <button onClick={() => setUsaCartao(false)} className="btn-secondary py-3">Agora não</button>
-                </div>
-              )}
-
-              {usaCartao === true && (
-                <div className="space-y-3">
-                  <div>
-                    <label className="label">Nome do cartão</label>
-                    <input name="nome" className="input" value={cartao.nome} onChange={cartaoChange}
-                      placeholder="Ex: Bradesco Visa, Nubank" />
-                  </div>
-                  <div>
-                    <label className="label">Banco <span className="text-gray-400">(opcional)</span></label>
-                    <input name="banco" className="input" value={cartao.banco} onChange={cartaoChange}
-                      placeholder="Ex: Bradesco" />
-                  </div>
-                  <div>
-                    <label className="label">Limite total (R$)</label>
-                    <InputMoeda valor={cartao.limite_total}
-                      onChangeValor={(n) => setCartao(p => ({ ...p, limite_total: n }))}
-                      className="input" prefixo={null} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="label">Fechamento</label>
-                      <input name="dia_fechamento" className="input" type="number" min="1" max="31"
-                        value={cartao.dia_fechamento} onChange={cartaoChange} placeholder="Ex: 20" />
-                    </div>
-                    <div>
-                      <label className="label">Vencimento</label>
-                      <input name="dia_vencimento" className="input" type="number" min="1" max="31"
-                        value={cartao.dia_vencimento} onChange={cartaoChange} placeholder="Ex: 28" />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {usaCartao === false && (
-                <p className="text-sm text-gray-500 bg-gray-50 rounded-lg p-3">
-                  Sem problemas. Você pode cadastrar cartões depois, na aba Cartões.
-                </p>
-              )}
-
-              {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
-
-              <div className="flex gap-2 mt-6">
-                <button onClick={voltar} className="btn-secondary flex items-center gap-1 px-3">
-                  <ArrowLeft size={16} />
-                </button>
-                <BotaoPular onClick={avancar} />
-                <button onClick={salvarCartao} disabled={salvando}
-                  className="btn-primary flex-1 flex items-center justify-center gap-2">
-                  {salvando ? <Loader2 size={15} className="animate-spin" /> : <>Continuar <ArrowRight size={16} /></>}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ETAPA 5 — Reserva de emergência */}
-          {etapa === 4 && (
+          {/* ─── ETAPA 4 — Reserva de emergência ─── */}
+          {etapa === RESERVA && (
             <div className="py-2">
               <CabecalhoEtapa
                 icone={ShieldCheck} cor="text-amber-600" bg="bg-amber-50"
-                titulo="Você já possui uma reserva de emergência?"
-                subtitulo="Informe quanto já tem guardado e quanto quer separar da renda por mês."
+                titulo="Quanto você já possui de reserva de emergência?"
+                subtitulo="Informe quanto já tem guardado e quanto da sua renda deseja reservar por mês."
               />
 
-              <label className="label">Reserva atual (R$) <span className="text-gray-400">(opcional)</span></label>
+              <label className="label">Reserva atual (R$)</label>
               <InputMoeda valor={reservaAtual} onChangeValor={setReservaAtual}
                 className="input mb-4" prefixo={null} />
 
-              <label className="label">Percentual a reservar por mês</label>
+              <label className="label">Quanto da sua renda deseja reservar por mês?</label>
               <div className="grid grid-cols-3 gap-2 mb-2">
                 {OPCOES_RESERVA.map(opt => {
                   const ativo = !modoCustom && reservaPct === opt
@@ -578,27 +688,57 @@ export default function Onboarding({ aoConcluir }) {
                 <button onClick={voltar} className="btn-secondary flex items-center gap-1 px-3">
                   <ArrowLeft size={16} />
                 </button>
-                <BotaoPular onClick={avancar} />
                 <button onClick={salvarReserva} disabled={salvando}
                   className="btn-primary flex-1 flex items-center justify-center gap-2">
                   {salvando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : <>Continuar <ArrowRight size={16} /></>}
                 </button>
               </div>
+
+              {/* "Pular por enquanto" — reserva é opcional. Importante: informar
+                  R$ 0,00 e clicar em "Continuar" É uma resposta válida (conclui a
+                  etapa). "Pular" NÃO conclui — segue pendente no progresso. */}
+              <div className="mt-3 text-center">
+                <button
+                  type="button"
+                  onClick={pular}
+                  disabled={salvando}
+                  className="text-sm text-gray-400 hover:text-gray-600 underline underline-offset-2 disabled:opacity-50"
+                >
+                  Pular por enquanto
+                </button>
+                <p className="text-xs text-gray-400 mt-1">Você poderá configurar sua reserva depois.</p>
+              </div>
             </div>
           )}
 
-          {/* ETAPA FINAL */}
-          {etapa === 5 && (
-            <div className="text-center py-4">
-              <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <CheckCircle2 size={30} className="text-green-600" />
+          {/* ─── FINALIZAÇÃO ─── */}
+          {etapa === FINAL && (
+            <div className="py-4">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle2 size={30} className="text-green-600" />
+                </div>
+                <h1 className="text-xl font-bold text-gray-900 mb-1">🎉 Seu Almeida Finance está pronto</h1>
+                <p className="text-sm text-gray-500 mb-5">
+                  Confira o resumo e entre no app para acompanhar tudo em tempo real.
+                </p>
               </div>
-              <h1 className="text-xl font-bold text-gray-900 mb-2">Tudo pronto!</h1>
-              <p className="text-sm text-gray-500 mb-6">
-                Agora vamos organizar sua vida financeira.
-              </p>
-              <button onClick={finalizar} className="btn-primary w-full flex items-center justify-center gap-2">
-                Entrar no Almeida Finance <ArrowRight size={16} />
+
+              <div className="bg-gray-50 rounded-xl px-4 py-2 mb-5">
+                <LinhaResumo label="Saldo atual" valor={formatCurrency(resumo.saldo)} />
+                <LinhaResumo label="Renda mensal" valor={formatCurrency(resumo.rendaMensal)} cor="text-green-600" />
+                <LinhaResumo label="Despesas recorrentes" valor={formatCurrency(resumo.despesasRecorrentes)} cor="text-red-500" />
+                <LinhaResumo label={`Reserva planejada (${resumo.pct}%)`} valor={formatCurrency(resumo.reservaPlanejada)} cor="text-amber-600" />
+                <LinhaResumo
+                  label="Disponível estimado"
+                  valor={formatCurrency(resumo.disponivelEstimado)}
+                  cor={resumo.disponivelEstimado >= 0 ? 'text-gray-900' : 'text-red-600'}
+                />
+              </div>
+
+              <button onClick={finalizar} disabled={salvando}
+                className="btn-primary w-full flex items-center justify-center gap-2">
+                {salvando ? <><Loader2 size={15} className="animate-spin" /> Abrindo...</> : <>Ir para minha Home <ArrowRight size={16} /></>}
               </button>
             </div>
           )}

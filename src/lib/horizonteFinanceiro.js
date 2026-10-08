@@ -20,7 +20,7 @@ import { valorDespesaRecorrenteNoMes, frequenciaDaDespesa } from '../hooks/useDe
 import { valorParcelaNoMes } from '../hooks/useParcelamentos'
 import { linhasFaturaCompleta } from './faturaCartao'
 import { faturaInformadaNoMes } from './faturaCartao'
-import { labelMes } from './utils'
+import { labelMes, partesHojeBrasil } from './utils'
 
 const ultimoDiaDoMes = (ano, mes) => new Date(ano, mes, 0).getDate()
 const diaDe = (dataISO) => parseInt(String(dataISO).slice(8, 10), 10) || 1
@@ -41,10 +41,9 @@ export function gerarHorizonte({
   parcelamentos = [], cartoes = [], comprasCartao = [], faturasInformadas = [],
   saldoInicial = 0, reservaPct = 20, meses = 12,
 }) {
-  const hoje = new Date()
-  const anoHoje = hoje.getFullYear()
-  const mesHoje = hoje.getMonth() + 1
-  const diaHoje = hoje.getDate()
+  // "Hoje" no fuso de Brasília, consistente com as datas gravadas (que agora
+  // também usam Brasília). Evita o descasamento UTC×local no "diaHoje"/mês.
+  const { ano: anoHoje, mes: mesHoje, dia: diaHoje } = partesHojeBrasil()
 
   const resultado = []
   let saldoAnterior = Number(saldoInicial) || 0

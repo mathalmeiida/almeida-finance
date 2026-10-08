@@ -6,7 +6,7 @@ import { useCategorias } from '../hooks/useCategorias'
 import { useCartoes } from '../hooks/useCartoes'
 import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
-import { formatCurrency, formatDate, corCategoria, FORMAS_PAGAMENTO, formaPagamentoLabel } from '../lib/utils'
+import { formatCurrency, formatDate, corCategoria, FORMAS_PAGAMENTO, formaPagamentoLabel, hojeISO } from '../lib/utils'
 
 // ─── Barra de progresso ───────────────────────────────────────────────────────
 export function ProgressBar({ value, max }) {
@@ -33,7 +33,7 @@ export function FormParcelamento({ onSalvar, onCancelar, carregando, parcelament
     // "primeira_parcela" no banco é uma data (YYYY-MM-DD); o input month usa YYYY-MM
     primeira_parcela: parcelamentoInicial?.primeira_parcela
       ? parcelamentoInicial.primeira_parcela.slice(0, 7)
-      : new Date().toISOString().split('T')[0].slice(0, 7),
+      : hojeISO().slice(0, 7),
     categoria_id: parcelamentoInicial?.categoria_id ?? '',
     forma_pagamento: parcelamentoInicial?.forma_pagamento ?? 'cartao_credito',
     cartao_id: parcelamentoInicial?.cartao_id ?? '',
