@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CheckCircle2, AlertCircle } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import logoAlmeida from '../../assets/Logo Corporativo Almeida Finance.png'
+import LogoMarca from '../../components/LogoMarca'
 
 // ─── Callback de confirmação de e-mail ────────────────────────────────────────
 // Para onde o link "Confirmar cadastro" do e-mail redireciona (emailRedirectTo).
@@ -109,7 +109,7 @@ export default function ConfirmarEmail() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
       <div className="w-full max-w-sm text-center">
         <div className="flex justify-center mb-8">
-          <img src={logoAlmeida} alt="Almeida Finance" className="w-[200px] h-auto object-contain" />
+          <LogoMarca imgClassName="w-[170px] h-auto" padding="px-7 py-5" />
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Lock, Eye, EyeOff, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { supabase } from '../../lib/supabase'
-import logoAlmeida from '../../assets/Logo Corporativo Almeida Finance.png'
+import LogoMarca from '../../components/LogoMarca'
 
 export default function RedefinirSenha() {
   const { redefinirSenha } = useAuth()
@@ -65,7 +65,7 @@ export default function RedefinirSenha() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="flex justify-center mb-8">
-          <img src={logoAlmeida} alt="Almeida Finance" className="w-[220px] h-auto object-contain" />
+          <LogoMarca imgClassName="w-[180px] h-auto" padding="px-7 py-5" />
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">

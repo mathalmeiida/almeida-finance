@@ -8,6 +8,17 @@
 // que chama definirOcultarValoresGlobal() sempre que a preferência muda.
 // Observação: NÃO afeta a digitação monetária (formatarMoedaDigitada,
 // moedaParaNumero, numeroParaMoeda), usadas no InputMoeda.
+// ─── Cores de tema (Aparência) ───────────────────────────────────────────────
+// Opções disponíveis para a cor de destaque do app (botões, menus, ícones
+// ativos). Reutilizadas no onboarding e em Configurações → Aparência. Os hex
+// batem com as variáveis --marca definidas no index.css (.tema-*). Azul=padrão.
+export const CORES_TEMA = [
+  { value: 'azul',  label: 'Azul',  hex: '#2855A5' },
+  { value: 'rosa',  label: 'Rosa',  hex: '#B83F79' },
+  { value: 'verde', label: 'Verde', hex: '#16805C' },
+  { value: 'roxo',  label: 'Roxo',  hex: '#7C3AAD' },
+]
+
 export const MASCARA_VALOR = 'R$ ••••'
 let _ocultarValoresGlobal = false
 export const definirOcultarValoresGlobal = (v) => { _ocultarValoresGlobal = !!v }

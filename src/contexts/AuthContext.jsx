@@ -33,6 +33,45 @@ export function AuthProvider({ children }) {
     setPerfil(data)
   }
 
+  // ── Cor da marca (Aparência: Azul padrão / Rosa) ────────────────────────────
+  // FONTE DA PREFERÊNCIA de cor do tema (robusta, sem depender da migration):
+  //   1) localStorage 'almeida_cor_tema' → aplica JÁ no boot (antes do perfil
+  //      carregar), inclusive em login/onboarding, sem flash.
+  //   2) perfis.cor_tema → quando a coluna existir, sincroniza entre
+  //      dispositivos. Se a coluna NÃO existir, o app funciona só com o
+  //      localStorage (não quebra).
+  // Cores válidas: azul (padrão), rosa, verde, roxo.
+  const CHAVE_COR_TEMA = 'almeida_cor_tema'
+  const CORES_TEMA = ['azul', 'rosa', 'verde', 'roxo']
+  const normalizarCor = (c) => (CORES_TEMA.includes(c) ? c : 'azul')
+  const [corTemaLocal, setCorTemaLocal] = useState(() => {
+    try { return normalizarCor(localStorage.getItem(CHAVE_COR_TEMA)) }
+    catch { return 'azul' }
+  })
+
+  // Preferência efetiva: perfil do banco tem prioridade quando válido; senão
+  // cai no localStorage.
+  const corTema = CORES_TEMA.includes(perfil?.cor_tema) ? perfil.cor_tema : corTemaLocal
+
+  // Aplica a classe de tema no <html> (tema-rosa/-verde/-roxo). Azul = sem
+  // classe (variáveis padrão do :root). Só visual: alterna --marca/--marca-hover.
+  useEffect(() => {
+    try {
+      const el = document.documentElement
+      el.classList.remove('tema-rosa', 'tema-verde', 'tema-roxo')
+      if (corTema !== 'azul') el.classList.add(`tema-${corTema}`)
+    } catch { /* ambiente sem DOM: ignora */ }
+  }, [corTema])
+
+  // Quando o perfil chega do banco com uma cor válida, espelha no localStorage
+  // para o próximo boot já aplicar antes do login resolver.
+  useEffect(() => {
+    if (CORES_TEMA.includes(perfil?.cor_tema)) {
+      try { localStorage.setItem(CHAVE_COR_TEMA, perfil.cor_tema) } catch { /* ignora */ }
+      setCorTemaLocal(perfil.cor_tema)
+    }
+  }, [perfil?.cor_tema])
+
   useEffect(() => {
     // 1. Verifica se já existe uma sessão ativa ao carregar o app
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -153,6 +192,37 @@ export function AuthProvider({ children }) {
     return atualizarPreferenciasLimite({ limite_diario: valor })
   }
 
+  // Salva a cor de marca (Aparência) do PRÓPRIO usuário logado. Atualização
+  // otimista: aplica no perfil local na hora (a classe de tema reage pelo
+  // efeito acima) e persiste no banco. Não depende do modo consultoria — é
+  // sempre o perfil real do logado. É só identidade visual.
+  async function atualizarCorTema(cor) {
+    const novaCor = normalizarCor(cor)
+    // 1) Aplica JÁ (otimista): localStorage + estado → a classe de tema reage
+    //    pelo efeito acima. Funciona mesmo sem a coluna no banco.
+    try { localStorage.setItem(CHAVE_COR_TEMA, novaCor) } catch { /* ignora */ }
+    setCorTemaLocal(novaCor)
+    setPerfil(p => (p ? { ...p, cor_tema: novaCor } : p))
+
+    // 2) Tenta persistir no perfil (multi-dispositivo). Se a coluna cor_tema
+    //    ainda NÃO existir (migration pendente), NÃO quebra a UI: a preferência
+    //    continua valendo pelo localStorage. Qualquer outro erro também é
+    //    tolerado — é só identidade visual.
+    if (!usuario) return
+    try {
+      const { data, error } = await supabase
+        .from('perfis')
+        .update({ cor_tema: novaCor })
+        .eq('id', usuario.id)
+        .select()
+        .single()
+      if (error) throw error
+      if (data) setPerfil(data)
+    } catch {
+      /* coluna ausente ou falha de rede: mantém só o localStorage */
+    }
+  }
+
   // Encerra a PRÓPRIA conta: desativa o perfil (ativo = false) e faz logout.
   // Não apaga dados nem remove o usuário do Auth. A segurança está no banco:
   //  - policy "Usuário atualiza apenas o próprio perfil" permite só o próprio id;
@@ -237,6 +307,10 @@ export function AuthProvider({ children }) {
     atualizarPreferenciasLimite,
     marcarOnboardingConcluido,
     encerrarMinhaConta,
+    // Aparência (cor do tema) — preferência efetiva (perfil do banco quando
+    // disponível, senão localStorage). Robusto à migration pendente.
+    corTema,
+    atualizarCorTema,
     // ehAdmin usa SEMPRE o papel real do usuário logado (não o do cliente).
     ehAdmin: perfil?.papel === 'admin',
     // Conta desativada por um administrador (soft-disable). Baseado no perfil

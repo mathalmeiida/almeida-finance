@@ -8,7 +8,7 @@ import { useReceitas } from '../hooks/useReceitas'
 import { useDespesas } from '../hooks/useDespesas'
 import { useCategorias } from '../hooks/useCategorias'
 import InputMoeda from '../components/InputMoeda'
-import { formatCurrency } from '../lib/utils'
+import { formatCurrency, CORES_TEMA } from '../lib/utils'
 import { classificarDespesa } from '../lib/classificarDespesa'
 import { hojeISO as hojeISOBrasil } from '../lib/utils'
 
@@ -80,7 +80,7 @@ function LinhaResumo({ label, valor, cor = 'text-gray-900' }) {
 }
 
 export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
-  const { perfil, atualizarPreferenciasLimite } = useAuth()
+  const { perfil, atualizarPreferenciasLimite, corTema, atualizarCorTema } = useAuth()
   // Hooks das MESMAS tabelas usadas no app — sem estrutura paralela.
   const { receitas: receitasExistentes, criar: criarReceita } = useReceitas()
   const { despesas: despesasExistentes, criar: criarDespesa } = useDespesas()
@@ -431,10 +431,42 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
               <h1 className="text-xl font-bold text-gray-900 mb-2">
                 Vamos configurar seu Almeida Finance
               </h1>
-              <p className="text-sm text-gray-500 mb-6">
+              <p className="text-sm text-gray-500 mb-5">
                 Leva poucos minutos. Essas informações serão usadas para calcular seu
                 orçamento, gasto diário, projeções e ajudar nas suas decisões financeiras.
               </p>
+
+              {/* 1ª etapa: cor do tema (antes das informações financeiras).
+                  Cartões de seleção com círculo colorido + indicador do escolhido.
+                  Aplica na hora e salva em perfis.cor_tema (via atualizarCorTema). */}
+              <div className="text-left mb-6">
+                <p className="label mb-2">Escolha a cor do app</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {CORES_TEMA.map(op => {
+                    const ativo = corTema === op.value
+                    return (
+                      <button
+                        key={op.value}
+                        type="button"
+                        onClick={() => atualizarCorTema(op.value)}
+                        aria-pressed={ativo}
+                        className={`flex items-center gap-2.5 rounded-xl border p-2.5 text-left transition-all ${
+                          ativo ? 'border-gray-900 ring-2 ring-gray-900/10' : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <span
+                          className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+                          style={{ backgroundColor: op.hex }}
+                        >
+                          {ativo && <CheckCircle2 size={15} className="text-white" />}
+                        </span>
+                        <span className="text-sm font-medium text-gray-900">{op.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
               <button
                 onClick={() => setEtapa(SALDO)}
                 className="btn-primary w-full flex items-center justify-center gap-2"

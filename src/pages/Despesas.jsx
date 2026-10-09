@@ -936,7 +936,7 @@ export default function Despesas() {
               onClick={() => setFiltro(aba)}
               className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
                 filtro === aba
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-marca text-white'
                   : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}
             >

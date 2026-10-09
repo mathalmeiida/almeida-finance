@@ -1,12 +1,85 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, Mail, AlertTriangle, Loader2, Trash2, LogOut, Sparkles, Eye, EyeOff, Clock, MessageSquarePlus, CheckCircle2 } from 'lucide-react'
+import { User, Mail, AlertTriangle, Loader2, Trash2, LogOut, Sparkles, Eye, EyeOff, Clock, MessageSquarePlus, CheckCircle2, Palette, Check } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useZerarDados } from '../hooks/useZerarDados'
 import { useConsultoriaAcessos } from '../hooks/useConsultoriaAcessos'
 import { useFeedbacks } from '../hooks/useFeedbacks'
 import { supabase } from '../lib/supabase'
+import { CORES_TEMA } from '../lib/utils'
 import Modal from '../components/Modal'
+
+// Card de APARÊNCIA: escolha da cor do tema (Azul padrão / Rosa / Verde / Roxo).
+// A preferência é salva no perfil (atualizarCorTema → perfis.cor_tema) e aplicada
+// globalmente pela classe .tema-* no <html> (ver AuthContext + index.css). Só
+// identidade visual — não altera cálculos nem dados.
+function Aparencia() {
+  const { corTema, atualizarCorTema } = useAuth()
+  const [salvando, setSalvando] = useState('')
+  const [erro, setErro] = useState('')
+
+  async function escolher(cor) {
+    if (cor === corTema || salvando) return
+    setSalvando(cor); setErro('')
+    try {
+      await atualizarCorTema(cor)
+    } catch {
+      setErro('Não foi possível salvar a cor agora. Tente novamente.')
+    } finally {
+      setSalvando('')
+    }
+  }
+
+  return (
+    <div className="card">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 bg-marca-100 rounded-xl flex items-center justify-center flex-shrink-0">
+          <Palette size={16} className="text-marca" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-semibold text-gray-900">Aparência</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Escolha a cor de destaque do app (botões, menus e ícones ativos).
+          </p>
+
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            {CORES_TEMA.map(op => {
+              const ativo = corTema === op.value
+              return (
+                <button
+                  key={op.value}
+                  type="button"
+                  onClick={() => escolher(op.value)}
+                  disabled={!!salvando}
+                  aria-pressed={ativo}
+                  className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-all ${
+                    ativo ? 'border-gray-900 ring-2 ring-gray-900/10' : 'border-gray-200 hover:border-gray-300'
+                  } disabled:opacity-60`}
+                >
+                  <span
+                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: op.hex }}
+                  >
+                    {salvando === op.value
+                      ? <Loader2 size={15} className="animate-spin text-white" />
+                      : ativo ? <Check size={16} className="text-white" /> : null}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-gray-900">{op.label}</span>
+                    <span className="block text-xs text-gray-400">
+                      {op.value === 'azul' ? 'Padrão' : 'Alternativa'}
+                    </span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // Card para o usuário ENVIAR um feedback (sugestão, dúvida ou problema). O
 // envio usa a mesma fonte/hook do painel Admin (useFeedbacks). RLS garante que
@@ -301,6 +374,9 @@ export default function Configuracoes() {
 
       {/* Acessos de consultoria (autorizar/recusar/revogar) */}
       <AcessosConsultoria />
+
+      {/* Aparência (cor de marca: Azul / Rosa) */}
+      <Aparencia />
 
       {/* Enviar feedback (sugestão / dúvida / problema) */}
       <EnviarFeedback />

@@ -332,7 +332,7 @@ export default function Admin() {
             key={t.id}
             onClick={() => setAba(t.id)}
             className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
-              aba === t.id ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+              aba === t.id ? 'bg-marca text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
             }`}
           >
             <t.icon size={15} />

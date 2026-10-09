@@ -3,12 +3,35 @@
 @tailwind utilities;
 
 @layer base {
+  /* ─── Cor de marca (Azul padrão / Rosa) ───
+     Variáveis RGB (sem "rgb()") consumidas pelo Tailwind via rgb(var(--marca)).
+     O padrão é o AZUL (#2855A5 = 40 85 165). A Fase 2 troca para ROSA aplicando
+     a classe .tema-rosa no elemento raiz (ver abaixo), por preferência do
+     usuário. Apenas identidade visual — não altera cálculos nem dados. */
+  :root {
+    --marca: 40 85 165;        /* #2855A5 azul (padrão) */
+    --marca-hover: 32 68 132;  /* azul mais escuro p/ hover */
+  }
+  .tema-rosa {
+    --marca: 184 63 121;       /* #B83F79 rosa */
+    --marca-hover: 150 48 97;  /* rosa mais escuro p/ hover */
+  }
+  .tema-verde {
+    --marca: 22 128 92;        /* #16805C verde */
+    --marca-hover: 17 101 73;  /* verde mais escuro p/ hover */
+  }
+  .tema-roxo {
+    --marca: 124 58 173;       /* #7C3AAD roxo */
+    --marca-hover: 100 46 140; /* roxo mais escuro p/ hover */
+  }
+
   html {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   body {
+    /* Fundo geral claro (#F8FAFC) + texto escuro para legibilidade. */
     @apply bg-gray-50 text-gray-900;
   }
 
@@ -52,8 +75,11 @@
     }
   }
 
+  /* Botão primário usa a COR DE MARCA (azul padrão / rosa). Como a marca é uma
+     variável CSS, trocar o tema (Fase 2) reflete em todos os botões primários
+     sem editar componente algum. */
   .btn-primary {
-    @apply bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition-colors duration-200;
+    @apply bg-marca hover:bg-marca-hover text-white font-medium px-4 py-2 rounded-lg transition-colors duration-200;
   }
 
   .btn-secondary {
@@ -61,7 +87,7 @@
   }
 
   .input {
-    @apply w-full bg-gray-100 border border-gray-300 text-gray-900 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+    @apply w-full bg-white border border-gray-300 text-gray-900 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-marca focus:border-transparent;
   }
 
   .label {
@@ -84,6 +110,17 @@
   .bottom-nav-item {
     @apply flex flex-col items-center justify-center gap-0.5 flex-1 min-h-[52px] text-[11px] font-medium transition-colors;
   }
+
+  /* Gradiente de DESTAQUE na cor da marca (azul padrão / rosa). Usado nos
+     cards-herói (ex.: "Quanto posso gastar?"). Segue a variável --marca, então
+     troca de tema reflete automaticamente. */
+  .bg-marca-grad {
+    background-image: linear-gradient(
+      to bottom right,
+      rgb(var(--marca)),
+      rgb(var(--marca-hover))
+    );
+  }
 }
 
 @layer utilities {
@@ -95,9 +132,12 @@
     padding-top: env(safe-area-inset-top);
   }
   /* Reserva de espaço para a barra inferior no mobile (altura + safe-area).
-     ~64px da barra + inset. Só aplicada abaixo de md. */
+     A barra tem o botão central "+" saliente (sobe ~20px) além dos itens
+     (~52px), então reservamos ~116px + inset para o último elemento da página
+     (ex.: "Registrar gasto de hoje" na Home) nunca ficar escondido atrás da
+     barra. Só aplicada abaixo de md. */
   .pb-mobilenav {
-    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+    padding-bottom: calc(116px + env(safe-area-inset-bottom));
   }
   /* Área de toque mínima recomendada (~44px) para ícones/botões pequenos. */
   .touch-target {

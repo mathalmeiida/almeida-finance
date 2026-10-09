@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Zap, Sun, Plus, Pencil,
-  CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank, AlertTriangle, MessageCircle, BarChart2
+  CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank, AlertTriangle, MessageCircle, BarChart2, X
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useCategorias } from '../hooks/useCategorias'
@@ -404,7 +404,7 @@ function CardQuantoPossoGastar({
 
   if (carregando) {
     return (
-      <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-5">
+      <div className="bg-marca-grad rounded-2xl p-5">
         <div className="flex items-center gap-2 text-white/90 mb-3">
           <Sun size={18} />
           <span className="text-sm font-medium">Quanto posso gastar?</span>
@@ -438,7 +438,7 @@ function CardQuantoPossoGastar({
   }
 
   return (
-    <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-5 text-white">
+    <div className="bg-marca-grad rounded-2xl p-5 text-white">
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
           <Sun size={18} />
@@ -448,13 +448,13 @@ function CardQuantoPossoGastar({
         <div className="flex bg-black/15 rounded-lg p-0.5 text-xs font-medium flex-shrink-0">
           <button
             onClick={() => onTrocarModo('auto')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${!ehManual ? 'bg-white/90 text-blue-700' : 'text-white/80'}`}
+            className={`px-3 py-1.5 rounded-md transition-colors ${!ehManual ? 'bg-white/90 text-marca' : 'text-white/80'}`}
           >
             Automático
           </button>
           <button
             onClick={() => onTrocarModo('manual')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${ehManual ? 'bg-white/90 text-blue-700' : 'text-white/80'}`}
+            className={`px-3 py-1.5 rounded-md transition-colors ${ehManual ? 'bg-white/90 text-marca' : 'text-white/80'}`}
           >
             Manual
           </button>
@@ -472,14 +472,14 @@ function CardQuantoPossoGastar({
             {OPCOES_RESERVA.map(op => (
               <button key={op} type="button" onClick={() => { selecionarPct(op); setPersonalizando(false) }}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  !personalizando && pct === op ? 'bg-white/90 text-blue-700' : 'bg-black/20 text-white/80 hover:bg-black/30'
+                  !personalizando && pct === op ? 'bg-white/90 text-marca' : 'bg-black/20 text-white/80 hover:bg-black/30'
                 }`}>
                 {op}%
               </button>
             ))}
             <button type="button" onClick={() => setPersonalizando(v => !v)}
               className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                personalizando || !OPCOES_RESERVA.includes(pct) ? 'bg-white/90 text-blue-700' : 'bg-black/20 text-white/80 hover:bg-black/30'
+                personalizando || !OPCOES_RESERVA.includes(pct) ? 'bg-white/90 text-marca' : 'bg-black/20 text-white/80 hover:bg-black/30'
               }`}>
               Personalizado
             </button>
@@ -490,7 +490,7 @@ function CardQuantoPossoGastar({
                 onChange={e => setPctCustom(e.target.value)}
                 placeholder="Ex: 18" autoFocus
                 className="flex-1 bg-white/90 text-gray-900 rounded-md px-2 py-1 text-sm focus:outline-none" />
-              <button type="submit" className="bg-white/90 text-blue-700 text-xs font-semibold px-3 rounded-md">OK</button>
+              <button type="submit" className="bg-white/90 text-marca text-xs font-semibold px-3 rounded-md">OK</button>
             </form>
           )}
           <p className="text-xs text-white/60 mt-2">Este valor está sendo separado do seu orçamento de gastos.</p>
@@ -938,7 +938,7 @@ function CardGastoHoje({
   const { ocultar } = useOcultarValores()
   if (carregando) {
     return (
-      <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-5">
+      <div className="bg-marca-grad rounded-2xl p-5">
         <div className="h-4 w-48 bg-black/20 rounded animate-pulse" />
         <div className="h-10 w-40 bg-black/20 rounded-lg animate-pulse mt-3" />
       </div>
@@ -959,7 +959,7 @@ function CardGastoHoje({
     : 'bg-green-300'
 
   return (
-    <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-2xl p-4 text-white">
+    <div className="bg-marca-grad rounded-2xl p-4 text-white">
       <div className="flex items-center gap-2 text-white/90">
         <Sun size={16} />
         <span className="text-sm font-medium">Quanto posso gastar?</span>
@@ -1097,28 +1097,22 @@ function CardSeuDiaFinanceiro({
 
       <p className="text-sm text-gray-500 mt-2.5">{mensagem}</p>
 
-      {!somenteLeitura && (
-        <div className="flex flex-col sm:flex-row gap-2 mt-2.5">
+      {/* O botão "Registrar gasto de hoje" foi movido para logo abaixo do card
+          principal (fica visível sem rolar no celular). Aqui mantemos só o
+          check-in "Não gastei hoje", quando ainda não houve gasto hoje. */}
+      {!somenteLeitura && semGastoHoje && (
+        <div className="mt-2.5">
           <button
-            onClick={onRegistrarGasto}
-            className="btn-primary flex-1 flex items-center justify-center gap-2"
+            onClick={onNaoGasteiHoje}
+            disabled={jaFezCheckin}
+            className={`w-full flex items-center justify-center gap-2 font-medium text-sm px-4 py-2.5 rounded-lg border transition-colors ${
+              jaFezCheckin
+                ? 'bg-gray-100 text-gray-400 border-transparent cursor-default'
+                : 'bg-transparent text-gray-600 border-gray-300 hover:bg-gray-100'
+            }`}
           >
-            <Plus size={16} strokeWidth={2.5} /> Registrar gasto de hoje
+            <Check size={15} /> {jaFezCheckin ? 'Dia sem gastos' : 'Não gastei hoje'}
           </button>
-          {/* Só aparece quando ainda não houve NENHUM gasto hoje. */}
-          {semGastoHoje && (
-            <button
-              onClick={onNaoGasteiHoje}
-              disabled={jaFezCheckin}
-              className={`flex-1 flex items-center justify-center gap-2 font-medium text-sm px-4 py-2.5 rounded-lg border transition-colors ${
-                jaFezCheckin
-                  ? 'bg-gray-100 text-gray-400 border-transparent cursor-default'
-                  : 'bg-transparent text-gray-600 border-gray-300 hover:bg-gray-100'
-              }`}
-            >
-              <Check size={15} /> {jaFezCheckin ? 'Dia sem gastos' : 'Não gastei hoje'}
-            </button>
-          )}
         </div>
       )}
     </div>
@@ -1180,7 +1174,7 @@ function CardProximos7Dias({ total, itens, onVerTodos }) {
 }
 
 export default function Dashboard() {
-  const { perfil, atualizarPreferenciasLimite, somenteLeitura } = useAuth()
+  const { perfil, atualizarPreferenciasLimite, somenteLeitura, idUsuarioLogado } = useAuth()
   const { ocultar, alternar } = useOcultarValores()
   const {
     resumoMes, projecao, carregando, receitas, despesas, parcelamentos, criarDespesa,
@@ -1196,10 +1190,25 @@ export default function Dashboard() {
   const { interesses: interessesConsultoria } = useConsultoriaInteresses()
   const jaRegistrouConsultoria = (interessesConsultoria?.length ?? 0) > 0
   const navigate = useNavigate()
+
+  // Dica de 1º acesso para o atalho "Registrar gasto". Guardada por usuário no
+  // localStorage: aparece uma vez e some ao ser vista/dispensada ou ao usar o
+  // atalho. Não reaparece para o mesmo usuário.
+  const CHAVE_DICA_GASTO = `almeida_dica_gasto_${idUsuarioLogado || 'anon'}`
+  const [mostrarDicaGasto, setMostrarDicaGasto] = useState(() => {
+    try { return localStorage.getItem(CHAVE_DICA_GASTO) !== '1' } catch { return false }
+  })
+  function dispensarDicaGasto() {
+    try { localStorage.setItem(CHAVE_DICA_GASTO, '1') } catch { /* ignora */ }
+    setMostrarDicaGasto(false)
+  }
+
   const [modalGasto, setModalGasto] = useState(false)
   const [salvandoGasto, setSalvandoGasto] = useState(false)
   const [erroGasto, setErroGasto] = useState('')
   const [confirmacaoGasto, setConfirmacaoGasto] = useState(null) // { msg, limite }
+  // Tela de sucesso DENTRO do modal de gasto (com "Registrar outro"/"Voltar").
+  const [gastoSucesso, setGastoSucesso] = useState(null) // { msg } | null
   const [modalLimite, setModalLimite] = useState(false)
   const [salvandoLimite, setSalvandoLimite] = useState(false)
   const [modalReservaAtual, setModalReservaAtual] = useState(false)
@@ -1441,17 +1450,8 @@ export default function Dashboard() {
           numero_parcelas: 1,
           categoria_id: dados.categoria_id || null,
         })
-        setModalGasto(false)
-        // O limite diário NÃO muda (compra no crédito não sai do saldo de hoje).
-        const limite = calcularLimiteDiario({
-          receitaMes, compromissosMes,
-          reservaPct: reservaPercentual, modo: modoLimite, limiteManual, hoje,
-          baseLivre: saldoConfigurado ? previsaoFimMes : undefined,
-        })
-        setConfirmacaoGasto({
-          msg: `✓ Gasto de ${formatCurrency(valorGasto)} lançado na fatura do cartão`,
-          limite: Math.max(0, limite),
-        })
+        // Sucesso: mantém o modal aberto mostrando a tela de confirmação.
+        setGastoSucesso({ msg: `${formatCurrency(valorGasto)} lançado na fatura do cartão` })
         return
       }
 
@@ -1460,24 +1460,8 @@ export default function Dashboard() {
       // Remove campos que não são colunas de "despesas".
       const { cartao_id, ...despesa } = dados
       await criarDespesa(despesa)   // atualiza o estado interno → indicadores recalculam
-      setModalGasto(false)
-      // Confirmação curta + limite diário restante (MESMA fórmula do card,
-      // via calcularLimiteDiario). O gasto é à vista → entra em compromissos,
-      // então somamos o valor para refletir o limite JÁ atualizado.
-      const limite = calcularLimiteDiario({
-        receitaMes,
-        compromissosMes: compromissosMes + valorGasto,
-        reservaPct: reservaPercentual,
-        modo: modoLimite,
-        limiteManual,
-        hoje,
-        // Com saldo configurado, o gasto de hoje reduz a base livre.
-        baseLivre: saldoConfigurado ? (previsaoFimMes - valorGasto) : undefined,
-      })
-      setConfirmacaoGasto({
-        msg: `✓ Gasto de ${formatCurrency(valorGasto)} registrado em ${categoriaNome}`,
-        limite: Math.max(0, limite),
-      })
+      // Sucesso: mantém o modal aberto mostrando a tela de confirmação.
+      setGastoSucesso({ msg: `${formatCurrency(valorGasto)} registrado em ${categoriaNome}` })
     } catch {
       setErroGasto('Erro ao salvar o gasto. Tente novamente.')
     } finally {
@@ -1613,7 +1597,10 @@ export default function Dashboard() {
     `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
 
   return (
-    <div className="space-y-5">
+    // pb extra no MOBILE: garante que o último card ("Seu dia financeiro" com o
+    // botão "Registrar gasto de hoje") role totalmente acima da barra inferior
+    // fixa (que tem o botão "+" saliente). Zera no desktop (md:pb-0).
+    <div className="space-y-5 pb-24 md:pb-0">
       {/* 1 ─ Saudação (horário de Brasília) + botão global de ocultar valores.
           Enxuto, sem ocupar altura excessiva. */}
       <div className="flex items-center justify-between gap-3">
@@ -1673,6 +1660,37 @@ export default function Dashboard() {
         onVerCompleto={() => setModalPlanejamento(true)}
       />
 
+      {/* 2b ─ Ação principal "Registrar gasto de hoje" logo abaixo do card, para
+          ficar visível sem rolar no celular. Mesma função do botão que ficava
+          no card "Seu dia financeiro" (setModalGasto → modal de gasto rápido).
+          Oculto no modo consultoria (somente leitura). */}
+      {!somenteLeitura && (
+        <button
+          onClick={() => setModalGasto(true)}
+          className="btn-primary w-full flex items-center justify-center gap-2"
+        >
+          <Plus size={16} strokeWidth={2.5} /> Registrar gasto de hoje
+        </button>
+      )}
+
+      {/* Dica de 1º acesso para o atalho "Registrar gasto" (some ao dispensar
+          ou ao usar o atalho; não reaparece para o mesmo usuário). */}
+      {!somenteLeitura && mostrarDicaGasto && (
+        <div className="flex items-start gap-2.5 bg-marca-100 border border-marca/20 rounded-xl px-3 py-2.5">
+          <Zap size={16} className="text-marca flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-gray-700 flex-1 min-w-0">
+            Comprou alguma coisa? Registre seu gasto aqui.
+          </p>
+          <button
+            onClick={dispensarDicaGasto}
+            aria-label="Dispensar dica"
+            className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
+
       {/* 3 ─ Atalhos rápidos — reaproveitam os fluxos JÁ existentes (modais/rotas),
           sem duplicar lógica. Ocultos no modo consultoria (somente leitura). */}
       {!somenteLeitura && (
@@ -1680,19 +1698,20 @@ export default function Dashboard() {
         {[
           { label: 'Receita',  icon: TrendingUp,   cor: 'text-green-500',  anel: 'bg-green-500/10',  onClick: () => navigate('/receitas?novo=1') },
           { label: 'Despesa',  icon: TrendingDown, cor: 'text-red-500',    anel: 'bg-red-500/10',    onClick: () => navigate('/despesas?novo=1') },
-          { label: 'Gasto',    icon: Zap,          cor: 'text-amber-500',  anel: 'bg-amber-500/10',  onClick: () => setModalGasto(true) },
+          { label: 'Registrar gasto', curto: 'Registrar', icon: Zap, cor: 'text-amber-500', anel: 'bg-amber-500/10', onClick: () => { dispensarDicaGasto(); setModalGasto(true) } },
           { label: 'Cartão',   icon: CreditCard,   cor: 'text-blue-500',   anel: 'bg-blue-500/10',   onClick: () => navigate('/cartoes') },
           { label: 'Reserva',  icon: PiggyBank,    cor: 'text-violet-500', anel: 'bg-violet-500/10', onClick: () => setModalReservaAtual(true) },
         ].map(a => (
           <button
             key={a.label}
             onClick={a.onClick}
+            aria-label={a.label}
             className="group flex flex-col items-center justify-center gap-1.5 min-w-0 rounded-xl bg-gray-100 border border-gray-200 py-2.5 px-1 transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md hover:shadow-black/20 active:translate-y-0"
           >
             <span className={`w-8 h-8 rounded-full ${a.anel} flex items-center justify-center`}>
               <a.icon size={17} className={a.cor} />
             </span>
-            <span className="text-[11px] font-medium text-gray-600 group-hover:text-gray-800 truncate w-full text-center transition-colors">{a.label}</span>
+            <span className="text-[11px] font-medium text-gray-600 group-hover:text-gray-800 truncate w-full text-center transition-colors">{a.curto || a.label}</span>
           </button>
         ))}
       </div>
@@ -1705,13 +1724,13 @@ export default function Dashboard() {
             <ShoppingCart size={20} className="text-blue-400" />
           </div>
           <div className="min-w-0">
-            <p className="text-white font-semibold">Posso Comprar?</p>
-            <p className="text-gray-400 text-sm">Veja se cabe no seu orçamento.</p>
+            <p className="text-gray-900 font-semibold">Posso Comprar?</p>
+            <p className="text-gray-500 text-sm">Veja se cabe no seu orçamento.</p>
           </div>
         </div>
         <Link
           to="/posso-comprar"
-          className="flex items-center gap-2 bg-blue-600 text-white font-semibold text-sm px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors whitespace-nowrap flex-shrink-0"
+          className="flex items-center gap-2 bg-marca hover:bg-marca-hover text-white font-semibold text-sm px-4 py-2 rounded-xl transition-colors whitespace-nowrap flex-shrink-0"
         >
           Simular compra <ArrowRight size={16} className="text-white" />
         </Link>
@@ -2035,14 +2054,42 @@ export default function Dashboard() {
         />
       </Modal>
 
-      {/* Modal de Gasto rápido */}
-      <Modal aberto={modalGasto} onFechar={() => setModalGasto(false)} titulo="Gasto rápido">
-        <FormGastoRapido
-          onSalvar={handleSalvarGasto}
-          onCancelar={() => setModalGasto(false)}
-          carregando={salvandoGasto}
-          onMaisOpcoes={handleMaisOpcoes}
-        />
+      {/* Modal de Gasto rápido — mostra o formulário OU a tela de sucesso. */}
+      <Modal
+        aberto={modalGasto}
+        onFechar={() => { setModalGasto(false); setGastoSucesso(null) }}
+        titulo={gastoSucesso ? 'Tudo certo!' : 'Registrar gasto'}
+      >
+        {gastoSucesso ? (
+          <div className="text-center py-2">
+            <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <CheckCircle2 size={28} className="text-green-600" />
+            </div>
+            <p className="text-base font-semibold text-gray-900">Gasto registrado com sucesso!</p>
+            <p className="text-sm text-gray-500 mt-1">{gastoSucesso.msg}</p>
+            <div className="flex flex-col sm:flex-row gap-2 mt-5">
+              <button
+                onClick={() => setGastoSucesso(null)}
+                className="btn-primary flex-1 flex items-center justify-center gap-2"
+              >
+                <Plus size={16} strokeWidth={2.5} /> Registrar outro gasto
+              </button>
+              <button
+                onClick={() => { setModalGasto(false); setGastoSucesso(null) }}
+                className="btn-secondary flex-1"
+              >
+                Voltar ao início
+              </button>
+            </div>
+          </div>
+        ) : (
+          <FormGastoRapido
+            onSalvar={handleSalvarGasto}
+            onCancelar={() => setModalGasto(false)}
+            carregando={salvandoGasto}
+            onMaisOpcoes={handleMaisOpcoes}
+          />
+        )}
       </Modal>
 
       {/* Modal de edição do limite diário */}

@@ -21,7 +21,7 @@ import {
   Eye,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import logoAlmeida from '../assets/Logo Corporativo Almeida Finance.png'
+import LogoMarca from './LogoMarca'
 
 // Agrupamento VISUAL da sidebar desktop (mesmas rotas/itens de navItems,
 // apenas organizados em seções). As permissões seguem iguais: itens com
@@ -79,7 +79,7 @@ function NavItem({ item, onClick }) {
       className={({ isActive }) =>
         `flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors duration-150 ${
           isActive
-            ? 'bg-blue-600 text-white shadow-sm'
+            ? 'bg-marca text-white shadow-sm'
             : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
         }`
       }
@@ -150,7 +150,7 @@ function BottomNavItem({ to, label, icon: Icon, onClick, ativo, corIcone }) {
       <NavLink
         to={to}
         end={to === '/'}
-        className={({ isActive }) => `${base} ${isActive ? 'text-blue-500' : 'text-gray-400'}`}
+        className={({ isActive }) => `${base} ${isActive ? 'text-marca' : 'text-gray-400'}`}
       >
         {({ isActive }) => (
           <>
@@ -217,11 +217,11 @@ export default function Layout({ children }) {
     <div className="min-h-screen flex">
       {/* ── Sidebar desktop (redesenho visual; rotas/permissões inalteradas) ── */}
       <aside className="hidden md:flex flex-col w-60 bg-white border-r border-gray-200/70 fixed top-0 left-0 h-full z-30">
-        {/* Logo + subtítulo. Logo transparente sobre o próprio fundo da
-            sidebar (sem quadrado/background atrás da imagem). */}
+        {/* Logo + subtítulo. O logo (branco) fica sobre um painel na cor da
+            marca (azul/rosa) para contraste no tema claro — ver LogoMarca. */}
         <div className="px-5 pt-6 pb-5 border-b border-gray-100 flex flex-col items-center text-center">
-          <img src={logoAlmeida} alt="Almeida Finance" className="h-24 w-auto object-contain" />
-          <p className="text-[13px] text-gray-500 mt-2">Controle financeiro</p>
+          <LogoMarca imgClassName="h-16 w-auto" padding="px-5 py-4" />
+          <p className="text-[13px] text-gray-600 mt-2.5">Controle financeiro</p>
         </div>
 
         {/* Navegação agrupada em seções */}
@@ -271,7 +271,7 @@ export default function Layout({ children }) {
             seta de voltar à esquerda. Avatar sempre à direita. */}
         <header className="md:hidden bg-white border-b border-gray-100 px-4 h-14 flex items-center justify-between sticky top-0 z-20 pt-safe">
           {ehHome ? (
-            <img src={logoAlmeida} alt="Almeida Finance" className="h-[38px] w-auto object-contain" />
+            <LogoMarca imgClassName="h-7 w-auto" padding="px-2.5 py-1.5" />
           ) : (
             <button
               onClick={voltar}
@@ -322,7 +322,7 @@ export default function Layout({ children }) {
             <button
               onClick={() => setAcoesAberto(true)}
               aria-label="Adicionar"
-              className="-mt-5 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white shadow-lg shadow-blue-600/30 flex items-center justify-center transition-all"
+              className="-mt-5 w-14 h-14 rounded-full bg-marca hover:bg-marca-hover active:scale-95 text-white shadow-lg shadow-black/20 flex items-center justify-center transition-all"
             >
               <Plus size={26} />
             </button>

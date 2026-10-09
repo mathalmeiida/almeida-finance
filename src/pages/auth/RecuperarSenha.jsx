@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CircleDollarSign, Mail, AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
-import logoAlmeida from '../../assets/Logo Corporativo Almeida Finance.png'
+import LogoMarca from '../../components/LogoMarca'
 
 export default function RecuperarSenha() {
   const { solicitarRecuperacaoSenha } = useAuth()
@@ -28,9 +28,9 @@ export default function RecuperarSenha() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
-        {/* Logo */}
+        {/* Logo (branco) sobre painel na cor da marca p/ contraste no claro */}
         <div className="flex justify-center mb-8">
-          <img src={logoAlmeida} alt="Almeida Finance" className="w-[220px] h-auto object-contain" />
+          <LogoMarca imgClassName="w-[180px] h-auto" padding="px-7 py-5" />
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">

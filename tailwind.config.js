@@ -6,24 +6,26 @@ export default {
   ],
   theme: {
     extend: {
-      // ─── Dark mode ───
-      // A escala "gray" foi invertida (claro ↔ escuro) para converter toda a
-      // interface em tema escuro sem editar cada tela: os tons antes claros
-      // (50–200), usados como fundos/cards/bordas, agora são escuros; os tons
-      // antes escuros (700–900), usados em textos, agora são claros.
+      // ─── Tema CLARO ───
+      // A escala "gray" voltou ao padrão do Tailwind (tons claros em cima,
+      // escuros embaixo). Antes ela era invertida para simular um tema escuro;
+      // agora o app é claro: fundos claros (50–200), textos escuros (700–900).
+      // Como todas as telas usam bg-gray-50 / bg-white / text-gray-900, restaurar
+      // a escala aqui clareia o app inteiro sem editar cada componente.
       colors: {
         gray: {
-          50:  '#0d1117',       // fundo principal (quase preto)
-          100: '#1c2128',       // superfícies / cards / hovers
-          200: '#2d333b',       // bordas discretas / hovers de botão secundário
-          300: '#444c56',       // bordas de inputs / divisores
-          400: '#768390',       // texto secundário / ícones apagados
-          500: '#909dab',       // texto secundário
-          600: '#adbac7',       // texto secundário mais forte
-          700: '#cdd9e5',       // texto de labels
-          800: '#e6edf3',       // texto forte
-          900: '#f0f6fc',       // texto principal (quase branco)
+          50:  '#f8fafc',   // fundo principal das telas (#F8FAFC pedido)
+          100: '#f1f5f9',   // superfícies claras / hovers
+          200: '#e2e8f0',   // bordas discretas / divisores
+          300: '#cbd5e1',   // bordas de inputs
+          400: '#94a3b8',   // texto secundário / ícones apagados
+          500: '#64748b',   // texto secundário
+          600: '#475569',   // texto secundário mais forte
+          700: '#334155',   // texto de labels
+          800: '#1e293b',   // texto forte
+          900: '#0f172a',   // texto principal (quase preto)
         },
+        // Azul utilitário mantido (compatibilidade com classes primary-*).
         primary: {
           50:  '#eff6ff',
           100: '#dbeafe',
@@ -35,13 +37,22 @@ export default {
           700: '#1d4ed8',
           800: '#1e40af',
           900: '#1e3a8a',
-        }
+        },
+        // ─── Cor de MARCA (Azul padrão / Rosa) ───
+        // Controlada por variáveis CSS definidas no :root (ver index.css) e
+        // alternadas pela preferência do usuário (Fase 2). Usar bg-marca,
+        // text-marca, border-marca, etc. nos elementos de AÇÃO/DESTAQUE.
+        marca: {
+          DEFAULT: 'rgb(var(--marca) / <alpha-value>)',
+          hover:   'rgb(var(--marca-hover) / <alpha-value>)',
+          50:      'rgb(var(--marca) / 0.08)',
+          100:     'rgb(var(--marca) / 0.12)',
+        },
       },
-      // "bg-white" (fundo de cards/modais/notificações) vira o cinza-escuro das
-      // superfícies. "text-white" continua branco de verdade, pois textColor
-      // não é alterado aqui.
+      // "bg-white" volta a ser branco de verdade (#FFFFFF) — cards, modais e
+      // notificações. textColor "white" segue branco (usado sobre fundos de cor).
       backgroundColor: {
-        white: '#161b22',
+        white: '#ffffff',
       },
     },
   },

@@ -297,6 +297,8 @@ function VerFatura({ cartao, onVoltar }) {
   const [refData, setRefData] = useState({ ano: anoAtual, mes: mesAtual })
   // Categoria expandida (mostra os lançamentos dela ao tocar). null = nenhuma.
   const [categoriaAberta, setCategoriaAberta] = useState(null)
+  // Visão da seção "Meus gastos": 'categoria' (padrão) ou 'data'.
+  const [visaoGastos, setVisaoGastos] = useState('categoria')
 
   // Parcelamentos vinculados a ESTE cartão
   const parcelamentosDoCartao = parcelamentos.filter(p => p.cartao_id === cartao.id)
@@ -356,6 +358,22 @@ function VerFatura({ cartao, onVoltar }) {
       // informado — assim as fatias somam 100% do detalhamento.
       .map(g => ({ ...g, pct: totalDetalhado > 0 ? Math.round((g.total / totalDetalhado) * 100) : 0 }))
       .sort((a, b) => b.total - a.total)
+  })()
+
+  // ─── Agrupamento por DATA (visão "Por data") ───
+  // Agrupa as MESMAS linhas da fatura por dia (descrição, valor, categoria e
+  // total diário). Reutiliza "linhas" — sem nova consulta, sem duplicar compra.
+  // Mais recentes primeiro.
+  const gastosPorData = (() => {
+    const mapa = new Map()
+    for (const l of linhas) {
+      const chave = l.data
+      if (!mapa.has(chave)) mapa.set(chave, { data: chave, total: 0, itens: [] })
+      const g = mapa.get(chave)
+      g.total += l.valor
+      g.itens.push(l)
+    }
+    return Array.from(mapa.values()).sort((a, b) => (a.data < b.data ? 1 : -1))
   })()
   const nomeMes = new Date(refData.ano, refData.mes - 1)
     .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
@@ -579,15 +597,35 @@ function VerFatura({ cartao, onVoltar }) {
           ver os lançamentos daquela categoria (com opção de remover compra). */}
       <div>
         <div className="flex items-center justify-between gap-2 mb-3">
-          <h2 className="text-base font-semibold text-gray-900">
-            Gastos por categoria <span className="text-sm font-normal text-gray-400">({categoriasFatura.length})</span>
-          </h2>
+          <h2 className="text-base font-semibold text-gray-900">Meus gastos</h2>
           {ehMesAtual && linhas.length > 0 && (
             <button onClick={() => setModalCompra(true)} className="text-xs font-medium text-blue-600 hover:underline flex-shrink-0">
               + Nova compra
             </button>
           )}
         </div>
+
+        {/* Alternador de visão: Por categoria / Por data. Mostra só a escolhida. */}
+        {linhas.length > 0 && (
+          <div className="flex gap-2 mb-3">
+            {[
+              { v: 'categoria', label: 'Por categoria' },
+              { v: 'data', label: 'Por data' },
+            ].map(op => (
+              <button
+                key={op.v}
+                onClick={() => setVisaoGastos(op.v)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  visaoGastos === op.v
+                    ? 'bg-marca text-white'
+                    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                {op.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {carregando ? (
           <div className="flex items-center justify-center py-12"><Loader2 size={24} className="animate-spin text-blue-500" /></div>
@@ -599,7 +637,7 @@ function VerFatura({ cartao, onVoltar }) {
               <button onClick={() => setModalCompra(true)} className="mt-3 text-sm text-blue-600 hover:underline">Lançar primeira compra</button>
             )}
           </div>
-        ) : (
+        ) : visaoGastos === 'categoria' ? (
           <div className="grid grid-cols-2 gap-3">
             {categoriasFatura.map(cat => {
               const aberta = categoriaAberta === cat.chave
@@ -662,6 +700,50 @@ function VerFatura({ cartao, onVoltar }) {
                 </div>
               )
             })}
+          </div>
+        ) : (
+          /* ── Visão POR DATA ── compras do mês agrupadas por dia (desc., valor,
+             categoria e total do dia). Reutiliza "linhas" e o handleRemover. */
+          <div className="space-y-3">
+            {gastosPorData.map(dia => (
+              <div key={dia.data} className="card">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                    <Calendar size={14} className="text-gray-400" /> {formatDate(dia.data)}
+                  </p>
+                  <span className="text-sm font-bold text-gray-900 whitespace-nowrap">{formatCurrency(dia.total)}</span>
+                </div>
+                <div className="space-y-2 pt-2 border-t border-gray-100">
+                  {dia.itens.map(l => (
+                    <div key={l.id} className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{l.descricao}</p>
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                          {l.categorias?.nome && (
+                            <span className="text-xs text-gray-400">
+                              {l.categorias.icone ? `${l.categorias.icone} ` : ''}{l.categorias.nome}
+                            </span>
+                          )}
+                          <span className="text-xs text-indigo-600 font-medium">
+                            {l.totalParcelas > 1 ? `${l.parcela}/${l.totalParcelas}` : 'À vista'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className="text-sm font-bold text-gray-900 whitespace-nowrap">{formatCurrency(l.valor)}</span>
+                        {ehMesAtual && !l.origemParcelamento && (
+                          <button onClick={() => handleRemover(l.id)} disabled={removendo === l.id}
+                            aria-label="Remover compra"
+                            className="touch-target rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
+                            {removendo === l.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
