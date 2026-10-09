@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Zap, Sun, Plus, Pencil,
-  CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank, AlertTriangle, MessageCircle, BarChart2, X
+  CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank, AlertTriangle, MessageCircle, BarChart2
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useCategorias } from '../hooks/useCategorias'
@@ -1174,7 +1174,7 @@ function CardProximos7Dias({ total, itens, onVerTodos }) {
 }
 
 export default function Dashboard() {
-  const { perfil, atualizarPreferenciasLimite, somenteLeitura, idUsuarioLogado } = useAuth()
+  const { perfil, atualizarPreferenciasLimite, somenteLeitura } = useAuth()
   const { ocultar, alternar } = useOcultarValores()
   const {
     resumoMes, projecao, carregando, receitas, despesas, parcelamentos, criarDespesa,
@@ -1190,18 +1190,6 @@ export default function Dashboard() {
   const { interesses: interessesConsultoria } = useConsultoriaInteresses()
   const jaRegistrouConsultoria = (interessesConsultoria?.length ?? 0) > 0
   const navigate = useNavigate()
-
-  // Dica de 1º acesso para o atalho "Registrar gasto". Guardada por usuário no
-  // localStorage: aparece uma vez e some ao ser vista/dispensada ou ao usar o
-  // atalho. Não reaparece para o mesmo usuário.
-  const CHAVE_DICA_GASTO = `almeida_dica_gasto_${idUsuarioLogado || 'anon'}`
-  const [mostrarDicaGasto, setMostrarDicaGasto] = useState(() => {
-    try { return localStorage.getItem(CHAVE_DICA_GASTO) !== '1' } catch { return false }
-  })
-  function dispensarDicaGasto() {
-    try { localStorage.setItem(CHAVE_DICA_GASTO, '1') } catch { /* ignora */ }
-    setMostrarDicaGasto(false)
-  }
 
   const [modalGasto, setModalGasto] = useState(false)
   const [salvandoGasto, setSalvandoGasto] = useState(false)
@@ -1667,28 +1655,10 @@ export default function Dashboard() {
       {!somenteLeitura && (
         <button
           onClick={() => setModalGasto(true)}
-          className="btn-primary w-full flex items-center justify-center gap-2"
+          className="btn-primary w-full flex items-center justify-center gap-2 text-sm text-center leading-tight"
         >
-          <Plus size={16} strokeWidth={2.5} /> Registrar gasto de hoje
+          <Plus size={16} strokeWidth={2.5} className="flex-shrink-0" /> Registrar uma compra ou gasto
         </button>
-      )}
-
-      {/* Dica de 1º acesso para o atalho "Registrar gasto" (some ao dispensar
-          ou ao usar o atalho; não reaparece para o mesmo usuário). */}
-      {!somenteLeitura && mostrarDicaGasto && (
-        <div className="flex items-start gap-2.5 bg-marca-100 border border-marca/20 rounded-xl px-3 py-2.5">
-          <Zap size={16} className="text-marca flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-gray-700 flex-1 min-w-0">
-            Comprou alguma coisa? Registre seu gasto aqui.
-          </p>
-          <button
-            onClick={dispensarDicaGasto}
-            aria-label="Dispensar dica"
-            className="text-gray-400 hover:text-gray-600 flex-shrink-0"
-          >
-            <X size={15} />
-          </button>
-        </div>
       )}
 
       {/* 3 ─ Atalhos rápidos — reaproveitam os fluxos JÁ existentes (modais/rotas),
@@ -1698,7 +1668,7 @@ export default function Dashboard() {
         {[
           { label: 'Receita',  icon: TrendingUp,   cor: 'text-green-500',  anel: 'bg-green-500/10',  onClick: () => navigate('/receitas?novo=1') },
           { label: 'Despesa',  icon: TrendingDown, cor: 'text-red-500',    anel: 'bg-red-500/10',    onClick: () => navigate('/despesas?novo=1') },
-          { label: 'Registrar gasto', curto: 'Registrar', icon: Zap, cor: 'text-amber-500', anel: 'bg-amber-500/10', onClick: () => { dispensarDicaGasto(); setModalGasto(true) } },
+          { label: 'Registrar gasto', curto: 'Registrar', icon: Zap, cor: 'text-amber-500', anel: 'bg-amber-500/10', onClick: () => setModalGasto(true) },
           { label: 'Cartão',   icon: CreditCard,   cor: 'text-blue-500',   anel: 'bg-blue-500/10',   onClick: () => navigate('/cartoes') },
           { label: 'Reserva',  icon: PiggyBank,    cor: 'text-violet-500', anel: 'bg-violet-500/10', onClick: () => setModalReservaAtual(true) },
         ].map(a => (
@@ -2054,42 +2024,14 @@ export default function Dashboard() {
         />
       </Modal>
 
-      {/* Modal de Gasto rápido — mostra o formulário OU a tela de sucesso. */}
-      <Modal
-        aberto={modalGasto}
-        onFechar={() => { setModalGasto(false); setGastoSucesso(null) }}
-        titulo={gastoSucesso ? 'Tudo certo!' : 'Registrar gasto'}
-      >
-        {gastoSucesso ? (
-          <div className="text-center py-2">
-            <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <CheckCircle2 size={28} className="text-green-600" />
-            </div>
-            <p className="text-base font-semibold text-gray-900">Gasto registrado com sucesso!</p>
-            <p className="text-sm text-gray-500 mt-1">{gastoSucesso.msg}</p>
-            <div className="flex flex-col sm:flex-row gap-2 mt-5">
-              <button
-                onClick={() => setGastoSucesso(null)}
-                className="btn-primary flex-1 flex items-center justify-center gap-2"
-              >
-                <Plus size={16} strokeWidth={2.5} /> Registrar outro gasto
-              </button>
-              <button
-                onClick={() => { setModalGasto(false); setGastoSucesso(null) }}
-                className="btn-secondary flex-1"
-              >
-                Voltar ao início
-              </button>
-            </div>
-          </div>
-        ) : (
-          <FormGastoRapido
-            onSalvar={handleSalvarGasto}
-            onCancelar={() => setModalGasto(false)}
-            carregando={salvandoGasto}
-            onMaisOpcoes={handleMaisOpcoes}
-          />
-        )}
+      {/* Modal de Gasto rápido */}
+      <Modal aberto={modalGasto} onFechar={() => setModalGasto(false)} titulo="Gasto rápido">
+        <FormGastoRapido
+          onSalvar={handleSalvarGasto}
+          onCancelar={() => setModalGasto(false)}
+          carregando={salvandoGasto}
+          onMaisOpcoes={handleMaisOpcoes}
+        />
       </Modal>
 
       {/* Modal de edição do limite diário */}
