@@ -1551,7 +1551,7 @@ export default function Dashboard() {
     // pb extra no MOBILE: garante que o último card ("Seu dia financeiro" com o
     // botão "Registrar gasto de hoje") role totalmente acima da barra inferior
     // fixa (que tem o botão "+" saliente). Zera no desktop (md:pb-0).
-    <div className="flex flex-col gap-2.5 sm:gap-5 lg:gap-3 md:space-y-0 pb-mobilenav md:pb-0 min-h-[calc(100dvh-7rem)] md:min-h-0">
+    <div className="flex flex-col gap-2.5 sm:gap-5 lg:gap-3 md:space-y-0 pb-mobilenav md:pb-0">
       {/* 1 ─ Cabeçalho: saudação (horário de Brasília) + subtítulo fixo, sininho
           de notificações (ponto vermelho só quando há pendência real) e botão
           global de ocultar valores. */}
@@ -1833,11 +1833,6 @@ export default function Dashboard() {
         </div>
       </div>
       )}
-
-      {/* Espaçador flexível (só mobile): absorve a sobra vertical para distribuir
-          o conteúdo e aproveitar o espaço vazio acima da navegação inferior, sem
-          esticar os cards nem usar altura fixa. Zero no desktop. */}
-      <div className="grow md:hidden" aria-hidden="true" />
 
       {/* O "Horizonte Financeiro", o card de Consultoria e o "Resumo do mês"
           foram movidos para a aba Planejamento (/projecao), deixando a Home mais
