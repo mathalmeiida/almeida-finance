@@ -115,11 +115,13 @@
      cards-herói (ex.: "Quanto posso gastar?"). Segue a variável --marca, então
      troca de tema reflete automaticamente. */
   .bg-marca-grad {
-    background-image: linear-gradient(
-      to bottom right,
-      rgb(var(--marca)),
-      rgb(var(--marca-hover))
-    );
+    /* Gradiente premium e discreto: um leve realce (branco translúcido) no
+       canto superior esquerdo + transição diagonal da cor da marca para o tom
+       mais escuro. Dá profundidade sutil sem poluição. Segue --marca, então
+       vale para os 4 temas automaticamente. */
+    background-image:
+      radial-gradient(120% 120% at 0% 0%, rgba(255,255,255,0.12), rgba(255,255,255,0) 45%),
+      linear-gradient(135deg, rgb(var(--marca)) 0%, rgb(var(--marca-hover)) 100%);
   }
 
   /* ── Cabeçalho dinâmico dia/noite (Home) ──────────────────────────────────
