@@ -1,10 +1,56 @@
-import React from 'react'
-import { BarChart2, TrendingUp, TrendingDown, Wallet, Loader2 } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { BarChart2, TrendingUp, TrendingDown, Wallet, Loader2, Pencil, Eye, EyeOff } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
-import { formatCurrency } from '../lib/utils'
+import { formatCurrency, exibirMoeda, hojeISO } from '../lib/utils'
+import { useAuth } from '../contexts/AuthContext'
+import { useOcultarValores } from '../contexts/OcultarValoresContext'
+import HorizonteFinanceiro from '../components/HorizonteFinanceiro'
+import Modal from '../components/Modal'
+import InputMoeda from '../components/InputMoeda'
 
 export default function Projecao() {
-  const { projecao, carregando } = useProjecao()
+  const {
+    projecao, carregando, resumoMes,
+    // dados brutos para o Horizonte financeiro (fluxo de caixa diário)
+    receitas, despesas, recorrentes, parcelamentos, cartoes, comprasCartao,
+    faturasInformadas, reservaPct,
+  } = useProjecao()
+
+  // Saldo atual (movido da Home): reutiliza o MESMO mecanismo do Dashboard —
+  // atualizarPreferenciasLimite({ saldo_base, saldo_base_data }). Nada de novo
+  // cálculo: lê saldoDisponivelAgora/previsaoFimMes/compromissosFuturosMes já
+  // derivados em resumoMes.
+  const { perfil, atualizarPreferenciasLimite, somenteLeitura } = useAuth()
+  const { ocultar, alternar } = useOcultarValores()
+  const [modalSaldo, setModalSaldo] = useState(false)
+  const [valorSaldo, setValorSaldo] = useState(0)
+  const [salvandoSaldo, setSalvandoSaldo] = useState(false)
+  const [erroSaldo, setErroSaldo] = useState('')
+
+  useEffect(() => {
+    if (modalSaldo) { setValorSaldo(Number(perfil?.saldo_base) || 0); setErroSaldo('') }
+  }, [modalSaldo, perfil?.saldo_base])
+
+  async function handleSalvarSaldo(e) {
+    e?.preventDefault?.()
+    if (valorSaldo < 0 || somenteLeitura) return
+    setSalvandoSaldo(true); setErroSaldo('')
+    try {
+      await atualizarPreferenciasLimite({ saldo_base: valorSaldo, saldo_base_data: hojeISO() })
+      setModalSaldo(false)
+    } catch (err) {
+      setErroSaldo(err?.message || 'Não foi possível salvar o saldo. Tente novamente.')
+    } finally {
+      setSalvandoSaldo(false)
+    }
+  }
+
+  const saldoConfigurado = resumoMes?.saldoConfigurado
+  const saldoDisponivelAgora = resumoMes?.saldoDisponivelAgora ?? 0
+  const previsaoFimMes = resumoMes?.previsaoFimMes ?? 0
+  const compromissosFuturosMes = resumoMes?.compromissosFuturosMes ?? 0
+
+
 
   const mediaSaldo = projecao.length
     ? projecao.reduce((acc, m) => acc + m.saldo, 0) / projecao.length
@@ -20,9 +66,139 @@ export default function Projecao() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Projeção financeira</h1>
-        <p className="text-sm text-gray-500 mt-1">Previsão para os próximos 12 meses</p>
+        <h1 className="text-2xl font-bold text-gray-900">Planejamento</h1>
+        <p className="text-sm text-gray-500 mt-1">Saldo, resumo do mês, fluxo de caixa e previsão para os próximos 12 meses</p>
       </div>
+
+      {/* Saldo atual (movido da Home): saldo disponível agora + Atualizar saldo +
+          ocultar + previsão fim do mês + contas a pagar + nota da reserva.
+          Mesmos valores de resumoMes — nada recalculado. */}
+      {!carregando && (
+        <div className="card">
+          {saldoConfigurado ? (
+            <>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-gray-500">Saldo disponível agora</p>
+                    <button
+                      onClick={alternar}
+                      aria-label={ocultar ? 'Mostrar valores' : 'Ocultar valores'}
+                      className="text-gray-400 hover:text-gray-700 p-0.5"
+                    >
+                      {ocultar ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <p className={`text-3xl font-bold leading-tight break-words ${saldoDisponivelAgora >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+                    {exibirMoeda(saldoDisponivelAgora, ocultar)}
+                  </p>
+                </div>
+                {!somenteLeitura && (
+                  <button
+                    onClick={() => setModalSaldo(true)}
+                    className="flex items-center gap-1 text-xs font-medium text-marca hover:opacity-80 flex-shrink-0 mt-1"
+                  >
+                    <Pencil size={13} /> Atualizar saldo
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-4">
+                <div className="bg-gray-50 rounded-xl p-3 min-w-0">
+                  <p className="text-xs text-gray-400">Saldo previsto no fim do mês</p>
+                  <p className={`text-lg font-bold leading-tight break-words ${previsaoFimMes >= 0 ? 'text-marca' : 'text-red-600'}`}>
+                    {exibirMoeda(previsaoFimMes, ocultar)}
+                  </p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3 min-w-0">
+                  <p className="text-xs text-gray-400">Contas a pagar no mês</p>
+                  <p className="text-lg font-bold text-red-500 leading-tight break-words">{exibirMoeda(compromissosFuturosMes, ocultar)}</p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                O saldo mostra o dinheiro que você já tem. A reserva de emergência é separada.
+              </p>
+            </>
+          ) : (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Informe seu saldo atual</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Diga quanto você tem disponível hoje para o app calcular seu dinheiro em tempo real.
+                </p>
+              </div>
+              {!somenteLeitura && (
+                <button onClick={() => setModalSaldo(true)}
+                  className="btn-primary flex items-center justify-center gap-2 flex-shrink-0">
+                  <Wallet size={16} /> Informar saldo
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Resumo do mês (movido da Home): receitas, despesas e resultado previsto.
+          Mesmos valores de resumoMes — sem recalcular nada. */}
+      {!carregando && (
+        <div>
+          <h2 className="text-base font-semibold text-gray-900 mb-3">Resumo do mês</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            <div className="card">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-gray-500 truncate">Receitas</span>
+                <span className="w-9 h-9 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
+                  <TrendingUp size={18} className="text-green-600" />
+                </span>
+              </div>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight break-words mt-2">{formatCurrency(resumoMes.receitaTotal)}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{resumoMes.qtdReceitas} receita{resumoMes.qtdReceitas !== 1 ? 's' : ''}</p>
+            </div>
+            <div className="card">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-gray-500 truncate">Despesas</span>
+                <span className="w-9 h-9 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
+                  <TrendingDown size={18} className="text-red-500" />
+                </span>
+              </div>
+              <p className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight break-words mt-2">{formatCurrency(resumoMes.despesaTotal)}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{resumoMes.qtdDespesas} despesa{resumoMes.qtdDespesas !== 1 ? 's' : ''}</p>
+            </div>
+            <div className="card col-span-2 lg:col-span-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-gray-500 truncate">Resultado previsto do mês</span>
+                <span className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${resumoMes.sobraPrevista >= 0 ? 'bg-blue-50' : 'bg-red-50'}`}>
+                  <Wallet size={18} className={resumoMes.sobraPrevista >= 0 ? 'text-blue-600' : 'text-red-600'} />
+                </span>
+              </div>
+              <p className={`text-xl sm:text-2xl font-bold leading-tight break-words mt-2 ${resumoMes.sobraPrevista >= 0 ? 'text-gray-900' : 'text-red-600'}`}>{formatCurrency(resumoMes.sobraPrevista)}</p>
+              <p className="text-xs text-gray-400 mt-0.5">Receitas menos compromissos do mês</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Horizonte financeiro (fluxo de caixa diário) — movido da Home. Reusa o
+          MESMO componente e dados; nenhuma fórmula alterada. */}
+      {!carregando && projecao.length > 0 && (
+        <div className="card">
+          <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2 mb-3">
+            <BarChart2 size={18} className="text-violet-500 flex-shrink-0" />
+            <span className="truncate">Horizonte financeiro</span>
+          </h2>
+          <HorizonteFinanceiro
+            receitas={receitas}
+            despesas={despesas}
+            recorrentes={recorrentes}
+            parcelamentos={parcelamentos}
+            cartoes={cartoes}
+            comprasCartao={comprasCartao}
+            faturasInformadas={faturasInformadas}
+            reservaPct={reservaPct}
+            saldoInicial={resumoMes.saldoConfigurado ? resumoMes.saldoDisponivelAgora : 0}
+          />
+        </div>
+      )}
 
       {carregando ? (
         <div className="flex items-center justify-center py-24">
@@ -150,6 +326,37 @@ export default function Projecao() {
           </div>
         </>
       )}
+
+      {/* Modal: informar/atualizar o saldo atual (movido da Home). Reutiliza o
+          MESMO campo/handler (atualizarPreferenciasLimite). */}
+      <Modal aberto={modalSaldo} onFechar={() => setModalSaldo(false)} titulo="Saldo atual">
+        <form onSubmit={handleSalvarSaldo} className="space-y-4">
+          <div>
+            <label className="label">Quanto você tem disponível hoje?</label>
+            <InputMoeda
+              valor={valorSaldo}
+              onChangeValor={setValorSaldo}
+              className="input text-2xl font-bold text-center py-3"
+              prefixo={null}
+              autoFocus
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Informe o dinheiro que você possui disponível para utilizar.
+              Não inclua sua reserva de emergência.
+            </p>
+          </div>
+          {erroSaldo && (
+            <p className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2">{erroSaldo}</p>
+          )}
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={() => setModalSaldo(false)} className="btn-secondary flex-1">Cancelar</button>
+            <button type="submit" disabled={salvandoSaldo}
+              className="btn-primary flex-1 flex items-center justify-center gap-2">
+              {salvandoSaldo ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : 'Salvar saldo'}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

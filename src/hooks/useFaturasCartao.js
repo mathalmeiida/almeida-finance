@@ -64,5 +64,34 @@ export function useFaturasCartao(cartaoId = null) {
     setFaturas(prev => prev.filter(f => f.id !== id))
   }
 
-  return { faturas, carregando, erro, salvarFatura, removerFatura, recarregar: buscar }
-}
+async function marcarFaturaPaga(id, pago = true) {
+  bloquearSeConsultoria(modoConsultoria)
+
+  if (!usuario?.id) {
+    throw new Error('Usuário não autenticado')
+  }
+
+  const { data, error } = await supabase
+    .from('faturas_cartao')
+    .update({
+      pago,
+      pago_em: pago
+        ? new Date().toLocaleDateString('en-CA', {
+            timeZone: 'America/Sao_Paulo'
+          })
+        : null
+    })
+    .eq('id', id)
+    .eq('usuario_id', usuario.id)
+    .select()
+    .single()
+
+  if (error) throw error
+
+  setFaturas(prev =>
+    prev.map(f => f.id === id ? data : f)
+  )
+
+  return data
+  }
+return { faturas, carregando, erro, salvarFatura, removerFatura, marcarFaturaPaga, recarregar: buscar }}

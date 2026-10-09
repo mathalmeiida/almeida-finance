@@ -5,7 +5,7 @@ import { useParcelamentos, valorParcelaNoMes } from './useParcelamentos'
 import { useCartoes } from './useCartoes'
 import { useComprasCartao } from './useComprasCartao'
 import { useFaturasCartao } from './useFaturasCartao'
-import { totalFaturaComOverride } from '../lib/faturaCartao'
+import { totalFaturaComOverride, faturaInformadaNoMes } from '../lib/faturaCartao'
 import { useAuth } from '../contexts/AuthContext'
 import { labelMes, hojeISO, partesHojeBrasil } from '../lib/utils'
 
@@ -22,7 +22,7 @@ import { labelMes, hojeISO, partesHojeBrasil } from '../lib/utils'
 export function useProjecao() {
   // Busca dados do mês atual (para não-recorrentes). Mês/ano no fuso de Brasília
   // para o "mês atual" não virar antes da hora perto da virada do dia/mês.
-  const { ano: anoAtual, mes: mesAtual } = partesHojeBrasil()
+  const { ano: anoAtual, mes: mesAtual, dia: diaAtual } = partesHojeBrasil()
 
   const { receitas, carregando: carregandoR } = useReceitas(mesAtual, anoAtual)
   const { despesas, recorrentes, carregando: carregandoD, criar: criarDespesa, recarregar: recarregarDespesas } = useDespesas(mesAtual, anoAtual)
@@ -74,6 +74,52 @@ export function useProjecao() {
     return parcelamentos
       .filter(p => !p.quitado_em && !p.cartao_id)
       .reduce((acc, p) => acc + valorParcelaNoMes(p, ano, mes), 0)
+  }
+
+  // ─── Versões "A VENCER" (compromissos ainda a pagar) ────────────────────────
+  // Usadas SOMENTE em compromissosFuturosMes (previsão/limite diário). Mantêm a
+  // competência mensal, mas descartam o que já venceu até hoje — alinhando o
+  // critério de data ao de despesasFuturasMes (que já filtra "> hoje").
+  //
+  // Por que isto NÃO gera dupla baixa de caixa: faturas de cartão e parcelas
+  // NÃO são lançadas na tabela "despesas"; logo, nunca entram em
+  // despesasAteHoje/saldoDisponivelAgora. Não há pagamento a "desfazer" — só
+  // deixamos de tratar como futuro o que já passou do vencimento neste mês.
+  //
+  // Parcela avulsa a vencer: competência do mês atual com dia de vencimento
+  // (dia da primeira_parcela) ainda > hoje. quitado_em já é tratado por
+  // valorParcelaNoMes.
+  function parcelasAvulsasAVencer(ano, mes, diaHoje) {
+    return parcelamentos
+      .filter(p => !p.quitado_em && !p.cartao_id)
+      .reduce((acc, p) => {
+        const valor = valorParcelaNoMes(p, ano, mes)
+        if (valor <= 0) return acc
+        const diaVenc = new Date(p.primeira_parcela + 'T12:00:00').getDate()
+        // Só conta se a parcela deste mês ainda não venceu (vencimento > hoje).
+        return diaVenc > diaHoje ? acc + valor : acc
+      }, 0)
+  }
+
+  // Fatura de cartão a vencer: total do mês cujo dia_vencimento do cartão ainda
+  // é > hoje. Faturas já vencidas no mês saem dos "compromissos futuros".
+  // Além disso, uma fatura informada e MARCADA COMO PAGA (pago === true) deixa
+  // de ser compromisso futuro — o usuário já quitou. Isso NÃO mexe no saldo
+  // manual: a fatura paga não é lançada em "despesas", então não há dupla baixa;
+  // apenas paramos de subtraí-la como "a vencer".
+  function faturasAVencer(ano, mes, diaHoje) {
+    return cartoes.reduce((acc, c) => {
+      const diaVenc = Number(c.dia_vencimento)
+      if (!(diaVenc > diaHoje)) return acc // fatura já venceu neste mês → não é futura
+      const informada = faturaInformadaNoMes(faturasInformadas, c.id, ano, mes)
+      if (informada?.pago === true) return acc // fatura informada já paga → não é futura
+      const comprasDoCartao = comprasCartao.filter(cp => cp.cartao_id === c.id)
+      const parcelamentosDoCartao = parcelamentos.filter(p => p.cartao_id === c.id)
+      const total = totalFaturaComOverride(
+        comprasDoCartao, parcelamentosDoCartao, faturasInformadas, c.id, c.dia_fechamento, ano, mes
+      )
+      return acc + total
+    }, 0)
   }
 
   // SOMENTE PARA EXIBIÇÃO no card "Parcelas do mês": soma TODAS as parcelas
@@ -157,9 +203,15 @@ export function useProjecao() {
     .filter(d => dataEfetivaDespesa(d) > hojeStr)
     .reduce((acc, d) => acc + Number(d.valor), 0)
 
-  // Compromissos de parcelas e faturas do mês são tratados como compromissos
-  // futuros (ainda a pagar) — reutiliza os totais já calculados do mês atual.
-  const compromissosFuturosMes = despesasFuturasMes + totalParcelas + totalFaturasCartao
+  // Compromissos de parcelas e faturas AINDA A PAGAR neste mês. Antes somava o
+  // mês inteiro (totalParcelas + totalFaturasCartao), o que contava como futuro
+  // até o que já venceu — subestimando a previsão/limite diário. Agora usa as
+  // versões "a vencer" (vencimento > hoje), alinhadas ao filtro de despesas
+  // futuras. Dia de hoje no fuso de Brasília (mesmo usado no "mês atual").
+  const diaHoje = diaAtual
+  const parcelasFuturasMes = parcelasAvulsasAVencer(anoAtual, mesAtual, diaHoje)
+  const faturasFuturasMes = faturasAVencer(anoAtual, mesAtual, diaHoje)
+  const compromissosFuturosMes = despesasFuturasMes + parcelasFuturasMes + faturasFuturasMes
 
   // Previsão até o fim do mês = saldo agora + entradas futuras − compromissos futuros.
   // NÃO inclui a reserva (patrimônio separado).

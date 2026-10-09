@@ -286,9 +286,9 @@ function VerFatura({ cartao, onVoltar }) {
   const { compras, carregando, criar, remover } = useComprasCartao(cartao.id)
   const { parcelamentos } = useParcelamentos()
   // Faturas informadas por total (deste cartão).
-  const { faturas: faturasInformadas, salvarFatura, removerFatura } = useFaturasCartao(cartao.id)
-  const [modalCompra, setModalCompra] = useState(false)
-  const [modalFatura, setModalFatura] = useState(false)
+const { faturas: faturasInformadas, salvarFatura, removerFatura, marcarFaturaPaga } = useFaturasCartao(cartao.id)
+const [modalCompra, setModalCompra] = useState(false)
+const [modalFatura, setModalFatura] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [salvandoFatura, setSalvandoFatura] = useState(false)
   const [removendo, setRemovendo] = useState(null)
@@ -311,6 +311,7 @@ function VerFatura({ cartao, onVoltar }) {
   const totalDetalhado = linhas.reduce((a, l) => a + l.valor, 0)
   // Total informado para este mês (se houver) e o total EXIBIDO (override).
   const faturaInformada = faturaInformadaNoMes(faturasInformadas, cartao.id, refData.ano, refData.mes)
+  const faturaEstaPaga = faturaInformada?.pago === true
   const totalFatura = faturaInformada ? (Number(faturaInformada.valor_total) || 0) : totalDetalhado
   // Quanto da fatura informada ainda não foi detalhado em compras.
   const naoDetalhado = faturaInformada ? Math.max(0, totalFatura - totalDetalhado) : 0
@@ -480,7 +481,32 @@ function VerFatura({ cartao, onVoltar }) {
             <button onClick={() => setModalCompra(true)}
               className="text-sm font-medium text-blue-600 hover:text-blue-700 flex items-center justify-center gap-1.5">
               <Plus size={15} /> Nova compra
-            </button>
+              </button> 
+              {faturaInformada && (
+  <button
+    type="button"
+    disabled={salvandoFatura}
+    onClick={async () => {
+      try {
+        setSalvandoFatura(true)
+        setErro('')
+        await marcarFaturaPaga(faturaInformada.id, !faturaEstaPaga)
+      } catch (err) {
+        setErro(err.message || 'Erro ao atualizar pagamento')
+      } finally {
+        setSalvandoFatura(false)
+      }
+    }}
+    className="btn-secondary flex items-center justify-center gap-2"
+  >
+    {salvandoFatura
+      ? 'Salvando...'
+      : faturaEstaPaga
+        ? 'Desfazer pagamento'
+        : 'Marcar como paga'}
+  </button>
+)}
+
           </div>
         )}
       </div>
@@ -637,7 +663,7 @@ function VerFatura({ cartao, onVoltar }) {
               <button onClick={() => setModalCompra(true)} className="mt-3 text-sm text-blue-600 hover:underline">Lançar primeira compra</button>
             )}
           </div>
-        ) : visaoGastos === 'categoria' ? (
+        ) : (
           <div className="grid grid-cols-2 gap-3">
             {categoriasFatura.map(cat => {
               const aberta = categoriaAberta === cat.chave
@@ -700,50 +726,6 @@ function VerFatura({ cartao, onVoltar }) {
                 </div>
               )
             })}
-          </div>
-        ) : (
-          /* ── Visão POR DATA ── compras do mês agrupadas por dia (desc., valor,
-             categoria e total do dia). Reutiliza "linhas" e o handleRemover. */
-          <div className="space-y-3">
-            {gastosPorData.map(dia => (
-              <div key={dia.data} className="card">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
-                    <Calendar size={14} className="text-gray-400" /> {formatDate(dia.data)}
-                  </p>
-                  <span className="text-sm font-bold text-gray-900 whitespace-nowrap">{formatCurrency(dia.total)}</span>
-                </div>
-                <div className="space-y-2 pt-2 border-t border-gray-100">
-                  {dia.itens.map(l => (
-                    <div key={l.id} className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{l.descricao}</p>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          {l.categorias?.nome && (
-                            <span className="text-xs text-gray-400">
-                              {l.categorias.icone ? `${l.categorias.icone} ` : ''}{l.categorias.nome}
-                            </span>
-                          )}
-                          <span className="text-xs text-indigo-600 font-medium">
-                            {l.totalParcelas > 1 ? `${l.parcela}/${l.totalParcelas}` : 'À vista'}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <span className="text-sm font-bold text-gray-900 whitespace-nowrap">{formatCurrency(l.valor)}</span>
-                        {ehMesAtual && !l.origemParcelamento && (
-                          <button onClick={() => handleRemover(l.id)} disabled={removendo === l.id}
-                            aria-label="Remover compra"
-                            className="touch-target rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
-                            {removendo === l.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
           </div>
         )}
       </div>
@@ -924,18 +906,22 @@ export default function Cartoes() {
       </div>
 
       {/* Resumo */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="card">
+      {/* Indicadores: no celular, "Faturas do mês" e "Limite total" em 2 colunas
+          e "Limite disponível" em uma 2ª linha ocupando toda a largura; no
+          desktop (sm+), os três lado a lado. break-words/min-w-0 evitam que o
+          valor monetário seja cortado ou ultrapasse o card. */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="card min-w-0">
           <p className="text-xs text-gray-500 mb-0.5">Faturas do mês</p>
-          <p className="text-lg font-bold text-indigo-600">{formatCurrency(faturasMes)}</p>
+          <p className="text-lg font-bold text-indigo-600 leading-tight break-words">{formatCurrency(faturasMes)}</p>
         </div>
-        <div className="card">
+        <div className="card min-w-0">
           <p className="text-xs text-gray-500 mb-0.5">Limite total</p>
-          <p className="text-lg font-bold text-gray-700">{formatCurrency(limiteTotal)}</p>
+          <p className="text-lg font-bold text-gray-700 leading-tight break-words">{formatCurrency(limiteTotal)}</p>
         </div>
-        <div className="card">
+        <div className="card min-w-0 col-span-2 sm:col-span-1">
           <p className="text-xs text-gray-500 mb-0.5">Limite disponível</p>
-          <p className="text-lg font-bold text-green-600">{formatCurrency(limiteDisponivel)}</p>
+          <p className="text-lg font-bold text-green-600 leading-tight break-words">{formatCurrency(limiteDisponivel)}</p>
         </div>
       </div>
 

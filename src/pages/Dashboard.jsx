@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Zap, Sun, Plus, Pencil,
-  CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank, AlertTriangle, MessageCircle, BarChart2
+  TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Sun, Plus, Pencil,
+  CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank, AlertTriangle, MessageCircle, BarChart2,
+  Receipt, Target, Bell, Moon
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useCategorias } from '../hooks/useCategorias'
@@ -309,68 +310,8 @@ function derivarResumoGastar({
   }
 }
 
-// ─── Resumo compacto "Quanto posso gastar?" (Home) ────────────────────────────
-// Visual escuro/neutro (sem o fundo azul predominante). Mostra só: Disponível no
-// mês, gasto por dia e o status. Botão abre o planejamento completo (modal com o
-// CardQuantoPossoGastar detalhado). Mesmos valores (derivarResumoGastar).
-function CardResumoGastar({
-  carregando, modo, receitaMes, compromissosMes, limiteManual, hoje,
-  reservaPercentual, saldoConfigurado = false, previsaoFimMes = 0, onVerCompleto,
-}) {
-  const { ocultar } = useOcultarValores()
-  if (carregando) {
-    return (
-      <div className="card">
-        <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
-        <div className="h-16 w-full bg-gray-100 rounded-xl animate-pulse mt-3" />
-      </div>
-    )
-  }
-  const pct = reservaPercentual != null ? Number(reservaPercentual) : 20
-  const { disponivelMes, limiteExibido, status, orcamentoNegativo } = derivarResumoGastar({
-    modo, receitaMes, compromissosMes, limiteManual, hoje,
-    pct, saldoConfigurado, previsaoFimMes,
-  })
-  // Cor do pontinho de status conforme o emoji devolvido por statusOrcamento.
-  const corStatus = status?.cor === '🔴' ? 'bg-red-500'
-    : status?.cor === '🟡' ? 'bg-amber-500'
-    : 'bg-green-500'
-
-  return (
-    <div className="card">
-      <div className="flex items-center gap-2">
-        <Sun size={18} className="text-blue-500 flex-shrink-0" />
-        <h2 className="text-base font-semibold text-gray-900">Quanto posso gastar?</h2>
-      </div>
-
-      {/* Área única: "Disponível no mês" em destaque e, abaixo, o equivalente
-          por dia em texto menor. Mesmos cálculos (disponivelMes / limiteExibido). */}
-      <div className="bg-gray-50 rounded-xl px-3 py-3 mt-3">
-        <p className="text-xs text-gray-400">Disponível no mês</p>
-        <p className={`text-2xl font-bold leading-tight break-words ${orcamentoNegativo ? 'text-red-500' : 'text-gray-900'}`}>
-          {exibirMoeda(disponivelMes, ocultar)}
-        </p>
-        <p className="text-xs text-gray-400 mt-1">
-          Equivale a <span className="font-medium text-gray-500">{exibirMoeda(Math.max(0, limiteExibido), ocultar)}</span> por dia
-        </p>
-      </div>
-
-      {status && (
-        <div className="flex items-center gap-2 mt-3">
-          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${corStatus}`} />
-          <span className="text-sm text-gray-600">{status.texto}</span>
-        </div>
-      )}
-
-      <button
-        onClick={onVerCompleto}
-        className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
-      >
-        Ver planejamento completo <ArrowRight size={14} />
-      </button>
-    </div>
-  )
-}
+// (O resumo compacto "Quanto posso gastar?" foi substituído: o essencial do mês
+//  vive agora no card azul do limite diário e os detalhes no planejamento completo.)
 
 function CardQuantoPossoGastar({
   carregando, modo, onTrocarModo,
@@ -923,17 +864,21 @@ function CardComecePorAqui({ itens, totalConcluidos, onIrPara, onContinuar }) {
 // NÃO recalcula regra nova: limiteHoje e os demais valores vêm da MESMA fonte
 // do card detalhado (derivarResumoGastar) — nada é somado/descontado de novo.
 //
-// Card PRINCIPAL e ÚNICO "Quanto posso gastar?" (visual azul). Unifica o que
-// antes eram dois cards (o azul "hoje" + o escuro "resumo"), sem repetir
-// informação:
-//   • Disponível para gastar HOJE (limiteHoje) em destaque + frase curta.
-//   • Disponível no MÊS (disponivelMes) como informação complementar.
-//   • Status real do orçamento.
-//   • "Ver planejamento completo" → abre a visualização detalhada existente.
+// Card PRINCIPAL e ÚNICO do limite diário (visual azul). Consolida tudo o que
+// o usuário precisa ver sobre "quanto posso gastar hoje", sem repetir cards:
+//   • Limite diário (limiteHoje) em destaque.
+//   • Anel de progresso com o % do limite JÁ utilizado hoje.
+//   • Gasto de HOJE e valor RESTANTE (disponível) de hoje.
+//   • Lápis para editar o limite (abre o planejamento com Automático/Personalizado).
+//   • Disponível no MÊS + status real do orçamento como apoio.
+// Reaproveita os MESMOS cálculos (limiteHoje, gastosHoje, disponivelHoje,
+// derivarResumoGastar) — nada é recalculado aqui.
 function CardGastoHoje({
-  carregando, limiteHoje, onVerCompleto,
+  carregando, limiteHoje, onVerCompleto, onEditarLimite,
+  gastosHoje = 0, gastosCartaoHoje = 0, disponivelHoje = 0,
   modo, receitaMes, compromissosMes, limiteManual, hoje,
   reservaPercentual, saldoConfigurado = false, previsaoFimMes = 0,
+  mostrarCheckin = false, jaFezCheckin = false, onNaoGasteiHoje,
 }) {
   const { ocultar } = useOcultarValores()
   if (carregando) {
@@ -946,8 +891,7 @@ function CardGastoHoje({
   }
 
   // Disponível no mês + status — MESMA derivação do card detalhado (sem recalcular
-  // regra). "limiteExibido" (gasto/dia) não é mostrado aqui porque o destaque já
-  // é o disponível de HOJE; evitamos repetir a mesma ideia duas vezes.
+  // regra).
   const pct = reservaPercentual != null ? Number(reservaPercentual) : 20
   const { disponivelMes, status, orcamentoNegativo } = derivarResumoGastar({
     modo, receitaMes, compromissosMes, limiteManual, hoje,
@@ -958,166 +902,122 @@ function CardGastoHoje({
     : status?.cor === '🟡' ? 'bg-amber-300'
     : 'bg-green-300'
 
+  // Anel do limite diário: % JÁ utilizado hoje (satura em 100 no anel, mas o
+  // rótulo pode passar de 100% quando estoura o limite).
+  const temLimite = limiteHoje > 0
+  const pctUsadoReal = temLimite ? (gastosHoje / limiteHoje) * 100 : 0
+  const pctAnel = Math.min(100, Math.max(0, pctUsadoReal))
+  const pctLabel = Math.round(pctUsadoReal)
+  // Cor do anel: branco dentro do planejado; amarelo em atenção; vermelho ao estourar.
+  const corAnel =
+    pctUsadoReal > 100 ? '#fecaca'          // red-200
+    : pctUsadoReal >= 80 ? '#fde68a'        // amber-200
+    : 'rgba(255,255,255,0.95)'
+
   return (
-    <div className="bg-marca-grad rounded-2xl p-4 text-white">
-      <div className="flex items-center gap-2 text-white/90">
-        <Sun size={16} />
-        <span className="text-sm font-medium">Quanto posso gastar?</span>
-      </div>
-
-      {/* Principal: disponível para gastar HOJE */}
-      <p className="text-xs text-white/80 mt-2">Disponível para gastar hoje</p>
-      <p className="text-3xl sm:text-4xl font-bold mt-0.5 leading-tight break-words">
-        {exibirMoeda(Math.max(0, limiteHoje), ocultar)}
-      </p>
-      <p className="text-xs text-white/80 mt-0.5">
-        Sem comprometer seu planejamento
-      </p>
-
-      {/* Separador discreto */}
-      <div className="border-t border-white/15 my-3" />
-
-      {/* Complementar: disponível no mês + status */}
-      <div className="flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs text-white/80">Disponível no mês</p>
-          <p className={`text-lg font-bold leading-tight break-words ${orcamentoNegativo ? 'text-red-200' : ''}`}>
-            {exibirMoeda(disponivelMes, ocultar)}
-          </p>
+    <div className="bg-marca-grad rounded-2xl p-2.5 sm:p-4 lg:p-4 lg:shadow-lg lg:shadow-black/5 text-white">
+      {/* Compacto: anel do % à esquerda + limite diário em destaque com Editar.
+          Sem o "Resumo do mês" (movido para a aba Planejamento). No desktop
+          (lg) cresce um pouco, mantendo a Home dentro de uma tela. */}
+      <div className="flex items-center gap-3 sm:gap-4 lg:gap-5">
+        {/* Anel do % utilizado */}
+        <div className="flex-shrink-0">
+          <div
+            className="relative w-14 h-14 sm:w-16 sm:h-16 lg:w-[72px] lg:h-[72px] rounded-full flex items-center justify-center"
+            style={{ background: `conic-gradient(${corAnel} ${pctAnel * 3.6}deg, rgba(0,0,0,0.18) 0deg)` }}
+            role="img"
+            aria-label={temLimite ? `${pctLabel}% do limite diário utilizado` : 'Limite diário indisponível'}
+          >
+            <div className="absolute inset-[5px] lg:inset-[6px] rounded-full bg-marca flex flex-col items-center justify-center">
+              <span className="text-sm lg:text-lg font-bold leading-none">{temLimite ? `${pctLabel}%` : '—'}</span>
+              <span className="text-[9px] lg:text-[10px] text-white/70 leading-none mt-0.5">usado</span>
+            </div>
+          </div>
         </div>
+        {/* Limite diário + Editar */}
+        <div className="min-w-0 flex-1">
+          <p className="hidden lg:block text-sm text-white/80 mb-0.5">Limite para gastar hoje</p>
+          <div className="flex items-center gap-1.5 lg:gap-2">
+            <p className="text-2xl sm:text-3xl lg:text-4xl font-bold leading-tight break-words min-w-0">
+              {exibirMoeda(Math.max(0, limiteHoje), ocultar)}
+            </p>
+            {onEditarLimite && (
+              <button
+                onClick={onEditarLimite}
+                aria-label="Editar limite diário"
+                className="inline-flex items-center text-white/80 hover:text-white flex-shrink-0"
+              >
+                <Pencil size={14} className="lg:hidden" />
+                <Pencil size={18} className="hidden lg:block" />
+              </button>
+            )}
+          </div>
+          <p className="text-xs lg:text-sm text-white/80 mt-0.5">Sem comprometer seu planejamento</p>
+        </div>
+        {/* Status do orçamento (compacto, quando couber) */}
         {status && (
-          <div className="flex items-center gap-1.5 flex-shrink-0 bg-black/15 rounded-full px-2.5 py-1">
+          <div className="hidden sm:flex items-center gap-1.5 flex-shrink-0 bg-black/15 rounded-full px-2.5 py-1 lg:px-3 lg:py-1.5 self-start">
             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${corStatus}`} />
-            <span className="text-xs font-medium text-white/90">{status.texto}</span>
+            <span className="text-xs lg:text-sm font-medium text-white/90">{status.texto}</span>
           </div>
         )}
       </div>
 
-      {onVerCompleto && (
-        <button
-          onClick={onVerCompleto}
-          className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-white/90 hover:text-white transition-colors"
-        >
-          Ver planejamento completo <ArrowRight size={15} />
-        </button>
+      {/* Gasto de hoje × restante */}
+      <div className="grid grid-cols-2 gap-2.5 lg:gap-3 mt-2.5 lg:mt-3">
+        <div className="bg-black/15 rounded-xl px-3 py-1.5 lg:px-4 lg:py-2 min-w-0">
+          <p className="text-xs lg:text-sm text-white/70">Gasto de hoje</p>
+          <p className="text-base sm:text-lg lg:text-xl font-bold leading-tight break-words">{exibirMoeda(gastosHoje, ocultar)}</p>
+          {gastosCartaoHoje > 0 && (
+            <p className="text-[11px] lg:text-xs text-white/70 flex items-center gap-1 mt-0.5">
+              <CreditCard size={11} className="flex-shrink-0" />
+              Cartão — {exibirMoeda(gastosCartaoHoje, ocultar)}
+            </p>
+          )}
+        </div>
+        <div className="bg-black/15 rounded-xl px-3 py-1.5 lg:px-4 lg:py-2 min-w-0">
+          <p className="text-xs lg:text-sm text-white/70">Restante hoje</p>
+          <p className={`text-base sm:text-lg lg:text-xl font-bold leading-tight break-words ${disponivelHoje < 0 ? 'text-red-200' : ''}`}>
+            {exibirMoeda(Math.max(0, disponivelHoje), ocultar)}
+          </p>
+        </div>
+      </div>
+
+      {/* Rodapé do card: "Ver planejamento completo" + (quando aplicável) o
+          check-in "Não gastei hoje" alinhado à direita. Mesma função de antes
+          (onNaoGasteiHoje/jaFezCheckin), só reposicionado para dentro do card. */}
+      {(onVerCompleto || mostrarCheckin) && (
+        <div className="mt-2 lg:mt-3 flex items-center justify-between gap-3">
+          {onVerCompleto ? (
+            <button
+              onClick={onVerCompleto}
+              className="inline-flex items-center gap-1 text-xs sm:text-sm lg:text-base font-medium text-white/90 hover:text-white transition-colors"
+            >
+              Ver planejamento completo <ArrowRight size={14} />
+            </button>
+          ) : <span />}
+          {mostrarCheckin && (
+            <button
+              onClick={onNaoGasteiHoje}
+              disabled={jaFezCheckin}
+              className={`inline-flex items-center justify-center gap-1.5 font-medium text-xs lg:text-sm px-3 py-1.5 lg:px-4 lg:py-2 rounded-lg border transition-colors flex-shrink-0 ${
+                jaFezCheckin
+                  ? 'bg-white/10 text-white/50 border-transparent cursor-default'
+                  : 'bg-white/10 text-white border-white/30 hover:bg-white/20'
+              }`}
+            >
+              <Check size={14} /> {jaFezCheckin ? 'Dia sem gastos' : 'Não gastei hoje'}
+            </button>
+          )}
+        </div>
       )}
     </div>
   )
 }
 
 // ─── Card "Seu dia financeiro" ────────────────────────────────────────────────
-// Usa os MESMOS dados do cálculo diário (limiteHoje, gastosDeHoje) — não
-// recalcula nada. Mostra "Gastou até agora" e "Ainda disponível", um anel de
-// progresso em CSS puro (sem biblioteca) com o % do limite usado, uma mensagem
-// contextual não alarmista e o botão que reaproveita o fluxo de gasto rápido.
-function CardSeuDiaFinanceiro({
-  carregando, limiteHoje, gastosHoje, gastosCartaoHoje = 0, disponivelHoje,
-  onRegistrarGasto, onNaoGasteiHoje, jaFezCheckin, somenteLeitura,
-}) {
-  const { ocultar } = useOcultarValores()
-  if (carregando) {
-    return (
-      <div className="card">
-        <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
-        <div className="h-20 w-full bg-gray-100 rounded-xl animate-pulse mt-3" />
-      </div>
-    )
-  }
-
-  const temLimite = limiteHoje > 0
-  // % do limite diário já utilizado (0–100 para o anel; o número real pode passar
-  // de 100 quando estoura, mas o anel satura em 100).
-  const pctUsadoReal = temLimite ? (gastosHoje / limiteHoje) * 100 : 0
-  const pctAnel = Math.min(100, Math.max(0, pctUsadoReal))
-  const pctLabel = Math.round(pctUsadoReal)
-
-  // Cor do anel conforme o uso (laranja = atenção/gastos; vermelho = estourou).
-  const corAnel =
-    pctUsadoReal > 100 ? '#ef4444'          // red-500
-    : pctUsadoReal >= 80 ? '#f59e0b'        // amber-500
-    : '#3b82f6'                             // blue-500 (dentro do planejado)
-
-  // Mensagem contextual, não alarmista.
-  let mensagem
-  if (!temLimite) {
-    mensagem = 'Cadastre renda e saldo para acompanhar seu limite diário.'
-  } else if (gastosHoje <= 0) {
-    mensagem = 'Você ainda não registrou gastos hoje.'
-  } else if (gastosHoje > limiteHoje) {
-    mensagem = ocultar
-      ? 'Você ultrapassou seu planejamento diário de hoje.'
-      : `Você ultrapassou seu planejamento diário em ${formatCurrency(gastosHoje - limiteHoje)}.`
-  } else {
-    mensagem = ocultar
-      ? 'Você ainda pode gastar hoje sem comprometer seu planejamento.'
-      : `Você ainda pode gastar ${formatCurrency(Math.max(0, disponivelHoje))} hoje sem comprometer seu planejamento.`
-  }
-
-  // "Não gastei hoje" só faz sentido quando NÃO houve gasto algum hoje (inclui
-  // cartão de crédito, pois gastosHoje já soma à vista + cartão de hoje). Se há
-  // qualquer gasto, o botão não aparece.
-  const semGastoHoje = gastosHoje <= 0
-
-  return (
-    <div className="card">
-      <div className="flex items-center gap-3">
-        {/* Anel de progresso em CSS (conic-gradient) — sem biblioteca */}
-        <div
-          className="relative w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ background: `conic-gradient(${corAnel} ${pctAnel * 3.6}deg, var(--anel-trilha, #2d333b) 0deg)` }}
-          role="img"
-          aria-label={temLimite ? `${pctLabel}% do limite diário utilizado` : 'Limite diário indisponível'}
-        >
-          <div className="absolute inset-[5px] rounded-full bg-white flex flex-col items-center justify-center">
-            <span className="text-sm font-bold text-gray-900 leading-none">{temLimite ? `${pctLabel}%` : '—'}</span>
-            <span className="text-[9px] text-gray-400 leading-none mt-0.5">do limite</span>
-          </div>
-        </div>
-
-        {/* Gastou até agora × Ainda disponível — próximos ao anel */}
-        <div className="grid grid-cols-2 gap-3 flex-1 min-w-0">
-          <div className="min-w-0">
-            <p className="text-xs text-gray-400">Gastou até agora</p>
-            <p className="text-lg font-bold text-gray-900 break-words leading-tight">{exibirMoeda(gastosHoje, ocultar)}</p>
-            {gastosCartaoHoje > 0 && (
-              <p className="text-[11px] text-gray-400 flex items-center gap-1">
-                <CreditCard size={11} className="flex-shrink-0" />
-                Cartão — {exibirMoeda(gastosCartaoHoje, ocultar)}
-              </p>
-            )}
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-gray-400">Ainda disponível</p>
-            <p className={`text-lg font-bold break-words leading-tight ${disponivelHoje < 0 ? 'text-red-500' : 'text-green-600'}`}>
-              {exibirMoeda(Math.max(0, disponivelHoje), ocultar)}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <p className="text-sm text-gray-500 mt-2.5">{mensagem}</p>
-
-      {/* O botão "Registrar gasto de hoje" foi movido para logo abaixo do card
-          principal (fica visível sem rolar no celular). Aqui mantemos só o
-          check-in "Não gastei hoje", quando ainda não houve gasto hoje. */}
-      {!somenteLeitura && semGastoHoje && (
-        <div className="mt-2.5">
-          <button
-            onClick={onNaoGasteiHoje}
-            disabled={jaFezCheckin}
-            className={`w-full flex items-center justify-center gap-2 font-medium text-sm px-4 py-2.5 rounded-lg border transition-colors ${
-              jaFezCheckin
-                ? 'bg-gray-100 text-gray-400 border-transparent cursor-default'
-                : 'bg-transparent text-gray-600 border-gray-300 hover:bg-gray-100'
-            }`}
-          >
-            <Check size={15} /> {jaFezCheckin ? 'Dia sem gastos' : 'Não gastei hoje'}
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
+// (O antigo "Seu dia financeiro" foi consolidado dentro do card azul do limite
+//  diário — anel do % utilizado + gasto de hoje + restante vivem lá agora.)
 
 // ─── Card "Próximos 7 dias" ───────────────────────────────────────────────────
 // Compromissos previstos nos próximos 7 dias, a partir dos dados REAIS já
@@ -1174,8 +1074,39 @@ function CardProximos7Dias({ total, itens, onVerTodos }) {
 }
 
 export default function Dashboard() {
-  const { perfil, atualizarPreferenciasLimite, somenteLeitura } = useAuth()
+  const { perfil, atualizarPreferenciasLimite, somenteLeitura, usuario } = useAuth()
   const { ocultar, alternar } = useOcultarValores()
+
+  // ── Aparência dinâmica dia/noite (só o FUNDO do cabeçalho da Home) ──
+  // Preferência por usuário no localStorage (padrão: ativada). Período pelo
+  // relógio LOCAL do navegador: dia 06:00–17:59, noite 18:00–05:59. Atualiza ao
+  // mudar a hora e ao voltar para a aba (visibilitychange).
+  const chaveAparencia = `almeida_aparencia_dinamica_${usuario?.id || 'anon'}`
+  const [aparenciaDinamica, setAparenciaDinamica] = useState(() => {
+    try { return localStorage.getItem(chaveAparencia) !== '0' } catch { return true }
+  })
+  useEffect(() => {
+    try { setAparenciaDinamica(localStorage.getItem(chaveAparencia) !== '0') } catch { /* ignora */ }
+  }, [chaveAparencia])
+  const calcPeriodoDiaNoite = () => {
+    const h = new Date().getHours()
+    return (h >= 6 && h < 18) ? 'dia' : 'noite'
+  }
+  const [periodoVisual, setPeriodoVisual] = useState(calcPeriodoDiaNoite)
+  useEffect(() => {
+    const atualizar = () => setPeriodoVisual(calcPeriodoDiaNoite())
+    atualizar()
+    const timer = setInterval(atualizar, 60 * 1000) // reavalia a cada minuto
+    const aoVoltar = () => { if (!document.hidden) atualizar() }
+    document.addEventListener('visibilitychange', aoVoltar)
+    window.addEventListener('focus', atualizar)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', aoVoltar)
+      window.removeEventListener('focus', atualizar)
+    }
+  }, [])
+  const ehNoite = aparenciaDinamica && periodoVisual === 'noite'
   const {
     resumoMes, projecao, carregando, receitas, despesas, parcelamentos, criarDespesa,
     // dados brutos para o Horizonte financeiro (fluxo de caixa diário)
@@ -1417,6 +1348,30 @@ export default function Dashboard() {
   })()
   const totalProximos7 = proximos7Dias.reduce((acc, i) => acc + (Number(i.valor) || 0), 0)
 
+  // ─── Últimas transações (Home) ───
+  // 3 lançamentos mais recentes: une receitas + despesas JÁ carregadas (sem
+  // nova consulta), normaliza para { tipo, descricao, valor, data } e ordena da
+  // data mais recente para a mais antiga. Rótulo "quando" em dd/mm.
+  const ultimasTransacoes = (() => {
+    const norm = (arr, tipo) => (arr || []).map(x => ({
+      id: `${tipo}-${x.id}`,
+      tipo,
+      descricao: x.descricao || (tipo === 'receita' ? 'Receita' : 'Despesa'),
+      valor: Number(x.valor) || 0,
+      data: x.data || '',
+    }))
+    const fmtQuando = (iso) => {
+      if (!iso) return ''
+      const [a, m, d] = iso.split('-')
+      return d && m ? `${d}/${m}` : iso
+    }
+    return [...norm(receitas, 'receita'), ...norm(despesas, 'despesa')]
+      .filter(t => t.data)
+      .sort((a, b) => (a.data < b.data ? 1 : a.data > b.data ? -1 : 0))
+      .slice(0, 3)
+      .map(t => ({ ...t, quando: fmtQuando(t.data) }))
+  })()
+
   // ─── Handler do Gasto rápido ───
   async function handleSalvarGasto(dados, categoriaNome) {
     setSalvandoGasto(true)
@@ -1584,25 +1539,61 @@ export default function Dashboard() {
   const fmtDiaMes = (d) =>
     `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
 
+  // Notificação pendente (ponto vermelho do sininho): sinais REAIS já derivados,
+  // sem inventar backend — configuração incompleta OU risco de saldo negativo
+  // nos próximos 30 dias (Horizonte). No modo consultoria (somente leitura),
+  // não notifica. Clicar no sininho abre o Horizonte para ver o detalhe.
+  const temNotificacao = !somenteLeitura && (
+    (mostrarComecePorAqui) || Boolean(horizonteResumo?.dataNegativa)
+  )
+
   return (
     // pb extra no MOBILE: garante que o último card ("Seu dia financeiro" com o
     // botão "Registrar gasto de hoje") role totalmente acima da barra inferior
     // fixa (que tem o botão "+" saliente). Zera no desktop (md:pb-0).
-    <div className="space-y-5 pb-24 md:pb-0">
-      {/* 1 ─ Saudação (horário de Brasília) + botão global de ocultar valores.
-          Enxuto, sem ocupar altura excessiva. */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900 truncate">{saudacao}</h1>
-          <p className="text-sm text-gray-500 capitalize truncate">{dataHojeExtenso}</p>
+    <div className="flex flex-col gap-2.5 sm:gap-5 lg:gap-3 md:space-y-0 pb-mobilenav md:pb-0 min-h-[calc(100dvh-7rem)] md:min-h-0">
+      {/* 1 ─ Cabeçalho: saudação (horário de Brasília) + subtítulo fixo, sininho
+          de notificações (ponto vermelho só quando há pendência real) e botão
+          global de ocultar valores. */}
+      <div className={`flex items-center justify-between gap-3 transition-colors duration-500 ${
+        aparenciaDinamica ? `sky-dyn ${ehNoite ? 'sky-night' : 'sky-day'} px-3 py-2 sm:py-2.5 -mx-1` : ''
+      }`}>
+        {/* Estrelas (só à noite, decorativas) */}
+        {ehNoite && <span className="sky-stars" aria-hidden="true" />}
+        <div className="min-w-0 relative">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h1 className={`text-xl sm:text-2xl font-bold truncate leading-tight ${ehNoite ? 'text-white' : 'text-gray-900'}`}>{saudacao}</h1>
+            {aparenciaDinamica && (
+              ehNoite
+                ? <Moon size={16} className="text-slate-200 flex-shrink-0" aria-hidden="true" />
+                : <Sun size={16} className="text-amber-400 flex-shrink-0" aria-hidden="true" />
+            )}
+          </div>
+          <p className={`text-xs sm:text-sm truncate ${ehNoite ? 'text-slate-300' : 'text-gray-500'}`}>Vamos cuidar das suas finanças hoje?</p>
         </div>
-        <button
-          onClick={alternar}
-          aria-label={ocultar ? 'Mostrar valores' : 'Ocultar valores'}
-          className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center flex-shrink-0 text-gray-500 hover:text-gray-900 hover:bg-gray-200 transition-colors"
-        >
-          {ocultar ? <EyeOff size={18} /> : <Eye size={18} />}
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0 relative">
+          <button
+            onClick={() => { if (temNotificacao) setModalProjecao(true) }}
+            aria-label={temNotificacao ? 'Você tem notificações' : 'Sem notificações'}
+            className={`relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-colors ${
+              ehNoite ? 'bg-white/15 text-slate-100 hover:bg-white/25' : 'bg-gray-100 text-gray-500 hover:text-gray-900 hover:bg-gray-200'
+            }`}
+          >
+            <Bell size={18} />
+            {temNotificacao && (
+              <span className={`absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 ring-2 ${ehNoite ? 'ring-slate-800' : 'ring-white'}`} />
+            )}
+          </button>
+          <button
+            onClick={alternar}
+            aria-label={ocultar ? 'Mostrar valores' : 'Ocultar valores'}
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-colors ${
+              ehNoite ? 'bg-white/15 text-slate-100 hover:bg-white/25' : 'bg-gray-100 text-gray-500 hover:text-gray-900 hover:bg-gray-200'
+            }`}
+          >
+            {ocultar ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        </div>
       </div>
 
       {/* Card "Complete sua configuração" — NO TOPO enquanto a configuração não
@@ -1631,12 +1622,15 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* 2 ─ PRINCIPAL e ÚNICO: "Quanto posso gastar?" (card azul). Unifica o
-          disponível de HOJE + o disponível no MÊS + status, e abre o
-          planejamento completo no modal. */}
+      {/* 2 ─ Card azul do LIMITE DIÁRIO (consolidado): limite + anel do % usado
+          + gasto de hoje + restante + lápis para editar (Automático/Personalizado
+          no planejamento completo). Mesmos cálculos de sempre. */}
       <CardGastoHoje
         carregando={carregando}
         limiteHoje={limiteHoje}
+        gastosHoje={gastosDeHoje}
+        gastosCartaoHoje={gastosCartaoHoje}
+        disponivelHoje={disponivelHoje}
         modo={modoLimite}
         receitaMes={receitaMes}
         compromissosMes={compromissosMes}
@@ -1646,342 +1640,209 @@ export default function Dashboard() {
         saldoConfigurado={saldoConfigurado}
         previsaoFimMes={previsaoFimMes}
         onVerCompleto={() => setModalPlanejamento(true)}
+        onEditarLimite={somenteLeitura ? undefined : () => setModalPlanejamento(true)}
+        mostrarCheckin={!somenteLeitura && gastosDeHoje <= 0}
+        jaFezCheckin={jaFezCheckin}
+        onNaoGasteiHoje={marcarNaoGasteiHoje}
       />
 
-      {/* 2b ─ Ação principal "Registrar gasto de hoje" logo abaixo do card, para
-          ficar visível sem rolar no celular. Mesma função do botão que ficava
-          no card "Seu dia financeiro" (setModalGasto → modal de gasto rápido).
-          Oculto no modo consultoria (somente leitura). */}
-      {!somenteLeitura && (
-        <button
-          onClick={() => setModalGasto(true)}
-          className="btn-primary w-full flex items-center justify-center gap-2 text-sm text-center leading-tight"
-        >
-          <Plus size={16} strokeWidth={2.5} className="flex-shrink-0" /> Registrar uma compra ou gasto
-        </button>
-      )}
-
-      {/* 3 ─ Atalhos rápidos — reaproveitam os fluxos JÁ existentes (modais/rotas),
-          sem duplicar lógica. Ocultos no modo consultoria (somente leitura). */}
-      {!somenteLeitura && (
-      <div className="grid grid-cols-5 gap-2 sm:gap-2.5">
+      {/* 3 ─ Acesso rápido: 5 atalhos compactos para as funcionalidades
+          existentes. Mesma linha no celular (grid-cols-5). Reaproveitam
+          rotas/modais já existentes, sem duplicar lógica. */}
+      <div className="grid grid-cols-5 gap-1.5 sm:gap-2.5 lg:gap-4">
         {[
-          { label: 'Receita',  icon: TrendingUp,   cor: 'text-green-500',  anel: 'bg-green-500/10',  onClick: () => navigate('/receitas?novo=1') },
-          { label: 'Despesa',  icon: TrendingDown, cor: 'text-red-500',    anel: 'bg-red-500/10',    onClick: () => navigate('/despesas?novo=1') },
-          { label: 'Registrar gasto', curto: 'Registrar', icon: Zap, cor: 'text-amber-500', anel: 'bg-amber-500/10', onClick: () => setModalGasto(true) },
-          { label: 'Cartão',   icon: CreditCard,   cor: 'text-blue-500',   anel: 'bg-blue-500/10',   onClick: () => navigate('/cartoes') },
-          { label: 'Reserva',  icon: PiggyBank,    cor: 'text-violet-500', anel: 'bg-violet-500/10', onClick: () => setModalReservaAtual(true) },
+          { label: 'Transações',   icon: Receipt,       onClick: () => navigate('/despesas') },
+          { label: 'Cartões',      icon: CreditCard,    onClick: () => navigate('/cartoes') },
+          { label: 'Planejamento', icon: BarChart2,     onClick: () => setModalPlanejamento(true) },
+          { label: 'Metas',        icon: Target,        onClick: () => navigate('/metas') },
+          { label: 'Consultoria',  icon: MessageCircle, onClick: () => navigate('/consultoria') },
         ].map(a => (
           <button
             key={a.label}
             onClick={a.onClick}
             aria-label={a.label}
-            className="group flex flex-col items-center justify-center gap-1.5 min-w-0 rounded-xl bg-gray-100 border border-gray-200 py-2.5 px-1 transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md hover:shadow-black/20 active:translate-y-0"
+            className="group flex flex-col items-center gap-1 lg:gap-1.5 min-w-0 rounded-xl lg:rounded-2xl bg-gray-100 border border-gray-200 py-1.5 px-0.5 lg:py-3 lg:px-2 transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md hover:shadow-black/10 active:translate-y-0"
           >
-            <span className={`w-8 h-8 rounded-full ${a.anel} flex items-center justify-center`}>
-              <a.icon size={17} className={a.cor} />
+            <span className="w-7 h-7 sm:w-8 sm:h-8 lg:w-10 lg:h-10 rounded-full bg-marca-100 flex items-center justify-center flex-shrink-0">
+              <a.icon size={16} className="text-marca lg:hidden" />
+              <a.icon size={20} className="text-marca hidden lg:block" />
             </span>
-            <span className="text-[11px] font-medium text-gray-600 group-hover:text-gray-800 truncate w-full text-center transition-colors">{a.curto || a.label}</span>
+            <span className="text-[10px] sm:text-[11px] lg:text-sm font-medium text-gray-600 group-hover:text-gray-800 w-full text-center leading-tight hyphens-auto transition-colors">{a.label}</span>
           </button>
         ))}
       </div>
-      )}
 
-      {/* 3b ─ Posso Comprar? (simulador) — logo após os atalhos. */}
-      <div className="bg-gray-100 border border-gray-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 bg-blue-600/20 rounded-xl flex items-center justify-center flex-shrink-0">
-            <ShoppingCart size={20} className="text-blue-400" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-gray-900 font-semibold">Posso Comprar?</p>
-            <p className="text-gray-500 text-sm">Veja se cabe no seu orçamento.</p>
-          </div>
-        </div>
-        <Link
-          to="/posso-comprar"
-          className="flex items-center gap-2 bg-marca hover:bg-marca-hover text-white font-semibold text-sm px-4 py-2 rounded-xl transition-colors whitespace-nowrap flex-shrink-0"
-        >
-          Simular compra <ArrowRight size={16} className="text-white" />
-        </Link>
-      </div>
+      {/* O card "Saldo disponível agora" foi movido para a aba Planejamento
+          (/projecao), deixando a Home mais compacta. */}
 
-      {/* 4 ─ Seu dia financeiro (anel do % do limite + gastou/disponível) */}
-      <CardSeuDiaFinanceiro
-        carregando={carregando}
-        limiteHoje={limiteHoje}
-        gastosHoje={gastosDeHoje}
-        gastosCartaoHoje={gastosCartaoHoje}
-        disponivelHoje={disponivelHoje}
-        onRegistrarGasto={() => setModalGasto(true)}
-        onNaoGasteiHoje={marcarNaoGasteiHoje}
-        jaFezCheckin={jaFezCheckin}
-        somenteLeitura={somenteLeitura}
-      />
-
-      {/* 5 ─ Próximos 7 dias (compromissos reais: despesas + faturas) */}
-      {!carregando && (
-        <CardProximos7Dias
-          total={totalProximos7}
-          itens={proximos7Dias}
-          onVerTodos={() => navigate('/despesas')}
-        />
-      )}
-
-      {/* 6 ─ Horizonte Financeiro (card-resumo + acesso ao Horizonte completo) */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2 min-w-0">
-            <BarChart2 size={18} className="text-blue-500 flex-shrink-0" />
-            <span className="truncate">Horizonte Financeiro</span>
-          </h2>
-          <button
-            type="button"
-            onClick={() => setModalProjecao(true)}
-            disabled={carregando || projecao.length === 0}
-            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
-          >
-            Ver completo <ArrowRight size={14} />
-          </button>
-        </div>
-
-        {/* Resumo do Horizonte: Saldo atual / Fim do mês / Próximo mês + status
-            real (data de saldo negativo), reaproveitando gerarHorizonte. */}
-        {horizonteResumo && (
-          <>
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              <div className="bg-gray-50 rounded-xl px-3 py-2.5 min-w-0">
-                <p className="text-xs text-gray-400">Saldo atual</p>
-                <p className={`text-base sm:text-lg font-bold leading-tight break-words ${horizonteResumo.saldoAtual >= 0 ? 'text-gray-900' : 'text-red-500'}`}>
-                  {exibirMoeda(horizonteResumo.saldoAtual, ocultar)}
-                </p>
-              </div>
-              <div className="bg-gray-50 rounded-xl px-3 py-2.5 min-w-0">
-                <p className="text-xs text-gray-400">Fim do mês</p>
-                <p className={`text-base sm:text-lg font-bold leading-tight break-words ${horizonteResumo.fimDoMes >= 0 ? 'text-gray-900' : 'text-red-500'}`}>
-                  {exibirMoeda(horizonteResumo.fimDoMes, ocultar)}
-                </p>
-              </div>
-              <div className="bg-gray-50 rounded-xl px-3 py-2.5 min-w-0">
-                <p className="text-xs text-gray-400">Próximo mês</p>
-                <p className={`text-base sm:text-lg font-bold leading-tight break-words ${horizonteResumo.proximoMes >= 0 ? 'text-gray-900' : 'text-red-500'}`}>
-                  {exibirMoeda(horizonteResumo.proximoMes, ocultar)}
-                </p>
-              </div>
-            </div>
-
-            {/* Status inteligente baseado nos dados reais do Horizonte */}
-            {horizonteResumo.dataNegativa ? (
-              <div className="flex items-center gap-2 mt-3 text-sm text-red-600">
-                <AlertTriangle size={16} className="flex-shrink-0" />
-                <span>Saldo pode ficar negativo em {fmtDiaMes(horizonteResumo.dataNegativa)}</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 mt-3 text-sm text-green-600">
-                <CheckCircle2 size={16} className="flex-shrink-0" />
-                <span>Saldo positivo nos próximos 30 dias</span>
-              </div>
-            )}
-          </>
-        )}
-
-        <div className="mt-4 pt-4 border-t border-gray-200" />
-
-        {/* Aviso quando não há itens recorrentes cadastrados */}
-        {mostrarAvisoProjecao && (
-          <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
-            <span className="text-amber-500 text-base leading-none flex-shrink-0">⚠️</span>
-            <div className="text-xs text-amber-800">
-              <p className="font-semibold mb-0.5">A projeção dos próximos meses pode estar zerada.</p>
-              <p>
-                {!temReceitasRecorrentes && temReceitas && 'Nenhuma receita marcada como recorrente. '}
-                {!temDespesasRecorrentes && temDespesas && 'Nenhuma despesa marcada como recorrente. '}
-                Ao cadastrar, indique se o lançamento <strong>se repete todo mês</strong> para que apareça na projeção futura.
-              </p>
-              <div className="flex gap-3 mt-2">
-                {!temReceitasRecorrentes && temReceitas && (
-                  <Link to="/receitas" className="font-semibold underline hover:text-amber-900">
-                    Revisar receitas →
-                  </Link>
-                )}
-                {!temDespesasRecorrentes && temDespesas && (
-                  <Link to="/despesas" className="font-semibold underline hover:text-amber-900">
-                    Revisar despesas →
-                  </Link>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {carregando ? (
-          <div className="flex items-center justify-center h-64">
-            <Loader2 size={24} className="animate-spin text-blue-500" />
-          </div>
-        ) : projecao.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-center">
-            <p className="text-sm text-gray-500">Cadastre receitas e despesas para ver a projeção.</p>
-            <Link to="/receitas" className="mt-2 text-sm text-blue-600 hover:underline">Cadastrar receitas</Link>
-          </div>
-        ) : (
-          <ResumoProjecao projecao={projecao} />
-        )}
-      </div>
-
-      {/* 7 ─ Consultoria (card compacto; estado reflete o registro — ação na
-          página /consultoria, sem duplicar a lógica de interesse). Oculto no
-          modo consultoria (somente leitura). */}
+      {/* 4 ─ Botão principal (largura total) logo abaixo dos atalhos: abre o
+          fluxo de registro de compra/gasto já existente. 5 ─ Botão secundário
+          "Posso comprar?" logo abaixo. Reaproveitam os fluxos existentes. */}
       {!somenteLeitura && (
-        <div className="card">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
-              <MessageCircle size={19} className="text-blue-500" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h2 className="text-base font-semibold text-gray-900 leading-snug">
-                Consultoria financeira com Matheus Almeida
-              </h2>
-              <p className="text-sm text-gray-500 mt-0.5">
-                Planejamento personalizado para organizar sua vida financeira.
-              </p>
+        <div className="space-y-1.5 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-4">
+          <button
+            onClick={() => setModalGasto(true)}
+            className="btn-primary w-full flex items-center justify-center gap-2 text-sm lg:text-base text-center leading-tight py-2 lg:py-2.5"
+          >
+            <Plus size={16} strokeWidth={2.5} className="flex-shrink-0" /> Registrar uma compra ou gasto
+          </button>
+          <Link
+            to="/posso-comprar"
+            className="w-full flex items-center justify-center gap-2 bg-white border border-marca text-marca font-semibold text-sm lg:text-base px-4 py-2 lg:py-2.5 rounded-xl hover:bg-marca-100 transition-colors text-center leading-tight"
+          >
+            <ShoppingCart size={16} className="flex-shrink-0" /> Posso comprar?
+          </Link>
+        </div>
+      )}
 
-              {jaRegistrouConsultoria ? (
-                <div className="flex items-center gap-2 mt-3">
-                  <CheckCircle2 size={16} className="text-green-500 flex-shrink-0" />
-                  <p className="text-sm text-gray-600 min-w-0">
-                    <span className="font-medium text-gray-800">Interesse registrado.</span>{' '}
-                    Você será avisado pelo WhatsApp quando houver disponibilidade.
-                  </p>
-                </div>
-              ) : (
-                <button
-                  onClick={() => navigate('/consultoria')}
-                  className="btn-primary mt-3 inline-flex items-center justify-center gap-2 text-sm"
-                >
-                  Quero saber mais sobre a consultoria <ArrowRight size={15} />
-                </button>
-              )}
-            </div>
+      {/* 6 ─ Movimentações e próximos pagamentos: une as 2 transações mais
+          recentes + os 2 compromissos pendentes mais próximos num único card
+          compacto. Dados reais já carregados (ultimasTransacoes / proximos7Dias),
+          sem recalcular nada. Links separados: "Ver todas" (transações) e
+          "Ver todos" (compromissos) → /despesas. */}
+      {!carregando && (
+      <div className="lg:grid lg:grid-cols-3 lg:gap-6 lg:items-start">
+        <div className="card !p-3 sm:!p-5 lg:!p-5 lg:col-span-2">
+          <h2 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 min-w-0 truncate">Movimentações e próximos pagamentos</h2>
+
+          {/* No desktop, as duas seções ficam lado a lado para aproveitar a
+              largura e melhorar a leitura; no mobile seguem empilhadas. */}
+          <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:mt-2">
+          <div>
+          {/* Últimas transações (2) */}
+          <div className="flex items-center justify-between gap-2 mt-2 lg:mt-0 mb-1 lg:mb-2">
+            <p className="text-xs lg:text-sm font-medium text-gray-500">Últimas transações</p>
+            <button
+              onClick={() => navigate('/despesas')}
+              className="flex items-center gap-1 text-xs lg:text-sm font-medium text-marca hover:opacity-80 flex-shrink-0"
+            >
+              Ver todas <ArrowRight size={13} />
+            </button>
+          </div>
+          {ultimasTransacoes.length === 0 ? (
+            <p className="text-sm text-gray-500">Nenhuma transação registrada ainda.</p>
+          ) : (
+            <ul className="space-y-1 lg:space-y-1.5">
+              {ultimasTransacoes.slice(0, 2).map(t => (
+                <li key={t.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-lg lg:rounded-xl px-2.5 py-1.5 lg:px-3 lg:py-2">
+                  <div className="min-w-0 flex items-center gap-2 lg:gap-3">
+                    <span className={`w-6 h-6 lg:w-9 lg:h-9 rounded-full flex items-center justify-center flex-shrink-0 ${t.tipo === 'receita' ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                      {t.tipo === 'receita'
+                        ? <TrendingUp size={14} className="text-green-600 lg:w-[18px] lg:h-[18px]" />
+                        : <TrendingDown size={14} className="text-red-500 lg:w-[18px] lg:h-[18px]" />}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm lg:text-base font-medium text-gray-900 truncate leading-tight">{t.descricao}</p>
+                      <p className="text-[11px] lg:text-xs text-gray-500 leading-tight">{t.quando}</p>
+                    </div>
+                  </div>
+                  <span className={`text-sm lg:text-base font-semibold flex-shrink-0 whitespace-nowrap ${t.tipo === 'receita' ? 'text-green-600' : 'text-gray-900'}`}>
+                    {t.tipo === 'receita' ? '+' : '−'} {exibirMoeda(t.valor, ocultar)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          </div>
+
+          {/* Divisória discreta (só no mobile; no desktop as colunas separam) */}
+          <div className="border-t border-gray-100 my-1.5 lg:hidden" />
+
+          <div>
+          {/* Próximos 7 dias (2) */}
+          <div className="flex items-center justify-between gap-2 mb-1 lg:mb-2">
+            <p className="text-xs lg:text-sm font-medium text-gray-500">Próximos 7 dias</p>
+            {proximos7Dias.length > 0 && (
+              <button
+                onClick={() => navigate('/despesas')}
+                className="flex items-center gap-1 text-xs lg:text-sm font-medium text-marca hover:opacity-80 flex-shrink-0"
+              >
+                Ver todos <ArrowRight size={13} />
+              </button>
+            )}
+          </div>
+          {proximos7Dias.length === 0 ? (
+            <p className="text-sm text-gray-500">Nenhum compromisso previsto para os próximos 7 dias.</p>
+          ) : (
+            <ul className="space-y-1 lg:space-y-1.5">
+              {proximos7Dias.slice(0, 2).map(item => (
+                <li key={item.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-lg lg:rounded-xl px-2.5 py-1.5 lg:px-3 lg:py-2">
+                  <div className="min-w-0 flex items-center gap-2 lg:gap-3">
+                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.cor || 'bg-gray-300'}`} />
+                    <div className="min-w-0">
+                      <p className="text-sm lg:text-base font-medium text-gray-900 truncate leading-tight">{item.descricao}</p>
+                      <p className="text-[11px] lg:text-xs text-gray-500 leading-tight">{item.quando}</p>
+                    </div>
+                  </div>
+                  <span className="text-sm lg:text-base font-semibold text-gray-900 flex-shrink-0 whitespace-nowrap">
+                    {exibirMoeda(item.valor, ocultar)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          </div>
           </div>
         </div>
-      )}
 
-      {/* ── Apoio (abaixo da hierarquia principal) ── */}
-
-      {/* Resumo do mês: Receitas, Despesas, Disponível, Gasto diário, Reserva. */}
-      <div>
-        <h2 className="text-base font-semibold text-gray-900 mb-3">Resumo do mês</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          <SummaryCard
-            title="Receitas"
-            value={resumoMes.receitaTotal}
-            icon={TrendingUp}
-            color="text-green-600"
-            bgColor="bg-green-50"
-            subtitle={carregando ? '' : `${resumoMes.qtdReceitas} receita${resumoMes.qtdReceitas !== 1 ? 's' : ''}`}
-            carregando={carregando}
-          />
-          <SummaryCard
-            title="Despesas"
-            value={resumoMes.despesaTotal}
-            icon={TrendingDown}
-            color="text-red-500"
-            bgColor="bg-red-50"
-            subtitle={carregando ? '' : `${resumoMes.qtdDespesas} despesa${resumoMes.qtdDespesas !== 1 ? 's' : ''}`}
-            carregando={carregando}
-          />
-          <SummaryCard
-            title="Disponível para gastar"
-            value={resumoMes.sobraPrevista}
-            icon={Wallet}
-            color={resumoMes.sobraPrevista >= 0 ? 'text-blue-600' : 'text-red-600'}
-            bgColor={resumoMes.sobraPrevista >= 0 ? 'bg-blue-50' : 'bg-red-50'}
-            subtitle={carregando ? '' : 'No mês, após compromissos'}
-            carregando={carregando}
-          />
-          <SummaryCard
-            title="Gasto diário sugerido"
-            value={Math.max(0, limiteHoje)}
-            icon={Sun}
-            color="text-amber-600"
-            bgColor="bg-amber-50"
-            subtitle={carregando ? '' : 'Por dia até o fim do mês'}
-            carregando={carregando}
-          />
-          <SummaryCard
-            title="Reserva de emergência"
-            value={reservaAtual}
-            icon={PiggyBank}
-            color="text-amber-600"
-            bgColor="bg-amber-50"
-            subtitle={carregando ? '' : (metaReserva > 0 ? `Meta: ${formatCurrency(metaReserva)}` : 'Sem meta definida')}
-            carregando={carregando}
-          />
+        {/* 4b ─ Resumo do mês — SOMENTE no desktop (hidden lg:block), ao lado do
+            card de movimentações. Reutiliza resumoMes/limiteHoje já calculados;
+            nenhum cálculo novo. No mobile não aparece (Home continua compacta). */}
+        <div className="hidden lg:block card !p-5">
+          <h2 className="text-lg font-semibold text-gray-900">Resumo do mês</h2>
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-3 py-2">
+              <span className="flex items-center gap-2 text-sm text-gray-600">
+                <span className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center flex-shrink-0">
+                  <TrendingUp size={16} className="text-green-600" />
+                </span>
+                Receitas
+              </span>
+              <span className="text-base font-bold text-green-600 whitespace-nowrap">{exibirMoeda(resumoMes.receitaTotal, ocultar)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-3 py-2">
+              <span className="flex items-center gap-2 text-sm text-gray-600">
+                <span className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0">
+                  <TrendingDown size={16} className="text-red-500" />
+                </span>
+                Despesas
+              </span>
+              <span className="text-base font-bold text-red-500 whitespace-nowrap">{exibirMoeda(resumoMes.despesaTotal, ocultar)}</span>
+            </div>
+            <div className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2 ${resumoMes.sobraPrevista >= 0 ? 'bg-marca-100' : 'bg-red-50'}`}>
+              <span className="flex items-center gap-2 text-sm text-gray-700 font-medium">
+                <span className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${resumoMes.sobraPrevista >= 0 ? 'bg-marca-100' : 'bg-red-500/10'}`}>
+                  <Wallet size={16} className={resumoMes.sobraPrevista >= 0 ? 'text-marca' : 'text-red-600'} />
+                </span>
+                Resultado previsto
+              </span>
+              <span className={`text-lg font-bold whitespace-nowrap ${resumoMes.sobraPrevista >= 0 ? 'text-marca' : 'text-red-600'}`}>
+                {exibirMoeda(resumoMes.sobraPrevista, ocultar)}
+              </span>
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2 text-sm text-gray-500">
+                <Sun size={16} className="text-amber-500 flex-shrink-0" /> Gasto diário sugerido
+              </span>
+              <span className="text-base font-bold text-gray-900 whitespace-nowrap">{exibirMoeda(Math.max(0, limiteHoje), ocultar)}</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-1.5">Receitas e compromissos deste mês. A reserva de emergência é separada.</p>
+          </div>
         </div>
       </div>
-
-      {/* Saldo disponível agora + Previsão até o fim do mês.
-          A reserva de emergência NÃO entra aqui. */}
-      {!carregando && (
-        <div className="card">
-          {saldoConfigurado ? (
-            <>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm text-gray-500">Saldo disponível agora</p>
-                    <button
-                      onClick={alternar}
-                      aria-label={ocultar ? 'Mostrar valores' : 'Ocultar valores'}
-                      className="text-gray-400 hover:text-gray-700 p-0.5"
-                    >
-                      {ocultar ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                  <p className={`text-3xl font-bold ${saldoDisponivelAgora >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
-                    {exibirMoeda(saldoDisponivelAgora, ocultar)}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setModalSaldo(true)}
-                  className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 flex-shrink-0 mt-1"
-                >
-                  <Pencil size={13} /> Atualizar saldo
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 mt-4">
-                <div className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-xs text-gray-400">Saldo previsto no fim do mês</p>
-                  <p className={`text-lg font-bold ${previsaoFimMes >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                    {exibirMoeda(previsaoFimMes, ocultar)}
-                  </p>
-                </div>
-                <div className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-xs text-gray-400">Compromissos a pagar</p>
-                  <p className="text-lg font-bold text-red-500">{exibirMoeda(compromissosFuturosMes, ocultar)}</p>
-                </div>
-              </div>
-              <p className="text-xs text-gray-400 mt-2">
-                O saldo mostra o dinheiro que você já tem. A reserva de emergência é separada.
-              </p>
-            </>
-          ) : (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-gray-900">Informe seu saldo atual</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Diga quanto você tem disponível hoje para o app calcular seu dinheiro em tempo real.
-                </p>
-              </div>
-              <button onClick={() => setModalSaldo(true)}
-                className="btn-primary flex items-center justify-center gap-2 flex-shrink-0">
-                <Wallet size={16} /> Informar saldo
-              </button>
-            </div>
-          )}
-        </div>
       )}
+
+      {/* Espaçador flexível (só mobile): absorve a sobra vertical para distribuir
+          o conteúdo e aproveitar o espaço vazio acima da navegação inferior, sem
+          esticar os cards nem usar altura fixa. Zero no desktop. */}
+      <div className="grow md:hidden" aria-hidden="true" />
+
+      {/* O "Horizonte Financeiro", o card de Consultoria e o "Resumo do mês"
+          foram movidos para a aba Planejamento (/projecao), deixando a Home mais
+          limpa. A consultoria continua acessível pelo atalho "Consultoria".
+          O modal do Horizonte (abaixo) é mantido para o sininho de notificações. */}
 
       {/* Modal: planejamento completo "Quanto posso gastar?" — todos os detalhes
           (modos, reserva, renda/compromissos/disponível, ajuste diário, meta,

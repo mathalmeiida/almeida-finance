@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { User, Mail, AlertTriangle, Loader2, Trash2, LogOut, Sparkles, Eye, EyeOff, Clock, MessageSquarePlus, CheckCircle2, Palette, Check } from 'lucide-react'
+import { User, Mail, AlertTriangle, Loader2, Trash2, LogOut, Sparkles, Eye, EyeOff, Clock, MessageSquarePlus, CheckCircle2, Palette, Check, Moon } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useZerarDados } from '../hooks/useZerarDados'
 import { useConsultoriaAcessos } from '../hooks/useConsultoriaAcessos'
@@ -14,9 +14,21 @@ import Modal from '../components/Modal'
 // globalmente pela classe .tema-* no <html> (ver AuthContext + index.css). Só
 // identidade visual — não altera cálculos nem dados.
 function Aparencia() {
-  const { corTema, atualizarCorTema } = useAuth()
+  const { corTema, atualizarCorTema, usuario } = useAuth()
   const [salvando, setSalvando] = useState('')
   const [erro, setErro] = useState('')
+
+  // Aparência dinâmica dia/noite (só o fundo do cabeçalho da Home). Preferência
+  // por usuário no localStorage; padrão ATIVADA. Mesma chave lida pelo Dashboard.
+  const chaveAparencia = `almeida_aparencia_dinamica_${usuario?.id || 'anon'}`
+  const [aparenciaDinamica, setAparenciaDinamica] = useState(() => {
+    try { return localStorage.getItem(chaveAparencia) !== '0' } catch { return true }
+  })
+  function alternarAparenciaDinamica() {
+    const novo = !aparenciaDinamica
+    setAparenciaDinamica(novo)
+    try { localStorage.setItem(chaveAparencia, novo ? '1' : '0') } catch { /* ignora */ }
+  }
 
   async function escolher(cor) {
     if (cor === corTema || salvando) return
@@ -74,6 +86,33 @@ function Aparencia() {
               )
             })}
           </div>
+
+          {/* Aparência dinâmica dia/noite (cabeçalho da Home) */}
+          <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <span className="w-8 h-8 rounded-lg bg-marca-100 flex items-center justify-center flex-shrink-0">
+                <Moon size={15} className="text-marca" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-900">Aparência dinâmica</p>
+                <p className="text-xs text-gray-400">Cabeçalho muda com o horário (dia/noite).</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={aparenciaDinamica}
+              onClick={alternarAparenciaDinamica}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+                aparenciaDinamica ? 'bg-marca' : 'bg-gray-300'
+              }`}
+            >
+              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                aparenciaDinamica ? 'translate-x-5' : 'translate-x-0.5'
+              }`} />
+            </button>
+          </div>
+
           {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
         </div>
       </div>

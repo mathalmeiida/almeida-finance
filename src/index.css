@@ -121,6 +121,53 @@
       rgb(var(--marca-hover))
     );
   }
+
+  /* ── Cabeçalho dinâmico dia/noite (Home) ──────────────────────────────────
+     Apenas o FUNDO da região superior muda conforme o horário. Não altera a
+     cor de marca nem a estrutura. Fundo discreto para preservar o contraste do
+     texto escuro (dia) / claro (noite). */
+  .sky-dyn {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1rem;
+  }
+  /* DIA: céu azul-claro suave + brilho de sol no canto. Texto escuro continua
+     legível sobre o tom claro. */
+  .sky-day {
+    background-image:
+      radial-gradient(circle at 88% 28%, rgba(250, 204, 21, 0.35), rgba(250, 204, 21, 0) 42%),
+      linear-gradient(135deg, #e0f2fe 0%, #eff6ff 60%, #ffffff 100%);
+  }
+  /* NOITE: céu azul-escuro. O texto fica claro via .sky-night (abaixo). */
+  .sky-night {
+    background-image:
+      radial-gradient(circle at 86% 30%, rgba(226, 232, 240, 0.25), rgba(226, 232, 240, 0) 40%),
+      linear-gradient(135deg, #1e293b 0%, #0f172a 70%, #111827 100%);
+  }
+  /* Estrelinhas discretas (noite) — pontos via box-shadow, sem imagens. */
+  .sky-night .sky-stars {
+    position: absolute;
+    top: 10px; left: 14px;
+    width: 2px; height: 2px;
+    border-radius: 9999px;
+    background: transparent;
+    box-shadow:
+      18px 6px 0 0 rgba(255,255,255,0.9),
+      54px 2px 0 0 rgba(255,255,255,0.6),
+      90px 12px 0 0 rgba(255,255,255,0.8),
+      130px 4px 0 0 rgba(255,255,255,0.5),
+      30px 20px 0 0 rgba(255,255,255,0.5),
+      100px 24px 0 0 rgba(255,255,255,0.7);
+    animation: sky-twinkle 3.5s ease-in-out infinite;
+  }
+  @keyframes sky-twinkle {
+    0%, 100% { opacity: 0.9; }
+    50%      { opacity: 0.4; }
+  }
+  /* Movimento reduzido: sem cintilar. */
+  @media (prefers-reduced-motion: reduce) {
+    .sky-night .sky-stars { animation: none; }
+  }
 }
 
 @layer utilities {
@@ -137,7 +184,7 @@
      (ex.: "Registrar gasto de hoje" na Home) nunca ficar escondido atrás da
      barra. Só aplicada abaixo de md. */
   .pb-mobilenav {
-padding-bottom: calc(90px + env(safe-area-inset-bottom));
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
   }
   /* Área de toque mínima recomendada (~44px) para ícones/botões pequenos. */
   .touch-target {
