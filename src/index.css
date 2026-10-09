@@ -137,7 +137,7 @@
      (ex.: "Registrar gasto de hoje" na Home) nunca ficar escondido atrás da
      barra. Só aplicada abaixo de md. */
   .pb-mobilenav {
-    padding-bottom: calc(116px + env(safe-area-inset-bottom));
+padding-bottom: calc(90px + env(safe-area-inset-bottom));
   }
   /* Área de toque mínima recomendada (~44px) para ícones/botões pequenos. */
   .touch-target {
