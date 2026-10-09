@@ -304,8 +304,8 @@ export default function Layout({ children }) {
         )}
 
         {/* Conteúdo da página. No mobile reserva espaço para a barra inferior. */}
-        <main className="flex-1 p-4 md:p-8 max-w-6xl w-full mx-auto pb-mobilenav md:pb-8">
-          {children}
+<main className="flex-1 px-4 pt-2 pb-2 md:p-8 max-w-6xl w-full mx-auto pb-mobilenav md:pb-8">
+  {children}
         </main>
       </div>
 
