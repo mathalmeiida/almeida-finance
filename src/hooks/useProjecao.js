@@ -8,6 +8,7 @@ import { useFaturasCartao } from './useFaturasCartao'
 import { totalFaturaComOverride, faturaInformadaNoMes } from '../lib/faturaCartao'
 import { useAuth } from '../contexts/AuthContext'
 import { labelMes, hojeISO, partesHojeBrasil } from '../lib/utils'
+import { vencimentoEfetivo } from '../lib/calendarioBancario'
 
 /**
  * Hook central de projeção financeira.
@@ -110,13 +111,27 @@ export function useProjecao() {
   function faturasAVencer(ano, mes, diaHoje) {
     return cartoes.reduce((acc, c) => {
       const diaVenc = Number(c.dia_vencimento)
-      if (!(diaVenc > diaHoje)) return acc // fatura já venceu neste mês → não é futura
-      const informada = faturaInformadaNoMes(faturasInformadas, c.id, ano, mes)
+      const diaFech = Number(c.dia_fechamento) || 1
+      // Calendário bancário: o vencimento efetivo é prorrogado ao próximo dia
+      // útil se cair em fim de semana/feriado. Comparamos ESSE dia com "hoje".
+      const vefMes = vencimentoEfetivo(ano, mes, diaVenc)
+      const diaVencUtil = (vefMes.ano === ano && vefMes.mes === mes) ? vefMes.dia : diaVenc
+      if (!(diaVencUtil > diaHoje)) return acc // fatura já venceu neste mês → não é futura
+      // A fatura que VENCE neste mês (ano,mes) é a da competência:
+      //   • (ano,mes)        se o vencimento é no mesmo mês do fechamento;
+      //   • mês ANTERIOR     se o vencimento é antes do fechamento (vence no mês
+      //     seguinte ao que fechou — ex.: fecha 20, vence 01).
+      let compAno = ano, compMes = mes
+      if (diaVenc < diaFech) {
+        compMes = mes - 1
+        if (compMes < 1) { compMes = 12; compAno = ano - 1 }
+      }
+      const informada = faturaInformadaNoMes(faturasInformadas, c.id, compAno, compMes)
       if (informada?.pago === true) return acc // fatura informada já paga → não é futura
       const comprasDoCartao = comprasCartao.filter(cp => cp.cartao_id === c.id)
       const parcelamentosDoCartao = parcelamentos.filter(p => p.cartao_id === c.id)
       const total = totalFaturaComOverride(
-        comprasDoCartao, parcelamentosDoCartao, faturasInformadas, c.id, c.dia_fechamento, ano, mes
+        comprasDoCartao, parcelamentosDoCartao, faturasInformadas, c.id, c.dia_fechamento, compAno, compMes
       )
       return acc + total
     }, 0)

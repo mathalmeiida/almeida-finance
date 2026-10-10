@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import {
   Wallet, TrendingUp, TrendingDown, ShieldCheck, Sparkles,
-  CheckCircle2, ArrowRight, ArrowLeft, Plus, Trash2, Loader2,
+  CheckCircle2, ArrowRight, ArrowLeft, Plus, Trash2, Loader2, UtensilsCrossed,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useReceitas } from '../hooks/useReceitas'
@@ -766,6 +766,18 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                   valor={formatCurrency(resumo.disponivelEstimado)}
                   cor={resumo.disponivelEstimado >= 0 ? 'text-gray-900' : 'text-red-600'}
                 />
+              </div>
+
+              {/* Pergunta OPCIONAL sobre benefícios (VR/VA). Não bloqueia a
+                  conclusão nem cria dados — apenas sinaliza onde cadastrar
+                  depois (menu Finanças › Benefícios ou atalho da Home). */}
+              <div className="flex items-start gap-2.5 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 mb-4">
+                <UtensilsCrossed size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-emerald-800">
+                  <strong>Usa Vale-Refeição ou Vale-Alimentação?</strong> Você pode cadastrá-los
+                  depois em <strong>Finanças › Benefícios</strong> para controlar o saldo à parte,
+                  sem misturar com o dinheiro da conta. É opcional.
+                </p>
               </div>
 
               <button onClick={finalizar} disabled={salvando}

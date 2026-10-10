@@ -23,7 +23,7 @@ function ResumoItem({ rotulo, valor, cor = 'text-gray-900' }) {
 function ColunaMes({ mes }) {
   return (
     <div
-      className={`shrink-0 w-[86vw] sm:w-44 snap-center rounded-xl border ${
+      className={`shrink-0 basis-full w-full sm:basis-auto sm:w-44 snap-center rounded-xl border ${
         mes.ehMesAtual ? 'border-blue-300' : 'border-gray-200'
       } overflow-hidden`}
     >

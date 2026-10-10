@@ -21,6 +21,7 @@ import { valorParcelaNoMes } from '../hooks/useParcelamentos'
 import { linhasFaturaCompleta } from './faturaCartao'
 import { faturaInformadaNoMes } from './faturaCartao'
 import { labelMes, partesHojeBrasil } from './utils'
+import { vencimentoEfetivo } from './calendarioBancario'
 
 const ultimoDiaDoMes = (ano, mes) => new Date(ano, mes, 0).getDate()
 const diaDe = (dataISO) => parseInt(String(dataISO).slice(8, 10), 10) || 1
@@ -107,22 +108,44 @@ export function gerarHorizonte({
     }
 
     // ── FATURAS DE CARTÃO ──
-    // Total do cartão no mês cai no dia de VENCIMENTO. Fatura informada tem
-    // prioridade (substitui a soma das compras) — mesma regra do orçamento.
+    // A fatura é lançada no FLUXO DE CAIXA no mês/dia em que REALMENTE VENCE
+    // (quando o dinheiro sai), não no mês de competência (fechamento).
+    // Regra: se o dia de vencimento for ANTERIOR ao dia de fechamento, a fatura
+    // fechada neste mês só vence no mês SEGUINTE (ex.: fecha 20, vence 01 → a
+    // fatura de outubro vence em 01/novembro). Então, para o mês atual do fluxo
+    // (ano,mes), a fatura que vence aqui é a da competência:
+    //   • mesma (ano,mes)         se dia_vencimento >= dia_fechamento;
+    //   • mês ANTERIOR (compVenc) se dia_vencimento <  dia_fechamento.
+    // Fatura informada tem prioridade (substitui a soma das compras).
     for (const c of cartoes) {
       const comprasDoCartao = comprasCartao.filter(cp => cp.cartao_id === c.id)
       const parcelamentosDoCartao = parcelamentos.filter(p => p.cartao_id === c.id)
-      const informada = faturaInformadaNoMes(faturasInformadas, c.id, ano, mes)
-      let totalCartao, diaVenc
+      const diaFech = Number(c.dia_fechamento) || 1
+      const diaVenc = Number(c.dia_vencimento) || 1
+      // Competência cuja fatura vence NESTE mês do fluxo.
+      let compAno = ano, compMes = mes
+      if (diaVenc < diaFech) {
+        // vence no mês seguinte ao fechamento → a que vence agora fechou no mês anterior
+        compMes = mes - 1
+        if (compMes < 1) { compMes = 12; compAno = ano - 1 }
+      }
+      const informada = faturaInformadaNoMes(faturasInformadas, c.id, compAno, compMes)
+      let totalCartao
       if (informada) {
         totalCartao = Number(informada.valor_total) || 0
-        diaVenc = informada.vencimento_dia || c.dia_vencimento || 1
       } else {
-        totalCartao = linhasFaturaCompleta(comprasDoCartao, parcelamentosDoCartao, c.dia_fechamento, ano, mes)
+        totalCartao = linhasFaturaCompleta(comprasDoCartao, parcelamentosDoCartao, c.dia_fechamento, compAno, compMes)
           .reduce((a, l) => a + l.valor, 0)
-        diaVenc = c.dia_vencimento || 1
       }
-      if (totalCartao > 0) addSaida(diaVenc, totalCartao)
+      // Vencimento informado (se houver) tem prioridade sobre o dia do cartão.
+      const diaVencNominal = (informada && informada.vencimento_dia) ? informada.vencimento_dia : diaVenc
+      // Calendário bancário: se o vencimento cair em fim de semana/feriado
+      // nacional, PRORROGA para o próximo dia útil. Mantém o lançamento DENTRO
+      // do mês do fluxo (se a prorrogação ultrapassar o mês, usa o próximo dia
+      // útil mesmo assim — o total do mês não se altera, só a posição do dia).
+      const vef = vencimentoEfetivo(ano, mes, diaVencNominal)
+      const diaVencEfetivo = (vef.ano === ano && vef.mes === mes) ? vef.dia : totalDias
+      if (totalCartao > 0) addSaida(diaVencEfetivo, totalCartao)
     }
 
     // ── Monta a lista de dias com saldo acumulado ──

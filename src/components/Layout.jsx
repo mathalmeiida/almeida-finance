@@ -15,6 +15,7 @@ import {
   Plus,
   Receipt,
   PiggyBank,
+  UtensilsCrossed,
   X,
   LogOut,
   ArrowLeft,
@@ -34,6 +35,7 @@ const navGrupos = [
     { to: '/receitas',      label: 'Receitas',       icon: TrendingUp,    corIcone: 'text-green-400'    },
     { to: '/despesas',      label: 'Despesas',       icon: TrendingDown,  corIcone: 'text-rose-400'     },
     { to: '/cartoes',       label: 'Cartões',        icon: CreditCard,    corIcone: 'text-sky-400'      },
+    { to: '/beneficios',    label: 'Benefícios',     icon: UtensilsCrossed, corIcone: 'text-emerald-400' },
     { to: '/projecao',      label: 'Projeção',       icon: BarChart2,     corIcone: 'text-violet-400'   },
   ]},
   { titulo: 'Planejamento', itens: [
@@ -53,6 +55,7 @@ const navGrupos = [
 const maisItems = [
   { to: '/receitas',      label: 'Receitas',       icon: TrendingUp,    corIcone: 'text-green-400'  },
   { to: '/cartoes',       label: 'Cartões',        icon: CreditCard,    corIcone: 'text-sky-400'    },
+  { to: '/beneficios',    label: 'Benefícios',     icon: UtensilsCrossed, corIcone: 'text-emerald-400' },
   { to: '/projecao',      label: 'Projeção',       icon: BarChart2,     corIcone: 'text-violet-400' },
   { to: '/metas',         label: 'Metas',          icon: Target,        corIcone: 'text-amber-400'  },
   { to: '/consultoria',   label: 'Consultoria',    icon: MessagesSquare, corIcone: 'text-cyan-400' },
@@ -303,8 +306,13 @@ export default function Layout({ children }) {
           </div>
         )}
 
-        {/* Conteúdo da página. No mobile reserva espaço para a barra inferior. */}
-        <main className="flex-1 px-4 pt-1 pb-0 md:p-8 lg:py-5 max-w-6xl w-full mx-auto pb-mobilenav md:pb-8 lg:pb-5">
+        {/* Conteúdo da página. No mobile reserva espaço para a barra inferior.
+            IMPORTANTE: o esticamento (flex-1) é aplicado SÓ no desktop (md:flex-1).
+            No mobile o <main> fica com a altura NATURAL do conteúdo — sem isso,
+            flex-1 + min-h-screen do pai faziam o main crescer até o fim da tela,
+            criando o vão em branco acima da barra inferior fixa quando o
+            conteúdo era curto. */}
+        <main className="md:flex-1 px-4 pt-1 pb-0 md:p-8 lg:py-5 max-w-6xl w-full mx-auto pb-mobilenav md:pb-8 lg:pb-5">
           {children}
         </main>
       </div>

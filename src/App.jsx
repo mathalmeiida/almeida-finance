@@ -15,6 +15,7 @@ import Dashboard from './pages/Dashboard'
 import Receitas from './pages/Receitas'
 import Despesas from './pages/Despesas'
 import Cartoes from './pages/Cartoes'
+import Beneficios from './pages/Beneficios'
 import Projecao from './pages/Projecao'
 import PossoComprar from './pages/PossoCComprar'
 import Metas from './pages/Metas'
@@ -214,6 +215,7 @@ function Rotas() {
                 {/* Parcelamentos foi integrado à tela de Despesas (aba "Parceladas") */}
                 <Route path="/parcelamentos" element={<Navigate to="/despesas" replace />} />
                 <Route path="/cartoes" element={<Cartoes />} />
+                <Route path="/beneficios" element={<Beneficios />} />
                 <Route path="/projecao" element={<Projecao />} />
                 <Route path="/posso-comprar" element={<PossoComprar />} />
                 <Route path="/metas" element={<Metas />} />

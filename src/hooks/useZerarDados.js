@@ -54,27 +54,40 @@ export function useZerarDados() {
       throw new Error(`Erro ao apagar categorias personalizadas: ${errCat.message}`)
     }
 
-    // Reseta APENAS as preferências financeiras que existem no schema atual.
-    // No momento, somente "reserva_percentual" é garantida no banco; colunas
-    // como "modo_limite"/"limite_diario" NÃO existem no schema e, se incluídas
-    // no update, fariam o PostgREST falhar ("Could not find the 'modo_limite'
-    // column"). Por isso resetamos só o que existe. Preserva conta, login,
-    // nome, e-mail, papel, ativo e onboarding_concluido (não são tocados).
+    // Reseta as PREFERÊNCIAS FINANCEIRAS persistidas no perfil, para o Dashboard
+    // voltar ao estado "sem dados" após o reset. Todas estas colunas existem no
+    // schema (ver schema.sql + migrations):
+    //   • limite_diario / modo_limite → senão um limite manual antigo (ex.:
+    //     R$ 45,45) continuaria sendo exibido como "limite para gastar hoje";
+    //   • saldo_base / saldo_base_data → zera o saldo atual informado;
+    //   • reserva_atual / meta_reserva / reserva_configurada → zera a reserva;
+    //   • reserva_percentual volta ao padrão 20.
+    // PRESERVA (não são tocados): id, nome, email, papel, ativo,
+    // onboarding_concluido, cor_tema, ultimo_acesso — conta/login/config.
     //
     // Envolto em try/catch: mesmo que o reset da preferência falhe, os dados
     // financeiros (acima) já foram apagados — o objetivo principal do botão.
     try {
       const { error: errPerfil } = await supabase
         .from('perfis')
-        .update({ reserva_percentual: 20 })
+        .update({
+          reserva_percentual: 20,
+          modo_limite: 'auto',
+          limite_diario: null,
+          saldo_base: null,
+          saldo_base_data: null,
+          reserva_atual: 0,
+          meta_reserva: 0,
+          reserva_configurada: false,
+        })
         .eq('id', uid)
       if (errPerfil) {
         // Não relança: a limpeza dos dados financeiros não deve ser revertida
         // por causa do reset de uma preferência.
-        console.warn('Dados zerados, mas não foi possível restaurar a reserva padrão:', errPerfil.message)
+        console.warn('Dados zerados, mas não foi possível restaurar as preferências:', errPerfil.message)
       }
     } catch (e) {
-      console.warn('Dados zerados; reset da reserva padrão ignorado:', e?.message)
+      console.warn('Dados zerados; reset de preferências ignorado:', e?.message)
     }
   }
 

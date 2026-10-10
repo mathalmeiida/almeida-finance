@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Sun, Plus, Pencil,
   CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank, AlertTriangle, MessageCircle, BarChart2,
-  Receipt, Target, Bell, Moon
+  Receipt, Target, Bell, Moon, UtensilsCrossed
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useCategorias } from '../hooks/useCategorias'
@@ -257,9 +257,14 @@ function diasRestantesNoMes(ref = new Date()) {
 // pelo card "Quanto posso gastar?" e pela confirmação do gasto rápido, para
 // nunca divergirem. Mesma fórmula de sempre: auto = (receita − reserva −
 // compromissos)/dias; manual = valor fixo definido pelo usuário.
-function calcularLimiteDiario({ receitaMes, compromissosMes, reservaPct, modo, limiteManual, hoje, baseLivre }) {
+function calcularLimiteDiario({ receitaMes, compromissosMes, reservaPct, modo, limiteManual, hoje, baseLivre, saldoConfigurado = false }) {
   const dias = diasRestantesNoMes(hoje)
   const ehManual = modo === 'manual'
+  // TRAVA (pós-reset / conta sem dados): sem renda E sem saldo informado, não há
+  // base financeira válida → limite diário é R$ 0, inclusive no modo manual.
+  // Evita exibir um limite manual antigo persistido após zerar os dados.
+  const temBaseFinanceira = (Number(receitaMes) || 0) > 0 || saldoConfigurado
+  if (!temBaseFinanceira) return 0
   const reserva = receitaMes > 0 ? receitaMes * (reservaPct / 100) : 0
   // Se "baseLivre" for informado (orçamento livre já considerando saldo atual
   // e compromissos futuros), usa-o; senão, mantém a base antiga (receita −
@@ -906,12 +911,24 @@ function CardGastoHoje({
     : status?.cor === '🟡' ? 'bg-amber-300'
     : 'bg-green-300'
 
+  // Sem base financeira (sem renda informada E sem saldo configurado): o limite
+  // é R$ 0 e exibimos a orientação para cadastrar a renda. Cobre o estado após
+  // "zerar dados" e contas recém-criadas.
+  const semBaseFinanceira = (Number(receitaMes) || 0) <= 0 && !saldoConfigurado
+
   // Anel do limite diário: % JÁ utilizado hoje (satura em 100 no anel, mas o
   // rótulo pode passar de 100% quando estoura o limite).
   const temLimite = limiteHoje > 0
   const pctUsadoReal = temLimite ? (gastosHoje / limiteHoje) * 100 : 0
   const pctAnel = Math.min(100, Math.max(0, pctUsadoReal))
-  const pctLabel = Math.round(pctUsadoReal)
+  const pctLabel = Math.min(100, Math.round(pctUsadoReal))
+  const statusDiario = !temLimite
+  ? null
+  : pctUsadoReal >= 100
+    ? { cor: '🔴', texto: 'Limite diário ultrapassado' }
+    : pctUsadoReal >= 80
+      ? { cor: '🟡', texto: 'Atenção aos gastos' }
+      : { cor: '🟢', texto: 'Dentro do limite diário' }
   // Cor do anel: branco dentro do planejado; amarelo em atenção; vermelho ao estourar.
   const corAnel =
     pctUsadoReal > 100 ? '#fecaca'          // red-200
@@ -956,15 +973,27 @@ function CardGastoHoje({
               </button>
             )}
           </div>
-          <p className="text-xs lg:text-sm text-white/80 mt-0.5">Sem comprometer seu planejamento</p>
+          <p className="text-xs lg:text-sm text-white/80 mt-0.5">
+            {semBaseFinanceira ? 'Cadastre sua renda para calcular seu limite diário' : 'Sem comprometer seu planejamento'}
+          </p>
         </div>
         {/* Status do orçamento (compacto, quando couber) */}
-        {status && (
-          <div className="hidden sm:flex items-center gap-1.5 flex-shrink-0 bg-black/15 rounded-full px-2.5 py-1 lg:px-3 lg:py-1.5 self-start">
-            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${corStatus}`} />
-            <span className="text-xs lg:text-sm font-medium text-white/90">{status.texto}</span>
-          </div>
-        )}
+       {(statusDiario || status) && (
+  <div className="hidden sm:flex items-center gap-1.5 flex-shrink-0 bg-black/15 rounded-full px-2.5 py-1">
+    <span
+      className={`w-2 h-2 rounded-full ${
+        statusDiario?.cor === '🔴'
+          ? 'bg-red-300'
+          : statusDiario?.cor === '🟡'
+          ? 'bg-amber-300'
+          : 'bg-green-300'
+      }`}
+    />
+    <span className="text-xs lg:text-sm font-medium text-white/90">
+      {statusDiario?.texto || status?.texto}
+    </span>
+  </div>
+)}
       </div>
 
       {/* Gasto de hoje × restante */}
@@ -1078,6 +1107,7 @@ function CardProximos7Dias({ total, itens, onVerTodos }) {
 }
 
 export default function Dashboard() {
+  const [abaMovimentacoes, setAbaMovimentacoes] = useState('transacoes');
   const { perfil, atualizarPreferenciasLimite, somenteLeitura, usuario, idUsuarioLogado } = useAuth()
   const { ocultar, alternar } = useOcultarValores()
 
@@ -1234,6 +1264,7 @@ export default function Dashboard() {
     limiteManual,
     hoje,
     baseLivre: saldoConfigurado ? previsaoFimMes : undefined,
+    saldoConfigurado,
   })
   // Gastos de HOJE (à vista): despesas não-recorrentes com data de hoje.
   // Usa os dados já em memória — mesmo padrão do saldo disponível.
@@ -1674,28 +1705,50 @@ export default function Dashboard() {
       {/* 3 ─ Acesso rápido: 5 atalhos compactos para as funcionalidades
           existentes. Mesma linha no celular (grid-cols-5). Reaproveitam
           rotas/modais já existentes, sem duplicar lógica. */}
-      <div className="grid grid-cols-5 gap-1.5 sm:gap-2.5 lg:gap-4">
-        {[
-          { label: 'Transações',   icon: Receipt,       onClick: () => navigate('/despesas') },
-          { label: 'Cartões',      icon: CreditCard,    onClick: () => navigate('/cartoes') },
-          { label: 'Planejamento', icon: BarChart2,     onClick: () => setModalPlanejamento(true) },
-          { label: 'Metas',        icon: Target,        onClick: () => navigate('/metas') },
-          { label: 'Consultoria',  icon: MessageCircle, onClick: () => navigate('/consultoria') },
-        ].map(a => (
-          <button
-            key={a.label}
-            onClick={a.onClick}
-            aria-label={a.label}
-            className="group flex flex-col items-center gap-1 lg:gap-1.5 min-w-0 rounded-xl lg:rounded-2xl bg-marca-150 border border-marca/30 py-1.5 px-0.5 lg:py-3 lg:px-2 transition-all duration-200 hover:-translate-y-0.5 hover:bg-marca-200 hover:border-marca/50 hover:shadow-md hover:shadow-black/5 active:translate-y-0 active:bg-marca-200"
-          >
-            <span className="w-7 h-7 sm:w-8 sm:h-8 lg:w-10 lg:h-10 rounded-full bg-marca-200 flex items-center justify-center flex-shrink-0">
-              <a.icon size={16} className="text-marca lg:hidden" />
-              <a.icon size={20} className="text-marca hidden lg:block" />
-            </span>
-            <span className="text-[10px] sm:text-[11px] lg:text-sm font-medium text-marca/80 group-hover:text-marca w-full text-center leading-tight hyphens-auto transition-colors">{a.label}</span>
-          </button>
-        ))}
-      </div>
+<div className="grid grid-cols-5 gap-1.5 sm:gap-2.5 lg:gap-4">
+  {[
+    { label: 'Transações', icon: Receipt, onClick: () => navigate('/despesas'), cor: 'text-blue-600', fundo: 'bg-blue-50' },
+    { label: 'Cartões', icon: CreditCard, onClick: () => navigate('/cartoes'), cor: 'text-violet-600', fundo: 'bg-violet-50' },
+    { label: 'Planejamento', icon: BarChart2, onClick: () => setModalPlanejamento(true), cor: 'text-emerald-600', fundo: 'bg-emerald-50' },
+    { label: 'Metas', icon: Target, onClick: () => navigate('/metas'), cor: 'text-rose-600', fundo: 'bg-rose-50' },
+    { label: 'Consultoria', icon: MessageCircle, onClick: () => navigate('/consultoria'), cor: 'text-amber-600', fundo: 'bg-amber-50' },
+  ].map(a => (
+    <button
+      key={a.label}
+      type="button"
+      onClick={a.onClick}
+      aria-label={a.label}
+      className="group flex flex-col lg:flex-row items-center justify-center lg:justify-between gap-1 lg:gap-2 min-w-0 rounded-xl lg:rounded-2xl bg-white border border-slate-200 p-2 lg:p-4 shadow-sm hover:shadow-md hover:border-slate-300 transition-all"
+    >
+      <span className="flex flex-col lg:flex-row items-center gap-1 lg:gap-3 min-w-0">
+        <span className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full ${a.fundo} flex items-center justify-center shrink-0`}>
+          <a.icon size={21} className={a.cor} />
+        </span>
+        <span className="text-[10px] sm:text-xs lg:text-sm font-medium text-slate-800 text-center lg:text-left break-words">
+          {a.label}
+        </span>
+      </span>
+      <span className="hidden lg:block text-slate-400 group-hover:text-blue-600 text-xl shrink-0">
+        ›
+      </span>
+    </button>
+  ))}
+</div>
+
+      {/* 3b ─ Atalho DISCRETO para Benefícios (VR/VA), uma linha, sem poluir. */}
+      <button
+        type="button"
+        onClick={() => navigate('/beneficios')}
+        className="w-full flex items-center justify-between gap-2 rounded-xl bg-white border border-gray-200 px-3 py-2 hover:border-marca/40 hover:shadow-sm transition-all"
+      >
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="w-7 h-7 rounded-full bg-marca-100 flex items-center justify-center flex-shrink-0">
+            <UtensilsCrossed size={15} className="text-marca" />
+          </span>
+          <span className="text-sm font-medium text-gray-700 truncate">Benefícios (VR/VA)</span>
+        </span>
+        <ArrowRight size={16} className="text-gray-400 flex-shrink-0" />
+      </button>
 
       {/* O card "Saldo disponível agora" foi movido para a aba Planejamento
           (/projecao), deixando a Home mais compacta. */}
@@ -1732,8 +1785,28 @@ export default function Dashboard() {
 
           {/* No desktop, as duas seções ficam lado a lado para aproveitar a
               largura e melhorar a leitura; no mobile seguem empilhadas. */}
-          <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:mt-2">
-          <div>
+  <div className="flex gap-5 border-b border-gray-200 mt-3 mb-4">
+    {[
+      { id: 'transacoes', nome: 'Últimas transações' },
+      { id: 'pagamentos', nome: 'Próximos 7 dias' }
+    ].map(aba => (
+      <button
+        key={aba.id}
+        type="button"
+        onClick={() => setAbaMovimentacoes(aba.id)}
+        className={`pb-2 text-sm font-medium border-b-2 transition-colors ${
+          abaMovimentacoes === aba.id
+            ? 'border-marca text-marca'
+            : 'border-transparent text-gray-500'
+        }`}
+      >
+        {aba.nome}
+      </button>
+    ))}
+  </div>
+  <div className="mt-2">
+
+          <div className={abaMovimentacoes === 'transacoes' ? 'block' : 'hidden'}>
           {/* Últimas transações (2) */}
           <div className="flex items-center justify-between gap-2 mt-2 lg:mt-0 mb-1 lg:mb-2">
             <p className="text-xs lg:text-sm font-medium text-gray-500">Últimas transações</p>
@@ -1748,7 +1821,7 @@ export default function Dashboard() {
             <p className="text-sm text-gray-500">Nenhuma transação registrada ainda.</p>
           ) : (
             <ul className="space-y-1 lg:space-y-1.5">
-              {ultimasTransacoes.slice(0, 2).map(t => (
+             {ultimasTransacoes.slice(0, 5).map(t => (
                 <li key={t.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-lg lg:rounded-xl px-2.5 py-1.5 lg:px-3 lg:py-2">
                   <div className="min-w-0 flex items-center gap-2 lg:gap-3">
                     <span className={`w-6 h-6 lg:w-9 lg:h-9 rounded-full flex items-center justify-center flex-shrink-0 ${t.tipo === 'receita' ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
@@ -1773,7 +1846,7 @@ export default function Dashboard() {
           {/* Divisória discreta (só no mobile; no desktop as colunas separam) */}
           <div className="border-t border-gray-100 my-1.5 lg:hidden" />
 
-          <div>
+          <div className={abaMovimentacoes === 'pagamentos' ? 'block' : 'hidden'}>
           {/* Próximos 7 dias (2) */}
           <div className="flex items-center justify-between gap-2 mb-1 lg:mb-2">
             <p className="text-xs lg:text-sm font-medium text-gray-500">Próximos 7 dias</p>
@@ -1790,7 +1863,7 @@ export default function Dashboard() {
             <p className="text-sm text-gray-500">Nenhum compromisso previsto para os próximos 7 dias.</p>
           ) : (
             <ul className="space-y-1 lg:space-y-1.5">
-              {proximos7Dias.slice(0, 2).map(item => (
+              {proximos7Dias.slice(0, 5).map(item => (
                 <li key={item.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-lg lg:rounded-xl px-2.5 py-1.5 lg:px-3 lg:py-2">
                   <div className="min-w-0 flex items-center gap-2 lg:gap-3">
                     <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.cor || 'bg-gray-300'}`} />
