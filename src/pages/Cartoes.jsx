@@ -663,6 +663,44 @@ const [modalFatura, setModalFatura] = useState(false)
               <button onClick={() => setModalCompra(true)} className="mt-3 text-sm text-blue-600 hover:underline">Lançar primeira compra</button>
             )}
           </div>
+        ) : visaoGastos === 'data' ? (
+          /* Visão "Por data": compras individuais em ordem cronológica
+             decrescente (data, descrição e valor). Reutiliza gastosPorData,
+             que agrupa as MESMAS linhas por dia. */
+          <div className="space-y-3">
+            {gastosPorData.map(dia => (
+              <div key={dia.data} className="card">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                    <Calendar size={13} /> {formatDate(dia.data)}
+                  </span>
+                  <span className="text-xs font-semibold text-gray-700 whitespace-nowrap">{formatCurrency(dia.total)}</span>
+                </div>
+                <div className="space-y-2">
+                  {dia.itens.map(l => (
+                    <div key={l.id} className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{l.descricao}</p>
+                        <span className="text-xs text-indigo-600 font-medium">
+                          {l.totalParcelas > 1 ? `${l.parcela}/${l.totalParcelas}` : 'À vista'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className="text-sm font-bold text-gray-900 whitespace-nowrap">{formatCurrency(l.valor)}</span>
+                        {ehMesAtual && !l.origemParcelamento && (
+                          <button onClick={() => handleRemover(l.id)} disabled={removendo === l.id}
+                            aria-label="Remover compra"
+                            className="touch-target rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
+                            {removendo === l.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {categoriasFatura.map(cat => {

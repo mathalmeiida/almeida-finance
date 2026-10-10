@@ -30,7 +30,7 @@ const CHAVE_ETAPA_ONBOARDING = 'almeida_onboarding_etapa'
 // rápido (apenas ordenação visual; não cria, renomeia nem apaga categorias).
 const CATEGORIAS_COMUNS = ['Alimentação', 'Transporte', 'Lazer', 'Mercado', 'Saúde', 'Serviços']
 
-function FormGastoRapido({ onSalvar, onCancelar, carregando, onMaisOpcoes }) {
+function FormGastoRapido({ onSalvar, onCancelar, carregando, onMaisOpcoes, erro }) {
   const { categorias } = useCategorias('despesa')
   const { cartoes } = useCartoes()
   const [form, setForm] = useState({
@@ -85,6 +85,10 @@ function FormGastoRapido({ onSalvar, onCancelar, carregando, onMaisOpcoes }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Erro de salvamento (ex.: RLS/sessão/coluna) — visível DENTRO do modal. */}
+      {erro && (
+        <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{erro}</p>
+      )}
       {/* Valor em destaque (foco imediato para registrar rápido) */}
       <div>
         <label className="label">Valor</label>
@@ -1074,7 +1078,7 @@ function CardProximos7Dias({ total, itens, onVerTodos }) {
 }
 
 export default function Dashboard() {
-  const { perfil, atualizarPreferenciasLimite, somenteLeitura, usuario } = useAuth()
+  const { perfil, atualizarPreferenciasLimite, somenteLeitura, usuario, idUsuarioLogado } = useAuth()
   const { ocultar, alternar } = useOcultarValores()
 
   // ── Aparência dinâmica dia/noite (só o FUNDO do cabeçalho da Home) ──
@@ -1126,8 +1130,6 @@ export default function Dashboard() {
   const [salvandoGasto, setSalvandoGasto] = useState(false)
   const [erroGasto, setErroGasto] = useState('')
   const [confirmacaoGasto, setConfirmacaoGasto] = useState(null) // { msg, limite }
-  // Tela de sucesso DENTRO do modal de gasto (com "Registrar outro"/"Voltar").
-  const [gastoSucesso, setGastoSucesso] = useState(null) // { msg } | null
   const [modalLimite, setModalLimite] = useState(false)
   const [salvandoLimite, setSalvandoLimite] = useState(false)
   const [modalReservaAtual, setModalReservaAtual] = useState(false)
@@ -1136,6 +1138,7 @@ export default function Dashboard() {
   const [salvandoSaldo, setSalvandoSaldo] = useState(false)
   const [modalProjecao, setModalProjecao] = useState(false) // detalhes dos 12 meses
   const [modalPlanejamento, setModalPlanejamento] = useState(false) // "Quanto posso gastar?" completo
+  const [modalNotificacoes, setModalNotificacoes] = useState(false) // central de notificações (sino)
 
   // Atalho do botão "+" (menu inferior mobile): ?novo=gasto|reserva abre o
   // modal JÁ existente desta página. Depois limpa o parâmetro da URL.
@@ -1377,6 +1380,14 @@ export default function Dashboard() {
     setSalvandoGasto(true)
     setErroGasto('')
     try {
+      // Guarda-chuva: sem sessão/escrita (ou em modo consultoria somente leitura)
+      // o insert falharia de forma silenciosa. Dá um erro claro em vez disso.
+      if (somenteLeitura) {
+        throw new Error('Modo consultoria é somente leitura — não é possível registrar gastos.')
+      }
+      if (!idUsuarioLogado) {
+        throw new Error('Sessão expirada. Entre novamente para registrar o gasto.')
+      }
       const valorGasto = Number(dados.valor) || 0
       const noCartaoCredito = dados.forma_pagamento === 'cartao_credito' && dados.cartao_id
 
@@ -1393,8 +1404,13 @@ export default function Dashboard() {
           numero_parcelas: 1,
           categoria_id: dados.categoria_id || null,
         })
-        // Sucesso: mantém o modal aberto mostrando a tela de confirmação.
-        setGastoSucesso({ msg: `${formatCurrency(valorGasto)} lançado na fatura do cartão` })
+        // Sucesso: fecha o modal e mostra o banner de confirmação na Home
+        // (feedback visível + modal não fica "preso" aberto).
+        setModalGasto(false)
+        setConfirmacaoGasto({
+          msg: `✓ ${formatCurrency(valorGasto)} lançado na fatura do cartão`,
+          limite: Math.max(0, limiteHoje),
+        })
         return
       }
 
@@ -1403,10 +1419,19 @@ export default function Dashboard() {
       // Remove campos que não são colunas de "despesas".
       const { cartao_id, ...despesa } = dados
       await criarDespesa(despesa)   // atualiza o estado interno → indicadores recalculam
-      // Sucesso: mantém o modal aberto mostrando a tela de confirmação.
-      setGastoSucesso({ msg: `${formatCurrency(valorGasto)} registrado em ${categoriaNome}` })
-    } catch {
-      setErroGasto('Erro ao salvar o gasto. Tente novamente.')
+      // Sucesso: fecha o modal e mostra o banner de confirmação na Home.
+      setModalGasto(false)
+      setConfirmacaoGasto({
+        msg: `✓ ${formatCurrency(valorGasto)} registrado em ${categoriaNome}`,
+        limite: Math.max(0, disponivelHoje - valorGasto),
+      })
+    } catch (err) {
+      // Mostra o MOTIVO real do Supabase (coluna/constraint/RLS) em vez de uma
+      // mensagem genérica, para o erro deixar de ser silencioso. Log no console
+      // ajuda no diagnóstico; a UI exibe o texto do erro quando houver.
+      console.error('[gasto rápido] falha ao salvar:', err)
+      const motivo = err?.message || err?.hint || err?.details
+      setErroGasto(motivo ? `Erro ao salvar o gasto: ${motivo}` : 'Erro ao salvar o gasto. Tente novamente.')
     } finally {
       setSalvandoGasto(false)
     }
@@ -1573,8 +1598,8 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 relative">
           <button
-            onClick={() => { if (temNotificacao) setModalProjecao(true) }}
-            aria-label={temNotificacao ? 'Você tem notificações' : 'Sem notificações'}
+            onClick={() => setModalNotificacoes(true)}
+            aria-label={temNotificacao ? 'Você tem notificações' : 'Notificações'}
             className={`relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-colors ${
               ehNoite ? 'bg-white/15 text-slate-100 hover:bg-white/25' : 'bg-gray-100 text-gray-500 hover:text-gray-900 hover:bg-gray-200'
             }`}
@@ -1661,13 +1686,13 @@ export default function Dashboard() {
             key={a.label}
             onClick={a.onClick}
             aria-label={a.label}
-            className="group flex flex-col items-center gap-1 lg:gap-1.5 min-w-0 rounded-xl lg:rounded-2xl bg-gray-100 border border-gray-200 py-1.5 px-0.5 lg:py-3 lg:px-2 transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-md hover:shadow-black/10 active:translate-y-0"
+            className="group flex flex-col items-center gap-1 lg:gap-1.5 min-w-0 rounded-xl lg:rounded-2xl bg-marca-150 border border-marca/30 py-1.5 px-0.5 lg:py-3 lg:px-2 transition-all duration-200 hover:-translate-y-0.5 hover:bg-marca-200 hover:border-marca/50 hover:shadow-md hover:shadow-black/5 active:translate-y-0 active:bg-marca-200"
           >
-            <span className="w-7 h-7 sm:w-8 sm:h-8 lg:w-10 lg:h-10 rounded-full bg-marca-100 flex items-center justify-center flex-shrink-0">
+            <span className="w-7 h-7 sm:w-8 sm:h-8 lg:w-10 lg:h-10 rounded-full bg-marca-200 flex items-center justify-center flex-shrink-0">
               <a.icon size={16} className="text-marca lg:hidden" />
               <a.icon size={20} className="text-marca hidden lg:block" />
             </span>
-            <span className="text-[10px] sm:text-[11px] lg:text-sm font-medium text-gray-600 group-hover:text-gray-800 w-full text-center leading-tight hyphens-auto transition-colors">{a.label}</span>
+            <span className="text-[10px] sm:text-[11px] lg:text-sm font-medium text-marca/80 group-hover:text-marca w-full text-center leading-tight hyphens-auto transition-colors">{a.label}</span>
           </button>
         ))}
       </div>
@@ -1863,6 +1888,61 @@ export default function Dashboard() {
         />
       </Modal>
 
+      {/* Modal: Central de notificações (aberta pelo sino). Lista pendências
+          REAIS já derivadas (configuração incompleta e risco de saldo negativo),
+          sem backend novo. O Horizonte NÃO é mais aberto pelo sino — fica no seu
+          botão original (aba Planejamento). */}
+      <Modal aberto={modalNotificacoes} onFechar={() => setModalNotificacoes(false)} titulo="Notificações">
+        {(() => {
+          const itens = []
+          if (mostrarComecePorAqui) {
+            itens.push({
+              id: 'config',
+              cor: 'bg-amber-400',
+              titulo: 'Conclua a configuração inicial',
+              texto: 'Faltam etapas para o app calcular tudo com precisão.',
+            })
+          }
+          if (horizonteResumo?.dataNegativa) {
+            itens.push({
+              id: 'saldo',
+              cor: 'bg-red-500',
+              titulo: 'Risco de saldo negativo',
+              texto: `Seu saldo pode ficar negativo em ${fmtDiaMes(horizonteResumo.dataNegativa)}.`,
+            })
+          }
+          if (itens.length === 0) {
+            return (
+              <div className="text-center py-6">
+                <Bell size={28} className="text-gray-300 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">Nenhuma notificação no momento.</p>
+              </div>
+            )
+          }
+          return (
+            <ul className="space-y-2">
+              {itens.map(n => (
+                <li key={n.id} className="flex items-start gap-3 bg-gray-50 rounded-xl px-3 py-2.5">
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${n.cor}`} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900">{n.titulo}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{n.texto}</p>
+                    {n.id === 'saldo' && (
+                      <button
+                        onClick={() => { setModalNotificacoes(false); setModalProjecao(true) }}
+                        className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-marca hover:opacity-80"
+                      >
+                        Ver no Horizonte financeiro <ArrowRight size={13} />
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )
+        })()}
+      </Modal>
+
       {/* Modal: Horizonte financeiro (fluxo de caixa diário) — abre pelo "Ver detalhes".
           Painel mais largo (tamanho="lg") para os 5 indicadores do resumo caberem
           lado a lado no desktop sem sobreposição. */}
@@ -1887,6 +1967,7 @@ export default function Dashboard() {
           onCancelar={() => setModalGasto(false)}
           carregando={salvandoGasto}
           onMaisOpcoes={handleMaisOpcoes}
+          erro={erroGasto}
         />
       </Modal>
 

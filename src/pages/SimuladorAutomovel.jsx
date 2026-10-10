@@ -165,6 +165,9 @@ export default function SimuladorAutomovel() {
           <input type="text" inputMode="decimal" value={taxaMensal}
             onChange={(e) => { setTaxaMensal(e.target.value); limpar() }}
             className="input" placeholder="Ex: 1,9" />
+          <p className="text-xs text-gray-500 mt-1">
+            Informe a taxa de juros mensal oferecida pelo banco ou financeira (% a.m.).
+          </p>
           <p className="text-xs text-gray-400 mt-1">Sistema PRICE (parcela fixa), padrão no financiamento de veículos.</p>
         </div>
 

@@ -186,6 +186,9 @@ export default function SimuladorFinanciamento() {
           <input type="text" inputMode="decimal" value={taxaAnual}
             onChange={(e) => { setTaxaAnual(e.target.value); limparResultado() }}
             className="input" placeholder="Ex: 11,5" />
+          <p className="text-xs text-gray-500 mt-1">
+            Informe a taxa de juros anual oferecida pelo banco (% a.a.). Consulte sua proposta de financiamento.
+          </p>
           {taxaAnualNum > 0 && (
             <p className="text-xs text-gray-400 mt-1">
               Equivale a <strong>{fmtPct(taxaAnualParaMensal(taxaAnualNum) * 100, 4)}</strong> ao mês.

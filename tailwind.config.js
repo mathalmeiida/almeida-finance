@@ -47,6 +47,8 @@ export default {
           hover:   'rgb(var(--marca-hover) / <alpha-value>)',
           50:      'rgb(var(--marca) / 0.08)',
           100:     'rgb(var(--marca) / 0.12)',
+          150:     'rgb(var(--marca) / 0.16)',
+          200:     'rgb(var(--marca) / 0.22)',
         },
       },
       // "bg-white" volta a ser branco de verdade (#FFFFFF) — cards, modais e

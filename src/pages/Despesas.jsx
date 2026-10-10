@@ -513,7 +513,7 @@ function ModalAnteciparPagamento({ aberto, despesa, onConfirmar, onFechar, salva
           <button
             type="button"
             disabled={salvando}
-            onClick={() => onConfirmar({ pago_em: dataPagamento || hojeISO, forma_pagamento: forma || null })}
+            onClick={() => onConfirmar({ pago_em: dataPagamento || hojeStr, forma_pagamento: forma || null })}
             className="btn-primary flex-1 flex items-center justify-center gap-2"
           >
             {salvando ? <><Loader2 size={15} className="animate-spin" /> Confirmando...</> : 'Confirmar pagamento'}
@@ -834,35 +834,37 @@ export default function Despesas() {
         </button>
       </div>
 
-      {/* Três cards de resumo */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="card min-w-0">
+      {/* Três cards de resumo. No celular: 2 colunas + "Total do mês" ocupando a
+          linha inteira (evita apertar valores grandes e transbordar). A partir de
+          sm: os três lado a lado. break-words + padding menor no mobile. */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="card min-w-0 !p-4 sm:!p-5 col-span-2 sm:col-span-1">
           <div className="w-9 h-9 bg-red-50 rounded-xl flex items-center justify-center mb-2">
             <TrendingDown size={16} className="text-red-500" />
           </div>
           <p className="text-xs text-gray-500 mb-0.5">Total do mês</p>
-          <p className="text-lg font-bold text-gray-900 break-words">{formatCurrency(totalGeral)}</p>
+          <p className="text-lg font-bold text-gray-900 leading-tight break-words">{formatCurrency(totalGeral)}</p>
           <p className="text-xs text-gray-400 mt-0.5">
             {despesas.length} à vista
             {parcelasDoMes.length > 0 ? ` + ${parcelasDoMes.length} parcela${parcelasDoMes.length !== 1 ? 's' : ''}` : ''}
           </p>
         </div>
-        <div className="card min-w-0">
+        <div className="card min-w-0 !p-4 sm:!p-5">
           <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center mb-2">
             <span className="text-sm">📌</span>
           </div>
           <p className="text-xs text-gray-500 mb-0.5">Fixas</p>
-          <p className="text-lg font-bold text-blue-700 break-words">{formatCurrency(totalFixas)}</p>
+          <p className="text-lg font-bold text-blue-700 leading-tight break-words">{formatCurrency(totalFixas)}</p>
           {receitaBase > 0
             ? <p className="text-xs text-blue-500 mt-0.5">{pctFixas}% da renda</p>
             : <p className="text-xs text-gray-400 mt-0.5">—</p>}
         </div>
-        <div className="card min-w-0">
+        <div className="card min-w-0 !p-4 sm:!p-5">
           <div className="w-9 h-9 bg-gray-100 rounded-xl flex items-center justify-center mb-2">
             <span className="text-sm">🛒</span>
           </div>
           <p className="text-xs text-gray-500 mb-0.5">Variáveis</p>
-          <p className="text-lg font-bold text-gray-700 break-words">{formatCurrency(totalVariaveis)}</p>
+          <p className="text-lg font-bold text-gray-700 leading-tight break-words">{formatCurrency(totalVariaveis)}</p>
           {receitaBase > 0
             ? <p className="text-xs text-gray-500 mt-0.5">{pctVariaveis}% da renda</p>
             : <p className="text-xs text-gray-400 mt-0.5">—</p>}
@@ -905,7 +907,7 @@ export default function Despesas() {
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex flex-col items-end gap-1 flex-shrink-0 sm:flex-row sm:items-center sm:gap-2">
                   <span className="text-sm font-bold text-red-500 whitespace-nowrap">-{formatCurrency(d.valor)}</span>
                   <button
                     onClick={() => setDespesaAntecipar(d)}
