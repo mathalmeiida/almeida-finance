@@ -21,6 +21,7 @@ import PossoComprar from './pages/PossoCComprar'
 import Metas from './pages/Metas'
 import Consultoria from './pages/Consultoria'
 import Configuracoes from './pages/Configuracoes'
+import ReverApresentacao from './pages/ReverApresentacao'
 import Admin from './pages/Admin'
 
 // Páginas públicas (autenticação)
@@ -207,6 +208,11 @@ function Rotas() {
         element={
           <RotaPrivada>
             <AreaAutenticada>
+            <Routes>
+              {/* Rever apresentação: fullscreen, FORA do Layout (sem menu em
+                  volta), como no 1º acesso. Não reinicia o onboarding. */}
+              <Route path="/apresentacao" element={<ReverApresentacao />} />
+              <Route path="/*" element={
             <Layout>
               <Routes>
                 <Route path="/" element={<Dashboard />} />
@@ -225,6 +231,8 @@ function Rotas() {
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Layout>
+              } />
+            </Routes>
             </AreaAutenticada>
           </RotaPrivada>
         }

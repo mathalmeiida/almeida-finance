@@ -926,6 +926,21 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                 </ul>
               )}
 
+              {/* Após cadastrar o cartão, o usuário pode informar o TOTAL da
+                  fatura OU lançar compras individuais — ambos já existem na tela
+                  de Cartões (fonte única, sem dupla contagem). Evitamos duplicar
+                  esses formulários aqui; o atalho leva ao fluxo pronto. */}
+              {cartoes.length > 0 && (
+                <div className="flex items-start gap-2.5 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 mb-3">
+                  <CreditCard size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-800">
+                    Cartão cadastrado! Depois, em <strong>Cartões</strong>, você pode informar o
+                    <strong> total da fatura</strong> do mês ou lançar <strong>compras individuais</strong>
+                    {' '}(à vista ou parceladas). As duas formas entram no orçamento sem contar em dobro.
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <input className="input" placeholder="Nome do cartão (ex.: Nubank, Bradesco Visa)"
                   value={cartaoForm.nome}

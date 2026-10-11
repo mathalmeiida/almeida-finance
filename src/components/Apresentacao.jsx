@@ -38,7 +38,15 @@ export default function Apresentacao({ aoConcluir }) {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="card text-center py-6">
+        <div className="card text-center py-6 relative">
+          {/* "Pular" SEMPRE disponível (todas as telas), discreto no topo. */}
+          <button
+            onClick={() => aoConcluir?.()}
+            className="absolute top-3 right-4 text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2"
+          >
+            Pular
+          </button>
+
           {/* Logo da marca no topo (acompanha o tema). */}
           <div className="flex justify-center mb-6">
             <LogoMarca imgClassName="h-12 w-auto" padding="px-5 py-3" />
@@ -65,19 +73,16 @@ export default function Apresentacao({ aoConcluir }) {
           </div>
 
           <div className="flex items-center gap-2">
-            {i > 0 ? (
-              <button onClick={voltar} className="btn-secondary flex items-center gap-1 px-3" aria-label="Voltar">
-                <ArrowLeft size={16} />
-              </button>
-            ) : (
-              // Pular a apresentação (só na primeira tela, para não poluir).
-              <button
-                onClick={() => aoConcluir?.()}
-                className="text-sm text-gray-400 hover:text-gray-600 underline underline-offset-2 px-3"
-              >
-                Pular
-              </button>
-            )}
+            {/* Voltar: habilitado a partir da 2ª tela. Fica sempre no layout
+                (desabilitado na 1ª) para a posição do botão não "pular". */}
+            <button
+              onClick={voltar}
+              disabled={i === 0}
+              className="btn-secondary flex items-center gap-1 px-3 disabled:opacity-40 disabled:cursor-not-allowed"
+              aria-label="Voltar"
+            >
+              <ArrowLeft size={16} />
+            </button>
             <button onClick={avancar} className="btn-primary flex-1 flex items-center justify-center gap-2">
               {ultimo ? <>Começar <ArrowRight size={16} /></> : <>Próximo <ArrowRight size={16} /></>}
             </button>

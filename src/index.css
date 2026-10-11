@@ -24,9 +24,24 @@
     --marca: 124 58 173;       /* #7C3AAD roxo */
     --marca-hover: 100 46 140; /* roxo mais escuro p/ hover */
   }
+  /* ─── TEMA PRETO = MODO ESCURO COMPLETO ───────────────────────────────────
+     Diferente dos outros temas (que só trocam a cor de marca), o preto também
+     redefine as SUPERFÍCIES e os TEXTOS neutros do app inteiro. Para isso, a
+     cor de marca aqui é CLARA (um azul-aço) — assim botões/ícones/links na cor
+     da marca ficam legíveis sobre o fundo escuro. O fundo e os cards vêm das
+     variáveis --fundo/--superficie, consumidas pelas sobrescritas em
+     "@layer utilities" mais abaixo (escopadas em .tema-preto).
+     Paleta pedida: fundo #10141D, cards #202632, textos claros, bordas discretas. */
   .tema-preto {
-    --marca: 31 41 55;         /* #1F2937 cinza-grafite (preto) */
-    --marca-hover: 17 24 39;   /* #111827 mais escuro p/ hover */
+    --marca: 96 141 214;        /* #608DD6 azul-aço claro (legível no escuro) */
+    --marca-hover: 125 165 226; /* um tom mais claro p/ hover */
+    --fundo: 16 20 29;          /* #10141D fundo geral */
+    --superficie: 32 38 50;     /* #202632 cards/superfícies */
+    --superficie-2: 42 49 63;   /* #2A313F elevação (hover/realces sutis) */
+    --borda: 54 62 78;          /* #363E4E bordas discretas */
+    --texto: 229 231 235;       /* #E5E7EB texto principal (claro) */
+    --texto-suave: 156 163 175; /* #9CA3AF texto secundário */
+    color-scheme: dark;
   }
 
   html {
@@ -37,6 +52,11 @@
   body {
     /* Fundo geral claro (#F8FAFC) + texto escuro para legibilidade. */
     @apply bg-gray-50 text-gray-900;
+  }
+  /* Fundo/texto base no modo escuro. */
+  .tema-preto body {
+    background-color: rgb(var(--fundo));
+    color: rgb(var(--texto));
   }
 
   /* Evita scroll horizontal acidental em telas pequenas (nenhuma página deve
@@ -97,6 +117,28 @@
   .label {
     @apply block text-sm font-medium text-gray-700 mb-1;
   }
+
+  /* ─── MODO ESCURO (.tema-preto): superfícies de componentes ───────────────
+     Sobrescreve .card/.input/.label/.btn-secondary para o esquema escuro.
+     Escopado em .tema-preto: NÃO afeta azul/rosa/verde/roxo. */
+  .tema-preto .card {
+    background-color: rgb(var(--superficie));
+    border-color: rgb(var(--borda));
+  }
+  .tema-preto .btn-secondary {
+    background-color: rgb(var(--superficie-2));
+    color: rgb(var(--texto));
+  }
+  .tema-preto .btn-secondary:hover {
+    background-color: rgb(var(--borda));
+  }
+  .tema-preto .input {
+    background-color: rgb(var(--superficie-2));
+    border-color: rgb(var(--borda));
+    color: rgb(var(--texto));
+  }
+  .tema-preto .input::placeholder { color: rgb(var(--texto-suave)); }
+  .tema-preto .label { color: rgb(var(--texto-suave)); }
 
   .badge-saudavel {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800;
@@ -223,3 +265,57 @@
     transition: opacity 0.5s ease-in;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODO ESCURO COMPLETO — sobrescritas de utilitários neutros (.tema-preto)
+   ───────────────────────────────────────────────────────────────────────────
+   O app usa utilitários Tailwind concretos (bg-white, bg-gray-50, text-gray-*,
+   border-gray-*) em muitos componentes. Em vez de editar dezenas de arquivos,
+   remapeamos esses utilitários NEUTROS para a paleta escura SOMENTE sob
+   .tema-preto. Assim o modo escuro cobre Home, menu, cards, formulários,
+   onboarding, cartões, despesas, benefícios e simuladores de uma vez.
+
+   Regras de preservação (NÃO são tocadas, de propósito):
+   • Cores de marca (bg-marca, text-marca) — seguem a variável --marca.
+   • Cores semânticas (verde/am#, vermelho, azul de ícone, badges) — mantêm o
+     significado (receita, despesa, alerta). Só os NEUTROS viram escuros.
+   • Overlays translúcidos (bg-white/10, bg-black/20) e o gradiente dos
+     cards-herói (bg-marca-grad) — já funcionam no escuro.
+   Usamos !important porque os utilitários do Tailwind têm a mesma
+   especificidade; a cascata sozinha não garantiria a sobrescrita.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Fundos neutros → superfícies escuras */
+.tema-preto .bg-white { background-color: rgb(var(--superficie)) !important; }
+.tema-preto .bg-gray-50 { background-color: rgb(var(--superficie-2)) !important; }
+.tema-preto .bg-gray-100 { background-color: rgb(var(--superficie-2)) !important; }
+.tema-preto .bg-slate-50 { background-color: rgb(var(--superficie-2)) !important; }
+.tema-preto .bg-gray-200 { background-color: rgb(var(--borda)) !important; }
+
+/* Hover de fundos neutros */
+.tema-preto .hover\:bg-gray-50:hover { background-color: rgb(var(--superficie-2)) !important; }
+.tema-preto .hover\:bg-gray-100:hover { background-color: rgb(var(--superficie-2)) !important; }
+.tema-preto .hover\:bg-gray-200:hover { background-color: rgb(var(--borda)) !important; }
+
+/* Textos neutros → claros */
+.tema-preto .text-gray-900 { color: rgb(var(--texto)) !important; }
+.tema-preto .text-gray-800 { color: rgb(var(--texto)) !important; }
+.tema-preto .text-gray-700 { color: rgb(229 231 235) !important; }
+.tema-preto .text-gray-600 { color: rgb(var(--texto-suave)) !important; }
+.tema-preto .text-gray-500 { color: rgb(var(--texto-suave)) !important; }
+.tema-preto .text-gray-400 { color: rgb(148 163 184) !important; }
+
+/* Bordas neutras → discretas */
+.tema-preto .border-gray-100 { border-color: rgb(var(--borda)) !important; }
+.tema-preto .border-gray-200 { border-color: rgb(var(--borda)) !important; }
+.tema-preto .border-gray-300 { border-color: rgb(var(--borda)) !important; }
+.tema-preto .border-gray-200\/70 { border-color: rgb(var(--borda)) !important; }
+.tema-preto .border-slate-200 { border-color: rgb(var(--borda)) !important; }
+
+/* Divisores (divide-y utiliza border-color nos filhos) */
+.tema-preto .divide-gray-100 > * + * { border-color: rgb(var(--borda)) !important; }
+.tema-preto .divide-gray-200 > * + * { border-color: rgb(var(--borda)) !important; }
+
+/* Sidebar/áreas que usam branco direto já cobertas por .bg-white acima.
+   Ajuste fino: o fundo da página (main) herda do body escuro; cards sobre ele
+   usam --superficie, criando a hierarquia fundo(#10141D) < card(#202632). */
