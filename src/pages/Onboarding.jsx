@@ -134,13 +134,32 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   // para uma etapa específica (card da Home / "refazer"), pois aí o usuário já
   // conhece o app. Preferência por usuário no localStorage (robusta e sem
   // depender do banco). Só visual — não toca em dados.
-  const CHAVE_APRESENTACAO = `almeida_apresentacao_vista_${usuario?.id || 'anon'}`
+  //
+  // IMPORTANTE: a flag é SEMPRE chaveada pelo id REAL do usuário. Nunca usamos
+  // uma chave "anon": se o id ainda não chegou, NÃO ocultamos a apresentação
+  // (preferimos exibi-la a escondê-la por engano) e NÃO gravamos nada — assim
+  // um usuário não "herda" o estado de outro nem a marca de uma montagem sem id.
+  const chaveApresentacao = (id) => `almeida_apresentacao_vista_${id}`
+  const jaViuApresentacao = (id) => {
+    if (!id) return false
+    try { return localStorage.getItem(chaveApresentacao(id)) === '1' } catch { return false }
+  }
   const [mostrarApresentacao, setMostrarApresentacao] = useState(() => {
-    if (etapaInicial) return false // reabertura direcionada: pula a apresentação
-    try { return localStorage.getItem(CHAVE_APRESENTACAO) !== '1' } catch { return true }
+    if (etapaInicial) return false            // reabertura direcionada: pula
+    return !jaViuApresentacao(usuario?.id)    // sem id → mostra (não esconde à toa)
   })
+  // Quando o id do usuário chega depois da 1ª montagem, reavalia: se ele JÁ viu
+  // a apresentação (flag gravada), oculta; caso contrário, mantém exibindo.
+  useEffect(() => {
+    if (etapaInicial) return
+    if (usuario?.id && jaViuApresentacao(usuario.id)) setMostrarApresentacao(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuario?.id])
   const concluirApresentacao = () => {
-    try { localStorage.setItem(CHAVE_APRESENTACAO, '1') } catch { /* ignora */ }
+    // Só grava a flag quando há id real — nunca sob chave "anon".
+    if (usuario?.id) {
+      try { localStorage.setItem(chaveApresentacao(usuario.id), '1') } catch { /* ignora */ }
+    }
     setMostrarApresentacao(false)
   }
   // Guarda contra duplo clique: trava síncrona (o estado "salvando" é assíncrono
