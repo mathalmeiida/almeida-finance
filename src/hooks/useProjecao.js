@@ -26,7 +26,7 @@ export function useProjecao() {
   const { ano: anoAtual, mes: mesAtual, dia: diaAtual } = partesHojeBrasil()
 
   const { receitas, carregando: carregandoR } = useReceitas(mesAtual, anoAtual)
-  const { despesas, recorrentes, carregando: carregandoD, criar: criarDespesa, recarregar: recarregarDespesas } = useDespesas(mesAtual, anoAtual)
+  const { despesas, recorrentes, carregando: carregandoD, criar: criarDespesa, recarregar: recarregarDespesas, anteciparPagamento } = useDespesas(mesAtual, anoAtual)
   const { parcelamentos, carregando: carregandoP } = useParcelamentos()
   const { cartoes, carregando: carregandoCartoes } = useCartoes()
   const { compras: comprasCartao, carregando: carregandoCompras } = useComprasCartao()
@@ -345,5 +345,9 @@ export function useProjecao() {
     // ações reaproveitáveis (ex: gasto rápido no Dashboard)
     criarDespesa,
     recarregarDespesas,
+    // antecipação de pagamento reaproveitada na Home ("Próximos 7 dias").
+    // Mesma instância de useDespesas que alimenta a projeção → ao antecipar,
+    // os indicadores da Home recalculam automaticamente (sem recarregar).
+    anteciparPagamento,
   }
 }

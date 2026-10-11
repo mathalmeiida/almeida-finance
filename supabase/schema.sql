@@ -9,7 +9,7 @@
 -- 1. TABELA: perfis
 -- Armazena informações do usuário (complementa o auth.users)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS public.perfis (
+faturas_cartao
   id          UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   nome        TEXT,
   email       TEXT,
@@ -152,6 +152,12 @@ CREATE TABLE IF NOT EXISTS public.despesas (
   frequencia    TEXT CHECK (frequencia IN ('nao_repete','mensal','semanal','diaria','por_meses')) DEFAULT 'nao_repete',
   -- Forma de pagamento (texto livre controlado pelo app). NULL = não informado.
   forma_pagamento TEXT,
+  -- Cartão vinculado (opcional). Apenas METADADO informativo: NÃO gera fatura,
+  -- compra em compras_cartao nem parcelamento. Usado quando forma_pagamento é
+  -- 'cartao_credito' (onboarding e despesa à vista) para lembrar qual cartão
+  -- foi usado. ON DELETE SET NULL para não apagar a despesa se o cartão sair.
+  -- ALTER TABLE public.despesas ADD COLUMN IF NOT EXISTS cartao_id UUID REFERENCES public.cartoes(id) ON DELETE SET NULL;
+  cartao_id     UUID REFERENCES public.cartoes(id) ON DELETE SET NULL,
   -- Pagamento antecipado: data em que a despesa foi efetivamente paga.
   -- NULL = segue a regra normal (afeta o saldo quando a "data" de vencimento
   -- chega). Preenchida = paga nesse dia; o app usa pago_em (e não "data") como
@@ -167,6 +173,7 @@ CREATE TABLE IF NOT EXISTS public.despesas (
 -- ALTER TABLE public.despesas ADD COLUMN recorrencia_meses INTEGER CHECK (recorrencia_meses IS NULL OR recorrencia_meses > 0);
 -- ALTER TABLE public.despesas ADD COLUMN frequencia TEXT CHECK (frequencia IN ('nao_repete','mensal','semanal','diaria','por_meses')) DEFAULT 'nao_repete';
 -- ALTER TABLE public.despesas ADD COLUMN forma_pagamento TEXT;
+-- ALTER TABLE public.despesas ADD COLUMN IF NOT EXISTS cartao_id UUID REFERENCES public.cartoes(id) ON DELETE SET NULL;
 -- Migração dos dados existentes para a nova coluna frequencia:
 -- UPDATE public.despesas SET frequencia = 'por_meses' WHERE recorrente = TRUE AND recorrencia_meses IS NOT NULL;
 -- UPDATE public.despesas SET frequencia = 'mensal'    WHERE recorrente = TRUE AND recorrencia_meses IS NULL;
@@ -174,10 +181,40 @@ CREATE TABLE IF NOT EXISTS public.despesas (
 -- RLS
 ALTER TABLE public.despesas ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Usuário gerencia apenas as próprias despesas"
-  ON public.despesas FOR ALL
+-- Políticas por operação. Além de usuario_id = auth.uid(), a ESCRITA valida
+-- que o cartao_id (quando não-nulo) referencia um cartão do PRÓPRIO usuário,
+-- impedindo vincular a despesa a um cartão de terceiro (ver migration
+-- 2026-10_despesa_cartao_vinculo.sql). cartao_id NULL é permitido (opcional).
+CREATE POLICY "Despesas: ver (dono)"
+  ON public.despesas FOR SELECT
+  USING (auth.uid() = usuario_id);
+
+CREATE POLICY "Despesas: inserir (dono + cartão do dono)"
+  ON public.despesas FOR INSERT
+  WITH CHECK (
+    auth.uid() = usuario_id
+    AND (
+      cartao_id IS NULL
+      OR EXISTS (SELECT 1 FROM public.cartoes c
+                 WHERE c.id = cartao_id AND c.usuario_id = auth.uid())
+    )
+  );
+
+CREATE POLICY "Despesas: atualizar (dono + cartão do dono)"
+  ON public.despesas FOR UPDATE
   USING (auth.uid() = usuario_id)
-  WITH CHECK (auth.uid() = usuario_id);
+  WITH CHECK (
+    auth.uid() = usuario_id
+    AND (
+      cartao_id IS NULL
+      OR EXISTS (SELECT 1 FROM public.cartoes c
+                 WHERE c.id = cartao_id AND c.usuario_id = auth.uid())
+    )
+  );
+
+CREATE POLICY "Despesas: apagar (dono)"
+  ON public.despesas FOR DELETE
+  USING (auth.uid() = usuario_id);
 
 
 -- ============================================================

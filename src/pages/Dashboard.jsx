@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Sun, Plus, Pencil,
   CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank, AlertTriangle, MessageCircle, BarChart2,
-  Receipt, Target, Bell, Moon, UtensilsCrossed, ShoppingBag
+  Receipt, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useCategorias } from '../hooks/useCategorias'
@@ -18,6 +18,7 @@ import { formatCurrency, exibirMoeda, FORMAS_PAGAMENTO, hojeISO as hojeISOBrasil
 import { classificarDespesa } from '../lib/classificarDespesa'
 import { parcelaCompraNoMes, totalFaturaComOverride } from '../lib/faturaCartao'
 import Modal from '../components/Modal'
+import ModalAnteciparPagamento from '../components/ModalAnteciparPagamento'
 import HorizonteFinanceiro from '../components/HorizonteFinanceiro'
 import { gerarHorizonte } from '../lib/horizonteFinanceiro'
 
@@ -974,8 +975,12 @@ function CardGastoHoje({
               </button>
             )}
           </div>
-          <p className="text-xs lg:text-sm text-white/80 mt-0.5">
-            {semBaseFinanceira ? 'Cadastre sua renda para calcular seu limite diário' : 'Sem comprometer seu planejamento'}
+          <p className={`text-xs lg:text-sm mt-0.5 ${orcamentoNegativo && !semBaseFinanceira ? 'text-red-100 font-medium' : 'text-white/80'}`}>
+            {semBaseFinanceira
+              ? 'Cadastre sua renda para calcular seu limite diário'
+              : orcamentoNegativo
+                ? `Faltam ${exibirMoeda(Math.abs(disponivelMes), ocultar)} para equilibrar seu orçamento`
+                : 'Sem comprometer seu planejamento'}
           </p>
         </div>
         {/* Status do orçamento (compacto, quando couber) */}
@@ -1146,6 +1151,8 @@ export default function Dashboard() {
     resumoMes, projecao, carregando, receitas, despesas, parcelamentos, criarDespesa,
     // dados brutos para o Horizonte financeiro (fluxo de caixa diário)
     recorrentes, cartoes, comprasCartao, faturasInformadas, reservaPct,
+    // antecipação reaproveitada no card "Próximos 7 dias"
+    anteciparPagamento,
   } = useProjecao()
   // Para gastos no cartão de crédito: grava em compras_cartao (entra na fatura,
   // não desconta do saldo à vista). Demais formas seguem em despesas.
@@ -1174,6 +1181,9 @@ export default function Dashboard() {
   const [modalProjecao, setModalProjecao] = useState(false) // detalhes dos 12 meses
   const [modalPlanejamento, setModalPlanejamento] = useState(false) // "Quanto posso gastar?" completo
   const [modalNotificacoes, setModalNotificacoes] = useState(false) // central de notificações (sino)
+  // Antecipação de pagamento a partir do card "Próximos 7 dias".
+  const [despesaAntecipar, setDespesaAntecipar] = useState(null)
+  const [antecipandoHome, setAntecipandoHome] = useState(false)
 
   // Atalho do botão "+" (menu inferior mobile): ?novo=gasto|reserva abre o
   // modal JÁ existente desta página. Depois limpa o parâmetro da URL.
@@ -1350,6 +1360,9 @@ export default function Dashboard() {
           diffDias,
           quando: rotuloQuando(diffDias),
           cor: 'bg-red-400',
+          // Despesa à vista é antecipável: carrega o registro cru para o modal.
+          antecipavel: true,
+          despesa: d,
         }
       })
       .filter(Boolean)
@@ -1477,6 +1490,23 @@ export default function Dashboard() {
   function handleMaisOpcoes() {
     setModalGasto(false)
     navigate('/despesas?novo=1')
+  }
+
+  // ─── Antecipar pagamento a partir do card "Próximos 7 dias" (Home) ───
+  // Reaproveita anteciparPagamento (mesma instância de useDespesas do
+  // useProjecao), então os indicadores da Home recalculam sozinhos. Não cria
+  // nova despesa nem duplica: apenas marca pago_em (ver useProjecao).
+  async function handleConfirmarAntecipacaoHome({ pago_em, forma_pagamento }) {
+    if (!despesaAntecipar) return
+    setAntecipandoHome(true)
+    try {
+      await anteciparPagamento(despesaAntecipar.id, { pago_em, forma_pagamento })
+      setDespesaAntecipar(null)
+    } catch {
+      // mantém o modal aberto; o usuário pode tentar de novo
+    } finally {
+      setAntecipandoHome(false)
+    }
   }
 
   // A confirmação do gasto rápido some sozinha após alguns segundos.
@@ -1741,46 +1771,66 @@ export default function Dashboard() {
 </div>
 
       {/* 3b ─ Atalho DISCRETO para Benefícios (VR/VA), uma linha, sem poluir. */}
-      {/* 3b ─ Benefícios: dois cards compactos VR e VA, lado a lado. Dados reais
-          (useBeneficios). VR e VA independentes. Sem benefício cadastrado → card
-          discreto de configuração (não inventa valores). Toque abre /beneficios. */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-3">
-        {[
+      {/* 3b ─ Benefícios: mostra APENAS os benefícios que o usuário possui (VR
+          e/ou VA são independentes). Dados reais (useBeneficios). Se o usuário
+          NÃO tem nenhum benefício, exibimos um único card discreto para
+          cadastrar (não dois placeholders) — e nada aparece se ele tiver os dois.
+          Isso oculta da Home o que o usuário não possui. Toque abre /beneficios. */}
+      {(() => {
+        const defs = [
           { tipo: 'VR', titulo: 'VR — Vale-Refeição', icon: UtensilsCrossed },
           { tipo: 'VA', titulo: 'VA — Vale-Alimentação', icon: ShoppingBag },
-        ].map(({ tipo, titulo, icon: Icone }) => {
-          const b = beneficioPorTipo(tipo)
+        ]
+        const possuidos = defs
+          .map(d => ({ ...d, b: beneficioPorTipo(d.tipo) }))
+          .filter(d => d.b) // só os que o usuário realmente tem
+
+        // Nenhum benefício: card único e discreto de cadastro (não inventa valores).
+        if (possuidos.length === 0) {
           return (
             <button
-              key={tipo}
               type="button"
               onClick={() => navigate('/beneficios')}
-              className="text-left rounded-xl bg-white border border-gray-200 px-3 py-2.5 hover:border-marca/40 hover:shadow-sm transition-all min-w-0"
+              className="w-full text-left rounded-xl bg-white border border-dashed border-gray-300 px-3 py-2.5 hover:border-marca/50 hover:shadow-sm transition-all"
             >
-              <div className="flex items-center gap-1.5 min-w-0">
-                <Icone size={14} className="text-marca flex-shrink-0" />
-                <span className="text-xs font-medium text-gray-700 truncate">{titulo}</span>
+              <div className="flex items-center gap-1.5">
+                <UtensilsCrossed size={14} className="text-marca flex-shrink-0" />
+                <span className="text-xs font-medium text-gray-700">Vale-Refeição / Vale-Alimentação</span>
               </div>
-              {b ? (
-                <>
-                  <p className="text-lg font-bold text-gray-900 leading-tight break-words mt-1">
-                    {exibirMoeda(saldoDoBeneficio(b.id), ocultar)}
-                  </p>
-                  <p className="text-[11px] text-gray-400 leading-tight mt-0.5">
-                    {b.recarga_recorrente && proximaRecarga(b)
-                      ? <>Próx. {proximaRecarga(b)} • {exibirMoeda(Number(b.recarga_valor) || 0, ocultar)}</>
-                      : 'Sem recarga automática'}
-                  </p>
-                </>
-              ) : (
-                <p className="text-xs text-marca font-medium mt-1 inline-flex items-center gap-1">
-                  Configurar <ArrowRight size={13} />
-                </p>
-              )}
+              <p className="text-xs text-marca font-medium mt-1 inline-flex items-center gap-1">
+                Cadastrar benefício <ArrowRight size={13} />
+              </p>
             </button>
           )
-        })}
-      </div>
+        }
+
+        // Possui um ou dois: grade só com o(s) que existe(m).
+        return (
+          <div className={`grid gap-2 sm:gap-3 ${possuidos.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+            {possuidos.map(({ tipo, titulo, icon: Icone, b }) => (
+              <button
+                key={tipo}
+                type="button"
+                onClick={() => navigate('/beneficios')}
+                className="text-left rounded-xl bg-white border border-gray-200 px-3 py-2.5 hover:border-marca/40 hover:shadow-sm transition-all min-w-0"
+              >
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Icone size={14} className="text-marca flex-shrink-0" />
+                  <span className="text-xs font-medium text-gray-700 truncate">{titulo}</span>
+                </div>
+                <p className="text-lg font-bold text-gray-900 leading-tight break-words mt-1">
+                  {exibirMoeda(saldoDoBeneficio(b.id), ocultar)}
+                </p>
+                <p className="text-[11px] text-gray-400 leading-tight mt-0.5">
+                  {b.recarga_recorrente && proximaRecarga(b)
+                    ? <>Próx. {proximaRecarga(b)} • {exibirMoeda(Number(b.recarga_valor) || 0, ocultar)}</>
+                    : 'Sem recarga automática'}
+                </p>
+              </button>
+            ))}
+          </div>
+        )
+      })()}
 
       {/* O card "Saldo disponível agora" foi movido para a aba Planejamento
           (/projecao), deixando a Home mais compacta. */}
@@ -1902,6 +1952,17 @@ export default function Dashboard() {
                     <div className="min-w-0">
                       <p className="text-sm lg:text-base font-medium text-gray-900 truncate leading-tight">{item.descricao}</p>
                       <p className="text-[11px] lg:text-xs text-gray-500 leading-tight">{item.quando}</p>
+                      {/* Antecipar: só para DESPESAS (não para faturas) e fora do
+                          modo somente leitura. Abre o mesmo modal da página Despesas. */}
+                      {item.antecipavel && !somenteLeitura && (
+                        <button
+                          type="button"
+                          onClick={() => setDespesaAntecipar(item.despesa)}
+                          className="mt-0.5 inline-flex items-center gap-1 text-[11px] lg:text-xs font-medium text-marca hover:underline"
+                        >
+                          <Zap size={12} className="flex-shrink-0" /> Antecipar pagamento
+                        </button>
+                      )}
                     </div>
                   </div>
                   <span className="text-sm lg:text-base font-semibold text-gray-900 flex-shrink-0 whitespace-nowrap">
@@ -2075,6 +2136,16 @@ export default function Dashboard() {
           erro={erroGasto}
         />
       </Modal>
+
+      {/* Antecipar pagamento a partir do card "Próximos 7 dias" (mesmo modal
+          compartilhado usado na página Despesas). */}
+      <ModalAnteciparPagamento
+        aberto={!!despesaAntecipar}
+        despesa={despesaAntecipar}
+        onConfirmar={handleConfirmarAntecipacaoHome}
+        onFechar={() => setDespesaAntecipar(null)}
+        salvando={antecipandoHome}
+      />
 
       {/* Modal de edição do limite diário */}
       <ModalLimiteDiario

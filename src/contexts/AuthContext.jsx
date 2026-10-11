@@ -42,7 +42,7 @@ export function AuthProvider({ children }) {
   //      localStorage (não quebra).
   // Cores válidas: azul (padrão), rosa, verde, roxo.
   const CHAVE_COR_TEMA = 'almeida_cor_tema'
-  const CORES_TEMA = ['azul', 'rosa', 'verde', 'roxo']
+  const CORES_TEMA = ['azul', 'rosa', 'verde', 'roxo', 'preto']
   const normalizarCor = (c) => (CORES_TEMA.includes(c) ? c : 'azul')
   const [corTemaLocal, setCorTemaLocal] = useState(() => {
     try { return normalizarCor(localStorage.getItem(CHAVE_COR_TEMA)) }
@@ -53,12 +53,12 @@ export function AuthProvider({ children }) {
   // cai no localStorage.
   const corTema = CORES_TEMA.includes(perfil?.cor_tema) ? perfil.cor_tema : corTemaLocal
 
-  // Aplica a classe de tema no <html> (tema-rosa/-verde/-roxo). Azul = sem
-  // classe (variáveis padrão do :root). Só visual: alterna --marca/--marca-hover.
+  // Aplica a classe de tema no <html> (tema-rosa/-verde/-roxo/-preto). Azul =
+  // sem classe (variáveis padrão do :root). Só visual: alterna --marca/--marca-hover.
   useEffect(() => {
     try {
       const el = document.documentElement
-      el.classList.remove('tema-rosa', 'tema-verde', 'tema-roxo')
+      el.classList.remove('tema-rosa', 'tema-verde', 'tema-roxo', 'tema-preto')
       if (corTema !== 'azul') el.classList.add(`tema-${corTema}`)
     } catch { /* ambiente sem DOM: ignora */ }
   }, [corTema])

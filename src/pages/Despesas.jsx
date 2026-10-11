@@ -9,6 +9,7 @@ import { useCartoes } from '../hooks/useCartoes'
 import { useProjecao } from '../hooks/useProjecao'
 import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
+import ModalAnteciparPagamento from '../components/ModalAnteciparPagamento'
 import { formatCurrency, formatDate, corCategoria, FORMAS_PAGAMENTO, formaPagamentoLabel, hojeISO } from '../lib/utils'
 import { classificarDespesa, labelTipoDespesa } from '../lib/classificarDespesa'
 import { FormParcelamento, CardParcelamento } from './Parcelamentos'
@@ -53,7 +54,9 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
     // Novos (só UI): forma da compra no cartão e nº de parcelas
     comoCompra: 'avista',       // 'avista' | 'parcelada'
     numero_parcelas: '12',
-    cartao_id: '',
+    // Cartão vinculado: na edição, pré-preenche com o que já estava salvo
+    // (metadado). Na criação à vista também é persistido quando houver.
+    cartao_id: despesaInicial?.cartao_id ?? '',
   })
 
   function handleChange(e) {
@@ -72,6 +75,13 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
   const ehCartaoCredito = form.forma_pagamento === 'cartao_credito'
   // Parcelada só é possível no cartão de crédito; edição nunca vira parcelamento.
   const ehParcelada = !editando && ehCartaoCredito && form.comoCompra === 'parcelada'
+
+  // Se a despesa foi salva com uma forma que não está no seletor atual
+  // (ex.: dinheiro, VR, VA vindos do onboarding), inclui uma opção extra para
+  // que ela apareça selecionada e permaneça editável, sem se perder ao salvar.
+  const formaForaDaLista =
+    form.forma_pagamento &&
+    !FORMAS_PAGAMENTO.some(f => f.value === form.forma_pagamento)
 
   // "Valor por parcela" usando a MESMA função da lógica de parcelamento.
   const { base: parcelaBase, ultima: parcelaUltima } =
@@ -133,6 +143,15 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
       categoria_id: form.categoria_id || null,
       tipo_despesa,
       forma_pagamento: form.forma_pagamento || null,
+      // Vínculo de cartão (metadado): só quando a forma é cartão de crédito e um
+      // cartão do PRÓPRIO usuário foi escolhido; caso contrário null (desvincula).
+      // A validação de propriedade (cartão está na lista do usuário) é a 1ª linha
+      // de defesa; a RLS do banco faz a checagem final. Não gera fatura nem
+      // compra — a despesa continua sendo uma única linha em despesas.
+      cartao_id:
+        ehCartaoCredito && form.cartao_id && cartoes.some(c => c.id === form.cartao_id)
+          ? form.cartao_id
+          : null,
       // Só na edição: escopo da mudança de tipo para despesas recorrentes.
       // 'mes' = somente este mês (vira exceção mensal); 'proximos' = este e os
       // próximos (altera o registro). Para não-recorrentes é sempre o registro.
@@ -194,6 +213,10 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
           {FORMAS_PAGAMENTO.map(f => (
             <option key={f.value} value={f.value}>{f.icone} {f.label}</option>
           ))}
+          {/* Mantém selecionável a forma salva fora da lista (dinheiro/VR/VA). */}
+          {formaForaDaLista && (
+            <option value={form.forma_pagamento}>{formaPagamentoLabel(form.forma_pagamento) || form.forma_pagamento}</option>
+          )}
         </select>
       </div>
 
@@ -260,6 +283,20 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Edição: vincular/editar o cartão de uma despesa no crédito (metadado).
+          Na edição não oferecemos parcelamento, só o vínculo do cartão. */}
+      {editando && ehCartaoCredito && cartoes.length > 0 && (
+        <div>
+          <label className="label">Em qual cartão? <span className="text-gray-400">(opcional)</span></label>
+          <select name="cartao_id" value={form.cartao_id} onChange={handleChange} className="input">
+            <option value="">Não vincular a um cartão específico</option>
+            {cartoes.map(c => (
+              <option key={c.id} value={c.id}>{c.nome}{c.banco ? ` • ${c.banco}` : ''}</option>
+            ))}
+          </select>
         </div>
       )}
 
@@ -444,82 +481,6 @@ function ModalNovaDespesa({
         despesaInicial={editando ? despesaEmEdicao : undefined}
         textoBotao={editando ? 'Salvar alterações' : 'Salvar despesa'}
       />
-    </Modal>
-  )
-}
-
-// ─── Modal: confirmar antecipação de pagamento ───────────────────────────────
-// Mostra valor, data original (vencimento), data do pagamento (editável, padrão
-// hoje) e a forma/conta usada. Ao confirmar, marca a despesa como paga em
-// "pago_em" — o saldo reflete a saída sem contar duas vezes (ver useProjecao).
-function ModalAnteciparPagamento({ aberto, despesa, onConfirmar, onFechar, salvando }) {
-  const hojeStr = hojeISO() // data de hoje no fuso de Brasília
-  const [dataPagamento, setDataPagamento] = useState(hojeStr)
-  const [forma, setForma] = useState('')
-
-  useEffect(() => {
-    if (aberto && despesa) {
-      setDataPagamento(hojeStr)
-      setForma(despesa.forma_pagamento || '')
-    }
-  }, [aberto, despesa, hojeStr])
-
-  if (!despesa) return null
-
-  return (
-    <Modal aberto={aberto} onFechar={onFechar} titulo="Antecipar pagamento">
-      <div className="space-y-4">
-        <div className="rounded-xl bg-gray-50 border border-gray-200 p-3 space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-gray-500">Despesa</span>
-            <span className="text-sm font-medium text-gray-900 truncate">{despesa.descricao}</span>
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-gray-500">Valor</span>
-            <span className="text-sm font-bold text-red-500 whitespace-nowrap">-{formatCurrency(despesa.valor)}</span>
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-gray-500">Vencimento original</span>
-            <span className="text-sm font-medium text-gray-900">{formatDate(despesa.data)}</span>
-          </div>
-        </div>
-
-        <div>
-          <label className="label">Data do pagamento</label>
-          <input
-            type="date" value={dataPagamento}
-            onChange={(e) => setDataPagamento(e.target.value)}
-            className="input"
-          />
-        </div>
-
-        <div>
-          <label className="label">Forma / conta utilizada <span className="text-gray-400">(opcional)</span></label>
-          <select value={forma} onChange={(e) => setForma(e.target.value)} className="input">
-            <option value="">Não informado</option>
-            {FORMAS_PAGAMENTO.map(f => (
-              <option key={f.value} value={f.value}>{f.icone} {f.label}</option>
-            ))}
-          </select>
-        </div>
-
-        <p className="text-xs text-gray-400 leading-snug">
-          A despesa será marcada como <strong>paga antecipadamente</strong> e o seu saldo será
-          atualizado. O vencimento original é mantido para o histórico.
-        </p>
-
-        <div className="flex gap-3 pt-1">
-          <button type="button" onClick={onFechar} className="btn-secondary flex-1">Cancelar</button>
-          <button
-            type="button"
-            disabled={salvando}
-            onClick={() => onConfirmar({ pago_em: dataPagamento || hojeStr, forma_pagamento: forma || null })}
-            className="btn-primary flex-1 flex items-center justify-center gap-2"
-          >
-            {salvando ? <><Loader2 size={15} className="animate-spin" /> Confirmando...</> : 'Confirmar pagamento'}
-          </button>
-        </div>
-      </div>
     </Modal>
   )
 }

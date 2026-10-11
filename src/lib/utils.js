@@ -17,6 +17,7 @@ export const CORES_TEMA = [
   { value: 'rosa',  label: 'Rosa',  hex: '#B83F79' },
   { value: 'verde', label: 'Verde', hex: '#16805C' },
   { value: 'roxo',  label: 'Roxo',  hex: '#7C3AAD' },
+  { value: 'preto', label: 'Preto', hex: '#1F2937' },
 ]
 
 export const MASCARA_VALOR = 'R$ ••••'
@@ -162,6 +163,11 @@ export const FORMAS_PAGAMENTO = [
 export const FORMAS_PAGAMENTO_LEGADAS = [
   { value: 'dinheiro',         label: 'Dinheiro',           icone: '💵' },
   { value: 'outro',            label: 'Outro',              icone: '💠' },
+  // VR/VA: oferecidos como forma de pagamento no onboarding de despesas.
+  // Ficam aqui (não entram em nenhum <select> novo) apenas para EXIBIR o
+  // rótulo correto nas listas quando uma despesa foi salva com esses valores.
+  { value: 'vr',               label: 'Vale-refeição (VR)', icone: '🍽️' },
+  { value: 'va',               label: 'Vale-alimentação (VA)', icone: '🛒' },
 ]
 
 // Retorna "💳 Cartão de crédito" a partir do valor salvo; vazio se não houver.

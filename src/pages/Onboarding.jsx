@@ -2,12 +2,16 @@ import React, { useState, useRef, useEffect, useMemo } from 'react'
 import {
   Wallet, TrendingUp, TrendingDown, ShieldCheck, Sparkles,
   CheckCircle2, ArrowRight, ArrowLeft, Plus, Trash2, Loader2, UtensilsCrossed,
+  CreditCard, ShoppingBag,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useReceitas } from '../hooks/useReceitas'
 import { useDespesas } from '../hooks/useDespesas'
 import { useCategorias } from '../hooks/useCategorias'
+import { useCartoes } from '../hooks/useCartoes'
+import { useBeneficios } from '../hooks/useBeneficios'
 import InputMoeda from '../components/InputMoeda'
+import Apresentacao from '../components/Apresentacao'
 import { formatCurrency, CORES_TEMA } from '../lib/utils'
 import { classificarDespesa } from '../lib/classificarDespesa'
 import { hojeISO as hojeISOBrasil } from '../lib/utils'
@@ -17,14 +21,41 @@ const hojeISO = () => hojeISOBrasil()
 // Opções de reserva — MESMAS do card de reserva do Dashboard. 20% é o padrão.
 const OPCOES_RESERVA = [10, 15, 20, 25, 30]
 
+// Formas de pagamento oferecidas no onboarding. Lista LOCAL (não usa a
+// FORMAS_PAGAMENTO global de utils.js) porque aqui incluímos "dinheiro", "VR" e
+// "VA", que o cadastro geral de despesas não lista. Os VALUES são strings
+// gravadas em despesas.forma_pagamento e resolvidas por formaPagamentoLabel
+// nas telas (vr/va têm label próprio adiante). Nenhuma destas formas cria
+// fatura, compra em compras_cartao ou movimentação de benefício: a despesa é
+// sempre apenas uma linha em public.despesas (contagem única no limite diário).
+const FORMAS_PAGAMENTO_ONBOARDING = [
+  { value: 'pix',               icone: '⚡', label: 'Pix' },
+  { value: 'debito_automatico', icone: '🏦', label: 'Débito em conta' },
+  { value: 'cartao_credito',    icone: '💳', label: 'Cartão de crédito' },
+  { value: 'dinheiro',          icone: '💵', label: 'Dinheiro' },
+  { value: 'boleto',            icone: '🧾', label: 'Boleto' },
+  { value: 'vr',                icone: '🍽️', label: 'Vale-refeição (VR)' },
+  { value: 'va',                icone: '🛒', label: 'Vale-alimentação (VA)' },
+]
+
+// Label curto da forma de pagamento para exibir na lista local da etapa de
+// despesas (resolve inclusive vr/va, que não existem na lista global).
+const labelFormaOnboarding = (value) =>
+  FORMAS_PAGAMENTO_ONBOARDING.find(f => f.value === value)?.label || ''
+
 // Etapas do fluxo (índices internos):
-//   0 = Intro | 1 = Saldo | 2 = Renda | 3 = Despesas | 4 = Reserva | 5 = Final
+//   0 = Intro | 1 = Saldo | 2 = Renda | 3 = Despesas | 4 = Cartões |
+//   5 = Benefícios (VR/VA) | 6 = Reserva | 7 = Final
+// CARTOES e BENEFICIOS são etapas OPCIONAIS (podem ser puladas) e NÃO entram
+// na barra de progresso "X de 4" (que cobre só saldo/renda/despesas/reserva).
 const INTRO = 0
 const SALDO = 1
 const RENDA = 2
 const DESPESAS = 3
-const RESERVA = 4
-const FINAL = 5
+const CARTOES = 4
+const BENEFICIOS = 5
+const RESERVA = 6
+const FINAL = 7
 
 // A barra de progresso cobre apenas as 4 etapas de configuração (saldo, renda,
 // despesas, reserva) — "X de 4", igual ao card da Home.
@@ -80,16 +111,38 @@ function LinhaResumo({ label, valor, cor = 'text-gray-900' }) {
 }
 
 export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
-  const { perfil, atualizarPreferenciasLimite, corTema, atualizarCorTema } = useAuth()
+  const { usuario, perfil, atualizarPreferenciasLimite, corTema, atualizarCorTema } = useAuth()
   // Hooks das MESMAS tabelas usadas no app — sem estrutura paralela.
   const { receitas: receitasExistentes, criar: criarReceita } = useReceitas()
   const { despesas: despesasExistentes, criar: criarDespesa } = useDespesas()
   const { categorias: categoriasReceita } = useCategorias('receita')
   const { categorias: categoriasDespesa } = useCategorias('despesa')
+  // Cartões já cadastrados — usados para vincular uma despesa paga no cartão de
+  // crédito (etapa Despesas) e listados na etapa Cartões. "criar" grava um novo
+  // cartão (mesma função/tabela da página Cartões, sem estrutura paralela).
+  const { cartoes, criar: criarCartao } = useCartoes()
+  // Benefícios (VR/VA) — "criarBeneficio" grava na mesma tabela/hook da aba
+  // Benefícios. Usado na etapa Benefícios do onboarding.
+  const { beneficios, criarBeneficio } = useBeneficios()
 
   const [etapa, setEtapa] = useState(INTRO)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+
+  // Apresentação inicial (3 telas) — mostrada UMA VEZ por usuário, antes do
+  // fluxo de configuração. NÃO aparece quando o onboarding é reaberto apontando
+  // para uma etapa específica (card da Home / "refazer"), pois aí o usuário já
+  // conhece o app. Preferência por usuário no localStorage (robusta e sem
+  // depender do banco). Só visual — não toca em dados.
+  const CHAVE_APRESENTACAO = `almeida_apresentacao_vista_${usuario?.id || 'anon'}`
+  const [mostrarApresentacao, setMostrarApresentacao] = useState(() => {
+    if (etapaInicial) return false // reabertura direcionada: pula a apresentação
+    try { return localStorage.getItem(CHAVE_APRESENTACAO) !== '1' } catch { return true }
+  })
+  const concluirApresentacao = () => {
+    try { localStorage.setItem(CHAVE_APRESENTACAO, '1') } catch { /* ignora */ }
+    setMostrarApresentacao(false)
+  }
   // Guarda contra duplo clique: trava síncrona (o estado "salvando" é assíncrono
   // e pode não refletir a tempo entre dois cliques muito rápidos).
   const emGravacao = useRef(false)
@@ -108,6 +161,18 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   const [despForm, setDespForm] = useState({
     descricao: '', valor: 0, categoria_id: '', data: hojeISO(),
     frequencia: 'mensal', recorrenciaMeses: '',
+    forma_pagamento: '', cartao_id: '',
+  })
+
+  // ETAPA Cartões — formulário local de um cartão (gravado ao avançar).
+  const [cartaoForm, setCartaoForm] = useState({
+    nome: '', banco: '', limite_total: 0, dia_fechamento: '', dia_vencimento: '',
+  })
+
+  // ETAPA Benefícios — formulário local de um benefício VR/VA.
+  const [beneficioForm, setBeneficioForm] = useState({
+    nome: '', tipo: 'VR', saldo_inicial: 0,
+    recarga_valor: 0, recarga_dia: '', recarga_recorrente: false,
   })
 
   // ETAPA Reserva — pré-preenche com o que já existe no perfil.
@@ -240,6 +305,13 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   }
 
   // ─── ETAPA Despesas ───
+  // Validação de propriedade do cartão: só aceita um cartao_id que esteja na
+  // lista de cartões do próprio usuário (useCartoes já filtra por usuario_id +
+  // RLS). Evita vincular a despesa a um cartão de terceiro. A RLS do banco faz
+  // a checagem final (ver migration), isto é a 1ª linha de defesa (UI).
+  const cartaoIdValido = (id) =>
+    id && cartoes.some(c => c.id === id) ? id : ''
+
   function adicionarDespesaLocal() {
     const valor = Number(despForm.valor) || 0
     if (!despForm.descricao.trim()) { setErro('Dê um nome à despesa (ex.: Aluguel).'); return false }
@@ -252,8 +324,12 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
       data: despForm.data || hojeISO(),
       frequencia: despForm.frequencia,
       recorrenciaMeses: despForm.recorrenciaMeses,
+      forma_pagamento: despForm.forma_pagamento || '',
+      // cartão só é relevante quando a forma é cartão de crédito E o cartão
+      // pertence ao usuário (validação de propriedade).
+      cartao_id: despForm.forma_pagamento === 'cartao_credito' ? cartaoIdValido(despForm.cartao_id) : '',
     }])
-    setDespForm({ descricao: '', valor: 0, categoria_id: '', data: hojeISO(), frequencia: 'mensal', recorrenciaMeses: '' })
+    setDespForm({ descricao: '', valor: 0, categoria_id: '', data: hojeISO(), frequencia: 'mensal', recorrenciaMeses: '', forma_pagamento: '', cartao_id: '' })
     return true
   }
   function removerDespesaLocal(i) {
@@ -275,6 +351,8 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
         data: despForm.data || hojeISO(),
         frequencia: despForm.frequencia,
         recorrenciaMeses: despForm.recorrenciaMeses,
+        forma_pagamento: despForm.forma_pagamento || '',
+        cartao_id: despForm.forma_pagamento === 'cartao_credito' ? cartaoIdValido(despForm.cartao_id) : '',
       }]
     }
 
@@ -298,7 +376,10 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
           recorrencia_meses = Number(d.recorrenciaMeses)
         }
         const recorrente = freq !== 'nao_repete'
-        await criarDespesa({
+        // Payload base. forma_pagamento e cartao_id são METADADOS: gravam só em
+        // public.despesas (uma linha), SEM criar fatura, compra em compras_cartao
+        // nem movimentação de benefício — evitando dupla contagem no limite diário.
+        const payload = {
           descricao: d.descricao,
           valor: d.valor,
           data: d.data,
@@ -307,15 +388,107 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
           recorrencia_meses,
           categoria_id: d.categoria_id,
           tipo_despesa,
-        })
+        }
+        // Só envia forma_pagamento quando informada (NULL = não informado).
+        if (d.forma_pagamento) payload.forma_pagamento = d.forma_pagamento
+        // cartao_id só quando a forma é cartão de crédito E um cartão VÁLIDO
+        // (do próprio usuário) foi escolhido. Revalida aqui porque a lista de
+        // cartões pode ter mudado entre adicionar e salvar. String vazia
+        // quebraria a FK UUID, por isso é condicional.
+        if (d.forma_pagamento === 'cartao_credito') {
+          const idOk = cartaoIdValido(d.cartao_id)
+          if (idOk) payload.cartao_id = idOk
+        }
+        await criarDespesa(payload)
       }
       setDespesas([])
-      setDespForm({ descricao: '', valor: 0, categoria_id: '', data: hojeISO(), frequencia: 'mensal', recorrenciaMeses: '' })
+      setDespForm({ descricao: '', valor: 0, categoria_id: '', data: hojeISO(), frequencia: 'mensal', recorrenciaMeses: '', forma_pagamento: '', cartao_id: '' })
       avancar()
     } catch (e) {
       setErro(e?.message
         ? `Não foi possível salvar suas despesas. Tente novamente. (${e.message})`
         : 'Não foi possível salvar suas despesas. Tente novamente.')
+    } finally {
+      setSalvando(false)
+      emGravacao.current = false
+    }
+  }
+
+  // ─── ETAPA Cartões ───
+  // Grava o cartão preenchido (se houver) e avança. Etapa OPCIONAL: sem nome ou
+  // sem limite, apenas avança. Usa a MESMA função/tabela da página Cartões.
+  async function salvarCartao() {
+    if (emGravacao.current) return
+    const nome = cartaoForm.nome.trim()
+    const temAlgo = nome || Number(cartaoForm.limite_total) > 0 ||
+      cartaoForm.dia_fechamento || cartaoForm.dia_vencimento
+    // Nada preenchido: etapa opcional, só avança.
+    if (!temAlgo) { avancar(); return }
+    // Preencheu algo: validação mínima para um cartão útil.
+    if (!nome) { setErro('Dê um nome ao cartão (ex.: Nubank).'); return }
+    const diaFech = parseInt(cartaoForm.dia_fechamento, 10)
+    const diaVenc = parseInt(cartaoForm.dia_vencimento, 10)
+    if (!(diaFech >= 1 && diaFech <= 31)) { setErro('Informe um dia de fechamento entre 1 e 31.'); return }
+    if (!(diaVenc >= 1 && diaVenc <= 31)) { setErro('Informe um dia de vencimento entre 1 e 31.'); return }
+
+    emGravacao.current = true
+    setSalvando(true); setErro('')
+    try {
+      await criarCartao({
+        nome,
+        banco: cartaoForm.banco.trim() || null,
+        limite_total: Number(cartaoForm.limite_total) || 0,
+        dia_fechamento: diaFech,
+        dia_vencimento: diaVenc,
+      })
+      setCartaoForm({ nome: '', banco: '', limite_total: 0, dia_fechamento: '', dia_vencimento: '' })
+      avancar()
+    } catch (e) {
+      setErro(e?.message
+        ? `Não foi possível salvar o cartão. Tente novamente. (${e.message})`
+        : 'Não foi possível salvar o cartão. Tente novamente.')
+    } finally {
+      setSalvando(false)
+      emGravacao.current = false
+    }
+  }
+
+  // ─── ETAPA Benefícios (VR/VA) ───
+  // Grava o benefício preenchido (se houver) e avança. Etapa OPCIONAL. VR e VA
+  // são independentes: o usuário pode cadastrar um, outro, os dois ou nenhum.
+  // Usa a MESMA função/tabela da aba Benefícios. criarBeneficio já cria a 1ª
+  // movimentação de "Saldo inicial" quando saldo_inicial > 0.
+  async function salvarBeneficio() {
+    if (emGravacao.current) return
+    const nome = beneficioForm.nome.trim()
+    const temAlgo = nome || Number(beneficioForm.saldo_inicial) > 0 ||
+      Number(beneficioForm.recarga_valor) > 0
+    // Nada preenchido: etapa opcional, só avança.
+    if (!temAlgo) { avancar(); return }
+    if (!nome) { setErro('Dê um nome ao benefício (ex.: Alelo, VR Benefícios).'); return }
+
+    emGravacao.current = true
+    setSalvando(true); setErro('')
+    try {
+      await criarBeneficio({
+        nome,
+        tipo: beneficioForm.tipo, // 'VR' ou 'VA'
+        saldo_inicial: Number(beneficioForm.saldo_inicial) || 0,
+        recarga_valor: Number(beneficioForm.recarga_valor) || 0,
+        recarga_dia: beneficioForm.recarga_dia
+          ? Math.min(31, Math.max(1, Number(beneficioForm.recarga_dia)))
+          : null,
+        recarga_recorrente: !!beneficioForm.recarga_recorrente,
+      })
+      setBeneficioForm({ nome: '', tipo: 'VR', saldo_inicial: 0, recarga_valor: 0, recarga_dia: '', recarga_recorrente: false })
+      // Permanece na mesma etapa para permitir cadastrar o segundo benefício
+      // (VR + VA). A lista acima reflete o que já foi criado; o botão principal
+      // avança quando o usuário terminar.
+      setErro('')
+    } catch (e) {
+      setErro(e?.message
+        ? `Não foi possível salvar o benefício. Tente novamente. (${e.message})`
+        : 'Não foi possível salvar o benefício. Tente novamente.')
     } finally {
       setSalvando(false)
       emGravacao.current = false
@@ -414,6 +587,12 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
       pct: pctCustom,
     }
   }, [saldo, receitas, despesas, receitasExistentes, despesasExistentes, reservaPct, reservaCustom, modoCustom])
+
+  // Antes de qualquer etapa de configuração, exibe a apresentação (3 telas) no
+  // primeiro acesso. Ao concluir/pular, cai no fluxo normal (INTRO em diante).
+  if (mostrarApresentacao) {
+    return <Apresentacao aoConcluir={concluirApresentacao} />
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -592,7 +771,12 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                 <ul className="space-y-2 mb-3">
                   {despesas.map((d, i) => (
                     <li key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                      <span className="text-sm text-gray-800 truncate min-w-0">{d.descricao}</span>
+                      <span className="text-sm text-gray-800 truncate min-w-0">
+                        {d.descricao}
+                        {d.forma_pagamento && (
+                          <span className="block text-[11px] text-gray-400">{labelFormaOnboarding(d.forma_pagamento)}</span>
+                        )}
+                      </span>
                       <span className="flex items-center gap-2 flex-shrink-0">
                         <span className="text-sm font-semibold text-red-500">{formatCurrency(d.valor)}</span>
                         <button onClick={() => removerDespesaLocal(i)} className="text-gray-400 hover:text-red-500">
@@ -634,6 +818,38 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                     value={despForm.recorrenciaMeses}
                     onChange={(e) => setDespForm(p => ({ ...p, recorrenciaMeses: e.target.value }))} />
                 )}
+
+                {/* Forma de pagamento (opcional). Apenas metadado — não cria
+                    fatura, compra nem movimentação de benefício. */}
+                <select className="input" value={despForm.forma_pagamento}
+                  onChange={(e) => setDespForm(p => ({
+                    ...p,
+                    forma_pagamento: e.target.value,
+                    // Ao sair de "cartão de crédito", limpa o cartão escolhido.
+                    cartao_id: e.target.value === 'cartao_credito' ? p.cartao_id : '',
+                  }))}>
+                  <option value="">Forma de pagamento (opcional)</option>
+                  {FORMAS_PAGAMENTO_ONBOARDING.map(f => (
+                    <option key={f.value} value={f.value}>{f.icone} {f.label}</option>
+                  ))}
+                </select>
+
+                {/* Cartão de crédito: escolher um cartão já cadastrado, se houver. */}
+                {despForm.forma_pagamento === 'cartao_credito' && (
+                  cartoes.length === 0 ? (
+                    <p className="text-[11px] text-gray-400 -mt-1">
+                      Você ainda não tem cartões cadastrados. Poderá vincular um depois, em Cartões.
+                    </p>
+                  ) : (
+                    <select className="input" value={despForm.cartao_id}
+                      onChange={(e) => setDespForm(p => ({ ...p, cartao_id: e.target.value }))}>
+                      <option value="">Não vincular a um cartão específico</option>
+                      {cartoes.map(c => (
+                        <option key={c.id} value={c.id}>{c.nome}{c.banco ? ` • ${c.banco}` : ''}</option>
+                      ))}
+                    </select>
+                  )
+                )}
               </div>
               <button onClick={adicionarDespesaLocal}
                 className="btn-secondary w-full mt-2 flex items-center justify-center gap-1 text-sm">
@@ -663,6 +879,175 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                   Pular por enquanto
                 </button>
                 <p className="text-xs text-gray-400 mt-1">Você poderá adicionar suas despesas depois.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ─── ETAPA — Cartões de crédito (opcional) ─── */}
+          {etapa === CARTOES && (
+            <div className="py-2">
+              <CabecalhoEtapa
+                icone={CreditCard} cor="text-blue-600" bg="bg-blue-50"
+                titulo="Você usa cartão de crédito?"
+                subtitulo="Cadastre seus cartões para acompanhar faturas e lançar compras. É opcional — você poderá adicionar depois em Cartões."
+              />
+
+              {/* Cartões já cadastrados (nesta sessão ou antes). */}
+              {cartoes.length > 0 && (
+                <ul className="space-y-2 mb-3">
+                  {cartoes.map((c) => (
+                    <li key={c.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                      <span className="text-sm text-gray-800 truncate min-w-0 flex items-center gap-2">
+                        <CreditCard size={15} className="text-blue-500 flex-shrink-0" />
+                        {c.nome}{c.banco ? ` • ${c.banco}` : ''}
+                      </span>
+                      <span className="text-sm font-semibold text-gray-700 flex-shrink-0">{formatCurrency(c.limite_total)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="space-y-2">
+                <input className="input" placeholder="Nome do cartão (ex.: Nubank, Bradesco Visa)"
+                  value={cartaoForm.nome}
+                  onChange={(e) => setCartaoForm(p => ({ ...p, nome: e.target.value }))} />
+                <input className="input" placeholder="Banco / instituição (opcional)"
+                  value={cartaoForm.banco}
+                  onChange={(e) => setCartaoForm(p => ({ ...p, banco: e.target.value }))} />
+                <div>
+                  <label className="label">Limite total (R$)</label>
+                  <InputMoeda valor={cartaoForm.limite_total}
+                    onChangeValor={(n) => setCartaoForm(p => ({ ...p, limite_total: n }))}
+                    className="input" prefixo={null} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="label">Dia de fechamento</label>
+                    <input className="input" type="number" min="1" max="31" inputMode="numeric"
+                      placeholder="Ex.: 20" value={cartaoForm.dia_fechamento}
+                      onChange={(e) => setCartaoForm(p => ({ ...p, dia_fechamento: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="label">Dia de vencimento</label>
+                    <input className="input" type="number" min="1" max="31" inputMode="numeric"
+                      placeholder="Ex.: 28" value={cartaoForm.dia_vencimento}
+                      onChange={(e) => setCartaoForm(p => ({ ...p, dia_vencimento: e.target.value }))} />
+                  </div>
+                </div>
+              </div>
+              {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
+
+              <div className="flex gap-2 mt-6">
+                <button onClick={voltar} className="btn-secondary flex items-center gap-1 px-3">
+                  <ArrowLeft size={16} />
+                </button>
+                <button onClick={salvarCartao} disabled={salvando}
+                  className="btn-primary flex-1 flex items-center justify-center gap-2">
+                  {salvando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : <>Salvar e continuar <ArrowRight size={16} /></>}
+                </button>
+              </div>
+
+              <div className="mt-3 text-center">
+                <button type="button" onClick={pular} disabled={salvando}
+                  className="text-sm text-gray-400 hover:text-gray-600 underline underline-offset-2 disabled:opacity-50">
+                  Pular por enquanto
+                </button>
+                <p className="text-xs text-gray-400 mt-1">Você poderá cadastrar seus cartões depois.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ─── ETAPA — Benefícios VR/VA (opcional) ─── */}
+          {etapa === BENEFICIOS && (
+            <div className="py-2">
+              <CabecalhoEtapa
+                icone={UtensilsCrossed} cor="text-emerald-600" bg="bg-emerald-50"
+                titulo="Você recebe Vale-Refeição ou Vale-Alimentação?"
+                subtitulo="Cadastre VR e VA para controlar o saldo à parte, sem misturar com o dinheiro da conta. São independentes — cadastre um, os dois ou nenhum. É opcional."
+              />
+
+              {/* Benefícios já cadastrados. */}
+              {beneficios.length > 0 && (
+                <ul className="space-y-2 mb-3">
+                  {beneficios.map((b) => (
+                    <li key={b.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                      <span className="text-sm text-gray-800 truncate min-w-0 flex items-center gap-2">
+                        {b.tipo === 'VA'
+                          ? <ShoppingBag size={15} className="text-emerald-500 flex-shrink-0" />
+                          : <UtensilsCrossed size={15} className="text-emerald-500 flex-shrink-0" />}
+                        {b.nome} <span className="text-xs text-emerald-600">• {b.tipo}</span>
+                      </span>
+                      <span className="text-sm font-semibold text-gray-700 flex-shrink-0">{formatCurrency(b.saldo_inicial)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  {[{ v: 'VR', t: 'Vale-Refeição' }, { v: 'VA', t: 'Vale-Alimentação' }].map(op => (
+                    <button key={op.v} type="button"
+                      onClick={() => setBeneficioForm(p => ({ ...p, tipo: op.v }))}
+                      className={`p-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                        beneficioForm.tipo === op.v ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-gray-200 text-gray-600'
+                      }`}>
+                      {op.t}
+                    </button>
+                  ))}
+                </div>
+                <input className="input" placeholder="Nome (ex.: Alelo, VR Benefícios, Sodexo)"
+                  value={beneficioForm.nome}
+                  onChange={(e) => setBeneficioForm(p => ({ ...p, nome: e.target.value }))} />
+                <div>
+                  <label className="label">Saldo atual (R$)</label>
+                  <InputMoeda valor={beneficioForm.saldo_inicial}
+                    onChangeValor={(n) => setBeneficioForm(p => ({ ...p, saldo_inicial: n }))}
+                    className="input" prefixo={null} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="label">Recarga mensal (R$)</label>
+                    <InputMoeda valor={beneficioForm.recarga_valor}
+                      onChangeValor={(n) => setBeneficioForm(p => ({ ...p, recarga_valor: n }))}
+                      className="input" prefixo={null} />
+                  </div>
+                  <div>
+                    <label className="label">Dia da recarga</label>
+                    <input className="input" type="number" min="1" max="31" inputMode="numeric"
+                      placeholder="Ex.: 5" value={beneficioForm.recarga_dia}
+                      onChange={(e) => setBeneficioForm(p => ({ ...p, recarga_dia: e.target.value }))} />
+                  </div>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input type="checkbox" checked={beneficioForm.recarga_recorrente}
+                    onChange={(e) => setBeneficioForm(p => ({ ...p, recarga_recorrente: e.target.checked }))}
+                    className="w-4 h-4 accent-current text-emerald-600" />
+                  <span className="text-sm text-gray-700">Recarga automática todo mês</span>
+                </label>
+              </div>
+
+              <button onClick={salvarBeneficio} disabled={salvando}
+                className="btn-secondary w-full mt-2 flex items-center justify-center gap-1 text-sm">
+                {salvando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : <><Plus size={15} /> Adicionar benefício</>}
+              </button>
+              {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
+
+              <div className="flex gap-2 mt-6">
+                <button onClick={voltar} className="btn-secondary flex items-center gap-1 px-3">
+                  <ArrowLeft size={16} />
+                </button>
+                <button onClick={avancar} disabled={salvando}
+                  className="btn-primary flex-1 flex items-center justify-center gap-2">
+                  Continuar <ArrowRight size={16} />
+                </button>
+              </div>
+
+              <div className="mt-3 text-center">
+                <button type="button" onClick={pular} disabled={salvando}
+                  className="text-sm text-gray-400 hover:text-gray-600 underline underline-offset-2 disabled:opacity-50">
+                  Pular por enquanto
+                </button>
+                <p className="text-xs text-gray-400 mt-1">Você poderá cadastrar VR/VA depois.</p>
               </div>
             </div>
           )}
@@ -766,18 +1151,6 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                   valor={formatCurrency(resumo.disponivelEstimado)}
                   cor={resumo.disponivelEstimado >= 0 ? 'text-gray-900' : 'text-red-600'}
                 />
-              </div>
-
-              {/* Pergunta OPCIONAL sobre benefícios (VR/VA). Não bloqueia a
-                  conclusão nem cria dados — apenas sinaliza onde cadastrar
-                  depois (menu Finanças › Benefícios ou atalho da Home). */}
-              <div className="flex items-start gap-2.5 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5 mb-4">
-                <UtensilsCrossed size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-emerald-800">
-                  <strong>Usa Vale-Refeição ou Vale-Alimentação?</strong> Você pode cadastrá-los
-                  depois em <strong>Finanças › Benefícios</strong> para controlar o saldo à parte,
-                  sem misturar com o dinheiro da conta. É opcional.
-                </p>
               </div>
 
               <button onClick={finalizar} disabled={salvando}

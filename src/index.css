@@ -24,6 +24,10 @@
     --marca: 124 58 173;       /* #7C3AAD roxo */
     --marca-hover: 100 46 140; /* roxo mais escuro p/ hover */
   }
+  .tema-preto {
+    --marca: 31 41 55;         /* #1F2937 cinza-grafite (preto) */
+    --marca-hover: 17 24 39;   /* #111827 mais escuro p/ hover */
+  }
 
   html {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
