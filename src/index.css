@@ -319,3 +319,13 @@
 /* Sidebar/áreas que usam branco direto já cobertas por .bg-white acima.
    Ajuste fino: o fundo da página (main) herda do body escuro; cards sobre ele
    usam --superficie, criando a hierarquia fundo(#10141D) < card(#202632). */
+/* Corrigir textos invisíveis no tema preto */
+.tema-preto .card {
+  color: #E5E7EB;
+}
+
+.tema-preto .card .text-gray-900,
+.tema-preto .card .text-gray-800,
+.tema-preto .card .text-gray-700 {
+  color: #FFFFFF !important;
+}
