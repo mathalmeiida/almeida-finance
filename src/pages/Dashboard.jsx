@@ -1653,7 +1653,7 @@ export default function Dashboard() {
         {ehNoite && <span className="sky-stars" aria-hidden="true" />}
         <div className="min-w-0 relative">
           <div className="flex items-center gap-1.5 min-w-0">
-            ${ehNoite ? 'text-white' : 'text-[rgb(var(--texto,30_41_59))]'}
+            <h1 className={`text-xl sm:text-2xl font-bold truncate leading-tight ${ehNoite ? 'text-white' : 'text-gray-900'}`} style={!ehNoite ? { color: 'rgb(var(--texto, 30 41 59))' } : undefined}>{saudacao}</h1>
             {aparenciaDinamica && (
               ehNoite
                 ? <Moon size={16} className="text-slate-200 flex-shrink-0" aria-hidden="true" />
