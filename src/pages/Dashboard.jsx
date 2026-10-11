@@ -3,13 +3,14 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Sun, Plus, Pencil,
   CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank, AlertTriangle, MessageCircle, BarChart2,
-  Receipt, Target, Bell, Moon, UtensilsCrossed
+  Receipt, Target, Bell, Moon, UtensilsCrossed, ShoppingBag
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useCategorias } from '../hooks/useCategorias'
 import { useCartoes } from '../hooks/useCartoes'
 import { useComprasCartao } from '../hooks/useComprasCartao'
 import { useConsultoriaInteresses } from '../hooks/useConsultoria'
+import { useBeneficios } from '../hooks/useBeneficios'
 import { useAuth } from '../contexts/AuthContext'
 import { useOcultarValores } from '../contexts/OcultarValoresContext'
 import InputMoeda from '../components/InputMoeda'
@@ -1154,6 +1155,10 @@ export default function Dashboard() {
   // página /consultoria (mesma fonte/hook, sem duplicar lógica).
   const { interesses: interessesConsultoria } = useConsultoriaInteresses()
   const jaRegistrouConsultoria = (interessesConsultoria?.length ?? 0) > 0
+  // Benefícios (VR/VA) — dados reais do Supabase para os 2 cards compactos da
+  // Home. Reutiliza o MESMO hook da aba Benefícios (sem duplicar lógica).
+  const { beneficios, saldoDoBeneficio, proximaRecarga } = useBeneficios()
+  const beneficioPorTipo = (tipo) => beneficios.find(b => b.tipo === tipo) || null
   const navigate = useNavigate()
 
   const [modalGasto, setModalGasto] = useState(false)
@@ -1707,7 +1712,7 @@ export default function Dashboard() {
           rotas/modais já existentes, sem duplicar lógica. */}
 <div className="grid grid-cols-5 gap-1.5 sm:gap-2.5 lg:gap-4">
   {[
-    { label: 'Transações', icon: Receipt, onClick: () => navigate('/despesas'), cor: 'text-blue-600', fundo: 'bg-blue-50' },
+    { label: 'Despesas', icon: Receipt, onClick: () => navigate('/despesas'), cor: 'text-blue-600', fundo: 'bg-blue-50' },
     { label: 'Cartões', icon: CreditCard, onClick: () => navigate('/cartoes'), cor: 'text-violet-600', fundo: 'bg-violet-50' },
     { label: 'Planejamento', icon: BarChart2, onClick: () => setModalPlanejamento(true), cor: 'text-emerald-600', fundo: 'bg-emerald-50' },
     { label: 'Metas', icon: Target, onClick: () => navigate('/metas'), cor: 'text-rose-600', fundo: 'bg-rose-50' },
@@ -1736,19 +1741,46 @@ export default function Dashboard() {
 </div>
 
       {/* 3b ─ Atalho DISCRETO para Benefícios (VR/VA), uma linha, sem poluir. */}
-      <button
-        type="button"
-        onClick={() => navigate('/beneficios')}
-        className="w-full flex items-center justify-between gap-2 rounded-xl bg-white border border-gray-200 px-3 py-2 hover:border-marca/40 hover:shadow-sm transition-all"
-      >
-        <span className="flex items-center gap-2 min-w-0">
-          <span className="w-7 h-7 rounded-full bg-marca-100 flex items-center justify-center flex-shrink-0">
-            <UtensilsCrossed size={15} className="text-marca" />
-          </span>
-          <span className="text-sm font-medium text-gray-700 truncate">Benefícios (VR/VA)</span>
-        </span>
-        <ArrowRight size={16} className="text-gray-400 flex-shrink-0" />
-      </button>
+      {/* 3b ─ Benefícios: dois cards compactos VR e VA, lado a lado. Dados reais
+          (useBeneficios). VR e VA independentes. Sem benefício cadastrado → card
+          discreto de configuração (não inventa valores). Toque abre /beneficios. */}
+      <div className="grid grid-cols-2 gap-2 sm:gap-3">
+        {[
+          { tipo: 'VR', titulo: 'VR — Vale-Refeição', icon: UtensilsCrossed },
+          { tipo: 'VA', titulo: 'VA — Vale-Alimentação', icon: ShoppingBag },
+        ].map(({ tipo, titulo, icon: Icone }) => {
+          const b = beneficioPorTipo(tipo)
+          return (
+            <button
+              key={tipo}
+              type="button"
+              onClick={() => navigate('/beneficios')}
+              className="text-left rounded-xl bg-white border border-gray-200 px-3 py-2.5 hover:border-marca/40 hover:shadow-sm transition-all min-w-0"
+            >
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Icone size={14} className="text-marca flex-shrink-0" />
+                <span className="text-xs font-medium text-gray-700 truncate">{titulo}</span>
+              </div>
+              {b ? (
+                <>
+                  <p className="text-lg font-bold text-gray-900 leading-tight break-words mt-1">
+                    {exibirMoeda(saldoDoBeneficio(b.id), ocultar)}
+                  </p>
+                  <p className="text-[11px] text-gray-400 leading-tight mt-0.5">
+                    {b.recarga_recorrente && proximaRecarga(b)
+                      ? <>Próx. {proximaRecarga(b)} • {exibirMoeda(Number(b.recarga_valor) || 0, ocultar)}</>
+                      : 'Sem recarga automática'}
+                  </p>
+                </>
+              ) : (
+                <p className="text-xs text-marca font-medium mt-1 inline-flex items-center gap-1">
+                  Configurar <ArrowRight size={13} />
+                </p>
+              )}
+            </button>
+          )
+        })}
+      </div>
 
       {/* O card "Saldo disponível agora" foi movido para a aba Planejamento
           (/projecao), deixando a Home mais compacta. */}
