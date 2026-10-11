@@ -1759,8 +1759,8 @@ export default function Dashboard() {
         <span className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full ${a.fundo} flex items-center justify-center shrink-0`}>
           <a.icon size={21} className={a.cor} />
         </span>
-        <span className="text-[10px] sm:text-xs lg:text-sm font-medium text-slate-800 text-center lg:text-left break-words">
-          {a.label}
+<span className="text-[10px] sm:text-xs lg:text-sm font-medium text-slate-800 text-center lg:text-left break-words" style={{ color: 'rgb(var(--texto, 30 41 59))' }}>
+        {a.label}
         </span>
       </span>
       <span className="hidden lg:block text-slate-400 group-hover:text-blue-600 text-xl shrink-0">
