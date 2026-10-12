@@ -227,6 +227,23 @@ const saldoDisponivelAgora = saldoConfigurado
   // Previsão até o fim do mês = saldo agora + entradas futuras − compromissos futuros.
   // NÃO inclui a reserva (patrimônio separado).
 const previsaoFimMes = saldoDisponivelAgora + receitasFuturasMes - compromissosFuturosMes
+  // Limite seguro: não antecipar dinheiro de receitas futuras.
+// Considera as despesas com vencimento até a próxima entrada.
+const proximaReceita = receitas
+  .filter(r => r.data > hojeStr)
+  .sort((a, b) => a.data.localeCompare(b.data))[0]
+
+const dataLimiteSegura = proximaReceita?.data || 
+  `${anoAtual}-${String(mesAtual).padStart(2, '0')}-${new Date(anoAtual, mesAtual, 0).getDate()}`
+
+const despesasAntesReceita = despesas
+  .filter(d => d.data > hojeStr && d.data <= dataLimiteSegura && !d.pago_em)
+  .reduce((acc, d) => acc + Number(d.valor), 0)
+
+const saldoSeguroHoje = Math.max(
+  0,
+  saldoDisponivelAgora - despesasAntesReceita
+)
   // Projeção dos próximos 12 meses
   const projecao = useMemo(() => {
     if (carregando) return []
