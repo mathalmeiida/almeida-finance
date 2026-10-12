@@ -271,14 +271,14 @@ function calcularLimiteDiario({ receitaMes, compromissosMes, reservaPct, modo, l
   // Se "baseLivre" for informado (orçamento livre já considerando saldo atual
   // e compromissos futuros), usa-o; senão, mantém a base antiga (receita −
   // compromissos) para compatibilidade com quem não configurou o saldo.
-  const base = baseLivre != null ? baseLivre : (receitaMes - compromissosMes)
-  const disponivelAuto = baseLivre != null
-  ? base
-  : base - reserva
-  const limiteAuto = disponivelAuto > 0 && dias > 0 ? disponivelAuto / dias : 0
-  const limiteManualNum = Number(limiteManual) || 0
-  return ehManual ? limiteManualNum : limiteAuto
+
+const base = baseLivre != null ? baseLivre : (receitaMes - compromissosMes)
+const disponivelAuto = base - reserva
+const limiteAuto = disponivelAuto > 0 && dias > 0 ? disponivelAuto / dias : 0
+const limiteManualNum = Number(limiteManual) || 0
+return ehManual ? limiteManualNum : limiteAuto
 }
+
 
 // Status do orçamento com base no % de comprometimento da renda (educativo, não alarmista)
 function statusOrcamento(receita, disponivel) {
