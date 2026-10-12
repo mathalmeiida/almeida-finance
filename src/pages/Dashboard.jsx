@@ -1304,8 +1304,9 @@ export default function Dashboard() {
     modo: modoLimite,
     limiteManual,
     hoje,
-    baseLivre: saldoConfigurado ? previsaoFimMes : undefined,
-    saldoConfigurado,
+baseLivre: saldoConfigurado
+  ? Math.min(previsaoFimMes, saldoSeguroHoje)
+  : undefined,    saldoConfigurado,
   })
   // Gastos de HOJE (à vista): despesas não-recorrentes com data de hoje.
   // Usa os dados já em memória — mesmo padrão do saldo disponível.
