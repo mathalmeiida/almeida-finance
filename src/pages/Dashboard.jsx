@@ -1365,7 +1365,7 @@ export default function Dashboard() {
   const previsaoFimMes = resumoMes.previsaoFimMes
   const saldoSeguroHoje = resumoMes.saldoSeguroHoje ?? 0
  const compromissosFuturosMes = resumoMes.compromissosFuturosMes
-
+const carregandoLimite = carregando
   // ─── "Quanto posso gastar hoje?" (card destaque) ───
   const hojeISO = hojeISOBrasil() // 'YYYY-MM-DD' no fuso de Brasília
   // Limite diário de hoje — MESMA fonte do card detalhado (calcularLimiteDiario).
