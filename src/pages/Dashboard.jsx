@@ -527,7 +527,26 @@ function CardQuantoPossoGastar({
         </div>
       )}
 
-      {/* ── Detalhamento (modo automático): renda → reserva → compromissos → disponível ── */}
+      {/* Detalhamento do saldo seguro */}
+{!ehManual && (
+  <div className="bg-black/15 rounded-xl px-3 py-3 mb-3 space-y-1.5">
+    <div className="flex justify-between text-sm">
+      <span className="text-white/70">Saldo atual</span>
+      <span className="font-medium">{formatCurrency(saldoAtual)}</span>
+    </div>
+
+    <div className="flex justify-between text-sm">
+      <span className="text-white/70">Valor descontado até a próxima receita</span>
+      <span className="font-medium">
+        − {formatCurrency(Math.max(0, saldoAtual - saldoSeguroHoje))}
+      </span>
+    </div>
+    <div className="flex justify-between items-center text-sm pt-1.5 border-t border-white/15">
+      <span className="font-semibold">Saldo seguro até a próxima receita</span>
+      <span className="font-bold">{formatCurrency(saldoSeguroHoje)}</span>
+    </div>
+  </div>
+)}
       {!ehManual && (
         <div className="flex justify-between items-center text-sm pt-1.5 border-t border-white/15">
   <span className="font-semibold">
