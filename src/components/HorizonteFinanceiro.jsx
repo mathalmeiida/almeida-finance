@@ -65,7 +65,7 @@ function ColunaMes({ mes }) {
 export default function HorizonteFinanceiro({
   receitas, despesas, recorrentes, parcelamentos,
   cartoes, comprasCartao, faturasInformadas,
-  reservaPct, saldoInicial,
+ reservaPct, saldoInicial, dataReferencia,
 }) {
   const horizonte = useMemo(() => gerarHorizonte({
     receitas, despesas, recorrentes, parcelamentos,
