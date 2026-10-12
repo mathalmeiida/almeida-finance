@@ -2122,7 +2122,8 @@ export default function Dashboard() {
           comprasCartao={comprasCartao}
           faturasInformadas={faturasInformadas}
           reservaPct={reservaPct}
-          saldoInicial={resumoMes.saldoConfigurado ? resumoMes.saldoDisponivelAgora : 0}
+     saldoInicial={resumoMes.saldoConfigurado ? resumoMes.saldoDisponivelAgora : 0}
+dataReferencia={hojeISO}
         />
       </Modal>
 
