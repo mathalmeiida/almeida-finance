@@ -237,7 +237,7 @@ const dataLimiteSegura = proximaReceita?.data ||
   `${anoAtual}-${String(mesAtual).padStart(2, '0')}-${new Date(anoAtual, mesAtual, 0).getDate()}`
 
 const despesasAntesReceita = despesas
-  .filter(d => d.data > hojeStr && d.data <= dataLimiteSegura && !d.pago_em)
+  .filter(d => d.data > hojeStr && d.data < dataLimiteSegura && !d.pago_em)
   .reduce((acc, d) => acc + Number(d.valor), 0)
 
 // Parcelas avulsas que vencem até a próxima receita
@@ -250,8 +250,7 @@ const parcelasAntesReceita = parcelamentos
     const dia = new Date(p.primeira_parcela + 'T12:00:00').getDate()
     const dataVencimento =
       `${anoAtual}-${String(mesAtual).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
-
-    return dataVencimento > hojeStr && dataVencimento <= dataLimiteSegura
+    return dataVencimento > hojeStr && dataVencimento < dataLimiteSegura
       ? acc + valor
       : acc
   }, 0)
@@ -264,8 +263,7 @@ const faturasAntesReceita = cartoes.reduce((acc, c) => {
   const dataVencimento =
     `${venc.ano}-${String(venc.mes).padStart(2, '0')}-${String(venc.dia).padStart(2, '0')}`
 
-  if (dataVencimento <= hojeStr || dataVencimento > dataLimiteSegura) {
-    return acc
+if (dataVencimento <= hojeStr || dataVencimento >= dataLimiteSegura) {    return acc
   }
 
   // Usa a mesma competência da função faturasAVencer
