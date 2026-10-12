@@ -986,7 +986,29 @@ function CardGastoHoje({
                 : 'Sem comprometer seu planejamento'}
           </p>
         </div>
-        {/* Status do orçamento (compacto, quando couber) */}
+        {/* Saldo atual dentro do card azul */}
+{mostrarSaldo && (
+  <div className="flex flex-col items-start gap-1 mt-2 sm:mt-0 sm:ml-auto sm:items-end">
+    <p className="text-xs text-white/80">
+      Saldo atual
+    </p>
+    <p className="text-lg sm:text-xl font-bold text-white">
+      {exibirMoeda(saldoAtual, ocultar)}
+    </p>
+    {onEditarSaldo && (
+      <button
+        type="button"
+        onClick={onEditarSaldo}
+        className="inline-flex items-center gap-1 text-xs text-white/90 hover:text-white"
+      >
+        <Pencil size={12} />
+        Editar saldo
+      </button>
+    )}
+  </div>
+)}
+
+{/* Status do orçamento (compacto, quando couber) */}
        {(statusDiario || status) && (
   <div className="hidden sm:flex items-center gap-1.5 flex-shrink-0 bg-black/15 rounded-full px-2.5 py-1">
     <span
