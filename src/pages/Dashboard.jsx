@@ -542,7 +542,7 @@ function CardQuantoPossoGastar({
             <span className="font-medium">− {formatCurrency(compromissosMes)}</span>
           </div>
           <div className="flex justify-between text-sm pt-1.5 border-t border-white/15">
-            <span className="font-semibold">Disponível para gastar</span>
+        Saldo seguro até a próxima receita
             <span className={`font-bold ${orcamentoNegativo ? 'text-red-200' : ''}`}>{formatCurrency(disponivelMes)}</span>
           </div>
         </div>
@@ -551,7 +551,7 @@ function CardQuantoPossoGastar({
       {/* Valores principais */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-black/15 rounded-xl px-3 py-3">
-          <p className="text-xs text-white/70">Disponível no mês</p>
+  Disponível até a próxima receita
           <p className={`text-xl font-bold ${orcamentoNegativo ? 'text-red-200' : ''}`}>
             {formatCurrency(disponivelMes)}
           </p>
