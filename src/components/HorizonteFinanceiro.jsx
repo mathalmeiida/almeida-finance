@@ -70,8 +70,8 @@ export default function HorizonteFinanceiro({
   const horizonte = useMemo(() => gerarHorizonte({
     receitas, despesas, recorrentes, parcelamentos,
     cartoes, comprasCartao, faturasInformadas,
-    saldoInicial, reservaPct, meses: 12,
-  }), [receitas, despesas, recorrentes, parcelamentos, cartoes, comprasCartao, faturasInformadas, saldoInicial, reservaPct])
+   saldoInicial, reservaPct, dataReferencia, meses: 12,
+  }, [receitas, despesas, recorrentes, parcelamentos, cartoes, comprasCartao, faturasInformadas, saldoInicial, reservaPct, dataReferencia])
 
   const trilhoRef = useRef(null)
   // Mês selecionado para o RESUMO do topo. Atualiza conforme o carrossel desliza.
