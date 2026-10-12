@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ShoppingCart, AlertTriangle, CheckCircle2, XCircle, Calculator, Info, Loader2,
-  TrendingUp, Plus, RotateCcw, Home, Car
+  TrendingUp, Plus, RotateCcw, Home, Car, Users
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useAuth } from '../contexts/AuthContext'
@@ -11,6 +11,7 @@ import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
 import SimuladorFinanciamento from './SimuladorFinanciamento'
 import SimuladorAutomovel from './SimuladorAutomovel'
+import SimuladorConsorcio from './SimuladorConsorcio'
 
 // Dias restantes no mês (inclui hoje) — mesma regra usada na Home para o
 // "disponível por dia". Reutilizada aqui para não criar cálculo conflitante.
@@ -500,19 +501,21 @@ function SimuladorCompra() {
 // e "Financiamento imobiliário" (novo simulador). A aba Compra é o padrão.
 // ─────────────────────────────────────────────
 export default function PossoComprar() {
-  const [aba, setAba] = useState('compra') // 'compra' | 'imovel' | 'automovel'
+  const [aba, setAba] = useState('compra') // 'compra' | 'imovel' | 'automovel' | 'consorcio'
 
-  // Rótulos curtos p/ caber as 3 opções no mobile (320px) sem apertar.
+  // Rótulos curtos p/ caber as opções no mobile (320px) sem apertar.
   const ABAS = [
     { id: 'compra',    label: 'Compra',    icon: ShoppingCart },
     { id: 'imovel',    label: 'Imóvel',    icon: Home },
     { id: 'automovel', label: 'Automóvel', icon: Car },
+    { id: 'consorcio', label: 'Consórcio', icon: Users },
   ]
 
   const subtitulo = {
     compra: 'Simule o impacto de uma compra no seu orçamento',
     imovel: 'Simule um financiamento imobiliário para planejar sua compra',
     automovel: 'Simule o financiamento de um veículo e veja o custo real',
+    consorcio: 'Simule um consórcio de imóvel ou automóvel',
   }[aba]
 
   return (
@@ -522,9 +525,9 @@ export default function PossoComprar() {
         <p className="text-sm text-gray-500 mt-1">{subtitulo}</p>
       </div>
 
-      {/* Seletor de abas. Grid de 3 colunas no mobile (cabe em 320px);
-          vira linha automática a partir de sm. Sem scroll horizontal. */}
-      <div className="grid grid-cols-3 sm:flex gap-2">
+      {/* Seletor de abas. Grid de 2 colunas no mobile (cabe em 320px com 4
+          opções em 2 linhas); vira linha automática a partir de sm. */}
+      <div className="grid grid-cols-2 sm:flex gap-2">
         {ABAS.map(t => (
           <button
             key={t.id}
@@ -541,6 +544,7 @@ export default function PossoComprar() {
       {aba === 'compra' && <SimuladorCompra />}
       {aba === 'imovel' && <SimuladorFinanciamento />}
       {aba === 'automovel' && <SimuladorAutomovel />}
+      {aba === 'consorcio' && <SimuladorConsorcio />}
     </div>
   )
 }

@@ -342,3 +342,57 @@ export function calcularCustoVeiculoPeriodo({
     valorVeiculo: num(valorVeiculo),
   }
 }
+
+// ─── Consórcio (sem juros de financiamento) ───────────────────────────────────
+// No consórcio não há juros como no financiamento; o custo vem da taxa de
+// administração (percentual total sobre a carta, diluído no prazo), do fundo de
+// reserva (opcional, idem) e de um seguro mensal opcional. O lance é apenas
+// INFORMATIVO nesta versão: NÃO abate carta, parcela nem saldo (depende das
+// regras da administradora).
+//
+// Cálculo:
+//   totalTaxaAdm   = carta × (taxaAdmPercent / 100)
+//   totalFundo     = carta × (fundoReservaPercent / 100)
+//   baseParcelas   = carta + totalTaxaAdm + totalFundo
+//   parcelaBase    = baseParcelas / prazoMeses
+//   parcela        = parcelaBase + seguroMensal
+//   custoTotal     = parcela × prazoMeses  (= baseParcelas + seguro×prazo)
+export function calcularConsorcio({
+  carta = 0, prazoMeses = 0, taxaAdmPercent = 0,
+  fundoReservaPercent = 0, seguroMensal = 0, lance = 0,
+}) {
+  const num = (v) => Math.max(0, Number(v) || 0)
+  const valorCarta = num(carta)
+  const n = Math.max(0, Math.floor(Number(prazoMeses) || 0))
+  const totalTaxaAdm = valorCarta * (num(taxaAdmPercent) / 100)
+  const totalFundoReserva = valorCarta * (num(fundoReservaPercent) / 100)
+  const seguro = num(seguroMensal)
+
+  if (n <= 0 || valorCarta <= 0) {
+    return {
+      carta: valorCarta, prazoMeses: n,
+      totalTaxaAdm, totalFundoReserva,
+      parcelaBase: 0, seguroMensal: seguro, parcela: 0,
+      custoTotal: 0, custoAdicional: totalTaxaAdm + totalFundoReserva,
+      lance: num(lance),
+    }
+  }
+
+  const baseParcelas = valorCarta + totalTaxaAdm + totalFundoReserva
+  const parcelaBase = baseParcelas / n
+  const parcela = parcelaBase + seguro
+  const custoTotal = parcela * n
+  return {
+    carta: valorCarta,
+    prazoMeses: n,
+    totalTaxaAdm,
+    totalFundoReserva,
+    parcelaBase,
+    seguroMensal: seguro,
+    parcela,
+    custoTotal,
+    // Quanto se paga ALÉM da carta (taxas + fundo + seguro no período).
+    custoAdicional: totalTaxaAdm + totalFundoReserva + seguro * n,
+    lance: num(lance), // apenas informativo
+  }
+}
