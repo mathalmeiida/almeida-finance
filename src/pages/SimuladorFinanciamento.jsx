@@ -1,15 +1,17 @@
 import React, { useState } from 'react'
 import {
   Home, Info, AlertTriangle, PiggyBank, Landmark, TrendingDown, ChevronDown, ChevronUp,
+  FileText, Wallet, Receipt,
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useAuth } from '../contexts/AuthContext'
 import { formatCurrency } from '../lib/utils'
 import InputMoeda from '../components/InputMoeda'
 import DestaqueValor from '../components/DestaqueValor'
+import CadastrarNoPlanejamento from '../components/CadastrarNoPlanejamento'
 import {
   taxaAnualParaMensal, prazoEmMeses, calcularPrice, calcularSac,
-  calcularEntrada, simularAmortizacao, comprometimentoRenda,
+  calcularEntrada, simularAmortizacao, comprometimentoRenda, calcularCustosImovel,
 } from '../lib/financiamento'
 
 // Mostra a taxa mensal com 4 casas (ex.: 0,9123% a.m.).
@@ -25,7 +27,7 @@ function Secao({ titulo, icone: Icone, children, aberta, onToggle }) {
       <button type="button" onClick={onToggle}
         className="w-full flex items-center justify-between gap-2 text-left">
         <span className="flex items-center gap-2 text-base font-semibold text-gray-900">
-          {Icone && <Icone size={18} className="text-blue-600" />} {titulo}
+          {Icone && <Icone size={18} className="text-marca" />} {titulo}
         </span>
         {aberta ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
       </button>
@@ -54,6 +56,14 @@ export default function SimuladorFinanciamento() {
   const [reservaUsada, setReservaUsada] = useState('')
   const [usarFgts, setUsarFgts] = useState(false)
   const [fgts, setFgts] = useState('')
+
+  // ── Custos da compra (opcionais): ITBI (alíquota + base), cartório, avaliação, outros ──
+  const [secaoCustos, setSecaoCustos] = useState(false)
+  const [itbiAliquota, setItbiAliquota] = useState('')
+  const [itbiBase, setItbiBase] = useState('') // base de cálculo editável (padrão = valor do imóvel)
+  const [cartorio, setCartorio] = useState('')
+  const [avaliacao, setAvaliacao] = useState('')
+  const [outrosCustos, setOutrosCustos] = useState('')
 
   // ── Resultado / seções ──
   const [resultado, setResultado] = useState(null)
@@ -104,7 +114,18 @@ export default function SimuladorFinanciamento() {
     const price = calcularPrice(entrada.valorFinanciado, i, n)
     const escolhido = sistema === 'sac' ? sac : price
 
-    setResultado({ entrada, i, n, sac, price, escolhido, sistema, taxaAnual: taxaAnualNum })
+    // Custos da compra (opcionais) + valor necessário para comprar o imóvel.
+    const custos = calcularCustosImovel({
+      valorImovel: imovel,
+      itbiAliquota: parseFloat(String(itbiAliquota).replace(',', '.')) || 0,
+      itbiBase: Number(itbiBase) || null,
+      cartorio: Number(cartorio) || 0,
+      avaliacao: Number(avaliacao) || 0,
+      outros: Number(outrosCustos) || 0,
+    })
+    const valorNecessario = entrada.entradaTotal + custos.total
+
+    setResultado({ entrada, i, n, sac, price, escolhido, sistema, taxaAnual: taxaAnualNum, custos, valorNecessario })
     setAmortResultado(null)
   }
 
@@ -127,6 +148,12 @@ export default function SimuladorFinanciamento() {
     ? (resultado.sistema === 'sac' ? resultado.sac.primeira : resultado.price.parcela)
     : 0
   const pctRenda = resultado ? comprometimentoRenda(parcelaRef, rendaMensal) : null
+
+  // "Cabe no meu orçamento?" — compara a parcela com a sobra mensal já
+  // calculada (receitas − despesas − parcelas − faturas). Reutiliza os dados
+  // financeiros existentes, sem duplicar despesas.
+  const orcamentoDisponivel = Number(resumoMes?.sobraPrevista) || 0
+  const sobraAposParcela = resultado ? orcamentoDisponivel - parcelaRef : null
   const reservaRestante = Math.max(0, reservaDisponivel - reservaUsadaNum)
   const usoRelevanteReserva = reservaDisponivel > 0 && reservaUsadaNum >= reservaDisponivel * 0.3
 
@@ -155,7 +182,7 @@ export default function SimuladorFinanciamento() {
       {/* ── Formulário ── */}
       <form onSubmit={handleSimular} className="card space-y-4">
         <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-          <Home size={18} className="text-blue-600" /> Dados do financiamento
+          <Home size={18} className="text-marca" /> Dados do financiamento
         </h2>
 
         <div>
@@ -293,6 +320,71 @@ export default function SimuladorFinanciamento() {
           )}
         </div>
 
+        {/* ── Custos da compra (opcionais): ITBI, cartório/registro, avaliação, outros ── */}
+        <div className="pt-2 border-t border-gray-100">
+          <button type="button" onClick={() => setSecaoCustos(v => !v)}
+            className="w-full flex items-center justify-between gap-2 text-left">
+            <span className="flex items-center gap-2 text-base font-semibold text-gray-900">
+              <FileText size={16} className="text-marca" /> Custos da compra (opcional)
+            </span>
+            {secaoCustos ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
+          </button>
+          {secaoCustos && (
+            <div className="mt-3 space-y-3">
+              {/* ITBI: alíquota (% por município) + base de cálculo, ambas editáveis. */}
+              <div className="rounded-xl border border-gray-200 p-3 space-y-3">
+                <p className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
+                  <Receipt size={15} className="text-marca" /> ITBI
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Alíquota (%)</label>
+                    <input type="text" inputMode="decimal" value={itbiAliquota}
+                      onChange={(e) => { setItbiAliquota(e.target.value); limparResultado() }}
+                      className="input" placeholder="Ex: 2 ou 3" />
+                  </div>
+                  <div>
+                    <label className="label">Base de cálculo (R$)</label>
+                    <InputMoeda valor={itbiBase}
+                      onChangeValor={(n) => { setItbiBase(n); limparResultado() }}
+                      className="input" prefixo={null} />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-400">
+                  Imposto de transmissão, varia por município (em geral de 2% a 3%). A base é o valor do imóvel por padrão;
+                  alguns municípios usam o valor venal de referência — edite se precisar.
+                  {Number(valorImovel) > 0 && (parseFloat(String(itbiAliquota).replace(',', '.')) || 0) > 0 && (
+                    <> Estimativa: <strong>{formatCurrency(
+                      ((Number(itbiBase) > 0 ? Number(itbiBase) : (Number(valorImovel) || 0))) *
+                      ((parseFloat(String(itbiAliquota).replace(',', '.')) || 0) / 100)
+                    )}</strong>.</>
+                  )}
+                </p>
+              </div>
+              <div>
+                <label className="label">Cartório — escritura e registro (R$)</label>
+                <InputMoeda valor={cartorio}
+                  onChangeValor={(n) => { setCartorio(n); limparResultado() }}
+                  className="input" prefixo={null} />
+                <p className="text-xs text-gray-400 mt-1">Estimativa aproximada; os valores variam por cartório e por estado.</p>
+              </div>
+              <div>
+                <label className="label">Avaliação bancária (R$)</label>
+                <InputMoeda valor={avaliacao}
+                  onChangeValor={(n) => { setAvaliacao(n); limparResultado() }}
+                  className="input" prefixo={null} />
+              </div>
+              <div>
+                <label className="label">Outros custos (R$)</label>
+                <InputMoeda valor={outrosCustos}
+                  onChangeValor={(n) => { setOutrosCustos(n); limparResultado() }}
+                  className="input" prefixo={null} />
+                <p className="text-xs text-gray-400 mt-1">Opcional: seguros, taxas administrativas, mudança etc.</p>
+              </div>
+            </div>
+          )}
+        </div>
+
         {erro && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2">{erro}</p>}
 
         <button type="submit" className="btn-primary w-full py-3 flex items-center justify-center gap-2 text-base">
@@ -355,6 +447,40 @@ export default function SimuladorFinanciamento() {
               <Destaque rotulo="Total estimado pago" valor={formatCurrency(resultado.escolhido.totalPago)} />
             </div>
 
+            {/* Custos da compra + valor necessário para comprar o imóvel */}
+            {resultado.custos.total > 0 && (
+              <div className="mt-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-xs text-gray-600 space-y-1">
+                <p className="text-sm font-semibold text-gray-900 mb-1">Custos da compra</p>
+                <div className="flex justify-between">
+                  <span>ITBI {resultado.custos.itbiAliquota > 0 ? `(${fmtPct(resultado.custos.itbiAliquota, 2)})` : ''}</span>
+                  <span>{formatCurrency(resultado.custos.itbi)}</span>
+                </div>
+                <div className="flex justify-between"><span>Cartório (escritura e registro)*</span><span>{formatCurrency(resultado.custos.cartorio)}</span></div>
+                <div className="flex justify-between"><span>Avaliação bancária</span><span>{formatCurrency(resultado.custos.avaliacao)}</span></div>
+                <div className="flex justify-between"><span>Outros custos</span><span>{formatCurrency(resultado.custos.outros)}</span></div>
+                <div className="flex justify-between pt-1 border-t border-gray-200">
+                  <span className="font-medium text-gray-700">Total de custos da compra</span>
+                  <strong className="text-gray-900">{formatCurrency(resultado.custos.total)}</strong>
+                </div>
+                <p className="text-gray-400 pt-0.5">* Cartório é uma estimativa aproximada.</p>
+              </div>
+            )}
+
+            {/* Entrada total + valor financiado + total necessário */}
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <Destaque rotulo="Entrada total" valor={formatCurrency(resultado.entrada.entradaTotal)} cor="text-emerald-600"
+                sub="próprios + reserva + FGTS" />
+              <Destaque rotulo="Valor financiado" valor={formatCurrency(resultado.entrada.valorFinanciado)} cor="text-marca" />
+            </div>
+            <div className="mt-3">
+              <Destaque
+                rotulo="Total necessário para comprar o imóvel"
+                valor={formatCurrency(resultado.valorNecessario)}
+                cor="text-marca"
+                sub="entrada + custos da compra"
+              />
+            </div>
+
             {/* Reserva restante + comprometimento */}
             <div className="grid grid-cols-2 gap-3 mt-3">
               <Destaque rotulo="Reserva restante" valor={formatCurrency(reservaRestante)} cor="text-emerald-600" />
@@ -383,6 +509,49 @@ export default function SimuladorFinanciamento() {
                 </p>
               </div>
             )}
+
+            {/* ── Cabe no meu orçamento? ── */}
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <p className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-2">
+                <Wallet size={16} className="text-emerald-600" /> Cabe no meu orçamento?
+              </p>
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between gap-2">
+                  <span className="text-gray-500">Sobra mensal atual</span>
+                  <strong className="text-gray-900">{formatCurrency(orcamentoDisponivel)}</strong>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-gray-500">{resultado.sistema === 'sac' ? '1ª parcela' : 'Parcela mensal'}</span>
+                  <strong className="text-gray-900">{formatCurrency(parcelaRef)}</strong>
+                </div>
+                <div className="flex justify-between gap-2 pt-1.5 border-t border-gray-100">
+                  <span className="text-gray-600 font-medium">Sobraria por mês</span>
+                  <strong className={sobraAposParcela >= 0 ? 'text-emerald-600' : 'text-red-600'}>
+                    {formatCurrency(sobraAposParcela)}
+                  </strong>
+                </div>
+              </div>
+              {sobraAposParcela < 0 && (
+                <div className="mt-2 flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                  <AlertTriangle size={15} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-800">
+                    A parcela ultrapassa a sua sobra mensal atual. Pode ser necessário rever o orçamento antes de assumir o financiamento.
+                  </p>
+                </div>
+              )}
+              <p className="text-xs text-gray-400 mt-2">
+                Estimativa com base na sua sobra mensal (receitas − despesas − parcelas − faturas). Os custos da compra não entram nesta conta mensal.
+              </p>
+            </div>
+
+            {/* ── Cadastrar no planejamento (opcional, com confirmação) ── */}
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <CadastrarNoPlanejamento
+                descricao={`Financiamento imóvel${resultado.entrada.imovel > 0 ? ` ${formatCurrency(resultado.entrada.imovel)}` : ''}`}
+                valorTotal={resultado.escolhido.totalPago}
+                numeroParcelas={resultado.n}
+              />
+            </div>
           </div>
 
           {/* ── Comparar SAC × PRICE ── */}

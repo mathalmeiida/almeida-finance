@@ -235,3 +235,110 @@ export function comprometimentoRenda(parcela, renda) {
   if (r <= 0) return null
   return (Number(parcela) || 0) / r * 100
 }
+
+// ─── Custos da compra de imóvel (ITBI, cartório/registro, outros) ─────────────
+// Todos OPCIONAIS. O ITBI é calculado automaticamente como:
+//     ITBI = base de cálculo × alíquota (%)
+// A alíquota varia por município (geralmente de 2% a 3%) e é editável. A base
+// de cálculo também é editável: por padrão é o próprio valor do imóvel, mas o
+// município pode usar o "valor venal de referência". Cartório (escritura +
+// registro) é uma estimativa aproximada e "outros" cobre despesas diversas.
+// Retorna o detalhamento e o total dos custos da compra.
+export function calcularCustosImovel({
+  valorImovel = 0, itbiAliquota = 0, itbiBase = null, cartorio = 0, avaliacao = 0, outros = 0,
+}) {
+  const num = (v) => Math.max(0, Number(v) || 0)
+  const imovel = num(valorImovel)
+  // Base de cálculo do ITBI: usa a informada; se vazia/zero, cai no valor do imóvel.
+  const base = itbiBase == null || Number(itbiBase) <= 0 ? imovel : num(itbiBase)
+  const aliquota = num(itbiAliquota)
+  const itbi = base * (aliquota / 100)
+  const cart = num(cartorio)
+  const aval = num(avaliacao)
+  const out = num(outros)
+  const total = itbi + cart + aval + out
+  return { itbi, itbiBase: base, itbiAliquota: aliquota, cartorio: cart, avaliacao: aval, outros: out, total }
+}
+
+// ─── Estimativa de IPVA ───────────────────────────────────────────────────────
+// IPVA = valor venal do veículo × alíquota do estado (%). As alíquotas variam
+// por UF e por tipo de veículo (automóvel de passeio é a referência mais comum,
+// em geral de 2% a 4%). Fornecemos uma tabela base por UF (passeio) apenas como
+// ESTIMATIVA — o usuário pode sempre editar o valor manualmente.
+export const IPVA_ALIQUOTAS_UF = {
+  AC: 2, AL: 3, AP: 3, AM: 3, BA: 2.5, CE: 3, DF: 3.5, ES: 2, GO: 3.75, MA: 2.5,
+  MG: 4, MS: 3.5, MT: 3, PA: 2.5, PB: 2.5, PE: 3, PI: 2.5, PR: 3.5, RJ: 4, RN: 3,
+  RS: 3, RO: 3, RR: 3, SC: 2, SP: 4, SE: 2.5, TO: 2,
+}
+
+// Estima o IPVA anual a partir do valor do veículo e da UF (ou de uma alíquota
+// informada diretamente). Retorna { ipva, aliquota } — aliquota em %.
+export function estimarIpvaAnual({ valorVeiculo = 0, uf = 'SP', aliquota = null }) {
+  const valor = Math.max(0, Number(valorVeiculo) || 0)
+  const aliq = aliquota != null && Number(aliquota) > 0
+    ? Number(aliquota)
+    : (IPVA_ALIQUOTAS_UF[uf] ?? 0)
+  return { ipva: valor * (aliq / 100), aliquota: aliq }
+}
+
+// Estima o seguro anual como um percentual do valor do veículo. Sem um valor
+// informado, usamos ~4% a.a. como referência média de mercado (editável).
+export function estimarSeguroAnual({ valorVeiculo = 0, percentual = 4 }) {
+  const valor = Math.max(0, Number(valorVeiculo) || 0)
+  const pct = Math.max(0, Number(percentual) || 0)
+  return valor * (pct / 100)
+}
+
+// ─── Custo mensal de uso do veículo (todos os componentes normalizados) ───────
+// Converte valores anuais → mensais (÷12) e mantém os já mensais. NÃO inclui a
+// parcela do financiamento (ela é somada à parte, no resumo). Cada componente
+// aceita um período 'mensal' | 'anual' quando aplicável (seguro e manutenção).
+// Retorna o detalhamento mensal e o total mensal de USO (sem a parcela).
+export function calcularCustosVeiculoMensais({
+  seguroValor = 0, seguroPeriodo = 'anual',
+  manutencaoValor = 0, manutencaoPeriodo = 'mensal',
+  ipvaAnual = 0, licenciamentoAnual = 0, combustivelMensal = 0, outrosMensal = 0,
+}) {
+  const num = (v) => Math.max(0, Number(v) || 0)
+  const mensalizar = (valor, periodo) => periodo === 'anual' ? num(valor) / 12 : num(valor)
+  const seguro = mensalizar(seguroValor, seguroPeriodo)
+  const manutencao = mensalizar(manutencaoValor, manutencaoPeriodo)
+  const ipva = num(ipvaAnual) / 12
+  const licenciamento = num(licenciamentoAnual) / 12
+  const combustivel = num(combustivelMensal)
+  const outros = num(outrosMensal)
+  const total = seguro + manutencao + ipva + licenciamento + combustivel + outros
+  return { seguro, manutencao, ipva, licenciamento, combustivel, outros, total }
+}
+
+// ─── Custo total do veículo no período do financiamento ───────────────────────
+// Consolida, para o prazo (em meses) do financiamento:
+//   • parcelaMensal  → parcela do financiamento (já calculada via PRICE)
+//   • custosUsoMensal → total mensal de uso (saída de calcularCustosVeiculoMensais)
+//   • entrada e jurosTotais vêm do cálculo PRICE
+// Retorna os totais mensais e o custo total estimado durante o período.
+// NÃO soma novamente nada já contido nos campos de entrada.
+export function calcularCustoVeiculoPeriodo({
+  prazoMeses = 0, entrada = 0, parcelaMensal = 0, jurosTotais = 0,
+  custosUsoMensal = 0, valorVeiculo = 0,
+}) {
+  const n = Math.max(0, Math.floor(Number(prazoMeses) || 0))
+  const num = (v) => Math.max(0, Number(v) || 0)
+  const parcela = num(parcelaMensal)
+  const uso = num(custosUsoMensal)
+  const ent = num(entrada)
+  const custoMensalTotal = parcela + uso
+  const totalParcelas = parcela * n
+  const totalUsoPeriodo = uso * n
+  // Custo total no período = entrada + todas as parcelas + custos de uso no período.
+  const custoTotalPeriodo = ent + totalParcelas + totalUsoPeriodo
+  return {
+    prazoMeses: n,
+    custoMensalTotal,
+    totalParcelas,
+    totalUsoPeriodo,
+    jurosTotais: num(jurosTotais),
+    custoTotalPeriodo,
+    valorVeiculo: num(valorVeiculo),
+  }
+}
