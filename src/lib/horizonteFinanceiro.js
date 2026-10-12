@@ -40,7 +40,7 @@ const clampDia = (dia, ano, mes) => Math.min(Math.max(1, dia), ultimoDiaDoMes(an
 export function gerarHorizonte({
   receitas = [], despesas = [], recorrentes = [],
   parcelamentos = [], cartoes = [], comprasCartao = [], faturasInformadas = [],
-  saldoInicial = 0, reservaPct = 20, meses = 12,
+  saldoInicial = 0, reservaPct = 20, dataReferencia, meses = 12,
 }) {
   // "Hoje" no fuso de Brasília, consistente com as datas gravadas (que agora
   // também usam Brasília). Evita o descasamento UTC×local no "diaHoje"/mês.
