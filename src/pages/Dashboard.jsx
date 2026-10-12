@@ -297,7 +297,7 @@ function calcularLimiteDiario({
   return limiteSeguro
 }
 
-// Status do orçamento com base no % de comprometimento da renda (educativo, não alarmista)
+// Status do orçamento com base no % de comprometimento da renda (educativo, não alarmista) 
 function statusOrcamento(receita, disponivel) {
   if (receita <= 0) return null
   const pctComprometido = (receita - disponivel) / receita
