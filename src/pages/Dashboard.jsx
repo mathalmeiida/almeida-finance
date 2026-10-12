@@ -272,7 +272,9 @@ function calcularLimiteDiario({ receitaMes, compromissosMes, reservaPct, modo, l
   // e compromissos futuros), usa-o; senão, mantém a base antiga (receita −
   // compromissos) para compatibilidade com quem não configurou o saldo.
   const base = baseLivre != null ? baseLivre : (receitaMes - compromissosMes)
-  const disponivelAuto = base - reserva
+  const disponivelAuto = baseLivre != null
+  ? base
+  : base - reserva
   const limiteAuto = disponivelAuto > 0 && dias > 0 ? disponivelAuto / dias : 0
   const limiteManualNum = Number(limiteManual) || 0
   return ehManual ? limiteManualNum : limiteAuto
