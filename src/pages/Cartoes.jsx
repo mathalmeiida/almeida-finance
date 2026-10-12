@@ -584,7 +584,7 @@ const [modalFatura, setModalFatura] = useState(false)
                 <CheckCircle2 size={14} /> Fatura 100% detalhada
               </p>
             )}
-            {ehMesAtual && (
+            {faturaInformada && (
               <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
                 <button onClick={() => setModalFatura(true)}
                   className="text-xs font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-1">
