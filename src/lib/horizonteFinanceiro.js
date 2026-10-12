@@ -44,7 +44,10 @@ export function gerarHorizonte({
 }) {
   // "Hoje" no fuso de Brasília, consistente com as datas gravadas (que agora
   // também usam Brasília). Evita o descasamento UTC×local no "diaHoje"/mês.
-  const { ano: anoHoje, mes: mesHoje, dia: diaHoje } = partesHojeBrasil()
+  const referencia = /^\d{4}-\d{2}-\d{2}$/.test(dataReferencia || '') ? dataReferencia : null
+const { ano: anoHoje, mes: mesHoje, dia: diaHoje } = referencia
+  ? { ano: anoDe(referencia), mes: mesDe(referencia), dia: diaDe(referencia) }
+  : partesHojeBrasil()
 
   const resultado = []
   let saldoAnterior = Number(saldoInicial) || 0
@@ -60,6 +63,11 @@ export function gerarHorizonte({
     const porDia = Array.from({ length: totalDias + 1 }, () => ({ entradas: 0, saidas: 0 }))
     const addEntrada = (dia, v) => { porDia[clampDia(dia, ano, mes)].entradas += v }
     const addSaida = (dia, v) => { porDia[clampDia(dia, ano, mes)].saidas += v }
+    const adicionarNoFluxo = (dia, valor, entrada) => {
+  if (ehMesAtual && dia <= diaHoje) return
+  if (entrada) addEntrada(dia, valor)
+  else addSaida(dia, valor)
+}
 
     // ── RECEITAS ──
     // No mês atual: receitas não-recorrentes do mês (data no mês) + recorrentes.
@@ -72,9 +80,9 @@ export function gerarHorizonte({
         // partir do mês de início).
         const inicioAno = anoDe(r.data), inicioMes = mesDe(r.data)
         const comecou = ano > inicioAno || (ano === inicioAno && mes >= inicioMes)
-        if (comecou) addEntrada(diaDe(r.data), valor)
+        if (comecou) adicionarNoFluxo(diaDe(r.data), valor, true)
       } else if (ehMesAtual && mesDe(r.data) === mes && anoDe(r.data) === ano) {
-        addEntrada(diaDe(r.data), valor)
+      adicionarNoFluxo(diaDe(r.data), valor, true)
       }
     }
 
@@ -85,7 +93,7 @@ export function gerarHorizonte({
         if (d.recorrente) continue
         const valor = Number(d.valor) || 0
         if (valor <= 0) continue
-        if (mesDe(d.data) === mes && anoDe(d.data) === ano) addSaida(diaDe(d.data), valor)
+    if (mesDe(d.data) === mes && anoDe(d.data) === ano) adicionarNoFluxo(diaDe(d.data), valor, false)
       }
     }
     // Recorrentes: usa a mesma função do orçamento para o VALOR do mês; o dia é
@@ -96,7 +104,7 @@ export function gerarHorizonte({
       if (valorMes <= 0) continue
       const freq = frequenciaDaDespesa(d)
       const dia = (freq === 'mensal' || freq === 'por_meses') ? diaDe(d.data) : 1
-      addSaida(dia, valorMes)
+    adicionarNoFluxo(dia, valorMes, false)
     }
 
     // ── PARCELAS AVULSAS (sem cartão) ──
@@ -104,7 +112,7 @@ export function gerarHorizonte({
       if (p.cartao_id) continue // as de cartão entram via fatura
       const valor = valorParcelaNoMes(p, ano, mes)
       if (valor <= 0) continue
-      addSaida(diaDe(p.primeira_parcela), valor)
+    adicionarNoFluxo(diaDe(p.primeira_parcela), valor, false)
     }
 
     // ── FATURAS DE CARTÃO ──
@@ -145,7 +153,7 @@ export function gerarHorizonte({
       // útil mesmo assim — o total do mês não se altera, só a posição do dia).
       const vef = vencimentoEfetivo(ano, mes, diaVencNominal)
       const diaVencEfetivo = (vef.ano === ano && vef.mes === mes) ? vef.dia : totalDias
-      if (totalCartao > 0) addSaida(diaVencEfetivo, totalCartao)
+      if (totalCartao > 0) adicionarNoFluxo(diaVencEfetivo, totalCartao, false)
     }
 
     // ── Monta a lista de dias com saldo acumulado ──
