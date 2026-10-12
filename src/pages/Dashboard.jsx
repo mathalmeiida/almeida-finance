@@ -1744,6 +1744,9 @@ export default function Dashboard() {
       <CardGastoHoje
         carregando={carregando}
         limiteHoje={limiteHoje}
+        saldoAtual={saldoDisponivelAgora}
+mostrarSaldo={saldoConfigurado}
+onEditarSaldo={somenteLeitura ? undefined : () => setModalSaldo(true)}
         gastosHoje={gastosDeHoje}
         gastosCartaoHoje={gastosCartaoHoje}
         disponivelHoje={disponivelHoje}
