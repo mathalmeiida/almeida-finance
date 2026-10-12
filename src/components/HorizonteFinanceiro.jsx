@@ -68,12 +68,14 @@ export default function HorizonteFinanceiro({
  reservaPct, saldoInicial, dataReferencia,
 }) {
   const horizonte = useMemo(() => gerarHorizonte({
-    receitas, despesas, recorrentes, parcelamentos,
-    cartoes, comprasCartao, faturasInformadas,
-   saldoInicial, reservaPct, dataReferencia, meses: 12,
-  }, [receitas, despesas, recorrentes, parcelamentos, cartoes, comprasCartao, faturasInformadas, saldoInicial, reservaPct, dataReferencia])
-
-  const trilhoRef = useRef(null)
+  receitas, despesas, recorrentes, parcelamentos,
+  cartoes, comprasCartao, faturasInformadas,
+  saldoInicial, reservaPct, meses: 12,
+}), [
+  receitas, despesas, recorrentes, parcelamentos,
+  cartoes, comprasCartao, faturasInformadas,
+  saldoInicial, reservaPct
+])
   // Mês selecionado para o RESUMO do topo. Atualiza conforme o carrossel desliza.
   const [idxSel, setIdxSel] = useState(0)
   const mesSel = horizonte[idxSel] || horizonte[0]
