@@ -230,8 +230,7 @@ export function useProjecao() {
 
   // Previsão até o fim do mês = saldo agora + entradas futuras − compromissos futuros.
   // NÃO inclui a reserva (patrimônio separado).
-  const previsaoFimMes = saldoDisponivelAgora + receitasFuturasMes - compromissosFuturosMes
-
+const previsaoFimMes = saldoDisponivelAgora + receitasFuturasMes - compromissosFuturosMes
   // Projeção dos próximos 12 meses
   const projecao = useMemo(() => {
     if (carregando) return []
