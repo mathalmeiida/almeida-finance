@@ -531,9 +531,7 @@ function CardQuantoPossoGastar({
   <div className="bg-black/15 rounded-xl px-3 py-3 mb-3 space-y-1.5">
     <div className="flex justify-between text-sm">
       <span className="text-white/70">Saldo atual</span>
-      <span className="font-medium">
-        {formatCurrency(saldoAtual)}
-      </span>
+      <span className="font-medium">{formatCurrency(saldoAtual)}</span>
     </div>
 
     <div className="flex justify-between text-sm">
@@ -555,6 +553,7 @@ function CardQuantoPossoGastar({
     </div>
   </div>
 )}
+      {/* Valores principais */}
           <div className="flex justify-between text-sm">
             <span className="text-white/70">Reserva de emergência ({pct}%)</span>
             <span className="font-medium">− {formatCurrency(reserva)}</span>
