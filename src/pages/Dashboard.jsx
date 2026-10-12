@@ -554,26 +554,6 @@ function CardQuantoPossoGastar({
   </div>
 )}
       {/* Valores principais */}
-          <div className="flex justify-between text-sm">
-            <span className="text-white/70">Reserva de emergência ({pct}%)</span>
-            <span className="font-medium">− {formatCurrency(reserva)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-white/70">Compromissos do mês</span>
-            <span className="font-medium">− {formatCurrency(compromissosMes)}</span>
-          </div>
-          <div className="flex justify-between text-sm pt-1.5 border-t border-white/15">
-        Saldo seguro até a próxima receita
-            <span className={`font-bold ${orcamentoNegativo ? 'text-red-200' : ''}`}>{formatCurrency(disponivelMes)}</span>
-          </div>
-        </div>
-      )}
-
-      </div>
-  </div>
-)}
-
-{/* Valores principais */}
 <div className="grid grid-cols-2 gap-3">
   <div className="bg-black/15 rounded-xl px-3 py-3">
     <p className="text-xs text-white/70">
