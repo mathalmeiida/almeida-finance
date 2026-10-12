@@ -569,24 +569,31 @@ function CardQuantoPossoGastar({
         </div>
       )}
 
-      {/* Valores principais */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-black/15 rounded-xl px-3 py-3">
-  Disponível até a próxima receita
-          <p className={`text-xl font-bold ${orcamentoNegativo ? 'text-red-200' : ''}`}>
-            {formatCurrency(disponivelMes)}
-          </p>
-        </div>
-        <div className="bg-black/15 rounded-xl px-3 py-3">
-          <p className="text-xs text-white/70">
-            {ehManual ? 'Seu limite diário' : 'Você pode gastar por dia'}
-          </p>
-          <p className="text-xl font-bold">
-            {formatCurrency(Math.max(0, limiteExibido))}<span className="text-xs font-normal text-white/70">/dia</span>
-          </p>
-        </div>
       </div>
+  </div>
+)}
 
+{/* Valores principais */}
+<div className="grid grid-cols-2 gap-3">
+  <div className="bg-black/15 rounded-xl px-3 py-3">
+    <p className="text-xs text-white/70">
+      Disponível até a próxima receita
+    </p>
+    <p className="text-xl font-bold">
+      {formatCurrency(disponivelMes)}
+    </p>
+  </div>
+
+  <div className="bg-black/15 rounded-xl px-3 py-3">
+    <p className="text-xs text-white/70">
+      {ehManual ? 'Seu limite diário' : 'Você pode gastar por dia'}
+    </p>
+    <p className="text-xl font-bold">
+      {formatCurrency(Math.max(0, limiteExibido))}
+      <span className="text-xs font-normal text-white/70">/dia</span>
+    </p>
+  </div>
+</div>
       {/* Status */}
       {status && (
         <div className="flex items-center gap-2 mt-3 bg-black/15 rounded-xl px-3 py-2">
