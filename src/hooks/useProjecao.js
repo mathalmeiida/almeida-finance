@@ -312,7 +312,6 @@ const saldoSeguroHoje = Math.max(
     - parcelasAntesReceita
     - faturasAntesReceita
 )
-)
   // Projeção dos próximos 12 meses
   const projecao = useMemo(() => {
     if (carregando) return []
