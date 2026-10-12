@@ -545,7 +545,6 @@ function CardQuantoPossoGastar({
       <span className="font-semibold">Saldo seguro até a próxima receita</span>
       <span className="font-bold">{formatCurrency(saldoSeguroHoje)}</span>
     </div>
-  </div>
 )}
       {!ehManual && (
         <div className="flex justify-between items-center text-sm pt-1.5 border-t border-white/15">
