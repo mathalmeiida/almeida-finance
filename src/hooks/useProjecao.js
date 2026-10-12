@@ -272,7 +272,7 @@ const faturasAntesReceita = cartoes.reduce((acc, c) => {
   const diaFech = Number(c.dia_fechamento) || 1
   let compAno = anoAtual
   let compMes = mesAtual
-
+const disponivelAuto = base - reserva
   if (diaVenc < diaFech) {
     compMes -= 1
     if (compMes < 1) {
