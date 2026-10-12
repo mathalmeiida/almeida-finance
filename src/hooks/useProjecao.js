@@ -240,9 +240,78 @@ const despesasAntesReceita = despesas
   .filter(d => d.data > hojeStr && d.data <= dataLimiteSegura && !d.pago_em)
   .reduce((acc, d) => acc + Number(d.valor), 0)
 
+// Parcelas avulsas que vencem até a próxima receita
+const parcelasAntesReceita = parcelamentos
+  .filter(p => !p.quitado_em && !p.cartao_id)
+  .reduce((acc, p) => {
+    const valor = valorParcelaNoMes(p, anoAtual, mesAtual)
+    if (valor <= 0) return acc
+
+    const dia = new Date(p.primeira_parcela + 'T12:00:00').getDate()
+    const dataVencimento =
+      `${anoAtual}-${String(mesAtual).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
+
+    return dataVencimento > hojeStr && dataVencimento <= dataLimiteSegura
+      ? acc + valor
+      : acc
+  }, 0)
+
+// Faturas com vencimento até a próxima receita
+const faturasAntesReceita = cartoes.reduce((acc, c) => {
+  const diaVenc = Number(c.dia_vencimento)
+  const venc = vencimentoEfetivo(anoAtual, mesAtual, diaVenc)
+
+  const dataVencimento =
+    `${venc.ano}-${String(venc.mes).padStart(2, '0')}-${String(venc.dia).padStart(2, '0')}`
+
+  if (dataVencimento <= hojeStr || dataVencimento > dataLimiteSegura) {
+    return acc
+  }
+
+  // Usa a mesma competência da função faturasAVencer
+  const diaFech = Number(c.dia_fechamento) || 1
+  let compAno = anoAtual
+  let compMes = mesAtual
+
+  if (diaVenc < diaFech) {
+    compMes -= 1
+    if (compMes < 1) {
+      compMes = 12
+      compAno -= 1
+    }
+  }
+
+  const informada = faturaInformadaNoMes(
+    faturasInformadas, c.id, compAno, compMes
+  )
+
+  if (informada?.pago === true) return acc
+
+  const comprasDoCartao = comprasCartao.filter(
+    cp => cp.cartao_id === c.id
+  )
+  const parcelamentosDoCartao = parcelamentos.filter(
+    p => p.cartao_id === c.id
+  )
+
+  return acc + totalFaturaComOverride(
+    comprasDoCartao,
+    parcelamentosDoCartao,
+    faturasInformadas,
+    c.id,
+    c.dia_fechamento,
+    compAno,
+    compMes
+  )
+}, 0)
+
 const saldoSeguroHoje = Math.max(
   0,
-  saldoDisponivelAgora - despesasAntesReceita
+  saldoDisponivelAgora
+    - despesasAntesReceita
+    - parcelasAntesReceita
+    - faturasAntesReceita
+)
 )
   // Projeção dos próximos 12 meses
   const projecao = useMemo(() => {
