@@ -890,6 +890,9 @@ function CardGastoHoje({
   modo, receitaMes, compromissosMes, limiteManual, hoje,
   reservaPercentual, saldoConfigurado = false, previsaoFimMes = 0,
   mostrarCheckin = false, jaFezCheckin = false, onNaoGasteiHoje,
+  saldoAtual = 0,
+  onEditarSaldo,
+  mostrarSaldo = false,
 }) {
   const { ocultar } = useOcultarValores()
   if (carregando) {
