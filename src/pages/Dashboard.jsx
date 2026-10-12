@@ -259,26 +259,43 @@ function diasRestantesNoMes(ref = new Date()) {
 // pelo card "Quanto posso gastar?" e pela confirmação do gasto rápido, para
 // nunca divergirem. Mesma fórmula de sempre: auto = (receita − reserva −
 // compromissos)/dias; manual = valor fixo definido pelo usuário.
-function calcularLimiteDiario({ receitaMes, compromissosMes, reservaPct, modo, limiteManual, hoje, baseLivre, saldoConfigurado = false }) {
-  const dias = diasRestantesNoMes(hoje)
-  const ehManual = modo === 'manual'
-  // TRAVA (pós-reset / conta sem dados): sem renda E sem saldo informado, não há
-  // base financeira válida → limite diário é R$ 0, inclusive no modo manual.
-  // Evita exibir um limite manual antigo persistido após zerar os dados.
-  const temBaseFinanceira = (Number(receitaMes) || 0) > 0 || saldoConfigurado
-  if (!temBaseFinanceira) return 0
-  const reserva = receitaMes > 0 ? receitaMes * (reservaPct / 100) : 0
-  // Se "baseLivre" for informado (orçamento livre já considerando saldo atual
-  // e compromissos futuros), usa-o; senão, mantém a base antiga (receita −
-  // compromissos) para compatibilidade com quem não configurou o saldo.
+function calcularLimiteDiario({
+  receitaMes,
+  compromissosMes,
+  reservaPct,
+  modo,
+  limiteManual,
+  hoje,
+  baseLivre,
+  saldoConfigurado = false,
+  dataProximaReceita
+}) {
+  if (!saldoConfigurado) return 0
 
-const base = baseLivre != null ? baseLivre : (receitaMes - compromissosMes)
-const disponivelAuto = base - reserva
-const limiteAuto = disponivelAuto > 0 && dias > 0 ? disponivelAuto / dias : 0
-const limiteManualNum = Number(limiteManual) || 0
-return ehManual ? limiteManualNum : limiteAuto
+  const inicio = new Date(
+    hoje.getFullYear(),
+    hoje.getMonth(),
+    hoje.getDate()
+  )
+
+  const fim = dataProximaReceita
+    ? new Date(`${dataProximaReceita}T12:00:00`)
+    : new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)
+
+  const dias = Math.max(
+    1,
+    Math.ceil((fim - inicio) / 86400000)
+  )
+
+  const disponivel = Math.max(0, Number(baseLivre) || 0)
+  const limiteSeguro = disponivel / dias
+
+  if (modo === 'manual') {
+    return Math.max(0, Number(limiteManual) || 0)
+  }
+
+  return limiteSeguro
 }
-
 
 // Status do orçamento com base no % de comprometimento da renda (educativo, não alarmista)
 function statusOrcamento(receita, disponivel) {
@@ -1271,6 +1288,7 @@ export default function Dashboard() {
     { chave: 'reserva',     label: 'Reserva de emergência',        to: '/',         concluido: temReserva },
   ]
   const totalConcluidos = onboardingItens.filter(i => i.concluido).length
+  const dataProximaReceita = resumoMes.dataProximaReceita
   const primeiroPendente = onboardingItens.find(i => !i.concluido)
   // Mostra só até concluir os 4; some automaticamente quando tudo estiver pronto.
   const mostrarComecePorAqui = !carregando && totalConcluidos < onboardingItens.length
@@ -1293,23 +1311,23 @@ export default function Dashboard() {
   const saldoDisponivelAgora = resumoMes.saldoDisponivelAgora
   const previsaoFimMes = resumoMes.previsaoFimMes
   const saldoSeguroHoje = resumoMes.saldoSeguroHoje ?? 0
-  const compromissosFuturosMes = resumoMes.compromissosFuturosMes
-  const carregandoLimite = carregando
+ const compromissosFuturosMes = resumoMes.compromissosFuturosMes
+const dataProximaReceita = resumoMes.dataProximaReceita
 
   // ─── "Quanto posso gastar hoje?" (card destaque) ───
   const hojeISO = hojeISOBrasil() // 'YYYY-MM-DD' no fuso de Brasília
   // Limite diário de hoje — MESMA fonte do card detalhado (calcularLimiteDiario).
-  const limiteHoje = calcularLimiteDiario({
-    receitaMes,
-    compromissosMes,
-    reservaPct: reservaPercentual,
-    modo: modoLimite,
-    limiteManual,
-    hoje,
-baseLivre: saldoConfigurado
-  ? Math.min(previsaoFimMes, saldoSeguroHoje)
-  : undefined,    saldoConfigurado,
-  })
+ const limiteHoje = calcularLimiteDiario({
+  receitaMes,
+  compromissosMes,
+  reservaPct: reservaPercentual,
+  modo: modoLimite,
+  limiteManual,
+  hoje,
+  baseLivre: saldoSeguroHoje,
+  saldoConfigurado,
+  dataProximaReceita,
+})
   // Gastos de HOJE (à vista): despesas não-recorrentes com data de hoje.
   // Usa os dados já em memória — mesmo padrão do saldo disponível.
   const gastosAvistaHoje = despesas
