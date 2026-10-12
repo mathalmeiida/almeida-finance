@@ -320,27 +320,69 @@ const OPCOES_RESERVA = [10, 15, 20, 25, 30]
 function derivarResumoGastar({
   modo, receitaMes, compromissosMes, limiteManual, hoje,
   pct, saldoConfigurado, previsaoFimMes,
+  saldoSeguroHoje = 0,
+  dataProximaReceita = null,
 }) {
-  const dias = diasRestantesNoMes(hoje)
-  const ehManual = modo === 'manual'
-  const reserva = receitaMes > 0 ? receitaMes * (pct / 100) : 0
-  const baseLivre = saldoConfigurado ? previsaoFimMes : (receitaMes - compromissosMes)
-  const disponivelAuto = baseLivre - reserva
-  const disponivelMes = ehManual ? baseLivre : disponivelAuto
-  const limiteAuto = disponivelAuto > 0 && dias > 0 ? disponivelAuto / dias : 0
-  const limiteManualNum = Number(limiteManual) || 0
-  const limiteExibido = ehManual ? limiteManualNum : limiteAuto
-  const status = statusOrcamento(receitaMes, disponivelMes)
-  const orcamentoNegativo = disponivelMes < 0
-  const manualAcimaDoRecomendado = ehManual && limiteManualNum > limiteAuto && limiteAuto > 0
-  return {
-    dias, ehManual, reserva, baseLivre, disponivelAuto,
-    disponivelMes, limiteAuto, limiteManualNum, limiteExibido,
-    status, orcamentoNegativo, manualAcimaDoRecomendado,
-  }
-}
+  const inicio = new Date(
+    hoje.getFullYear(),
+    hoje.getMonth(),
+    hoje.getDate()
+  )
 
-// (O resumo compacto "Quanto posso gastar?" foi substituído: o essencial do mês
+  const fim = dataProximaReceita
+    ? new Date(`${dataProximaReceita}T12:00:00`)
+    : new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)
+
+  const dias = Math.max(
+    1,
+    Math.ceil((fim - inicio) / 86400000)
+  )
+
+  const ehManual = modo === 'manual'
+  const reserva = receitaMes > 0
+    ? receitaMes * (pct / 100)
+    : 0
+
+  const baseLivre = saldoConfigurado
+    ? Math.max(0, Number(saldoSeguroHoje) || 0)
+    : 0
+
+  const disponivelAuto = baseLivre
+  const disponivelMes = baseLivre
+
+  const limiteAuto = saldoConfigurado
+    ? disponivelAuto / dias
+    : 0
+
+  const limiteManualNum = Number(limiteManual) || 0
+
+  const limiteExibido = ehManual && saldoConfigurado
+    ? Math.max(0, limiteManualNum)
+    : limiteAuto
+
+  const status = statusOrcamento(receitaMes, disponivelMes)
+  const orcamentoNegativo = saldoConfigurado
+    ? saldoSeguroHoje <= 0
+    : false
+
+  const manualAcimaDoRecomendado =
+    ehManual && limiteManualNum > limiteAuto
+
+  return {
+    dias,
+    ehManual,
+    reserva,
+    baseLivre,
+    disponivelAuto,
+    disponivelMes,
+    limiteAuto,
+    limiteManualNum,
+    limiteExibido,
+    status,
+    orcamentoNegativo,
+    manualAcimaDoRecomendado,
+  }
+}// (O resumo compacto "Quanto posso gastar?" foi substituído: o essencial do mês
 //  vive agora no card azul do limite diário e os detalhes no planejamento completo.)
 
 function CardQuantoPossoGastar({
@@ -348,7 +390,10 @@ function CardQuantoPossoGastar({
   receitaMes, compromissosMes, limiteManual, onEditarLimite, hoje,
   reservaPercentual, onTrocarReserva,
   reservaAtual = 0, metaReserva = 0, onEditarReservaAtual,
-  saldoConfigurado = false, previsaoFimMes = 0,
+  saldoConfigurado = false,
+  previsaoFimMes = 0,
+  saldoSeguroHoje = 0,
+  dataProximaReceita = null,
 }) {
   const { ocultar } = useOcultarValores()
   const [personalizando, setPersonalizando] = useState(false)
@@ -393,10 +438,18 @@ function CardQuantoPossoGastar({
   const {
     dias, ehManual, reserva, limiteAuto, limiteManualNum,
     disponivelMes, limiteExibido, status, orcamentoNegativo, manualAcimaDoRecomendado,
-  } = derivarResumoGastar({
-    modo, receitaMes, compromissosMes, limiteManual, hoje,
-    pct, saldoConfigurado, previsaoFimMes,
-  })
+ } = derivarResumoGastar({
+  modo,
+  receitaMes,
+  compromissosMes,
+  limiteManual,
+  hoje,
+  pct,
+  saldoConfigurado,
+  previsaoFimMes,
+  saldoSeguroHoje,
+  dataProximaReceita,
+})
 
   function aplicarCustom(e) {
     e.preventDefault()
@@ -2101,6 +2154,8 @@ onEditarSaldo={somenteLeitura ? undefined : () => setModalSaldo(true)}
           onTrocarReserva={handleTrocarReserva}
           saldoConfigurado={saldoConfigurado}
           previsaoFimMes={previsaoFimMes}
+          saldoSeguroHoje={saldoSeguroHoje}
+dataProximaReceita={dataProximaReceita}
         />
       </Modal>
 
