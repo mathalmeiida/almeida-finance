@@ -338,6 +338,7 @@ const saldoSeguroHoje = Math.max(
       saldoConfigurado,                 // false = usuário ainda não informou o saldo
       saldoDisponivelAgora,             // dinheiro disponível HOJE (sem reserva)
       previsaoFimMes,                   // projeção até o fim do mês (sem reserva)
+      saldoSeguroHoje,
       compromissosFuturosMes,           // compromissos ainda a pagar neste mês
       receitasFuturasMes,               // entradas previstas até o fim do mês
     },
