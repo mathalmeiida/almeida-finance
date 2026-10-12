@@ -1290,6 +1290,7 @@ export default function Dashboard() {
   const saldoConfigurado = resumoMes.saldoConfigurado
   const saldoDisponivelAgora = resumoMes.saldoDisponivelAgora
   const previsaoFimMes = resumoMes.previsaoFimMes
+  const saldoSeguroHoje = resumoMes.saldoSeguroHoje ?? 0
   const compromissosFuturosMes = resumoMes.compromissosFuturosMes
   const carregandoLimite = carregando
 
