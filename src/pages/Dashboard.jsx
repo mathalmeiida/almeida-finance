@@ -1862,26 +1862,6 @@ onEditarSaldo={somenteLeitura ? undefined : () => setModalSaldo(true)}
 
       {/* O card "Saldo disponível agora" foi movido para a aba Planejamento
           (/projecao), deixando a Home mais compacta. */}
-      {!somenteLeitura && (
-  <button
-    type="button"
-    onClick={() => setModalSaldo(true)}
-    className="w-full flex items-center justify-between gap-3 rounded-xl bg-white border border-gray-200 px-3 py-2.5 text-left"
-  >
-    <div className="flex items-center gap-2 min-w-0">
-      <Wallet size={18} className="text-marca flex-shrink-0" />
-      <div className="min-w-0">
-        <p className="text-xs text-gray-500">Saldo atual</p>
-        <p className="text-lg font-bold text-gray-900">
-          {exibirMoeda(saldoDisponivelAgora, ocultar)}
-        </p>
-      </div>
-    </div>
-    <span className="flex items-center gap-1 text-xs font-medium text-marca">
-      <Pencil size={14} /> Editar
-    </span>
-  </button>
-)}
 
       {/* 4 ─ Botão principal (largura total) logo abaixo dos atalhos: abre o
           fluxo de registro de compra/gasto já existente. 5 ─ Botão secundário
