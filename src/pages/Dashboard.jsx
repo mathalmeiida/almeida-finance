@@ -393,6 +393,7 @@ function CardQuantoPossoGastar({
   saldoConfigurado = false,
   previsaoFimMes = 0,
   saldoSeguroHoje = 0,
+  saldoAtual = 0,
   dataProximaReceita = null,
 }) {
   const { ocultar } = useOcultarValores()
@@ -528,11 +529,14 @@ function CardQuantoPossoGastar({
 
       {/* ── Detalhamento (modo automático): renda → reserva → compromissos → disponível ── */}
       {!ehManual && (
-        <div className="bg-black/15 rounded-xl px-3 py-3 mb-3 space-y-1.5">
-          <div className="flex justify-between text-sm">
-            <span className="text-white/70">Renda do mês</span>
-            <span className="font-medium">{formatCurrency(receitaMes)}</span>
-          </div>
+        <div className="flex justify-between items-center text-sm pt-1.5 border-t border-white/15">
+  <span className="font-semibold">
+    Saldo seguro até a próxima receita
+  </span>
+  <span className={`font-bold ${orcamentoNegativo ? 'text-red-200' : ''}`}>
+    {formatCurrency(disponivelMes)}
+  </span>
+</div>
           <div className="flex justify-between text-sm">
             <span className="text-white/70">Reserva de emergência ({pct}%)</span>
             <span className="font-medium">− {formatCurrency(reserva)}</span>
@@ -2154,10 +2158,10 @@ onEditarSaldo={somenteLeitura ? undefined : () => setModalSaldo(true)}
           saldoConfigurado={saldoConfigurado}
           previsaoFimMes={previsaoFimMes}
           saldoSeguroHoje={saldoSeguroHoje}
-dataProximaReceita={dataProximaReceita}
+          saldoAtual={saldoDisponivelAgora}
+          dataProximaReceita={dataProximaReceita}
         />
       </Modal>
-
       {/* Modal: Central de notificações (aberta pelo sino). Lista pendências
           REAIS já derivadas (configuração incompleta e risco de saldo negativo),
           sem backend novo. O Horizonte NÃO é mais aberto pelo sino — fica no seu
