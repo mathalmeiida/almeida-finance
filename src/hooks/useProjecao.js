@@ -305,6 +305,8 @@ const faturasAntesReceita = cartoes.reduce((acc, c) => {
   )
 }, 0)
 
+const dataProximaReceita = proximaReceita?.data || null
+
 const saldoSeguroHoje = Math.max(
   0,
   saldoDisponivelAgora
@@ -407,8 +409,9 @@ const saldoSeguroHoje = Math.max(
       saldoDisponivelAgora,             // dinheiro disponível HOJE (sem reserva)
       previsaoFimMes,                   // projeção até o fim do mês (sem reserva)
       saldoSeguroHoje,
+      dataProximaReceita,
       compromissosFuturosMes,           // compromissos ainda a pagar neste mês
-      receitasFuturasMes,               // entradas previstas até o fim do mês
+                   // entradas previstas até o fim do mês
     },
     // dados brutos para o simulador
     receitas,
