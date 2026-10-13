@@ -466,18 +466,44 @@ function NotificacaoClassificacao({ despesa, onAlterar, onFechar }) {
 //                     corretamente — sem exigir marcação de pagamento e sem
 //                     duplicar valores (parcelas futuras entram na projeção).
 //   tipo            = 'financiamento' | 'consorcio'
+// Conta quantas parcelas MENSAIS já venceram entre a data do 1º vencimento e
+// hoje (inclui a 1ª se já venceu). Compara ano/mês e, no mês atual, o dia —
+// lidando com meses de 28..31 dias. Limitada ao total de parcelas.
+function decorridasDesde(primeiroVencISO, totalParcelas, hoje = new Date()) {
+  if (!primeiroVencISO) return 0
+  const ini = new Date(primeiroVencISO + 'T12:00:00')
+  if (isNaN(ini)) return 0
+  const meses = (hoje.getFullYear() - ini.getFullYear()) * 12 + (hoje.getMonth() - ini.getMonth())
+  // Só conta a parcela do mês corrente se o dia de vencimento já passou.
+  const decorridas = hoje.getDate() >= ini.getDate() ? meses + 1 : meses
+  return Math.min(Math.max(0, decorridas), totalParcelas)
+}
+
+const TIPO_LABELS = {
+  financiamento: { titulo: 'Financiamento', placeholder: 'Ex: Financiamento do carro' },
+  emprestimo:    { titulo: 'Empréstimo',    placeholder: 'Ex: Empréstimo pessoal' },
+  consorcio:     { titulo: 'Consórcio',     placeholder: 'Ex: Consórcio apartamento' },
+}
+
+// Nº de meses ativos de uma despesa recorrente desde a 1ª ocorrência ("data").
+function mesesAtiva(dataISO, hoje = new Date()) {
+  if (!dataISO) return 0
+  const ini = new Date(dataISO + 'T12:00:00')
+  if (isNaN(ini)) return 0
+  const m = (hoje.getFullYear() - ini.getFullYear()) * 12 + (hoje.getMonth() - ini.getMonth())
+  return Math.max(0, m)
+}
+
 function FormFinanciamentoConsorcio({ tipo, onSalvar, onCancelar, carregando }) {
   const { categorias } = useCategorias('ambos')
-  const ehConsorcio = tipo === 'consorcio'
+  const meta = TIPO_LABELS[tipo] || TIPO_LABELS.financiamento
 
   const [form, setForm] = useState({
     descricao: '',
-    categoriaTipo: 'imovel',   // imovel | veiculo | outros (mapeado p/ categoria_id)
+    categoriaTipo: (tipo === 'consorcio' || tipo === 'financiamento') ? 'imovel' : 'outros',
     valorParcela: '',
-    numeroParcelas: ehConsorcio ? '80' : '360',
-    parcelasDecorridas: '0',
+    numeroParcelas: tipo === 'consorcio' ? '80' : tipo === 'emprestimo' ? '48' : '360',
     primeiroVencimento: hojeISO(),
-    diaVencimento: String(new Date().getDate()),
   })
 
   function handleChange(e) {
@@ -496,7 +522,9 @@ function FormFinanciamentoConsorcio({ tipo, onSalvar, onCancelar, carregando }) 
 
   const valorParcelaNum = Number(form.valorParcela) || 0
   const totalParcelas = Math.max(1, parseInt(form.numeroParcelas, 10) || 1)
-  const decorridas = Math.min(Math.max(0, parseInt(form.parcelasDecorridas, 10) || 0), totalParcelas)
+  // Parcelas decorridas calculadas AUTOMATICAMENTE a partir da data do 1º
+  // vencimento (contratos antigos informam a data original). Sem campo extra.
+  const decorridas = decorridasDesde(form.primeiroVencimento, totalParcelas)
   const restantes = totalParcelas - decorridas
   const valorTotal = valorParcelaNum * totalParcelas
 
@@ -504,22 +532,20 @@ function FormFinanciamentoConsorcio({ tipo, onSalvar, onCancelar, carregando }) 
     e.preventDefault()
     if (valorParcelaNum <= 0) return
 
-    // primeira_parcela = 1º vencimento recuado "decorridas" meses, usando o dia
-    // do vencimento informado. Mantém o dia e lida com meses de 28..31 dias.
-    const base = new Date(form.primeiroVencimento + 'T12:00:00')
-    const dia = Math.min(Math.max(1, parseInt(form.diaVencimento, 10) || base.getDate()), 28) // 28 evita pular meses curtos
-    const d = new Date(base.getFullYear(), base.getMonth() - decorridas, dia)
-    const primeira_parcela = d.toISOString().slice(0, 10)
-
+    // Grava a DATA ORIGINAL do 1º vencimento. O hook deriva as parcelas
+    // decorridas pela diferença até hoje — nenhuma despesa retroativa é criada
+    // e o histórico não é somado duas vezes.
     onSalvar({
-      descricao: form.descricao || (ehConsorcio ? 'Consórcio' : 'Financiamento'),
+      descricao: form.descricao || meta.titulo,
       valor_total: valorTotal,
       numero_parcelas: totalParcelas,
-      primeira_parcela,
+      primeira_parcela: form.primeiroVencimento,
       categoria_id: resolverCategoriaId(),
       forma_pagamento: null,
       cartao_id: null,
-      tipo,
+      // 'emprestimo' é gravado como 'financiamento' (mesmo CHECK/selo), evitando
+      // migração extra; o acompanhamento é idêntico.
+      tipo: tipo === 'emprestimo' ? 'financiamento' : tipo,
     })
   }
 
@@ -528,7 +554,7 @@ function FormFinanciamentoConsorcio({ tipo, onSalvar, onCancelar, carregando }) 
       <div>
         <label className="label">Descrição</label>
         <input name="descricao" value={form.descricao} onChange={handleChange}
-          className="input" placeholder={ehConsorcio ? 'Ex: Consórcio apartamento' : 'Ex: Financiamento do carro'} required />
+          className="input" placeholder={meta.placeholder} required />
       </div>
 
       <div>
@@ -560,31 +586,19 @@ function FormFinanciamentoConsorcio({ tipo, onSalvar, onCancelar, carregando }) 
       </div>
 
       <div>
-        <label className="label">Parcelas já decorridas</label>
-        <input name="parcelasDecorridas" value={form.parcelasDecorridas} onChange={handleChange}
-          type="number" min="0" max={totalParcelas} inputMode="numeric" className="input" placeholder="0" />
+        <label className="label">Data do 1º vencimento</label>
+        <input name="primeiroVencimento" value={form.primeiroVencimento} onChange={handleChange}
+          type="date" className="input" required />
         <p className="text-xs text-gray-400 mt-1">
-          Quantas parcelas já venceram. Evita contagem duplicada: apenas as {restantes} restantes entram na projeção.
+          Para contratos já em andamento, informe a data original — as parcelas decorridas são calculadas automaticamente, sem lançar valores retroativos.
         </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label">Data do 1º vencimento</label>
-          <input name="primeiroVencimento" value={form.primeiroVencimento} onChange={handleChange}
-            type="date" className="input" required />
-        </div>
-        <div>
-          <label className="label">Dia do vencimento</label>
-          <input name="diaVencimento" value={form.diaVencimento} onChange={handleChange}
-            type="number" min="1" max="31" inputMode="numeric" className="input" />
-        </div>
       </div>
 
       {valorTotal > 0 && (
         <div className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs text-gray-600 space-y-0.5">
           <div className="flex justify-between"><span>Parcela</span><strong>{formatCurrency(valorParcelaNum)}/mês</strong></div>
           <div className="flex justify-between"><span>Decorridas</span><strong>{decorridas} de {totalParcelas}</strong></div>
+          <div className="flex justify-between"><span>Restantes</span><strong>{restantes}</strong></div>
           <div className="flex justify-between"><span>Valor total</span><strong>{formatCurrency(valorTotal)}</strong></div>
         </div>
       )}
@@ -608,12 +622,12 @@ function ModalNovaDespesa({
   const editando = !!despesaEmEdicao
   // Tipo de cadastro escolhido (só na criação). 'despesa' cobre comum,
   // parcelada e recorrente (diferenciadas dentro do FormDespesa, como já era).
-  const [tipoCad, setTipoCad] = useState('despesa') // despesa | financiamento | consorcio
+  const [tipoCad, setTipoCad] = useState('despesa') // despesa | financiamento | emprestimo | consorcio
 
   // Reseta o seletor ao reabrir o modal de criação.
   useEffect(() => { if (aberto && !editando) setTipoCad('despesa') }, [aberto, editando])
 
-  const ehParcelamentoEspecial = tipoCad === 'financiamento' || tipoCad === 'consorcio'
+  const ehParcelamentoEspecial = tipoCad === 'financiamento' || tipoCad === 'emprestimo' || tipoCad === 'consorcio'
 
   return (
     <Modal
@@ -631,6 +645,7 @@ function ModalNovaDespesa({
             {[
               { id: 'despesa', nome: 'Despesa' },
               { id: 'financiamento', nome: 'Financiamento' },
+              { id: 'emprestimo', nome: 'Empréstimo' },
               { id: 'consorcio', nome: 'Consórcio' },
             ].map(op => (
               <button key={op.id} type="button" onClick={() => setTipoCad(op.id)}
@@ -1189,7 +1204,12 @@ export default function Despesas() {
                           </span>
                           {d.recorrente && (
                             <span className="flex items-center gap-1 text-xs text-blue-500">
-                              <RefreshCw size={10} />Recorrente
+                              <RefreshCw size={10} />
+                              {/* Sem prazo (frequencia 'mensal' sem recorrencia_meses) → "Ativa há X meses".
+                                  Com prazo ('por_meses') segue como "Recorrente". */}
+                              {(!d.recorrencia_meses && mesesAtiva(d.data) > 0)
+                                ? `Ativa há ${mesesAtiva(d.data)} ${mesesAtiva(d.data) === 1 ? 'mês' : 'meses'}`
+                                : 'Recorrente'}
                             </span>
                           )}
                           {d.pago_em && (
