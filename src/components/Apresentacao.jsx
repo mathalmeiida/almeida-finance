@@ -1,28 +1,110 @@
 import React, { useState } from 'react'
-import { ArrowRight, ArrowLeft, Wallet, TrendingUp, ShieldCheck } from 'lucide-react'
+import {
+  ArrowRight, ArrowLeft, TrendingUp, TrendingDown, CreditCard,
+  UtensilsCrossed, PiggyBank, Landmark, CalendarClock, Receipt,
+} from 'lucide-react'
 import LogoMarca from './LogoMarca'
 
 // ─── Apresentação inicial (3 telas) ──────────────────────────────────────────
 // Carrossel exibido UMA VEZ antes do onboarding, no primeiro acesso. Puramente
-// informativo: apresenta o Almeida Finance e o que o usuário vai configurar.
-// Não toca em dados nem autenticação. Ao concluir (ou pular), chama aoConcluir()
-// e o fluxo segue para a configuração (Onboarding). O controle de "já viu" fica
-// no componente que o renderiza (Onboarding), via localStorage por usuário.
+// informativo: apresenta visualmente o Almeida Finance e o que o usuário vai
+// configurar. Não toca em dados nem autenticação; os números abaixo são apenas
+// ILUSTRATIVOS (nada é gravado). Ao concluir (ou pular), chama aoConcluir() e o
+// fluxo segue para a configuração (Onboarding). O controle de "já viu" fica no
+// componente que o renderiza (Onboarding), via localStorage por usuário.
+
+// Mini-card visual reutilizado nas telas (ícone + rótulo + valor ilustrativo).
+function MiniCard({ icone: Icone, cor, rotulo, valor }) {
+  return (
+    <div className="rounded-xl border border-gray-100 bg-white p-2.5 text-left shadow-sm">
+      <div className="flex items-center gap-2">
+        <span className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${cor}`}>
+          <Icone size={15} />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[11px] text-gray-500 leading-tight truncate">{rotulo}</p>
+          {valor && <p className="text-xs font-bold text-gray-800 leading-tight truncate">{valor}</p>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── TELA 1: representação da Home com os módulos do app ──
+function VisualHome() {
+  return (
+    <div className="rounded-2xl bg-gray-50 border border-gray-100 p-3">
+      {/* "Hero" de saldo (acompanha o tema via bg-marca-grad). */}
+      <div className="bg-marca-grad rounded-xl p-3 text-left text-white mb-3">
+        <p className="text-[11px] text-white/80">Saldo disponível</p>
+        <p className="text-lg font-bold leading-tight">R$ 3.250,00</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <MiniCard icone={TrendingUp}      cor="bg-green-100 text-green-600"   rotulo="Receitas"  valor="R$ 6.000" />
+        <MiniCard icone={TrendingDown}    cor="bg-red-100 text-red-500"       rotulo="Despesas"  valor="R$ 2.750" />
+        <MiniCard icone={CreditCard}      cor="bg-indigo-100 text-indigo-600" rotulo="Cartões"   valor="R$ 1.200" />
+        <MiniCard icone={UtensilsCrossed} cor="bg-amber-100 text-amber-600"   rotulo="VR / VA"   valor="R$ 850" />
+        <MiniCard icone={PiggyBank}       cor="bg-emerald-100 text-emerald-600" rotulo="Reserva" valor="R$ 5.000" />
+        <MiniCard icone={Landmark}        cor="bg-marca-100 text-marca"       rotulo="Financiamentos" valor="imóvel • veículo" />
+      </div>
+    </div>
+  )
+}
+
+// ── TELA 2: card de gasto diário em destaque ──
+function VisualGastoDiario() {
+  return (
+    <div className="rounded-2xl bg-gray-50 border border-gray-100 p-3 space-y-3">
+      {/* Card de gasto diário em destaque (segue o tema). */}
+      <div className="bg-marca-grad rounded-xl p-4 text-white">
+        <div className="flex items-center justify-center gap-2 mb-1">
+          <CalendarClock size={16} className="text-white/90" />
+          <p className="text-xs text-white/80">Você pode gastar hoje</p>
+        </div>
+        <p className="text-3xl font-bold leading-none">R$ 83<span className="text-lg">,00</span></p>
+        <p className="text-[11px] text-white/70 mt-1">valor ilustrativo</p>
+      </div>
+      {/* Como o cálculo é formado. */}
+      <div className="grid grid-cols-3 gap-2">
+        <MiniCard icone={TrendingUp}  cor="bg-green-100 text-green-600"     rotulo="Receitas" />
+        <MiniCard icone={TrendingDown} cor="bg-red-100 text-red-500"        rotulo="Despesas" />
+        <MiniCard icone={PiggyBank}   cor="bg-emerald-100 text-emerald-600" rotulo="Reserva" />
+      </div>
+    </div>
+  )
+}
+
+// ── TELA 3: módulos a configurar ──
+function VisualConfigurar() {
+  return (
+    <div className="rounded-2xl bg-gray-50 border border-gray-100 p-3">
+      <div className="grid grid-cols-2 gap-2">
+        <MiniCard icone={TrendingUp}      cor="bg-green-100 text-green-600"     rotulo="Receitas" />
+        <MiniCard icone={TrendingDown}    cor="bg-red-100 text-red-500"         rotulo="Despesas" />
+        <MiniCard icone={CreditCard}      cor="bg-indigo-100 text-indigo-600"   rotulo="Cartões" />
+        <MiniCard icone={UtensilsCrossed} cor="bg-amber-100 text-amber-600"     rotulo="VR / VA" />
+        <MiniCard icone={PiggyBank}       cor="bg-emerald-100 text-emerald-600" rotulo="Reserva" />
+        <MiniCard icone={Receipt}         cor="bg-marca-100 text-marca"         rotulo="Planejamento" />
+      </div>
+    </div>
+  )
+}
+
 const SLIDES = [
   {
-    icone: Wallet,
     titulo: 'Bem-vindo ao Almeida Finance',
-    texto: 'Seu dinheiro organizado em um só lugar: saldo, contas, cartões e benefícios. Simples, claro e sem planilhas.',
+    texto: 'Seu dinheiro organizado em um só lugar.',
+    visual: VisualHome,
   },
   {
-    icone: TrendingUp,
-    titulo: 'Saiba quanto pode gastar hoje',
-    texto: 'A partir da sua renda, despesas e reserva, calculamos um limite diário e mostramos sua projeção para os próximos meses.',
+    titulo: 'Saiba quanto pode gastar todos os dias',
+    texto: 'Calculamos um limite diário a partir das suas receitas, despesas e reserva financeira.',
+    visual: VisualGastoDiario,
   },
   {
-    icone: ShieldCheck,
-    titulo: 'Decisões com segurança',
-    texto: 'Planeje compras, acompanhe faturas e proteja sua reserva de emergência. Vamos começar configurando suas informações.',
+    titulo: 'Organize suas finanças com facilidade',
+    texto: 'Configure suas informações e acompanhe tudo em um só lugar.',
+    visual: VisualConfigurar,
   },
 ]
 
@@ -30,7 +112,7 @@ export default function Apresentacao({ aoConcluir }) {
   const [i, setI] = useState(0)
   const ultimo = i === SLIDES.length - 1
   const Slide = SLIDES[i]
-  const Icone = Slide.icone
+  const Visual = Slide.visual
 
   const avancar = () => (ultimo ? aoConcluir?.() : setI(n => Math.min(n + 1, SLIDES.length - 1)))
   const voltar = () => setI(n => Math.max(n - 1, 0))
@@ -48,17 +130,17 @@ export default function Apresentacao({ aoConcluir }) {
           </button>
 
           {/* Logo da marca no topo (acompanha o tema). */}
-          <div className="flex justify-center mb-6">
+          <div className="flex justify-center mb-5">
             <LogoMarca imgClassName="h-12 w-auto" padding="px-5 py-3" />
           </div>
 
-          {/* Ícone do slide atual */}
-          <div className="w-16 h-16 bg-marca-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Icone size={30} className="text-marca" />
-          </div>
+          <h1 className="text-xl font-bold text-gray-900 mb-1.5 px-2">{Slide.titulo}</h1>
+          <p className="text-sm text-gray-500 mb-4 px-2 leading-relaxed">{Slide.texto}</p>
 
-          <h1 className="text-xl font-bold text-gray-900 mb-2">{Slide.titulo}</h1>
-          <p className="text-sm text-gray-500 mb-6 px-2 leading-relaxed">{Slide.texto}</p>
+          {/* Representação visual da tela */}
+          <div className="mb-5">
+            <Visual />
+          </div>
 
           {/* Indicadores (bolinhas) das 3 telas */}
           <div className="flex items-center justify-center gap-2 mb-6" aria-hidden="true">
@@ -84,7 +166,7 @@ export default function Apresentacao({ aoConcluir }) {
               <ArrowLeft size={16} />
             </button>
             <button onClick={avancar} className="btn-primary flex-1 flex items-center justify-center gap-2">
-              {ultimo ? <>Começar <ArrowRight size={16} /></> : <>Próximo <ArrowRight size={16} /></>}
+              {ultimo ? <>Começar agora <ArrowRight size={16} /></> : <>Próximo <ArrowRight size={16} /></>}
             </button>
           </div>
         </div>

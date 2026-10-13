@@ -166,36 +166,45 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   // e pode não refletir a tempo entre dois cliques muito rápidos).
   const emGravacao = useRef(false)
 
-  // ETAPA Saldo — pré-preenche com o saldo já informado (admin reset / revisão).
-  const [saldo, setSaldo] = useState(() => Number(perfil?.saldo_base) || 0)
+  // ETAPA Saldo — só PRÉ-PREENCHE quando o usuário JÁ configurou o saldo
+  // (edição). Para quem nunca informou (saldo_base = null, inclusive após
+  // "zerar dados"), inicia VAZIO — o campo mostra apenas o placeholder R$ 0,00
+  // e nada é gravado sem o usuário informar.
+  const [saldo, setSaldo] = useState(() =>
+    perfil?.saldo_base != null ? Number(perfil.saldo_base) : '')
 
-  // ETAPA Renda — lista local; grava só ao avançar.
+  // ETAPA Renda — lista local; grava só ao avançar. Campos monetários começam
+  // VAZIOS ('') para exibir o placeholder, nunca "R$ 0,00" preenchido.
   const [receitas, setReceitas] = useState([]) // { descricao, valor, categoria, data, recorrente }
   const [recForm, setRecForm] = useState({
-    descricao: '', valor: 0, categoria: '', data: hojeISO(), recorrente: true,
+    descricao: '', valor: '', categoria: '', data: hojeISO(), recorrente: true,
   })
 
   // ETAPA Despesas — lista local.
   const [despesas, setDespesas] = useState([]) // { descricao, valor, categoria_id, data, frequencia, recorrenciaMeses }
   const [despForm, setDespForm] = useState({
-    descricao: '', valor: 0, categoria_id: '', data: hojeISO(),
+    descricao: '', valor: '', categoria_id: '', data: hojeISO(),
     frequencia: 'mensal', recorrenciaMeses: '',
     forma_pagamento: '', cartao_id: '',
   })
 
   // ETAPA Cartões — formulário local de um cartão (gravado ao avançar).
   const [cartaoForm, setCartaoForm] = useState({
-    nome: '', banco: '', limite_total: 0, dia_fechamento: '', dia_vencimento: '',
+    nome: '', banco: '', limite_total: '', dia_fechamento: '', dia_vencimento: '',
   })
 
-  // ETAPA Benefícios — formulário local de um benefício VR/VA.
+  // ETAPA Benefícios — formulário local de um benefício VR/VA. Começa VAZIO e
+  // SEM valor; VR e VA são opcionais e independentes (nada é pré-selecionado
+  // com valor para novos usuários). 'tipo' é só a aba ativa do formulário.
   const [beneficioForm, setBeneficioForm] = useState({
-    nome: '', tipo: 'VR', saldo_inicial: 0,
-    recarga_valor: 0, recarga_dia: '', recarga_recorrente: false,
+    nome: '', tipo: 'VR', saldo_inicial: '',
+    recarga_valor: '', recarga_dia: '', recarga_recorrente: false,
   })
 
-  // ETAPA Reserva — pré-preenche com o que já existe no perfil.
-  const [reservaAtual, setReservaAtual] = useState(() => Number(perfil?.reserva_atual) || 0)
+  // ETAPA Reserva — só pré-preenche o VALOR quando o usuário já respondeu a
+  // etapa (reserva_configurada); senão inicia VAZIO (placeholder R$ 0,00).
+  const [reservaAtual, setReservaAtual] = useState(() =>
+    perfil?.reserva_configurada ? (Number(perfil?.reserva_atual) || 0) : '')
   const [reservaPct, setReservaPct] = useState(() => Number(perfil?.reserva_percentual) || 20)
   const [reservaCustom, setReservaCustom] = useState('')
   const [modoCustom, setModoCustom] = useState(() => {
@@ -265,7 +274,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
       data: recForm.data || hojeISO(),
       recorrente: !!recForm.recorrente,
     }])
-    setRecForm({ descricao: '', valor: 0, categoria: '', data: hojeISO(), recorrente: true })
+    setRecForm({ descricao: '', valor: '', categoria: '', data: hojeISO(), recorrente: true })
     return true
   }
   function removerReceitaLocal(i) {
@@ -310,7 +319,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
       }
       // Só limpa a lista e avança APÓS gravar tudo com sucesso.
       setReceitas([])
-      setRecForm({ descricao: '', valor: 0, categoria: '', data: hojeISO(), recorrente: true })
+      setRecForm({ descricao: '', valor: '', categoria: '', data: hojeISO(), recorrente: true })
       avancar()
     } catch (e) {
       // NÃO avança em silêncio: mostra a mensagem clara pedida no requisito.
@@ -348,7 +357,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
       // pertence ao usuário (validação de propriedade).
       cartao_id: despForm.forma_pagamento === 'cartao_credito' ? cartaoIdValido(despForm.cartao_id) : '',
     }])
-    setDespForm({ descricao: '', valor: 0, categoria_id: '', data: hojeISO(), frequencia: 'mensal', recorrenciaMeses: '', forma_pagamento: '', cartao_id: '' })
+    setDespForm({ descricao: '', valor: '', categoria_id: '', data: hojeISO(), frequencia: 'mensal', recorrenciaMeses: '', forma_pagamento: '', cartao_id: '' })
     return true
   }
   function removerDespesaLocal(i) {
@@ -421,7 +430,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
         await criarDespesa(payload)
       }
       setDespesas([])
-      setDespForm({ descricao: '', valor: 0, categoria_id: '', data: hojeISO(), frequencia: 'mensal', recorrenciaMeses: '', forma_pagamento: '', cartao_id: '' })
+      setDespForm({ descricao: '', valor: '', categoria_id: '', data: hojeISO(), frequencia: 'mensal', recorrenciaMeses: '', forma_pagamento: '', cartao_id: '' })
       avancar()
     } catch (e) {
       setErro(e?.message
@@ -460,7 +469,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
         dia_fechamento: diaFech,
         dia_vencimento: diaVenc,
       })
-      setCartaoForm({ nome: '', banco: '', limite_total: 0, dia_fechamento: '', dia_vencimento: '' })
+      setCartaoForm({ nome: '', banco: '', limite_total: '', dia_fechamento: '', dia_vencimento: '' })
       avancar()
     } catch (e) {
       setErro(e?.message
@@ -499,7 +508,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
           : null,
         recarga_recorrente: !!beneficioForm.recarga_recorrente,
       })
-      setBeneficioForm({ nome: '', tipo: 'VR', saldo_inicial: 0, recarga_valor: 0, recarga_dia: '', recarga_recorrente: false })
+      setBeneficioForm({ nome: '', tipo: 'VR', saldo_inicial: '', recarga_valor: '', recarga_dia: '', recarga_recorrente: false })
       // Permanece na mesma etapa para permitir cadastrar o segundo benefício
       // (VR + VA). A lista acima reflete o que já foi criado; o botão principal
       // avança quando o usuário terminar.
