@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
 import { labelMes, hojeISO } from '../lib/utils'
 import { classificarDespesa } from '../lib/classificarDespesa'
+import { amortizarSaldoDevedor } from '../lib/financiamento'
 
 /**
  * Distribui o valor total em parcelas em centavos, ajustando a diferença
@@ -41,6 +42,23 @@ export function valorParcelaNoMes(p, ano, mes) {
     const alvo = new Date(ano, mes - 1, 1)
     const quitMesInicio = new Date(quit.getFullYear(), quit.getMonth(), 1)
     if (alvo >= quitMesInicio) return 0
+  }
+
+  // ── Contrato de financiamento COM acompanhamento (saldo + prazo + prestação
+  // + data de referência) ──
+  // A projeção dos meses A PARTIR da data de referência usa a prestação ATUAL
+  // do contrato pelo prazo restante — refletindo amortizações já registradas,
+  // SEM alterar os meses anteriores (que seguem o cálculo original abaixo).
+  if (p.valor_prestacao != null && p.saldo_data && p.prazo_restante != null) {
+    const ref = new Date(p.saldo_data + 'T12:00:00')
+    // 1º mês projetado = mês seguinte ao da data de referência.
+    const refMesNum = ref.getFullYear() * 12 + ref.getMonth()
+    const alvoMesNum = ano * 12 + (mes - 1)
+    const idx = alvoMesNum - refMesNum
+    if (alvoMesNum > refMesNum) {
+      return idx <= Number(p.prazo_restante) ? Number(p.valor_prestacao) : 0
+    }
+    // Meses até a data de referência (inclusive): mantêm o cálculo histórico.
   }
 
   const inicio = new Date(p.primeira_parcela + 'T12:00:00')
@@ -193,6 +211,75 @@ export function useParcelamentos() {
     return data
   }
 
+  // ─── Registrar amortização REALIZADA ───────────────────────────────────────
+  // Recalcula o cronograma (SAC/PRICE) sobre o saldo devedor atual do contrato,
+  // grava o histórico em "amortizacoes" e atualiza o estado do contrato
+  // (saldo_devedor, prazo_restante, valor_prestacao, saldo_data). Se o saldo
+  // zerar, marca quitado_em. NÃO cria despesas retroativas nem duplica nada; a
+  // origem do recurso é informativa (FGTS não afeta saldo bancário).
+  //
+  // Requer que o contrato tenha os dados mínimos (saldo_devedor, taxa_mensal,
+  // sistema, prazo_restante). Caso contrário, lança erro (o chamador pede os
+  // dados em vez de inventar valores).
+  async function registrarAmortizacao(parcelamento, { data, valor, modo, origem }) {
+    bloquearSeConsultoria(modoConsultoria)
+    const p = parcelamento
+    const saldo = Number(p.saldo_devedor)
+    const i = Number(p.taxa_mensal)
+    const n = Number(p.prazo_restante)
+    const sistema = p.sistema
+    if (!(saldo > 0) || !(i >= 0) || !(n > 0) || !sistema) {
+      throw new Error('DADOS_INSUFICIENTES')
+    }
+    const valorNum = Number(valor) || 0
+    if (valorNum <= 0) throw new Error('VALOR_INVALIDO')
+
+    const r = amortizarSaldoDevedor({ sistema, saldo, i, n, extra: valorNum, modo })
+    if (!r) throw new Error('CALCULO_INVALIDO')
+
+    // 1) Histórico (fotos antes/depois para auditoria).
+    const { error: errHist } = await supabase.from('amortizacoes').insert([{
+      usuario_id: usuario.id,
+      parcelamento_id: p.id,
+      data: data || hojeISO(),
+      valor: valorNum,
+      modo,
+      origem,
+      saldo_antes: r.saldoAntes,
+      saldo_depois: r.saldoDepois,
+    }])
+    if (errHist) throw errHist
+
+    // 2) Novo estado do contrato.
+    const novoSaldo = r.saldoDepois
+    const quitou = r.quitacaoTotal || novoSaldo <= 0.005
+    const update = {
+      saldo_devedor: quitou ? 0 : novoSaldo,
+      saldo_data: data || hojeISO(),
+      prazo_restante: quitou ? 0 : r.prazoDepois,
+      valor_prestacao: quitou ? 0 : r.prestacaoDepois,
+    }
+    if (quitou) update.quitado_em = data || hojeISO()
+
+    const { error: errUpd } = await supabase
+      .from('parcelamentos').update(update).eq('id', p.id)
+    if (errUpd) throw errUpd
+
+    await buscar()
+    return r
+  }
+
+  // Lista o histórico de amortizações de um parcelamento (ordenado por data).
+  async function listarAmortizacoes(parcelamentoId) {
+    const { data, error } = await supabase
+      .from('amortizacoes')
+      .select('*')
+      .eq('parcelamento_id', parcelamentoId)
+      .order('data', { ascending: false })
+    if (error) throw error
+    return data || []
+  }
+
   // Quitação antecipada: registra a data de hoje, preserva o histórico
   async function quitar(id) {
     bloquearSeConsultoria(modoConsultoria)
@@ -234,6 +321,8 @@ export function useParcelamentos() {
     atualizar,
     quitar,
     remover,
+    registrarAmortizacao,
+    listarAmortizacoes,
     recarregar: buscar,
   }
 }

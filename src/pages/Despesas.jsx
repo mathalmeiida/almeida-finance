@@ -13,6 +13,8 @@ import ModalAnteciparPagamento from '../components/ModalAnteciparPagamento'
 import { formatCurrency, formatDate, corCategoria, FORMAS_PAGAMENTO, formaPagamentoLabel, hojeISO } from '../lib/utils'
 import { classificarDespesa, labelTipoDespesa } from '../lib/classificarDespesa'
 import { FormParcelamento, CardParcelamento } from './Parcelamentos'
+import SimuladorAmortizacao from '../components/SimuladorAmortizacao'
+import { taxaAnualParaMensal, amortizarSaldoDevedor } from '../lib/financiamento'
 
 const mesAtual = new Date().getMonth() + 1
 const anoAtual = new Date().getFullYear()
@@ -498,12 +500,23 @@ function FormFinanciamentoConsorcio({ tipo, onSalvar, onCancelar, carregando }) 
   const { categorias } = useCategorias('ambos')
   const meta = TIPO_LABELS[tipo] || TIPO_LABELS.financiamento
 
+  // Consórcio não tem juros SAC/PRICE → sem dados de contrato p/ amortização.
+  const ehFinanciavel = tipo === 'financiamento' || tipo === 'emprestimo'
+
   const [form, setForm] = useState({
     descricao: '',
     categoriaTipo: (tipo === 'consorcio' || tipo === 'financiamento') ? 'imovel' : 'outros',
     valorParcela: '',
     numeroParcelas: tipo === 'consorcio' ? '80' : tipo === 'emprestimo' ? '48' : '360',
     primeiroVencimento: hojeISO(),
+    // Dados do contrato (opcionais) — habilitam o registro de amortizações.
+    temContrato: false,
+    saldoDevedor: '',
+    taxa: '',
+    taxaPeriodo: 'mensal', // mensal | anual
+    sistema: 'price',      // sac | price
+    prazoRestante: '',
+    saldoData: hojeISO(),
   })
 
   function handleChange(e) {
@@ -535,7 +548,7 @@ function FormFinanciamentoConsorcio({ tipo, onSalvar, onCancelar, carregando }) 
     // Grava a DATA ORIGINAL do 1º vencimento. O hook deriva as parcelas
     // decorridas pela diferença até hoje — nenhuma despesa retroativa é criada
     // e o histórico não é somado duas vezes.
-    onSalvar({
+    const payload = {
       descricao: form.descricao || meta.titulo,
       valor_total: valorTotal,
       numero_parcelas: totalParcelas,
@@ -546,7 +559,25 @@ function FormFinanciamentoConsorcio({ tipo, onSalvar, onCancelar, carregando }) 
       // 'emprestimo' é gravado como 'financiamento' (mesmo CHECK/selo), evitando
       // migração extra; o acompanhamento é idêntico.
       tipo: tipo === 'emprestimo' ? 'financiamento' : tipo,
-    })
+    }
+
+    // Dados do contrato (opcionais) — habilitam o registro de amortizações.
+    if (ehFinanciavel && form.temContrato) {
+      const taxaN = parseFloat(String(form.taxa).replace(',', '.')) || 0
+      const iMensal = form.taxaPeriodo === 'anual' ? taxaAnualParaMensal(taxaN) : taxaN / 100
+      const saldoN = Number(form.saldoDevedor) || 0
+      const prazoN = Math.max(0, parseInt(form.prazoRestante, 10) || restantes)
+      if (saldoN > 0 && iMensal > 0 && prazoN > 0) {
+        payload.saldo_devedor = saldoN
+        payload.taxa_mensal = iMensal
+        payload.sistema = form.sistema
+        payload.prazo_restante = prazoN
+        payload.valor_prestacao = valorParcelaNum
+        payload.saldo_data = form.saldoData
+      }
+    }
+
+    onSalvar(payload)
   }
 
   return (
@@ -593,6 +624,79 @@ function FormFinanciamentoConsorcio({ tipo, onSalvar, onCancelar, carregando }) 
           Para contratos já em andamento, informe a data original — as parcelas decorridas são calculadas automaticamente, sem lançar valores retroativos.
         </p>
       </div>
+
+      {/* Dados do contrato (opcional) — habilitam registrar amortizações.
+          Apenas para financiamento/empréstimo (consórcio não tem SAC/PRICE). */}
+      {ehFinanciavel && (
+        <div className="rounded-xl border border-gray-200 p-3">
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input type="checkbox" name="temContrato" checked={form.temContrato}
+              onChange={(e) => setForm(p => ({ ...p, temContrato: e.target.checked }))} className="mt-0.5" />
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-gray-900">Dados do contrato (para amortização)</span>
+              <span className="block text-xs text-gray-500 mt-0.5">
+                Opcional. Informe o saldo devedor e a taxa atuais para registrar amortizações e recalcular o cronograma.
+              </span>
+            </span>
+          </label>
+
+          {form.temContrato && (
+            <div className="mt-3 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Saldo devedor atual (R$)</label>
+                  <InputMoeda valor={form.saldoDevedor}
+                    onChangeValor={(n) => setForm(p => ({ ...p, saldoDevedor: n }))} className="input" prefixo={null} />
+                </div>
+                <div>
+                  <label className="label">Prazo restante (meses)</label>
+                  <input name="prazoRestante" value={form.prazoRestante} onChange={handleChange}
+                    type="number" min="1" inputMode="numeric" className="input" placeholder={String(restantes)} />
+                </div>
+              </div>
+              <div>
+                <label className="label">Taxa de juros do contrato</label>
+                <div className="flex gap-2">
+                  <input name="taxa" value={form.taxa} onChange={handleChange}
+                    type="text" inputMode="decimal" className="input flex-1" placeholder={form.taxaPeriodo === 'mensal' ? 'Ex: 0,9' : 'Ex: 11,5'} />
+                  <div className="flex gap-1 flex-shrink-0">
+                    {[{ id: 'mensal', nome: 'a.m.' }, { id: 'anual', nome: 'a.a.' }].map(op => (
+                      <button key={op.id} type="button" onClick={() => setForm(p => ({ ...p, taxaPeriodo: op.id }))}
+                        className={`px-3 rounded-xl text-sm font-medium border-2 transition-all ${
+                          form.taxaPeriodo === op.id ? 'border-marca bg-marca-100 text-marca' : 'border-gray-200 text-gray-600'
+                        }`}>
+                        {op.nome}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Sistema</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[{ id: 'sac', nome: 'SAC' }, { id: 'price', nome: 'PRICE' }].map(op => (
+                      <button key={op.id} type="button" onClick={() => setForm(p => ({ ...p, sistema: op.id }))}
+                        className={`p-2 rounded-xl border-2 text-sm font-medium transition-all ${
+                          form.sistema === op.id ? 'border-marca bg-marca-100 text-marca' : 'border-gray-200 text-gray-600'
+                        }`}>
+                        {op.nome}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Data de referência</label>
+                  <input name="saldoData" value={form.saldoData} onChange={handleChange} type="date" className="input" />
+                </div>
+              </div>
+              <p className="text-xs text-gray-400">
+                A prestação atual usada será o valor da parcela informado acima.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {valorTotal > 0 && (
         <div className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs text-gray-600 space-y-0.5">
@@ -687,6 +791,123 @@ function ModalNovaDespesa({
   )
 }
 
+// ─── Formulário: Registrar amortização realizada ──────────────────────────────
+// Não altera dados ao abrir — só grava após confirmação explícita. Mostra uma
+// prévia do recálculo (SAC/PRICE) e a origem do recurso (FGTS não deduz saldo).
+function FormRegistrarAmortizacao({ parcelamento, onConfirmar, onCancelar, salvando }) {
+  const p = parcelamento
+  const ehImovel = (p.categorias?.nome || '').toLowerCase().includes('morad')
+  const [data, setData] = useState(hojeISO())
+  const [valor, setValor] = useState('')
+  const [modo, setModo] = useState('prazo')     // prazo | parcela
+  const [origem, setOrigem] = useState('saldo') // saldo | reserva | fgts
+  const [confirmando, setConfirmando] = useState(false)
+
+  const valorNum = Number(valor) || 0
+  // Prévia do recálculo (pura; não grava nada).
+  const previa = valorNum > 0
+    ? amortizarSaldoDevedor({
+        sistema: p.sistema, saldo: Number(p.saldo_devedor), i: Number(p.taxa_mensal),
+        n: Number(p.prazo_restante), extra: valorNum, modo,
+      })
+    : null
+
+  const ORIGENS = [
+    { id: 'saldo', nome: '💳 Saldo em conta' },
+    { id: 'reserva', nome: '🛟 Reserva' },
+    ...(ehImovel ? [{ id: 'fgts', nome: '🏦 FGTS' }] : []),
+  ]
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-gray-600">
+        {p.descricao} — saldo devedor atual <strong>{formatCurrency(p.saldo_devedor)}</strong> ({p.sistema?.toUpperCase()}, {p.prazo_restante} parcelas)
+      </p>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Data da amortização</label>
+          <input type="date" value={data} onChange={(e) => { setData(e.target.value); setConfirmando(false) }} className="input" />
+        </div>
+        <div>
+          <label className="label">Valor amortizado (R$)</label>
+          <InputMoeda valor={valor} onChangeValor={(n) => { setValor(n); setConfirmando(false) }} className="input" prefixo={null} />
+        </div>
+      </div>
+
+      <div>
+        <label className="label">Estratégia</label>
+        <div className="grid grid-cols-2 gap-2">
+          {[{ id: 'prazo', nome: 'Reduzir prazo' }, { id: 'parcela', nome: 'Reduzir parcela' }].map(op => (
+            <button key={op.id} type="button" onClick={() => { setModo(op.id); setConfirmando(false) }}
+              className={`p-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                modo === op.id ? 'border-marca bg-marca-100 text-marca' : 'border-gray-200 text-gray-600'
+              }`}>
+              {op.nome}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="label">Origem do recurso</label>
+        <div className="grid grid-cols-3 gap-2">
+          {ORIGENS.map(op => (
+            <button key={op.id} type="button" onClick={() => setOrigem(op.id)}
+              className={`p-2 rounded-xl border-2 text-xs font-medium transition-all ${
+                origem === op.id ? 'border-marca bg-marca-100 text-marca' : 'border-gray-200 text-gray-600'
+              }`}>
+              {op.nome}
+            </button>
+          ))}
+        </div>
+        {origem === 'fgts' && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5 mt-2">
+            FGTS depende de elegibilidade. Não será descontado do seu saldo bancário.
+          </p>
+        )}
+      </div>
+
+      {/* Prévia do recálculo */}
+      {previa && (
+        <div className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 text-sm space-y-1">
+          <div className="flex justify-between"><span className="text-gray-500">Saldo depois</span><strong>{formatCurrency(previa.saldoDepois)}</strong></div>
+          {previa.quitacaoTotal ? (
+            <p className="text-emerald-600 font-medium">Quita o contrato por completo.</p>
+          ) : modo === 'prazo' ? (
+            <div className="flex justify-between"><span className="text-gray-500">Novo prazo</span><strong>{previa.prazoDepois} meses (−{previa.mesesEconomizados})</strong></div>
+          ) : (
+            <div className="flex justify-between"><span className="text-gray-500">Nova prestação</span><strong>{formatCurrency(previa.prestacaoDepois)}</strong></div>
+          )}
+          <div className="flex justify-between"><span className="text-gray-500">Economia de juros</span><strong className="text-emerald-600">{formatCurrency(previa.economiaJuros)}</strong></div>
+        </div>
+      )}
+
+      {!confirmando ? (
+        <div className="flex gap-3 pt-1">
+          <button type="button" onClick={onCancelar} className="btn-secondary flex-1">Cancelar</button>
+          <button type="button" disabled={valorNum <= 0} onClick={() => setConfirmando(true)}
+            className="btn-primary flex-1 disabled:opacity-60">Revisar e registrar</button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+            Confirmar o registro de {formatCurrency(valorNum)} em {formatDate(data)}? Isso atualiza o saldo devedor e o cronograma. Esta ação pode ser revertida apenas por edição.
+          </p>
+          <div className="flex gap-3">
+            <button type="button" onClick={() => setConfirmando(false)} className="btn-secondary flex-1">Voltar</button>
+            <button type="button" disabled={salvando}
+              onClick={() => onConfirmar({ data, valor: valorNum, modo, origem })}
+              className="btn-primary flex-1 flex items-center justify-center gap-2">
+              {salvando ? <><Loader2 size={15} className="animate-spin" /> Registrando...</> : 'Confirmar registro'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function Despesas() {
   const {
@@ -704,6 +925,7 @@ export default function Despesas() {
     atualizar: atualizarParcelamento,
     quitar,
     remover: removerParcelamento,
+    registrarAmortizacao,
   } = useParcelamentos()
   const { resumoMes } = useProjecao()
   const { cartoes } = useCartoes()
@@ -720,6 +942,9 @@ export default function Despesas() {
   const [mostrarConcluidos, setMostrarConcluidos] = useState(false)
   const [despesaEditando, setDespesaEditando] = useState(null) // null = modo criação
   const [parcelamentoEditando, setParcelamentoEditando] = useState(null)
+  const [parcelamentoAmortizar, setParcelamentoAmortizar] = useState(null)
+  const [parcelamentoRegistrar, setParcelamentoRegistrar] = useState(null)
+  const [registrandoAmort, setRegistrandoAmort] = useState(false)
   const [salvandoEdicaoParc, setSalvandoEdicaoParc] = useState(false)
   // Antecipação de pagamento
   const [despesaAntecipar, setDespesaAntecipar] = useState(null)
@@ -942,6 +1167,23 @@ export default function Despesas() {
   // Edição de parcelamento (modal próprio)
   function handleEditarParc(p) {
     setParcelamentoEditando(p)
+  }
+
+  // Registrar amortização realizada (atualiza contrato + histórico).
+  async function handleConfirmarRegistroAmort(dados) {
+    if (!parcelamentoRegistrar) return
+    setRegistrandoAmort(true)
+    setErroAcao('')
+    try {
+      await registrarAmortizacao(parcelamentoRegistrar, dados)
+      setParcelamentoRegistrar(null)
+    } catch (e) {
+      setErroAcao(e?.message === 'DADOS_INSUFICIENTES'
+        ? 'Faltam dados do contrato (saldo, taxa, sistema e prazo). Edite o financiamento e informe-os.'
+        : 'Erro ao registrar a amortização. Tente novamente.')
+    } finally {
+      setRegistrandoAmort(false)
+    }
   }
 
   async function handleSalvarEdicaoParc(dados) {
@@ -1296,7 +1538,9 @@ export default function Despesas() {
                   {parcAtivos.map(p => (
                     <CardParcelamento key={p.id} p={p}
                       onQuitar={handleQuitar} onRemover={handleRemoverParc}
-                      onEditar={handleEditarParc} cartoes={cartoes}
+                      onEditar={handleEditarParc} onAmortizar={setParcelamentoAmortizar}
+                      onRegistrarAmort={setParcelamentoRegistrar}
+                      cartoes={cartoes}
                       quitando={quitando} removendo={removendoParc} />
                   ))}
                 </>
@@ -1352,6 +1596,49 @@ export default function Despesas() {
             carregando={salvandoEdicaoParc}
             parcelamentoInicial={parcelamentoEditando}
             textoBotao="Salvar alterações"
+          />
+        )}
+      </Modal>
+
+      {/* Modal: Simular amortização de um contrato (financiamento/empréstimo) */}
+      <Modal
+        aberto={!!parcelamentoAmortizar}
+        onFechar={() => setParcelamentoAmortizar(null)}
+        titulo="Simular amortização"
+      >
+        {parcelamentoAmortizar && (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">
+              {parcelamentoAmortizar.descricao} — {parcelamentoAmortizar.parcelasRestantes} parcelas restantes
+            </p>
+            <SimuladorAmortizacao
+              estimado
+              mostrarFgts={(parcelamentoAmortizar.categorias?.nome || '').toLowerCase().includes('morad')}
+              inicial={{
+                // Dados já conhecidos do contrato; a taxa é solicitada (não é
+                // armazenada). O saldo devedor parte do saldo restante estimado.
+                saldo: Math.round(parcelamentoAmortizar.valorRestante),
+                parcelasRestantes: parcelamentoAmortizar.parcelasRestantes,
+                prestacao: Math.round(parcelamentoAmortizar.valorParcelaBase || 0),
+                sistema: 'price',
+              }}
+            />
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal: Registrar amortização realizada */}
+      <Modal
+        aberto={!!parcelamentoRegistrar}
+        onFechar={() => setParcelamentoRegistrar(null)}
+        titulo="Registrar amortização realizada"
+      >
+        {parcelamentoRegistrar && (
+          <FormRegistrarAmortizacao
+            parcelamento={parcelamentoRegistrar}
+            onConfirmar={handleConfirmarRegistroAmort}
+            onCancelar={() => setParcelamentoRegistrar(null)}
+            salvando={registrandoAmort}
           />
         )}
       </Modal>

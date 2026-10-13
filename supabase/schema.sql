@@ -270,8 +270,21 @@ CREATE TABLE IF NOT EXISTS public.parcelamentos (
   -- ALTER TABLE public.parcelamentos ADD COLUMN IF NOT EXISTS tipo TEXT
   --   CHECK (tipo IN ('parcelado','financiamento','consorcio')) DEFAULT 'parcelado';
   tipo             TEXT CHECK (tipo IN ('parcelado','financiamento','consorcio')) DEFAULT 'parcelado',
+  -- Acompanhamento do contrato de financiamento (opcionais; NULL = usa a
+  -- lógica antiga de parcela = valor_total/numero_parcelas). Permitem registrar
+  -- amortizações realizadas e recalcular o cronograma futuro (SAC/PRICE).
+  -- (migration: 2026-10_amortizacoes.sql)
+  saldo_devedor    NUMERIC(14,2) CHECK (saldo_devedor  IS NULL OR saldo_devedor  >= 0),
+  taxa_mensal      NUMERIC(10,6) CHECK (taxa_mensal    IS NULL OR taxa_mensal    >= 0),
+  sistema          TEXT CHECK (sistema IS NULL OR sistema IN ('sac','price')),
+  prazo_restante   INTEGER CHECK (prazo_restante IS NULL OR prazo_restante >= 0),
+  valor_prestacao  NUMERIC(14,2) CHECK (valor_prestacao IS NULL OR valor_prestacao >= 0),
+  saldo_data       DATE,
   criado_em        TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Histórico de amortizações realizadas (migration: 2026-10_amortizacoes.sql).
+-- RLS por usuário. Ver o arquivo da migração para o CREATE TABLE completo.
 
 -- RLS
 ALTER TABLE public.parcelamentos ENABLE ROW LEVEL SECURITY;

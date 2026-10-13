@@ -6,6 +6,7 @@ import { formatCurrency } from '../lib/utils'
 import InputMoeda from '../components/InputMoeda'
 import DestaqueValor from '../components/DestaqueValor'
 import CadastrarNoPlanejamento from '../components/CadastrarNoPlanejamento'
+import SimuladorAmortizacao from '../components/SimuladorAmortizacao'
 import {
   calcularPrice, comprometimentoRenda, calcularCustosVeiculoMensais,
   calcularCustoVeiculoPeriodo, estimarIpvaAnual, estimarSeguroAnual, IPVA_ALIQUOTAS_UF,
@@ -49,6 +50,9 @@ export default function SimuladorAutomovel() {
   const [combustivelMensal, setCombustivelMensal] = useState('')
   const [licenciamentoAnual, setLicenciamentoAnual] = useState('')
   const [outrosMensal, setOutrosMensal] = useState('')
+
+  // ── Amortização (reutiliza o simulador compartilhado) ──
+  const [secaoAmort, setSecaoAmort] = useState(false)
 
   // ── "E se eu der uma entrada maior?" ──
   const [secaoEntrada, setSecaoEntrada] = useState(false)
@@ -603,6 +607,31 @@ export default function SimuladorAutomovel() {
                     </p>
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+
+          {/* ── Simular amortização (reutiliza o componente compartilhado) ── */}
+          <div className="card">
+            <button type="button" onClick={() => setSecaoAmort(v => !v)}
+              className="w-full flex items-center justify-between gap-2 text-left">
+              <span className="flex items-center gap-2 text-base font-semibold text-gray-900">
+                <PiggyBank size={18} className="text-marca" /> Simular amortização
+              </span>
+              {secaoAmort ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
+            </button>
+            {secaoAmort && (
+              <div className="mt-4">
+                <SimuladorAmortizacao
+                  inicial={{
+                    saldo: Math.round(resultado.financiado),
+                    parcelasRestantes: resultado.n,
+                    prestacao: Math.round(resultado.parcela),
+                    sistema: 'price',
+                    taxa: String(taxaMensalDecimal ? (taxaMensalDecimal * 100).toFixed(2).replace('.', ',') : ''),
+                    taxaPeriodo: 'mensal',
+                  }}
+                />
               </div>
             )}
           </div>

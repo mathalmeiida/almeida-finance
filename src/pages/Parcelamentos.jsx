@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CreditCard, Plus, Calendar, CheckCircle2, Trash2, Loader2, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
+import { CreditCard, Plus, Calendar, CheckCircle2, Trash2, Loader2, ChevronDown, ChevronUp, Pencil, TrendingDown } from 'lucide-react'
 import { useParcelamentos, calcularParcelas } from '../hooks/useParcelamentos'
 import { useCategorias } from '../hooks/useCategorias'
 import { useCartoes } from '../hooks/useCartoes'
@@ -162,9 +162,15 @@ const TIPO_META = {
 }
 
 // ─── Card de parcelamento ─────────────────────────────────────────────────────
-export function CardParcelamento({ p, onQuitar, onRemover, onEditar, quitando, removendo, cartoes = [] }) {
+export function CardParcelamento({ p, onQuitar, onRemover, onEditar, onAmortizar, onRegistrarAmort, quitando, removendo, cartoes = [] }) {
   const pct = Math.round((p.parcelasPagas / p.numero_parcelas) * 100)
   const tipoMeta = TIPO_META[p.tipo] || TIPO_META.parcelado
+  // Amortização só faz sentido para financiamento/empréstimo (juros SAC/PRICE),
+  // nunca para consórcio (sem juros) nem compra parcelada simples.
+  const podeAmortizar = onAmortizar && p.ativo && !p.quitado_em && p.tipo === 'financiamento'
+  // Registrar amortização REALIZADA exige os dados do contrato preenchidos.
+  const temContrato = p.saldo_devedor != null && p.taxa_mensal != null && p.sistema && p.prazo_restante != null
+  const podeRegistrar = onRegistrarAmort && p.ativo && !p.quitado_em && p.tipo === 'financiamento' && temContrato
   // valorPagoReal vem do hook com arredondamento correto; fallback para o cálculo antigo
   const valorPago = p.valorPagoReal ?? (p.parcelasPagas * Number(p.valor_parcela))
   // valor da parcela a exibir (base com arredondamento correto; fallback ao valor do banco)
@@ -259,6 +265,14 @@ export function CardParcelamento({ p, onQuitar, onRemover, onEditar, quitando, r
         <ProgressBar value={p.parcelasPagas} max={p.numero_parcelas} />
       </div>
 
+      {/* Saldo devedor atual (quando o contrato tem acompanhamento) */}
+      {temContrato && (
+        <div className="mt-2 flex items-center justify-between text-xs bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5">
+          <span className="text-gray-500">Saldo devedor</span>
+          <strong className="text-gray-800">{formatCurrency(p.saldo_devedor)}</strong>
+        </div>
+      )}
+
       {/* Grade de informações */}
       <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-4 gap-2 text-center">
         <div>
@@ -292,18 +306,40 @@ export function CardParcelamento({ p, onQuitar, onRemover, onEditar, quitando, r
           )}
         </span>
 
-        {/* Botão quitar antecipadamente — só para ativos não quitados */}
-        {p.ativo && !p.quitado_em && (
-          <button
-            onClick={() => onQuitar(p.id)}
-            disabled={quitando === p.id}
-            className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 px-2.5 py-1.5 rounded-lg transition-colors"
-          >
-            {quitando === p.id
-              ? <><Loader2 size={12} className="animate-spin" /> Quitando...</>
-              : <><CheckCircle2 size={13} /> Quitar antecipadamente</>}
-          </button>
-        )}
+        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          {/* Simular amortização — financiamento/empréstimo ativos */}
+          {podeAmortizar && (
+            <button
+              onClick={() => onAmortizar(p)}
+              className="flex items-center gap-1.5 text-xs font-medium text-marca hover:underline px-2.5 py-1.5 rounded-lg transition-colors"
+            >
+              <TrendingDown size={13} /> Simular amortização
+            </button>
+          )}
+
+          {/* Registrar amortização realizada — exige dados do contrato */}
+          {podeRegistrar && (
+            <button
+              onClick={() => onRegistrarAmort(p)}
+              className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 hover:bg-emerald-50 px-2.5 py-1.5 rounded-lg transition-colors"
+            >
+              <CheckCircle2 size={13} /> Registrar amortização
+            </button>
+          )}
+
+          {/* Botão quitar antecipadamente — só para ativos não quitados */}
+          {p.ativo && !p.quitado_em && (
+            <button
+              onClick={() => onQuitar(p.id)}
+              disabled={quitando === p.id}
+              className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 px-2.5 py-1.5 rounded-lg transition-colors"
+            >
+              {quitando === p.id
+                ? <><Loader2 size={12} className="animate-spin" /> Quitando...</>
+                : <><CheckCircle2 size={13} /> Quitar antecipadamente</>}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

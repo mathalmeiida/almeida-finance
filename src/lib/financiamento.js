@@ -396,3 +396,107 @@ export function calcularConsorcio({
     lance: num(lance), // apenas informativo
   }
 }
+
+// ─── Amortização a partir do SALDO DEVEDOR ATUAL ──────────────────────────────
+// Simula uma amortização aplicada AGORA sobre o saldo devedor atual, com as
+// parcelas restantes e a taxa mensal do período. Trabalha apenas sobre o
+// PRINCIPAL — seguros/encargos não entram aqui (devem ser tratados à parte).
+//
+// Entrada:
+//   sistema  'sac' | 'price'
+//   saldo    saldo devedor atual (principal)
+//   i        taxa mensal (decimal, ex.: 0,009)
+//   n        parcelas restantes
+//   extra    valor a amortizar agora
+//   modo     'prazo' (mantém a prestação, reduz meses) | 'parcela' (mantém meses, reduz prestação)
+//
+// Retorna antes/depois de prestação, prazo, juros, meses economizados, economia
+// de juros, novo saldo e um flag de quitação total. Clampa saldos negativos e
+// evita loops/arredondamentos acumulados.
+export function amortizarSaldoDevedor({ sistema, saldo, i, n, extra, modo }) {
+  const PV = Math.max(0, Number(saldo) || 0)
+  const nn = Math.max(0, Math.floor(Number(n) || 0))
+  const taxa = Math.max(0, Number(i) || 0)
+  const extraNum = Math.max(0, Number(extra) || 0)
+  if (PV <= 0 || nn <= 0) return null
+
+  // Cronograma ANTES (sobre o saldo atual e o prazo restante).
+  const antes = sistema === 'sac' ? calcularSac(PV, taxa, nn) : calcularPrice(PV, taxa, nn)
+  const prestacaoAntes = sistema === 'sac' ? antes.primeira : antes.parcela
+
+  // Novo saldo após a amortização (nunca negativo).
+  const extraAplicado = Math.min(extraNum, PV)
+  const novoSaldo = Math.max(0, PV - extraAplicado)
+  const quitacaoTotal = novoSaldo <= 0.005
+
+  if (quitacaoTotal) {
+    return {
+      sistema, modo, extraAplicado,
+      saldoAntes: PV, saldoDepois: 0,
+      prestacaoAntes, prestacaoDepois: 0,
+      prazoAntes: nn, prazoDepois: 0,
+      mesesEconomizados: nn,
+      jurosAntes: antes.jurosTotais, jurosDepois: 0,
+      economiaJuros: antes.jurosTotais,
+      quitacaoTotal: true,
+    }
+  }
+
+  let prestacaoDepois = prestacaoAntes
+  let prazoDepois = nn
+  let jurosDepois = 0
+
+  if (modo === 'parcela') {
+    // Mantém o prazo restante; recalcula a prestação sobre o novo saldo.
+    const dep = sistema === 'sac' ? calcularSac(novoSaldo, taxa, nn) : calcularPrice(novoSaldo, taxa, nn)
+    prestacaoDepois = sistema === 'sac' ? dep.primeira : dep.parcela
+    jurosDepois = dep.jurosTotais
+    prazoDepois = nn
+  } else {
+    // modo 'prazo': mantém a prestação atual; reduz o número de meses.
+    if (sistema === 'sac') {
+      // SAC: amortização mensal constante = PV/nn (mantida). Novo prazo em
+      // número de amortizações necessárias para zerar o novo saldo.
+      const amort = PV / nn
+      let s = novoSaldo
+      let meses = 0
+      let juros = 0
+      while (s > 0.005 && meses < nn * 2) {
+        juros += s * taxa
+        s = Math.max(0, s - amort)
+        meses++
+      }
+      prazoDepois = meses
+      jurosDepois = juros
+      prestacaoDepois = amort + novoSaldo * taxa // 1ª prestação após amortizar (referência)
+    } else {
+      // PRICE: mantém a prestação original; amortiza o novo saldo com ela.
+      const pmt = prestacaoAntes
+      let s = novoSaldo
+      let meses = 0
+      let juros = 0
+      while (s > 0.005 && meses < nn * 2) {
+        const j = s * taxa
+        const amort = pmt - j
+        if (amort <= 0) break // prestação não cobre juros: evita loop
+        juros += j
+        s = Math.max(0, s - amort)
+        meses++
+      }
+      prazoDepois = meses
+      jurosDepois = juros
+      prestacaoDepois = pmt
+    }
+  }
+
+  return {
+    sistema, modo, extraAplicado,
+    saldoAntes: PV, saldoDepois: novoSaldo,
+    prestacaoAntes, prestacaoDepois,
+    prazoAntes: nn, prazoDepois,
+    mesesEconomizados: Math.max(0, nn - prazoDepois),
+    jurosAntes: antes.jurosTotais, jurosDepois,
+    economiaJuros: Math.max(0, antes.jurosTotais - jurosDepois),
+    quitacaoTotal: false,
+  }
+}
