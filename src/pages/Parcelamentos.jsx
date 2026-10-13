@@ -154,9 +154,17 @@ export function FormParcelamento({ onSalvar, onCancelar, carregando, parcelament
   )
 }
 
+// Metadados visuais por tipo de obrigação (rótulo e cor do selo).
+const TIPO_META = {
+  parcelado:     { label: 'Parcelado',     classe: 'text-orange-600 bg-orange-50' },
+  financiamento: { label: 'Financiamento', classe: 'text-blue-600 bg-blue-50' },
+  consorcio:     { label: 'Consórcio',     classe: 'text-purple-600 bg-purple-50' },
+}
+
 // ─── Card de parcelamento ─────────────────────────────────────────────────────
 export function CardParcelamento({ p, onQuitar, onRemover, onEditar, quitando, removendo, cartoes = [] }) {
   const pct = Math.round((p.parcelasPagas / p.numero_parcelas) * 100)
+  const tipoMeta = TIPO_META[p.tipo] || TIPO_META.parcelado
   // valorPagoReal vem do hook com arredondamento correto; fallback para o cálculo antigo
   const valorPago = p.valorPagoReal ?? (p.parcelasPagas * Number(p.valor_parcela))
   // valor da parcela a exibir (base com arredondamento correto; fallback ao valor do banco)
@@ -236,12 +244,14 @@ export function CardParcelamento({ p, onQuitar, onRemover, onEditar, quitando, r
         </div>
       </div>
 
-      {/* Parcela atual / total em destaque */}
-      <div className="mt-3 flex items-center justify-between">
-        <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-lg">
-          Parcela {p.parcelaAtual}/{p.numero_parcelas}
+      {/* Tipo + parcelas decorridas (vencimento não comprova pagamento) */}
+      <div className="mt-3 flex items-center justify-between gap-2 flex-wrap">
+        <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${tipoMeta.classe}`}>
+          {tipoMeta.label}
         </span>
-        <span className="text-xs text-gray-500">{pct}% pago</span>
+        <span className="text-xs text-gray-500">
+          Parcelas decorridas: <strong className="text-gray-700">{p.parcelasPagas} de {p.numero_parcelas}</strong> ({pct}%)
+        </span>
       </div>
 
       {/* Barra de progresso */}
@@ -273,10 +283,13 @@ export function CardParcelamento({ p, onQuitar, onRemover, onEditar, quitando, r
         </div>
       </div>
 
-      {/* Data de início */}
-      <div className="mt-2 flex items-center justify-between">
+      {/* Datas: início + próximo vencimento */}
+      <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
         <span className="flex items-center gap-1 text-xs text-gray-400">
           <Calendar size={11} /> Início: {formatDate(p.primeira_parcela)}
+          {p.ativo && p.proximoVencimento && (
+            <span className="ml-1">• Próx. vencimento: <strong className="text-gray-500">{formatDate(p.proximoVencimento)}</strong></span>
+          )}
         </span>
 
         {/* Botão quitar antecipadamente — só para ativos não quitados */}

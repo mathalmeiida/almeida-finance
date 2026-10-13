@@ -457,11 +457,163 @@ function NotificacaoClassificacao({ despesa, onAlterar, onFechar }) {
 }
 
 // ─── Modal: Nova despesa (À vista / Parcelada) ou Editar despesa ──────────────
+// ─── Formulário: Financiamento / Consórcio ────────────────────────────────────
+// Reaproveita a tabela "parcelamentos" (não cria tabela nova). Grava:
+//   valor_total     = valor da parcela × quantidade total de parcelas
+//   numero_parcelas = quantidade total
+//   primeira_parcela= derivada do 1º vencimento recuando "parcelas decorridas"
+//                     meses, para que o hook calcule a quantidade já decorrida
+//                     corretamente — sem exigir marcação de pagamento e sem
+//                     duplicar valores (parcelas futuras entram na projeção).
+//   tipo            = 'financiamento' | 'consorcio'
+function FormFinanciamentoConsorcio({ tipo, onSalvar, onCancelar, carregando }) {
+  const { categorias } = useCategorias('ambos')
+  const ehConsorcio = tipo === 'consorcio'
+
+  const [form, setForm] = useState({
+    descricao: '',
+    categoriaTipo: 'imovel',   // imovel | veiculo | outros (mapeado p/ categoria_id)
+    valorParcela: '',
+    numeroParcelas: ehConsorcio ? '80' : '360',
+    parcelasDecorridas: '0',
+    primeiroVencimento: hojeISO(),
+    diaVencimento: String(new Date().getDate()),
+  })
+
+  function handleChange(e) {
+    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
+  }
+
+  // Mapeia a categoria "amigável" (imóvel/veículo/outros) para uma categoria
+  // existente do usuário/sistema, por nome. Fallback: sem categoria.
+  function resolverCategoriaId() {
+    const alvo = form.categoriaTipo === 'imovel' ? ['moradia', 'imóvel', 'imovel']
+      : form.categoriaTipo === 'veiculo' ? ['transporte', 'veículo', 'veiculo', 'carro']
+      : ['outros']
+    const achada = categorias.find(c => alvo.includes((c.nome || '').toLowerCase()))
+    return achada?.id || null
+  }
+
+  const valorParcelaNum = Number(form.valorParcela) || 0
+  const totalParcelas = Math.max(1, parseInt(form.numeroParcelas, 10) || 1)
+  const decorridas = Math.min(Math.max(0, parseInt(form.parcelasDecorridas, 10) || 0), totalParcelas)
+  const restantes = totalParcelas - decorridas
+  const valorTotal = valorParcelaNum * totalParcelas
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    if (valorParcelaNum <= 0) return
+
+    // primeira_parcela = 1º vencimento recuado "decorridas" meses, usando o dia
+    // do vencimento informado. Mantém o dia e lida com meses de 28..31 dias.
+    const base = new Date(form.primeiroVencimento + 'T12:00:00')
+    const dia = Math.min(Math.max(1, parseInt(form.diaVencimento, 10) || base.getDate()), 28) // 28 evita pular meses curtos
+    const d = new Date(base.getFullYear(), base.getMonth() - decorridas, dia)
+    const primeira_parcela = d.toISOString().slice(0, 10)
+
+    onSalvar({
+      descricao: form.descricao || (ehConsorcio ? 'Consórcio' : 'Financiamento'),
+      valor_total: valorTotal,
+      numero_parcelas: totalParcelas,
+      primeira_parcela,
+      categoria_id: resolverCategoriaId(),
+      forma_pagamento: null,
+      cartao_id: null,
+      tipo,
+    })
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="label">Descrição</label>
+        <input name="descricao" value={form.descricao} onChange={handleChange}
+          className="input" placeholder={ehConsorcio ? 'Ex: Consórcio apartamento' : 'Ex: Financiamento do carro'} required />
+      </div>
+
+      <div>
+        <label className="label">Categoria</label>
+        <div className="grid grid-cols-3 gap-2">
+          {[{ id: 'imovel', nome: '🏠 Imóvel' }, { id: 'veiculo', nome: '🚗 Veículo' }, { id: 'outros', nome: '📦 Outros' }].map(op => (
+            <button key={op.id} type="button" onClick={() => setForm(p => ({ ...p, categoriaTipo: op.id }))}
+              className={`p-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                form.categoriaTipo === op.id ? 'border-marca bg-marca-100 text-marca' : 'border-gray-200 text-gray-600'
+              }`}>
+              {op.nome}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Valor da parcela (R$)</label>
+          <InputMoeda valor={form.valorParcela}
+            onChangeValor={(n) => setForm(p => ({ ...p, valorParcela: n }))}
+            className="input" />
+        </div>
+        <div>
+          <label className="label">Qtd. total de parcelas</label>
+          <input name="numeroParcelas" value={form.numeroParcelas} onChange={handleChange}
+            type="number" min="1" max="600" inputMode="numeric" className="input" />
+        </div>
+      </div>
+
+      <div>
+        <label className="label">Parcelas já decorridas</label>
+        <input name="parcelasDecorridas" value={form.parcelasDecorridas} onChange={handleChange}
+          type="number" min="0" max={totalParcelas} inputMode="numeric" className="input" placeholder="0" />
+        <p className="text-xs text-gray-400 mt-1">
+          Quantas parcelas já venceram. Evita contagem duplicada: apenas as {restantes} restantes entram na projeção.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Data do 1º vencimento</label>
+          <input name="primeiroVencimento" value={form.primeiroVencimento} onChange={handleChange}
+            type="date" className="input" required />
+        </div>
+        <div>
+          <label className="label">Dia do vencimento</label>
+          <input name="diaVencimento" value={form.diaVencimento} onChange={handleChange}
+            type="number" min="1" max="31" inputMode="numeric" className="input" />
+        </div>
+      </div>
+
+      {valorTotal > 0 && (
+        <div className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-xs text-gray-600 space-y-0.5">
+          <div className="flex justify-between"><span>Parcela</span><strong>{formatCurrency(valorParcelaNum)}/mês</strong></div>
+          <div className="flex justify-between"><span>Decorridas</span><strong>{decorridas} de {totalParcelas}</strong></div>
+          <div className="flex justify-between"><span>Valor total</span><strong>{formatCurrency(valorTotal)}</strong></div>
+        </div>
+      )}
+
+      <div className="flex gap-3 pt-1">
+        <button type="button" onClick={onCancelar} className="btn-secondary flex-1">Cancelar</button>
+        <button type="submit" disabled={carregando}
+          className="btn-primary flex-1 flex items-center justify-center gap-2">
+          {carregando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : 'Salvar'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+// ─── Modal: Nova despesa (seletor de tipo) ou Editar despesa ──────────────────
 function ModalNovaDespesa({
   aberto, onFechar, onSalvarVista, onSalvarParcelada,
   salvandoVista, salvandoParcelada, despesaEmEdicao,
 }) {
   const editando = !!despesaEmEdicao
+  // Tipo de cadastro escolhido (só na criação). 'despesa' cobre comum,
+  // parcelada e recorrente (diferenciadas dentro do FormDespesa, como já era).
+  const [tipoCad, setTipoCad] = useState('despesa') // despesa | financiamento | consorcio
+
+  // Reseta o seletor ao reabrir o modal de criação.
+  useEffect(() => { if (aberto && !editando) setTipoCad('despesa') }, [aberto, editando])
+
+  const ehParcelamentoEspecial = tipoCad === 'financiamento' || tipoCad === 'consorcio'
 
   return (
     <Modal
@@ -469,18 +621,53 @@ function ModalNovaDespesa({
       onFechar={onFechar}
       titulo={editando ? 'Editar despesa' : 'Nova despesa'}
     >
-      {/* Fluxo unificado: a diferenciação 1x/Parcelada mora dentro do próprio
-          formulário e só aparece quando a forma de pagamento é Cartão de crédito.
-          Na edição, só o caminho de despesa (não vira parcelamento). */}
-      <FormDespesa
-        key={editando ? despesaEmEdicao.id : 'nova'}
-        onSalvarVista={onSalvarVista}
-        onSalvarParcelada={onSalvarParcelada}
-        onCancelar={onFechar}
-        carregando={editando ? salvandoVista : (salvandoVista || salvandoParcelada)}
-        despesaInicial={editando ? despesaEmEdicao : undefined}
-        textoBotao={editando ? 'Salvar alterações' : 'Salvar despesa'}
-      />
+      {/* Seletor dos tipos de cadastro — só na criação. Comum/Parcelada/
+          Recorrente continuam no FormDespesa (sem mudar o fluxo existente);
+          Financiamento/Consórcio usam o formulário dedicado. */}
+      {!editando && (
+        <div className="mb-4">
+          <label className="label">Tipo de cadastro</label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {[
+              { id: 'despesa', nome: 'Despesa' },
+              { id: 'financiamento', nome: 'Financiamento' },
+              { id: 'consorcio', nome: 'Consórcio' },
+            ].map(op => (
+              <button key={op.id} type="button" onClick={() => setTipoCad(op.id)}
+                className={`p-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                  tipoCad === op.id ? 'border-marca bg-marca-100 text-marca' : 'border-gray-200 text-gray-600'
+                }`}>
+                {op.nome}
+              </button>
+            ))}
+          </div>
+          {tipoCad === 'despesa' && (
+            <p className="text-xs text-gray-400 mt-1.5">
+              Comum, parcelada (no cartão) ou recorrente — escolha dentro do formulário abaixo.
+            </p>
+          )}
+        </div>
+      )}
+
+      {!editando && ehParcelamentoEspecial ? (
+        <FormFinanciamentoConsorcio
+          key={tipoCad}
+          tipo={tipoCad}
+          onSalvar={onSalvarParcelada}
+          onCancelar={onFechar}
+          carregando={salvandoParcelada}
+        />
+      ) : (
+        <FormDespesa
+          key={editando ? despesaEmEdicao.id : 'nova'}
+          onSalvarVista={onSalvarVista}
+          onSalvarParcelada={onSalvarParcelada}
+          onCancelar={onFechar}
+          carregando={editando ? salvandoVista : (salvandoVista || salvandoParcelada)}
+          despesaInicial={editando ? despesaEmEdicao : undefined}
+          textoBotao={editando ? 'Salvar alterações' : 'Salvar despesa'}
+        />
+      )}
     </Modal>
   )
 }

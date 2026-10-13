@@ -262,6 +262,14 @@ CREATE TABLE IF NOT EXISTS public.parcelamentos (
   -- Forma de pagamento (texto livre controlado pelo app). NULL = não informado.
   -- ALTER TABLE public.parcelamentos ADD COLUMN forma_pagamento TEXT;
   forma_pagamento  TEXT,
+  -- Tipo da obrigação: 'parcelado' (padrão) | 'financiamento' | 'consorcio'.
+  -- Reaproveita esta tabela para o acompanhamento de financiamentos/consórcios
+  -- (parcelas decorridas, restantes, progresso, próximo vencimento) sem criar
+  -- tabela nova. NULL/ausente é tratado como 'parcelado'.
+  -- (migration: 2026-10_parcelamentos_tipo.sql)
+  -- ALTER TABLE public.parcelamentos ADD COLUMN IF NOT EXISTS tipo TEXT
+  --   CHECK (tipo IN ('parcelado','financiamento','consorcio')) DEFAULT 'parcelado';
+  tipo             TEXT CHECK (tipo IN ('parcelado','financiamento','consorcio')) DEFAULT 'parcelado',
   criado_em        TIMESTAMPTZ DEFAULT NOW()
 );
 

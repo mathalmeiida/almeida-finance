@@ -169,28 +169,76 @@ export function totalFaturaComOverride(compras, parcelamentos, faturasInformadas
 }
 
 /**
- * Limite comprometido de um cartão = soma do valor restante de todas as
- * compras ainda não totalmente pagas. Para simplificar e refletir o uso real
- * do limite rotativo, consideramos o valor total das compras cuja última
- * parcela ainda não venceu em meses passados.
+ * Limite COMPROMETIDO de um cartão = tudo o que ainda NÃO foi quitado,
+ * independentemente do mês da fatura.
  *
- * Aproximação adotada: limite comprometido = soma, para cada compra, das
- * parcelas de competência >= mês atual (parcelas futuras + a do mês).
+ * Regras (correção do limite disponível):
+ *  - Soma, mês a mês, o total de cada fatura do cartão (compras + parcelamentos
+ *    vinculados), usando totalFaturaComOverride → se há TOTAL INFORMADO para o
+ *    mês, ele SUBSTITUI a soma detalhada (nunca duplica "Próxima fatura" com
+ *    "Parcelas futuras", pois cada parcela é contada uma única vez por mês).
+ *  - Uma fatura só LIBERA o limite quando está marcada como PAGA
+ *    (faturas_cartao.pago === true). A simples passagem do vencimento NÃO
+ *    libera limite.
+ *  - Compras parceladas comprometem o limite pelo saldo de TODAS as parcelas
+ *    cujas faturas ainda não foram pagas (passadas, atual e futuras).
+ *
+ * Compatível com a assinatura antiga: parcelamentos e faturasInformadas são
+ * opcionais (default []), então chamadas que passam só (compras, diaFechamento)
+ * continuam funcionando.
+ *
+ * @param {object[]} compras            compras_cartao DESTE cartão
+ * @param {number}   diaFechamento
+ * @param {Date}     hoje
+ * @param {object}   extras             { cartaoId, parcelamentos, faturasInformadas }
  */
-export function limiteComprometido(compras, diaFechamento, hoje = new Date()) {
-  const anoHoje = hoje.getFullYear()
-  const mesHoje = hoje.getMonth() + 1
-  return compras.reduce((acc, c) => {
+export function limiteComprometido(compras, diaFechamento, hoje = new Date(), extras = {}) {
+  const { cartaoId = null, parcelamentos = [], faturasInformadas = [] } = extras
+
+  // Parcelamentos vinculados a ESTE cartão (quando o id é informado).
+  const parcsDoCartao = cartaoId
+    ? parcelamentos.filter(p => p.cartao_id === cartaoId && !p.quitado_em)
+    : []
+
+  // Determina a janela de meses a varrer: do mais antigo (compra/parcelamento)
+  // até o mês da última parcela de qualquer obrigação. Fora dessa janela não
+  // há valor a comprometer.
+  let min = null // {ano, mes}
+  let max = null
+  const consid = (ano, mes) => {
+    const chaveNum = ano * 12 + (mes - 1)
+    if (min == null || chaveNum < min) min = chaveNum
+    if (max == null || chaveNum > max) max = chaveNum
+  }
+
+  compras.forEach(c => {
     const n = Number(c.numero_parcelas) || 1
-    const { base, ultima } = calcularParcelas(Number(c.valor_total), n)
-    const { ano: anoIni, mes: mesIni } = competenciaPrimeiraParcela(c.data_compra, diaFechamento)
-    let soma = 0
-    for (let i = 0; i < n; i++) {
-      const ano = anoIni + Math.floor((mesIni - 1 + i) / 12)
-      const mes = ((mesIni - 1 + i) % 12) + 1
-      const competenciaFutura = ano > anoHoje || (ano === anoHoje && mes >= mesHoje)
-      if (competenciaFutura) soma += (i === n - 1 ? ultima : base)
-    }
-    return acc + soma
-  }, 0)
+    const { ano, mes } = competenciaPrimeiraParcela(c.data_compra, diaFechamento)
+    consid(ano, mes)
+    const fimNum = ano * 12 + (mes - 1) + (n - 1)
+    consid(Math.floor(fimNum / 12), (fimNum % 12) + 1)
+  })
+  parcsDoCartao.forEach(p => {
+    const ini = new Date(p.primeira_parcela + 'T12:00:00')
+    const ano = ini.getFullYear(), mes = ini.getMonth() + 1
+    consid(ano, mes)
+    const fimNum = ano * 12 + (mes - 1) + (Number(p.numero_parcelas) - 1)
+    consid(Math.floor(fimNum / 12), (fimNum % 12) + 1)
+  })
+
+  if (min == null) return 0
+
+  let soma = 0
+  for (let chaveNum = min; chaveNum <= max; chaveNum++) {
+    const ano = Math.floor(chaveNum / 12)
+    const mes = (chaveNum % 12) + 1
+    // Fatura PAGA deste mês não compromete limite (liberada).
+    const informada = faturaInformadaNoMes(faturasInformadas, cartaoId, ano, mes)
+    if (informada?.pago === true) continue
+    // Total do mês com override (total informado substitui a soma detalhada).
+    soma += totalFaturaComOverride(
+      compras, parcsDoCartao, faturasInformadas, cartaoId, diaFechamento, ano, mes
+    )
+  }
+  return soma
 }

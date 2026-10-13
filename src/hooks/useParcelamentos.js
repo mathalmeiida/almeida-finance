@@ -126,12 +126,25 @@ export function useParcelamentos() {
           categoria: p.categorias?.nome || '',
         })
 
+        // Próximo vencimento (data real da próxima parcela a decorrer).
+        // Mantém o dia da primeira_parcela e avança parcelasPagas meses.
+        const proximoVencimento = ativo
+          ? (() => {
+              const d = new Date(inicio.getFullYear(), inicio.getMonth() + parcelasPagas, inicio.getDate())
+              return d.toISOString().slice(0, 10)
+            })()
+          : null
+
         return {
           ...p,
+          // Tipo da obrigação: 'parcelado' | 'financiamento' | 'consorcio'.
+          // Default 'parcelado' p/ registros sem a coluna (retrocompatível).
+          tipo: p.tipo || 'parcelado',
           parcelasPagas,
           parcelasRestantes,
           parcelaAtual,
           mesTermino,
+          proximoVencimento,
           ativo,
           valorParcelaBase,
           valorUltimaParcela,

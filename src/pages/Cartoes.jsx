@@ -318,7 +318,11 @@ const [modalFatura, setModalFatura] = useState(false)
   const faturaCompleta = faturaInformada && totalDetalhado >= totalFatura - 0.005
 
   // Limite disponível do cartão (mesma função usada nos cards da lista).
-  const comprometido = limiteComprometido(compras, cartao.dia_fechamento, hoje)
+  // Desconta TODAS as compras/parcelas não quitadas (override-aware; libera só
+  // quando a fatura do mês está marcada como paga).
+  const comprometido = limiteComprometido(compras, cartao.dia_fechamento, hoje, {
+    cartaoId: cartao.id, parcelamentos: parcelamentosDoCartao, faturasInformadas,
+  })
   const limiteDisponivelCartao = Math.max(0, Number(cartao.limite_total) - comprometido)
   const pctUsado = Number(cartao.limite_total) > 0
     ? Math.min(100, Math.round((comprometido / Number(cartao.limite_total)) * 100))
@@ -811,13 +815,15 @@ const [modalFatura, setModalFatura] = useState(false)
 }
 
 // ─── Card individual de cartão ────────────────────────────────────────────────
-function CardCartao({ cartao, compras, faturaMes, onVerFatura, onEditar, onRemover, removendo }) {
+function CardCartao({ cartao, compras, parcelamentos = [], faturasInformadas = [], faturaMes, onVerFatura, onEditar, onRemover, removendo }) {
   // "Fatura atual" respeita o total informado (override) quando houver; o
   // fallback usa a soma das compras (comportamento anterior).
   const fatura = faturaMes != null
     ? faturaMes
     : valorFaturaCartaoNoMes(compras, cartao.dia_fechamento, anoAtual, mesAtual)
-  const comprometido = limiteComprometido(compras, cartao.dia_fechamento, hoje)
+  const comprometido = limiteComprometido(compras, cartao.dia_fechamento, hoje, {
+    cartaoId: cartao.id, parcelamentos, faturasInformadas,
+  })
   const disponivel = Math.max(0, Number(cartao.limite_total) - comprometido)
 
   return (
@@ -901,7 +907,9 @@ export default function Cartoes() {
   const faturasMes = cartoes.reduce((acc, c) => acc + faturaMesAtualCartao(c), 0)
   const limiteTotal = cartoes.reduce((acc, c) => acc + Number(c.limite_total), 0)
   const limiteDisponivel = cartoes.reduce((acc, c) =>
-    acc + Math.max(0, Number(c.limite_total) - limiteComprometido(comprasPorCartao(c.id), c.dia_fechamento, hoje)), 0)
+    acc + Math.max(0, Number(c.limite_total) - limiteComprometido(comprasPorCartao(c.id), c.dia_fechamento, hoje, {
+      cartaoId: c.id, parcelamentos: parcelamentosPorCartao(c.id), faturasInformadas,
+    })), 0)
 
   function abrirNovo() { setCartaoEditando(null); setModalCartao(true) }
   function abrirEdicao(c) { setCartaoEditando(c); setModalCartao(true) }
@@ -980,6 +988,8 @@ export default function Cartoes() {
               key={c.id}
               cartao={c}
               compras={comprasPorCartao(c.id)}
+              parcelamentos={parcelamentosPorCartao(c.id)}
+              faturasInformadas={faturasInformadas}
               faturaMes={faturaMesAtualCartao(c)}
               onVerFatura={setFaturaAberta}
               onEditar={abrirEdicao}
