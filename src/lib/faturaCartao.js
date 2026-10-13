@@ -225,6 +225,14 @@ export function limiteComprometido(compras, diaFechamento, hoje = new Date(), ex
     const fimNum = ano * 12 + (mes - 1) + (Number(p.numero_parcelas) - 1)
     consid(Math.floor(fimNum / 12), (fimNum % 12) + 1)
   })
+  // Também considera faturas INFORMADAS por total (ex.: "Próxima fatura"
+  // digitada sem lançar as compras detalhadas). Sem isto, um cartão cujo único
+  // compromisso é um total informado teria janela vazia → limite não descontado.
+  ;(faturasInformadas || []).forEach(f => {
+    if (cartaoId && f.cartao_id !== cartaoId) return
+    const [ano, mes] = String(f.ano_mes).split('-').map(Number)
+    if (ano && mes) consid(ano, mes)
+  })
 
   if (min == null) return 0
 
