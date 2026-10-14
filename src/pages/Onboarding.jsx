@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react'
 import {
   Wallet, TrendingUp, TrendingDown, ShieldCheck, Sparkles,
   CheckCircle2, ArrowRight, ArrowLeft, Plus, Trash2, Loader2, UtensilsCrossed,
-  CreditCard, ShoppingBag,
+  CreditCard, ShoppingBag, Pencil,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useReceitas } from '../hooks/useReceitas'
@@ -48,6 +48,21 @@ const labelFormaOnboarding = (value) =>
 //   5 = Benefícios (VR/VA) | 6 = Reserva | 7 = Final
 // CARTOES e BENEFICIOS são etapas OPCIONAIS (podem ser puladas) e NÃO entram
 // na barra de progresso "X de 4" (que cobre só saldo/renda/despesas/reserva).
+// Opções e rótulo da recorrência de RECEITAS (reutilizadas no form e na lista).
+const FREQUENCIAS_RECEITA = [
+  { value: 'nao_repete',    label: 'Uma única vez' },
+  { value: 'semanal',       label: 'Semanalmente' },
+  { value: 'quinzenal',     label: 'A cada 15 dias' },
+  { value: 'mensal',        label: 'Mensalmente' },
+  { value: 'por_meses',     label: 'A cada X meses' },
+  { value: 'personalizado', label: 'Personalizado' },
+]
+const labelFrequenciaReceita = (freq) => {
+  const f = freq || 'mensal'
+  if (f === 'nao_repete') return 'uma vez'
+  return (FREQUENCIAS_RECEITA.find(o => o.value === f)?.label || f).toLowerCase()
+}
+
 const INTRO = 0
 const SALDO = 1
 const RENDA = 2
@@ -113,17 +128,17 @@ function LinhaResumo({ label, valor, cor = 'text-gray-900' }) {
 export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   const { usuario, perfil, atualizarPreferenciasLimite, corTema, atualizarCorTema } = useAuth()
   // Hooks das MESMAS tabelas usadas no app — sem estrutura paralela.
-  const { receitas: receitasExistentes, criar: criarReceita } = useReceitas()
-  const { despesas: despesasExistentes, criar: criarDespesa } = useDespesas()
+  const { receitas: receitasExistentes, criar: criarReceita, atualizar: atualizarReceita } = useReceitas()
+  const { despesas: despesasExistentes, criar: criarDespesa, atualizar: atualizarDespesa, remover: removerDespesa, carregando: carregandoDespesas, erro: erroCarregamentoDespesas, recarregar: recarregarDespesas } = useDespesas()
   const { categorias: categoriasReceita } = useCategorias('receita')
   const { categorias: categoriasDespesa } = useCategorias('despesa')
   // Cartões já cadastrados — usados para vincular uma despesa paga no cartão de
   // crédito (etapa Despesas) e listados na etapa Cartões. "criar" grava um novo
   // cartão (mesma função/tabela da página Cartões, sem estrutura paralela).
-  const { cartoes, criar: criarCartao } = useCartoes()
+  const { cartoes, criar: criarCartao, atualizar: atualizarCartao, remover: removerCartao } = useCartoes()
   // Benefícios (VR/VA) — "criarBeneficio" grava na mesma tabela/hook da aba
   // Benefícios. Usado na etapa Benefícios do onboarding.
-  const { beneficios, criarBeneficio } = useBeneficios()
+  const { beneficios, criarBeneficio, atualizarBeneficio, removerBeneficio, saldoDoBeneficio } = useBeneficios()
 
   const [etapa, setEtapa] = useState(INTRO)
   const [salvando, setSalvando] = useState(false)
@@ -175,10 +190,38 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
 
   // ETAPA Renda — lista local; grava só ao avançar. Campos monetários começam
   // VAZIOS ('') para exibir o placeholder, nunca "R$ 0,00" preenchido.
-  const [receitas, setReceitas] = useState([]) // { descricao, valor, categoria, data, recorrente }
+  const [receitas, setReceitas] = useState([]) // itens locais (podem ter id se já salvos)
   const [recForm, setRecForm] = useState({
-    descricao: '', valor: '', categoria: '', data: hojeISO(), recorrente: true,
+    descricao: '', valor: '', categoria: '', data: hojeISO(),
+    // Recorrência rica (espelha despesas): frequencia + término opcional.
+    frequencia: 'mensal',       // nao_repete | semanal | quinzenal | mensal | por_meses | personalizado
+    recorrenciaMeses: '',       // intervalo em meses (por_meses/personalizado)
+    termino: 'sem_fim',         // sem_fim | ocorrencias | data
+    ocorrencias: '',            // nº de recebimentos (termino = ocorrencias)
+    dataFim: '',                // data final (termino = data)
   })
+  // Índice do item em EDIÇÃO na lista local (null = adicionando novo).
+  const [recEditIdx, setRecEditIdx] = useState(null)
+  // Rehidrata a lista local com as receitas JÁ salvas (ao voltar à etapa),
+  // evitando duplicação: itens com id não são recriados no salvar.
+  const [recHidratado, setRecHidratado] = useState(false)
+  useEffect(() => {
+    if (recHidratado) return
+    if (receitasExistentes && receitasExistentes.length > 0) {
+      setReceitas(receitasExistentes.map(r => ({
+        id: r.id,
+        descricao: r.descricao,
+        valor: Number(r.valor) || 0,
+        categoria: r.categoria || null,
+        data: r.data,
+        frequencia: r.frequencia || (r.recorrente ? (r.recorrencia_meses != null ? 'por_meses' : 'mensal') : 'nao_repete'),
+        recorrencia_meses: r.recorrencia_meses ?? null,
+        ocorrencias: r.ocorrencias ?? null,
+        data_fim: r.data_fim ?? null,
+      })))
+      setRecHidratado(true)
+    }
+  }, [receitasExistentes, recHidratado])
 
   // ETAPA Despesas — lista local.
   const [despesas, setDespesas] = useState([]) // { descricao, valor, categoria_id, data, frequencia, recorrenciaMeses }
@@ -188,10 +231,32 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
     forma_pagamento: '', cartao_id: '',
   })
 
+  const [despEditIdx, setDespEditIdx] = useState(null)
+  const [despHidratado, setDespHidratado] = useState(false)
+  useEffect(() => {
+    if (despHidratado || carregandoDespesas || erroCarregamentoDespesas || !usuario?.id) return
+    // A lista do hook é a fonte dos registros já salvos.
+    setDespesas(anteriores => {
+      if (anteriores.length) return anteriores
+      return (despesasExistentes || []).map(d => ({
+        id: d.id, descricao: d.descricao, valor: Number(d.valor) || 0,
+        categoria_id: d.categoria_id || '', data: d.data,
+        frequencia: d.frequencia === 'por_meses' ? 'mensal' :
+          (d.frequencia || (d.recorrente ? 'mensal' : 'nao_repete')),
+        recorrenciaMeses: d.frequencia === 'por_meses' ||
+          (!d.frequencia && d.recorrencia_meses != null)
+          ? String(d.recorrencia_meses || '') : '',
+        forma_pagamento: d.forma_pagamento || '', cartao_id: d.cartao_id || '',
+      }))
+    })
+    setDespHidratado(true)
+  }, [carregandoDespesas, erroCarregamentoDespesas, despesasExistentes, despHidratado, usuario?.id])
+
   // ETAPA Cartões — formulário local de um cartão (gravado ao avançar).
   const [cartaoForm, setCartaoForm] = useState({
     nome: '', banco: '', limite_total: '', dia_fechamento: '', dia_vencimento: '',
   })
+  const [cartaoEditId, setCartaoEditId] = useState(null)
 
   // ETAPA Benefícios — formulário local de um benefício VR/VA. Começa VAZIO e
   // SEM valor; VR e VA são opcionais e independentes (nada é pré-selecionado
@@ -200,6 +265,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
     nome: '', tipo: 'VR', saldo_inicial: '',
     recarga_valor: '', recarga_dia: '', recarga_recorrente: false,
   })
+  const [beneficioEditId, setBeneficioEditId] = useState(null)
 
   // ETAPA Reserva — só pré-preenche o VALOR quando o usuário já respondeu a
   // etapa (reserva_configurada); senão inicia VAZIO (placeholder R$ 0,00).
@@ -261,68 +327,134 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   }
 
   // ─── ETAPA Renda ───
-  // Adiciona a renda digitada à lista local. Retorna true se adicionou.
-  function adicionarReceitaLocal() {
+  // Normaliza o form em um ITEM local (frequência + término). Mantém o booleano
+  // "recorrente" em sincronia (recorrente = frequência != 'nao_repete') para a
+  // retrocompatibilidade e para a tela de Receitas/projeção reconhecerem.
+  function itemReceitaDoForm() {
+    const freq = recForm.frequencia
+    const recorrente = freq !== 'nao_repete'
+    const ehMensalMultiplo = freq === 'por_meses' || freq === 'personalizado'
+    const recorrencia_meses = ehMensalMultiplo
+      ? Math.max(1, parseInt(recForm.recorrenciaMeses, 10) || 1)
+      : null
+    // Término só se aplica a receitas recorrentes.
+    let ocorrencias = null, data_fim = null
+    if (recorrente) {
+      if (recForm.termino === 'ocorrencias') ocorrencias = Math.max(1, parseInt(recForm.ocorrencias, 10) || 1)
+      else if (recForm.termino === 'data') data_fim = recForm.dataFim || null
+    }
+    return {
+      descricao: recForm.descricao.trim(),
+      valor: Number(recForm.valor) || 0,
+      categoria: recForm.categoria || null,
+      data: recForm.data || hojeISO(),
+      recorrente,
+      frequencia: freq,
+      recorrencia_meses,
+      ocorrencias,
+      data_fim,
+    }
+  }
+  function limparRecForm() {
+    setRecForm({ descricao: '', valor: '', categoria: '', data: hojeISO(),
+      frequencia: 'mensal', recorrenciaMeses: '', termino: 'sem_fim', ocorrencias: '', dataFim: '' })
+    setRecEditIdx(null)
+  }
+  function validarRecForm() {
     const valor = Number(recForm.valor) || 0
     if (!recForm.descricao.trim()) { setErro('Dê um nome à receita (ex.: Salário).'); return false }
     if (valor <= 0) { setErro('Informe um valor de receita maior que zero.'); return false }
-    setErro('')
-    setReceitas(prev => [...prev, {
-      descricao: recForm.descricao.trim(),
-      valor,
-      categoria: recForm.categoria || null,
-      data: recForm.data || hojeISO(),
-      recorrente: !!recForm.recorrente,
-    }])
-    setRecForm({ descricao: '', valor: '', categoria: '', data: hojeISO(), recorrente: true })
     return true
+  }
+  // Adiciona OU atualiza (quando em edição) o item na lista local.
+  function adicionarReceitaLocal() {
+    if (!validarRecForm()) return false
+    setErro('')
+    const item = itemReceitaDoForm()
+    setReceitas(prev => {
+      if (recEditIdx != null) {
+        // Preserva o id (se já salvo) ao editar.
+        const copia = [...prev]
+        copia[recEditIdx] = { ...item, id: prev[recEditIdx]?.id }
+        return copia
+      }
+      return [...prev, item]
+    })
+    limparRecForm()
+    return true
+  }
+  // Carrega um item da lista no formulário para editar.
+  function editarReceitaLocal(i) {
+    const r = receitas[i]
+    if (!r) return
+    const freq = r.frequencia || (r.recorrente ? (r.recorrencia_meses != null ? 'por_meses' : 'mensal') : 'nao_repete')
+    setRecForm({
+      descricao: r.descricao || '',
+      valor: r.valor || '',
+      categoria: r.categoria || '',
+      data: r.data || hojeISO(),
+      frequencia: freq,
+      recorrenciaMeses: r.recorrencia_meses != null ? String(r.recorrencia_meses) : '',
+      termino: r.ocorrencias != null ? 'ocorrencias' : r.data_fim ? 'data' : 'sem_fim',
+      ocorrencias: r.ocorrencias != null ? String(r.ocorrencias) : '',
+      dataFim: r.data_fim || '',
+    })
+    setRecEditIdx(i)
   }
   function removerReceitaLocal(i) {
     setReceitas(prev => prev.filter((_, idx) => idx !== i))
+    if (recEditIdx === i) limparRecForm()
   }
   async function salvarReceitas() {
     if (emGravacao.current) return
-    // CORREÇÃO DO BUG DE AVANÇO: se o usuário preencheu a renda mas NÃO clicou
-    // em "Adicionar", nós a incluímos automaticamente aqui — antes era perdida
-    // silenciosamente e o fluxo "pulava" a etapa sem salvar nada.
+    // Se o usuário preencheu o form mas não clicou em "Adicionar", inclui aqui.
     let lista = receitas
     const temFormPreenchido = recForm.descricao.trim() || (Number(recForm.valor) || 0) > 0
     if (temFormPreenchido) {
-      const valor = Number(recForm.valor) || 0
-      if (!recForm.descricao.trim()) { setErro('Dê um nome à receita (ex.: Salário).'); return }
-      if (valor <= 0) { setErro('Informe um valor de receita maior que zero.'); return }
-      lista = [...receitas, {
-        descricao: recForm.descricao.trim(),
-        valor,
-        categoria: recForm.categoria || null,
-        data: recForm.data || hojeISO(),
-        recorrente: !!recForm.recorrente,
-      }]
+      if (!validarRecForm()) return
+      const item = itemReceitaDoForm()
+      if (recEditIdx != null) {
+        lista = [...receitas]
+        lista[recEditIdx] = { ...item, id: receitas[recEditIdx]?.id }
+      } else {
+        lista = [...receitas, item]
+      }
     }
 
-    // Nenhuma renda informada: segue adiante (etapa opcional).
     if (lista.length === 0) { avancar(); return }
 
     emGravacao.current = true
     setSalvando(true); setErro('')
     try {
-      // Grava cada receita com a MESMA função/estrutura da tela Receitas.
-      // await em sequência garante que o salvamento terminou ANTES de avançar.
+      // Persiste SEM duplicar: itens com id já existem → UPDATE; sem id → INSERT.
+      const salvos = []
       for (const r of lista) {
-        await criarReceita({
+        const payload = {
           descricao: r.descricao,
           valor: r.valor,
           data: r.data,
           recorrente: r.recorrente,
           categoria: r.categoria,
-        })
+          frequencia: r.frequencia,
+          recorrencia_meses: r.recorrencia_meses,
+          ocorrencias: r.ocorrencias,
+          data_fim: r.data_fim,
+        }
+        if (r.id) {
+          const atualizado = await atualizarReceita(r.id, payload)
+          salvos.push({ ...r, id: atualizado?.id ?? r.id })
+        } else {
+          const criado = await criarReceita(payload)
+          salvos.push({ ...r, id: criado?.id })
+        }
       }
-      // Só limpa a lista e avança APÓS gravar tudo com sucesso.
-      setReceitas([])
-      setRecForm({ descricao: '', valor: '', categoria: '', data: hojeISO(), recorrente: true })
+      // Mantém a lista COM os ids (sem limpar) para que, ao voltar à etapa, os
+      // itens reapareçam e não sejam recriados. Avança após sucesso.
+      setReceitas(salvos)
+      limparRecForm()
       avancar()
     } catch (e) {
-      // NÃO avança em silêncio: mostra a mensagem clara pedida no requisito.
+      // NÃO avança em silêncio: mostra erro e impede o avanço.
       setErro(e?.message
         ? `Não foi possível salvar sua renda. Tente novamente. (${e.message})`
         : 'Não foi possível salvar sua renda. Tente novamente.')
@@ -340,99 +472,120 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   const cartaoIdValido = (id) =>
     id && cartoes.some(c => c.id === id) ? id : ''
 
-  function adicionarDespesaLocal() {
-    const valor = Number(despForm.valor) || 0
-    if (!despForm.descricao.trim()) { setErro('Dê um nome à despesa (ex.: Aluguel).'); return false }
-    if (valor <= 0) { setErro('Informe um valor de despesa maior que zero.'); return false }
-    setErro('')
-    setDespesas(prev => [...prev, {
-      descricao: despForm.descricao.trim(),
-      valor,
-      categoria_id: despForm.categoria_id || null,
-      data: despForm.data || hojeISO(),
-      frequencia: despForm.frequencia,
-      recorrenciaMeses: despForm.recorrenciaMeses,
+  const despFormVazio = () => ({
+    descricao: '', valor: '', categoria_id: '', data: hojeISO(),
+    frequencia: 'mensal', recorrenciaMeses: '', forma_pagamento: '', cartao_id: '',
+  })
+  function itemDespesaDoForm() {
+    return {
+      descricao: despForm.descricao.trim(), valor: Number(despForm.valor) || 0,
+      categoria_id: despForm.categoria_id || null, data: despForm.data || hojeISO(),
+      frequencia: despForm.frequencia, recorrenciaMeses: despForm.recorrenciaMeses,
       forma_pagamento: despForm.forma_pagamento || '',
-      // cartão só é relevante quando a forma é cartão de crédito E o cartão
-      // pertence ao usuário (validação de propriedade).
-      cartao_id: despForm.forma_pagamento === 'cartao_credito' ? cartaoIdValido(despForm.cartao_id) : '',
-    }])
-    setDespForm({ descricao: '', valor: '', categoria_id: '', data: hojeISO(), frequencia: 'mensal', recorrenciaMeses: '', forma_pagamento: '', cartao_id: '' })
+      cartao_id: despForm.forma_pagamento === 'cartao_credito'
+        ? cartaoIdValido(despForm.cartao_id) : '',
+    }
+  }
+  function validarDespForm() {
+    if (!despForm.descricao.trim()) { setErro('Dê um nome à despesa (ex.: Aluguel).'); return false }
+    if (!(Number(despForm.valor) > 0)) { setErro('Informe um valor de despesa maior que zero.'); return false }
     return true
   }
-  function removerDespesaLocal(i) {
-    setDespesas(prev => prev.filter((_, idx) => idx !== i))
+  function limparDespForm() {
+    setDespForm(despFormVazio())
+    setDespEditIdx(null)
+  }
+  function editarDespesaLocal(i) {
+    const d = despesas[i]
+    if (!d) return
+    setDespForm({
+      descricao: d.descricao || '', valor: d.valor ?? '',
+      categoria_id: d.categoria_id || '', data: d.data || hojeISO(),
+      frequencia: d.frequencia || 'mensal',
+      recorrenciaMeses: d.recorrenciaMeses ?? '',
+      forma_pagamento: d.forma_pagamento || '', cartao_id: d.cartao_id || '',
+    })
+    setDespEditIdx(i)
+    setErro('')
+  }
+  function adicionarDespesaLocal() {
+    if (!validarDespForm()) return false
+    const item = itemDespesaDoForm()
+    setDespesas(prev => {
+      if (despEditIdx == null) return [...prev, item]
+      return prev.map((d, i) => i === despEditIdx ? { ...d, ...item } : d)
+    })
+    limparDespForm()
+    setErro('')
+    return true
+  }
+  async function removerDespesaLocal(i) {
+    const d = despesas[i]
+    if (!d) return
+    if (d.id) {
+      if (!window.confirm(`Excluir definitivamente a despesa "${d.descricao}"?`)) return
+      try {
+        setSalvando(true); setErro('')
+        await removerDespesa(d.id)
+      } catch (e) {
+        setErro(`Não foi possível excluir a despesa. ${e?.message || ''}`)
+        setSalvando(false)
+        return
+      } finally { setSalvando(false) }
+    }
+    setDespesas(prev => prev.filter(x => x !== d))
+    limparDespForm()
   }
   async function salvarDespesas() {
     if (emGravacao.current) return
-    // Mesma correção da renda: inclui a despesa digitada mas não "adicionada".
+    // Não avançar com lista vazia enquanto registros já existentes não foram carregados.
+    if (carregandoDespesas || erroCarregamentoDespesas || !despHidratado) {
+      setErro('Aguarde carregar as despesas existentes ou use Tentar novamente antes de salvar.')
+      return
+    }
     let lista = despesas
     const temFormPreenchido = despForm.descricao.trim() || (Number(despForm.valor) || 0) > 0
     if (temFormPreenchido) {
-      const valor = Number(despForm.valor) || 0
-      if (!despForm.descricao.trim()) { setErro('Dê um nome à despesa (ex.: Aluguel).'); return }
-      if (valor <= 0) { setErro('Informe um valor de despesa maior que zero.'); return }
-      lista = [...despesas, {
-        descricao: despForm.descricao.trim(),
-        valor,
-        categoria_id: despForm.categoria_id || null,
-        data: despForm.data || hojeISO(),
-        frequencia: despForm.frequencia,
-        recorrenciaMeses: despForm.recorrenciaMeses,
-        forma_pagamento: despForm.forma_pagamento || '',
-        cartao_id: despForm.forma_pagamento === 'cartao_credito' ? cartaoIdValido(despForm.cartao_id) : '',
-      }]
+      if (!validarDespForm()) return
+      const item = itemDespesaDoForm()
+      lista = despEditIdx == null ? [...despesas, item] :
+        despesas.map((d, i) => i === despEditIdx ? { ...d, ...item } : d)
     }
-
     if (lista.length === 0) { avancar(); return }
-
     emGravacao.current = true
     setSalvando(true); setErro('')
+    const salvos = []
     try {
       for (const d of lista) {
         const cat = categoriasDespesa.find(c => c.id === d.categoria_id)
-        // Classificação automática fixa/variável — MESMA lógica do app.
         const tipo_despesa = classificarDespesa({
-          descricao: d.descricao,
-          categoria: cat?.nome || '',
+          descricao: d.descricao, categoria: cat?.nome || '',
         })
-        // Frequência: mensal (sem fim) ou por_meses (duração definida).
         let freq = d.frequencia
         let recorrencia_meses = null
         if (d.frequencia === 'mensal' && Number(d.recorrenciaMeses) > 0) {
           freq = 'por_meses'
           recorrencia_meses = Number(d.recorrenciaMeses)
         }
-        const recorrente = freq !== 'nao_repete'
-        // Payload base. forma_pagamento e cartao_id são METADADOS: gravam só em
-        // public.despesas (uma linha), SEM criar fatura, compra em compras_cartao
-        // nem movimentação de benefício — evitando dupla contagem no limite diário.
         const payload = {
-          descricao: d.descricao,
-          valor: d.valor,
-          data: d.data,
-          recorrente,
-          frequencia: freq,
-          recorrencia_meses,
-          categoria_id: d.categoria_id,
-          tipo_despesa,
+          descricao: d.descricao, valor: d.valor, data: d.data,
+          recorrente: freq !== 'nao_repete', frequencia: freq,
+          recorrencia_meses, categoria_id: d.categoria_id, tipo_despesa,
+          forma_pagamento: d.forma_pagamento || null,
+          cartao_id: d.forma_pagamento === 'cartao_credito' ?
+            (cartaoIdValido(d.cartao_id) || null) : null,
         }
-        // Só envia forma_pagamento quando informada (NULL = não informado).
-        if (d.forma_pagamento) payload.forma_pagamento = d.forma_pagamento
-        // cartao_id só quando a forma é cartão de crédito E um cartão VÁLIDO
-        // (do próprio usuário) foi escolhido. Revalida aqui porque a lista de
-        // cartões pode ter mudado entre adicionar e salvar. String vazia
-        // quebraria a FK UUID, por isso é condicional.
-        if (d.forma_pagamento === 'cartao_credito') {
-          const idOk = cartaoIdValido(d.cartao_id)
-          if (idOk) payload.cartao_id = idOk
-        }
-        await criarDespesa(payload)
+        const salvo = d.id
+          ? await atualizarDespesa(d.id, payload)
+          : await criarDespesa(payload)
+        // Salvar ids já criados mesmo se uma operação posterior falhar.
+        salvos.push({ ...d, id: salvo?.id || d.id })
       }
-      setDespesas([])
-      setDespForm({ descricao: '', valor: '', categoria_id: '', data: hojeISO(), frequencia: 'mensal', recorrenciaMeses: '', forma_pagamento: '', cartao_id: '' })
+      setDespesas(salvos)
+      limparDespForm()
       avancar()
     } catch (e) {
+      setDespesas([...salvos, ...lista.slice(salvos.length)])
       setErro(e?.message
         ? `Não foi possível salvar suas despesas. Tente novamente. (${e.message})`
         : 'Não foi possível salvar suas despesas. Tente novamente.')
@@ -443,38 +596,66 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   }
 
   // ─── ETAPA Cartões ───
-  // Grava o cartão preenchido (se houver) e avança. Etapa OPCIONAL: sem nome ou
-  // sem limite, apenas avança. Usa a MESMA função/tabela da página Cartões.
+  const limparCartaoForm = () => {
+    setCartaoForm({ nome: '', banco: '', limite_total: '', dia_fechamento: '', dia_vencimento: '' })
+    setCartaoEditId(null)
+  }
+
+  function editarCartao(c) {
+    setCartaoEditId(c.id)
+    setCartaoForm({
+      nome: c.nome || '', banco: c.banco || '',
+      limite_total: c.limite_total ?? '',
+      dia_fechamento: c.dia_fechamento ?? '',
+      dia_vencimento: c.dia_vencimento ?? '',
+    })
+    setErro('')
+  }
+
+  async function excluirCartao(c) {
+    if (salvando || emGravacao.current) return
+    if (!window.confirm(`Excluir o cartão "${c.nome}"? Compras e faturas vinculadas podem impedir a exclusão.`)) return
+    emGravacao.current = true
+    setSalvando(true); setErro('')
+    try {
+      await removerCartao(c.id)
+      if (cartaoEditId === c.id) limparCartaoForm()
+    } catch (e) {
+      setErro(`Não foi possível excluir o cartão. ${e?.message || ''}`)
+    } finally {
+      setSalvando(false)
+      emGravacao.current = false
+    }
+  }
+
   async function salvarCartao() {
     if (emGravacao.current) return
     const nome = cartaoForm.nome.trim()
     const temAlgo = nome || Number(cartaoForm.limite_total) > 0 ||
       cartaoForm.dia_fechamento || cartaoForm.dia_vencimento
-    // Nada preenchido: etapa opcional, só avança.
-    if (!temAlgo) { avancar(); return }
-    // Preencheu algo: validação mínima para um cartão útil.
+    if (!temAlgo && !cartaoEditId) { avancar(); return }
     if (!nome) { setErro('Dê um nome ao cartão (ex.: Nubank).'); return }
     const diaFech = parseInt(cartaoForm.dia_fechamento, 10)
     const diaVenc = parseInt(cartaoForm.dia_vencimento, 10)
     if (!(diaFech >= 1 && diaFech <= 31)) { setErro('Informe um dia de fechamento entre 1 e 31.'); return }
     if (!(diaVenc >= 1 && diaVenc <= 31)) { setErro('Informe um dia de vencimento entre 1 e 31.'); return }
-
+    const payload = {
+      nome, banco: cartaoForm.banco.trim() || null,
+      limite_total: Number(cartaoForm.limite_total) || 0,
+      dia_fechamento: diaFech, dia_vencimento: diaVenc,
+    }
     emGravacao.current = true
     setSalvando(true); setErro('')
     try {
-      await criarCartao({
-        nome,
-        banco: cartaoForm.banco.trim() || null,
-        limite_total: Number(cartaoForm.limite_total) || 0,
-        dia_fechamento: diaFech,
-        dia_vencimento: diaVenc,
-      })
-      setCartaoForm({ nome: '', banco: '', limite_total: '', dia_fechamento: '', dia_vencimento: '' })
+      if (cartaoEditId) {
+        await atualizarCartao(cartaoEditId, payload)
+      } else {
+        await criarCartao(payload)
+      }
+      limparCartaoForm()
       avancar()
     } catch (e) {
-      setErro(e?.message
-        ? `Não foi possível salvar o cartão. Tente novamente. (${e.message})`
-        : 'Não foi possível salvar o cartão. Tente novamente.')
+      setErro(`Não foi possível salvar o cartão. ${e?.message || 'Tente novamente.'}`)
     } finally {
       setSalvando(false)
       emGravacao.current = false
@@ -482,41 +663,70 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   }
 
   // ─── ETAPA Benefícios (VR/VA) ───
-  // Grava o benefício preenchido (se houver) e avança. Etapa OPCIONAL. VR e VA
-  // são independentes: o usuário pode cadastrar um, outro, os dois ou nenhum.
-  // Usa a MESMA função/tabela da aba Benefícios. criarBeneficio já cria a 1ª
-  // movimentação de "Saldo inicial" quando saldo_inicial > 0.
+  const limparBeneficioForm = () => {
+    setBeneficioForm({ nome: '', tipo: 'VR', saldo_inicial: '',
+      recarga_valor: '', recarga_dia: '', recarga_recorrente: false })
+    setBeneficioEditId(null)
+  }
+
+  function editarBeneficio(b) {
+    setBeneficioEditId(b.id)
+    setBeneficioForm({
+      nome: b.nome || '', tipo: b.tipo || 'VR',
+      // Saldo real é calculado a partir do extrato: nunca regravar saldo inicial.
+      saldo_inicial: '',
+      recarga_valor: b.recarga_valor ?? '',
+      recarga_dia: b.recarga_dia ?? '',
+      recarga_recorrente: !!b.recarga_recorrente,
+    })
+    setErro('')
+  }
+
+  async function excluirBeneficio(b) {
+    if (salvando || emGravacao.current) return
+    if (!window.confirm(`Excluir definitivamente "${b.nome}" e todo seu extrato de movimentações?`)) return
+    emGravacao.current = true
+    setSalvando(true); setErro('')
+    try {
+      await removerBeneficio(b.id)
+      if (beneficioEditId === b.id) limparBeneficioForm()
+    } catch (e) {
+      setErro(`Não foi possível excluir o benefício. ${e?.message || ''}`)
+    } finally {
+      setSalvando(false)
+      emGravacao.current = false
+    }
+  }
+
   async function salvarBeneficio() {
     if (emGravacao.current) return
     const nome = beneficioForm.nome.trim()
     const temAlgo = nome || Number(beneficioForm.saldo_inicial) > 0 ||
       Number(beneficioForm.recarga_valor) > 0
-    // Nada preenchido: etapa opcional, só avança.
-    if (!temAlgo) { avancar(); return }
+    if (!temAlgo && !beneficioEditId) { avancar(); return }
     if (!nome) { setErro('Dê um nome ao benefício (ex.: Alelo, VR Benefícios).'); return }
-
+    const dia = beneficioForm.recarga_dia === '' ? null : Number(beneficioForm.recarga_dia)
+    if (dia !== null && (!Number.isInteger(dia) || dia < 1 || dia > 31)) {
+      setErro('Informe um dia de recarga entre 1 e 31.'); return
+    }
+    const payload = {
+      nome, tipo: beneficioForm.tipo,
+      recarga_valor: Number(beneficioForm.recarga_valor) || 0,
+      recarga_dia: dia,
+      recarga_recorrente: !!beneficioForm.recarga_recorrente,
+    }
     emGravacao.current = true
     setSalvando(true); setErro('')
     try {
-      await criarBeneficio({
-        nome,
-        tipo: beneficioForm.tipo, // 'VR' ou 'VA'
-        saldo_inicial: Number(beneficioForm.saldo_inicial) || 0,
-        recarga_valor: Number(beneficioForm.recarga_valor) || 0,
-        recarga_dia: beneficioForm.recarga_dia
-          ? Math.min(31, Math.max(1, Number(beneficioForm.recarga_dia)))
-          : null,
-        recarga_recorrente: !!beneficioForm.recarga_recorrente,
-      })
-      setBeneficioForm({ nome: '', tipo: 'VR', saldo_inicial: '', recarga_valor: '', recarga_dia: '', recarga_recorrente: false })
-      // Permanece na mesma etapa para permitir cadastrar o segundo benefício
-      // (VR + VA). A lista acima reflete o que já foi criado; o botão principal
-      // avança quando o usuário terminar.
-      setErro('')
+      if (beneficioEditId) {
+        // Não altera saldo_inicial: o saldo real pertence às movimentações.
+        await atualizarBeneficio(beneficioEditId, payload)
+      } else {
+        await criarBeneficio({ ...payload, saldo_inicial: Number(beneficioForm.saldo_inicial) || 0 })
+      }
+      limparBeneficioForm()
     } catch (e) {
-      setErro(e?.message
-        ? `Não foi possível salvar o benefício. Tente novamente. (${e.message})`
-        : 'Não foi possível salvar o benefício. Tente novamente.')
+      setErro(`Não foi possível salvar o benefício. ${e?.message || 'Tente novamente.'}`)
     } finally {
       setSalvando(false)
       emGravacao.current = false
@@ -587,16 +797,18 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   const resumo = useMemo(() => {
     const pctCustom = modoCustom ? (parseInt(reservaCustom, 10) || 0) : reservaPct
 
-    const rendaMensalNova = receitas
+    // Conjunto de receitas sem dupla contagem: a lista local (que, após a
+    // hidratação, já contém as persistidas com id) + as existentes cujo id NÃO
+    // está na lista local (caso ainda não tenham sido hidratadas).
+    const idsLocais = new Set(receitas.filter(r => r.id).map(r => r.id))
+    const existentesNaoLocais = (receitasExistentes || []).filter(r => !idsLocais.has(r.id))
+    const receitasParaResumo = [...receitas, ...existentesNaoLocais]
+    const rendaMensal = receitasParaResumo
       .filter(r => r.recorrente)
       .reduce((acc, r) => acc + (Number(r.valor) || 0), 0)
-    const rendaMensalExistente = (receitasExistentes || [])
-      .filter(r => r.recorrente)
-      .reduce((acc, r) => acc + (Number(r.valor) || 0), 0)
-    const rendaMensal = rendaMensalNova + rendaMensalExistente
 
     const despesasNovas = despesas
-      .filter(d => d.frequencia !== 'nao_repete')
+      .filter(d => !d.id && d.frequencia !== 'nao_repete')
       .reduce((acc, d) => acc + (Number(d.valor) || 0), 0)
     const despesasExistRecorrentes = (despesasExistentes || [])
       .filter(d => d.recorrente)
@@ -718,14 +930,17 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
               {receitas.length > 0 && (
                 <ul className="space-y-2 mb-3">
                   {receitas.map((r, i) => (
-                    <li key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                    <li key={r.id || i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                       <span className="text-sm text-gray-800 truncate min-w-0">
                         {r.descricao}
-                        {r.recorrente && <span className="text-xs text-blue-500 ml-1">• mensal</span>}
+                        <span className="text-xs text-blue-500 ml-1">• {labelFrequenciaReceita(r.frequencia)}</span>
                       </span>
                       <span className="flex items-center gap-2 flex-shrink-0">
                         <span className="text-sm font-semibold text-green-600">{formatCurrency(r.valor)}</span>
-                        <button onClick={() => removerReceitaLocal(i)} className="text-gray-400 hover:text-red-500">
+                        <button onClick={() => editarReceitaLocal(i)} className="text-gray-400 hover:text-blue-500" title="Editar">
+                          <Pencil size={15} />
+                        </button>
+                        <button onClick={() => removerReceitaLocal(i)} className="text-gray-400 hover:text-red-500" title="Remover">
                           <Trash2 size={15} />
                         </button>
                       </span>
@@ -751,26 +966,50 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                   <option value="">Sem categoria</option>
                   {categoriasReceita.map(c => <option key={c.id} value={c.nome}>{c.icone} {c.nome}</option>)}
                 </select>
-                <div className="grid grid-cols-2 gap-2">
-                  <button type="button"
-                    onClick={() => setRecForm(p => ({ ...p, recorrente: true }))}
-                    className={`p-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
-                      recForm.recorrente ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
-                    }`}>
-                    Recebo todo mês
-                  </button>
-                  <button type="button"
-                    onClick={() => setRecForm(p => ({ ...p, recorrente: false }))}
-                    className={`p-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
-                      !recForm.recorrente ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
-                    }`}>
-                    Só uma vez
-                  </button>
+                {/* Recorrência */}
+                <div>
+                  <label className="label">Com que frequência você recebe?</label>
+                  <select className="input" value={recForm.frequencia}
+                    onChange={(e) => setRecForm(p => ({ ...p, frequencia: e.target.value }))}>
+                    {FREQUENCIAS_RECEITA.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
                 </div>
+
+                {/* Intervalo em meses — só p/ "A cada X meses" e "Personalizado" */}
+                {(recForm.frequencia === 'por_meses' || recForm.frequencia === 'personalizado') && (
+                  <div>
+                    <label className="label">A cada quantos meses?</label>
+                    <input type="number" min="1" max="60" inputMode="numeric" className="input"
+                      placeholder="Ex.: 3" value={recForm.recorrenciaMeses}
+                      onChange={(e) => setRecForm(p => ({ ...p, recorrenciaMeses: e.target.value }))} />
+                  </div>
+                )}
+
+                {/* Término — só p/ receitas recorrentes */}
+                {recForm.frequencia !== 'nao_repete' && (
+                  <div>
+                    <label className="label">Até quando?</label>
+                    <select className="input" value={recForm.termino}
+                      onChange={(e) => setRecForm(p => ({ ...p, termino: e.target.value }))}>
+                      <option value="sem_fim">Sem data de término</option>
+                      <option value="ocorrencias">Durante X ocorrências</option>
+                      <option value="data">Até uma data específica</option>
+                    </select>
+                    {recForm.termino === 'ocorrencias' && (
+                      <input type="number" min="1" max="600" inputMode="numeric" className="input mt-2"
+                        placeholder="Nº de recebimentos (ex.: 12)" value={recForm.ocorrencias}
+                        onChange={(e) => setRecForm(p => ({ ...p, ocorrencias: e.target.value }))} />
+                    )}
+                    {recForm.termino === 'data' && (
+                      <input type="date" className="input mt-2" value={recForm.dataFim}
+                        onChange={(e) => setRecForm(p => ({ ...p, dataFim: e.target.value }))} />
+                    )}
+                  </div>
+                )}
               </div>
               <button onClick={adicionarReceitaLocal}
                 className="btn-secondary w-full mt-2 flex items-center justify-center gap-1 text-sm">
-                <Plus size={15} /> Adicionar outra renda
+                <Plus size={15} /> {recEditIdx != null ? 'Salvar alteração' : 'Adicionar outra renda'}
               </button>
               {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
 
@@ -795,6 +1034,17 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                 subtitulo="Aluguel, água, energia, internet, celular, faculdade, assinaturas... A classificação fixa/variável é automática."
               />
 
+              {carregandoDespesas && !despHidratado && (
+                <p className="text-xs text-gray-400 mb-3" role="status">Carregando despesas salvas...</p>
+              )}
+              {erroCarregamentoDespesas && (
+                <div className="mb-3 text-xs text-red-500" role="alert">
+                  Não foi possível carregar as despesas salvas: {erroCarregamentoDespesas}.
+                  <button type="button" className="underline ml-2" onClick={recarregarDespesas}>
+                    Tentar novamente
+                  </button>
+                </div>
+              )}
               {despesas.length > 0 && (
                 <ul className="space-y-2 mb-3">
                   {despesas.map((d, i) => (
@@ -807,7 +1057,12 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                       </span>
                       <span className="flex items-center gap-2 flex-shrink-0">
                         <span className="text-sm font-semibold text-red-500">{formatCurrency(d.valor)}</span>
-                        <button onClick={() => removerDespesaLocal(i)} className="text-gray-400 hover:text-red-500">
+                        <button type="button" onClick={() => editarDespesaLocal(i)}
+                          disabled={salvando} className="text-gray-400 hover:text-blue-500" title="Editar despesa" aria-label={`Editar ${d.descricao}`}>
+                          <Pencil size={15} />
+                        </button>
+                        <button type="button" onClick={() => removerDespesaLocal(i)}
+                          disabled={salvando} className="text-gray-400 hover:text-red-500" title="Excluir despesa" aria-label={`Excluir ${d.descricao}`}>
                           <Trash2 size={15} />
                         </button>
                       </span>
@@ -881,7 +1136,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
               </div>
               <button onClick={adicionarDespesaLocal}
                 className="btn-secondary w-full mt-2 flex items-center justify-center gap-1 text-sm">
-                <Plus size={15} /> Adicionar outra despesa
+                <Plus size={15} /> {despEditIdx != null ? 'Salvar alteração' : 'Adicionar outra despesa'}
               </button>
               {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
 
@@ -929,7 +1184,17 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                         <CreditCard size={15} className="text-blue-500 flex-shrink-0" />
                         {c.nome}{c.banco ? ` • ${c.banco}` : ''}
                       </span>
-                      <span className="text-sm font-semibold text-gray-700 flex-shrink-0">{formatCurrency(c.limite_total)}</span>
+                      <span className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-sm font-semibold text-gray-700">{formatCurrency(c.limite_total)}</span>
+                        <button type="button" disabled={salvando} onClick={() => editarCartao(c)}
+                          title="Editar cartão" aria-label={`Editar ${c.nome}`} className="text-gray-400 hover:text-blue-500">
+                          <Pencil size={15} />
+                        </button>
+                        <button type="button" disabled={salvando} onClick={() => excluirCartao(c)}
+                          title="Excluir cartão" aria-label={`Excluir ${c.nome}`} className="text-gray-400 hover:text-red-500">
+                          <Trash2 size={15} />
+                        </button>
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -978,6 +1243,10 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                   </div>
                 </div>
               </div>
+              {cartaoEditId && (
+                <button type="button" onClick={limparCartaoForm} disabled={salvando}
+                  className="text-xs text-gray-500 underline mt-2">Cancelar edição do cartão</button>
+              )}
               {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
 
               <div className="flex gap-2 mt-6">
@@ -1020,7 +1289,17 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                           : <UtensilsCrossed size={15} className="text-emerald-500 flex-shrink-0" />}
                         {b.nome} <span className="text-xs text-emerald-600">• {b.tipo}</span>
                       </span>
-                      <span className="text-sm font-semibold text-gray-700 flex-shrink-0">{formatCurrency(b.saldo_inicial)}</span>
+                      <span className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-sm font-semibold text-gray-700">{formatCurrency(saldoDoBeneficio(b.id))}</span>
+                        <button type="button" disabled={salvando} onClick={() => editarBeneficio(b)}
+                          title="Editar benefício" aria-label={`Editar ${b.nome}`} className="text-gray-400 hover:text-blue-500">
+                          <Pencil size={15} />
+                        </button>
+                        <button type="button" disabled={salvando} onClick={() => excluirBeneficio(b)}
+                          title="Excluir benefício" aria-label={`Excluir ${b.nome}`} className="text-gray-400 hover:text-red-500">
+                          <Trash2 size={15} />
+                        </button>
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -1041,12 +1320,16 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                 <input className="input" placeholder="Nome (ex.: Alelo, VR Benefícios, Sodexo)"
                   value={beneficioForm.nome}
                   onChange={(e) => setBeneficioForm(p => ({ ...p, nome: e.target.value }))} />
-                <div>
-                  <label className="label">Saldo atual (R$)</label>
-                  <InputMoeda valor={beneficioForm.saldo_inicial}
-                    onChangeValor={(n) => setBeneficioForm(p => ({ ...p, saldo_inicial: n }))}
-                    className="input" prefixo={null} />
-                </div>
+                {beneficioEditId ? (
+                  <p className="text-xs text-gray-400">O saldo é calculado pelo extrato. Para corrigir o saldo, registre um ajuste na aba Benefícios.</p>
+                ) : (
+                  <div>
+                    <label className="label">Saldo atual (R$)</label>
+                    <InputMoeda valor={beneficioForm.saldo_inicial}
+                      onChangeValor={(n) => setBeneficioForm(p => ({ ...p, saldo_inicial: n }))}
+                      className="input" prefixo={null} />
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="label">Recarga mensal (R$)</label>
@@ -1071,8 +1354,12 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
 
               <button onClick={salvarBeneficio} disabled={salvando}
                 className="btn-secondary w-full mt-2 flex items-center justify-center gap-1 text-sm">
-                {salvando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : <><Plus size={15} /> Adicionar benefício</>}
+                {salvando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : <><Plus size={15} /> {beneficioEditId ? 'Salvar alteração' : 'Adicionar benefício'}</>}
               </button>
+              {beneficioEditId && (
+                <button type="button" onClick={limparBeneficioForm} disabled={salvando}
+                  className="text-xs text-gray-500 underline mt-2">Cancelar edição do benefício</button>
+              )}
               {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
 
               <div className="flex gap-2 mt-6">

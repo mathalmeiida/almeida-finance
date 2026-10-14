@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Mail, Lock, Eye, EyeOff, User, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, User, AlertCircle, CheckCircle2, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import LogoMarca from '../../components/LogoMarca'
 
@@ -80,7 +80,8 @@ export default function Cadastro() {
 
         {/* Card */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-5">Criar conta</h2>
+          <h2 className="text-xl font-bold text-gray-900">Comece agora</h2>
+          <p className="text-sm text-gray-500 mt-1 mb-5">Organize suas finanças e planeje seu futuro.</p>
 
           {erro && (
             <div className="flex items-start gap-2 bg-red-50 border border-red-100 text-red-700 text-sm rounded-xl p-3 mb-4">
@@ -193,14 +194,41 @@ export default function Cadastro() {
                   <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                   Criando conta...
                 </>
-              ) : 'Criar conta'}
+              ) : 'Criar minha conta'}
             </button>
           </form>
         </div>
 
+        {/* Card discreto de privacidade e segurança. Apenas afirmações
+            verificáveis sobre o comportamento do app — sem promessas de
+            "100% seguro", certificações ou criptografia específica. */}
+        <div className="bg-white/70 border border-gray-100 rounded-2xl p-4 mt-4">
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={16} className="text-marca flex-shrink-0" />
+            <h3 className="text-sm font-semibold text-gray-900">Sua privacidade importa</h3>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Seus dados financeiros são pessoais e merecem proteção.
+          </p>
+          <ul className="mt-3 space-y-1.5">
+            <li className="flex items-start gap-2 text-xs text-gray-600">
+              <Lock size={13} className="text-gray-400 flex-shrink-0 mt-0.5" />
+              Seus dados não aparecem publicamente.
+            </li>
+            <li className="flex items-start gap-2 text-xs text-gray-600">
+              <ShieldCheck size={13} className="text-gray-400 flex-shrink-0 mt-0.5" />
+              Utilizamos controles de acesso para proteger suas informações.
+            </li>
+            <li className="flex items-start gap-2 text-xs text-gray-600">
+              <EyeOff size={13} className="text-gray-400 flex-shrink-0 mt-0.5" />
+              Você pode ocultar valores financeiros dentro do aplicativo.
+            </li>
+          </ul>
+        </div>
+
         <p className="text-center text-sm text-gray-600 mt-4">
-          Já tem conta?{' '}
-          <Link to="/login" className="text-blue-600 font-medium hover:underline">
+          Já tem uma conta?{' '}
+          <Link to="/login" className="text-marca font-medium hover:underline">
             Entrar
           </Link>
         </p>

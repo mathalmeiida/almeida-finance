@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
+// Recorrência de receitas vive numa lib PURA (testável sem React/supabase).
+// Reexportada aqui para manter a superfície de import usada por useProjecao.
+import {
+  valorReceitaRecorrenteNoMes, frequenciaDaReceita, receitaRecorrenteAtivaNoMes,
+} from '../lib/recorrenciaReceita'
+export { valorReceitaRecorrenteNoMes, frequenciaDaReceita, receitaRecorrenteAtivaNoMes }
 
 export function useReceitas(mes, ano) {
   // idEfetivo = id do cliente no modo consultoria, senão o próprio. As LEITURAS

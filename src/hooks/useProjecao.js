@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useReceitas } from './useReceitas'
+import { useReceitas, valorReceitaRecorrenteNoMes } from './useReceitas'
 import { useDespesas, valorDespesaRecorrenteNoMes } from './useDespesas'
 import { useParcelamentos, valorParcelaNoMes } from './useParcelamentos'
 import { useCartoes } from './useCartoes'
@@ -25,7 +25,7 @@ export function useProjecao() {
   // para o "mês atual" não virar antes da hora perto da virada do dia/mês.
   const { ano: anoAtual, mes: mesAtual, dia: diaAtual } = partesHojeBrasil()
 
-  const { receitas, carregando: carregandoR } = useReceitas(mesAtual, anoAtual)
+  const { receitas, recorrentes: receitasRecorrentesLista, carregando: carregandoR } = useReceitas(mesAtual, anoAtual)
   const { despesas, recorrentes, carregando: carregandoD, criar: criarDespesa, recarregar: recarregarDespesas, anteciparPagamento } = useDespesas(mesAtual, anoAtual)
   const { parcelamentos, carregando: carregandoP } = useParcelamentos()
   const { cartoes, carregando: carregandoCartoes } = useCartoes()
@@ -174,10 +174,6 @@ export function useProjecao() {
     : 0
 
   // Base mensal de receitas recorrentes
-  const receitasRecorrentes = receitas
-    .filter(r => r.recorrente)
-    .reduce((acc, r) => acc + Number(r.valor), 0)
-
   // ─── SALDO ATUAL REAL ───────────────────────────────────────────────────────
   // O usuário informa quanto tem disponível hoje (saldo_base) e a data desse
   // marco (saldo_base_data). O "saldo disponível agora" é derivado assim, sem
@@ -325,10 +321,16 @@ const saldoSeguroHoje = Math.max(
       const mes = data.getMonth() + 1
       const ehMesAtual = i === 0
 
-      // Receitas: recorrentes sempre + não-recorrentes só no mês atual
+      // Receitas do mês:
+      //  • Mês atual: usa o total REAL já carregado do mês (totalReceitas).
+      //  • Meses futuros: projeta cada receita recorrente conforme a frequência
+      //    (semanal/quinzenal/mensal/a cada X meses) e o término (ocorrências /
+      //    data_fim), somando o valor que cai NAQUELE mês. Isso faz as receitas
+      //    aparecerem nos meses e datas corretos, sem contagem duplicada.
       const receitasMes = ehMesAtual
         ? totalReceitas
-        : receitasRecorrentes
+        : receitasRecorrentesLista.reduce(
+            (acc, r) => acc + valorReceitaRecorrenteNoMes(r, ano, mes), 0)
 
       // Despesas recorrentes NESTE mês — valor convertido conforme a frequência
       // (mensal, semanal × ocorrências, diária × dias do mês, por_meses dentro do prazo)
@@ -379,7 +381,7 @@ const saldoSeguroHoje = Math.max(
 
     return meses
   }, [carregando, totalReceitas, totalDespesas, totalParcelas, totalFaturasCartao,
-      receitasRecorrentes, despesas, recorrentes, parcelamentos, cartoes, comprasCartao,
+      receitasRecorrentesLista, despesas, recorrentes, parcelamentos, cartoes, comprasCartao,
       faturasInformadas, reservaPct])
 
   return {

@@ -27,8 +27,13 @@ export default function Splash({ saindo = false }) {
         imgClassName="w-44 max-w-[60vw] h-auto"
         padding="px-8 py-6"
       />
-      {/* Indicador de carregamento discreto abaixo da logo */}
-      <div className="mt-8 w-9 h-9 rounded-full border-[3px] border-gray-200 border-t-marca animate-spin" />
+      {/* Barra de carregamento indeterminada (fina, arredondada, animada).
+          Segue a cor da marca (--marca) via .bg-marca; o trilho usa um cinza
+          suave. Movimento reduzido é respeitado no CSS (.splash-bar). */}
+      <div className="mt-8 w-44 max-w-[60vw] h-1.5 rounded-full bg-gray-200 overflow-hidden">
+        <div className="splash-bar h-full w-2/5 rounded-full bg-marca" />
+      </div>
+      <p className="mt-4 text-sm text-gray-500">Preparando suas finanças...</p>
     </div>
   )
 }

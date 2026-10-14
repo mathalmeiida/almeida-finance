@@ -114,6 +114,15 @@ CREATE TABLE IF NOT EXISTS public.receitas (
   data        DATE NOT NULL,
   recorrente  BOOLEAN DEFAULT FALSE,
   categoria   TEXT,
+  -- Recorrência rica (migration: 2026-10_receitas_recorrencia.sql). Opcionais;
+  -- NULL = usa "recorrente" (mensal) como antes.
+  --   frequencia: nao_repete | semanal | quinzenal | mensal | por_meses | personalizado
+  --   recorrencia_meses: intervalo em meses (por_meses/personalizado)
+  --   ocorrencias: término por nº de recebimentos; data_fim: término por data
+  frequencia        TEXT CHECK (frequencia IS NULL OR frequencia IN ('nao_repete','semanal','quinzenal','mensal','por_meses','personalizado')),
+  recorrencia_meses INTEGER CHECK (recorrencia_meses IS NULL OR recorrencia_meses > 0),
+  ocorrencias       INTEGER CHECK (ocorrencias IS NULL OR ocorrencias > 0),
+  data_fim          DATE,
   criado_em   TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -169,7 +169,7 @@ function EnviarFeedback() {
             <div className="flex items-center gap-2 mt-3">
               <CheckCircle2 size={16} className="text-green-500 flex-shrink-0" />
               <p className="text-sm text-gray-600">
-                <span className="font-medium text-gray-800">Feedback enviado.</span>{' '}
+                <span className="font-medium text-gray-800">Feedback enviado com sucesso!</span>{' '}
                 Obrigado! Vamos analisar com carinho.
               </p>
               <button
@@ -327,6 +327,8 @@ export default function Configuracoes() {
   const [modalAberto, setModalAberto] = useState(false)
   const [zerando, setZerando] = useState(false)
   const [erro, setErro] = useState('')
+  // Confirmação explícita (checkbox) antes de habilitar a exclusão definitiva.
+  const [confirmaApagar, setConfirmaApagar] = useState(false)
 
   // Encerrar conta (desativação da própria conta)
   const [modalEncerrar, setModalEncerrar] = useState(false)
@@ -339,6 +341,7 @@ export default function Configuracoes() {
 
   function abrirModal() {
     setErro('')
+    setConfirmaApagar(false)
     setModalAberto(true)
   }
 
@@ -450,17 +453,17 @@ export default function Configuracoes() {
             <Sparkles size={16} className="text-blue-700" />
           </div>
           <div className="flex-1">
-            <h2 className="text-base font-semibold text-gray-900">Refazer configuração financeira</h2>
+            <h2 className="text-base font-semibold text-gray-900">Atualizar meus dados financeiros</h2>
             <p className="text-sm text-gray-500 mt-1">
-              Revise saldo, receitas, despesas, cartão e reserva no mesmo passo a passo do primeiro
-              acesso. Seus dados atuais não são apagados.
+              Revise sua renda, despesas, cartões, benefícios e reserva financeira sem apagar seu histórico.
             </p>
             <button
               onClick={refazerConfiguracao}
-              className="mt-3 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm"
+              className="mt-3 inline-flex items-center gap-2 bg-marca hover:bg-marca-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm"
             >
-              <Sparkles size={15} /> Refazer configuração
+              <Sparkles size={15} /> Atualizar informações
             </button>
+            <p className="mt-2 text-xs text-gray-400">Seus dados são preservados.</p>
           </div>
         </div>
       </div>
@@ -472,16 +475,15 @@ export default function Configuracoes() {
             <AlertTriangle size={16} className="text-red-600" />
           </div>
           <div className="flex-1">
-            <h2 className="text-base font-semibold text-gray-900">Zerar meus dados</h2>
+            <h2 className="text-base font-semibold text-gray-900">Apagar dados financeiros</h2>
             <p className="text-sm text-gray-500 mt-1">
-              Apaga todas as suas informações financeiras e faz o Almeida Finance voltar ao estado
-              inicial. Sua conta e seu acesso continuam ativos.
+              Exclua seus registros financeiros e recomece a configuração do aplicativo. Sua conta e seu login serão mantidos.
             </p>
             <button
               onClick={abrirModal}
               className="mt-3 inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm"
             >
-              <Trash2 size={15} /> Zerar meus dados
+              <Trash2 size={15} /> Apagar dados financeiros
             </button>
           </div>
         </div>
@@ -498,8 +500,9 @@ export default function Configuracoes() {
           <div className="flex-1">
             <h2 className="text-base font-semibold text-gray-900">Encerrar minha conta</h2>
             <p className="text-sm text-gray-500 mt-1">
-              Desativa sua conta e você perde o acesso ao Almeida Finance. Seus dados
-              <strong> não são apagados</strong> neste momento.
+              Esta ação <strong>desativa o acesso</strong> à sua conta — não é uma exclusão
+              definitiva. Você deixa de entrar no Almeida Finance, mas seus dados
+              <strong> permanecem salvos</strong> e podem ser reativados pelo administrador.
             </p>
             {ehAdmin ? (
               <p className="mt-3 text-xs text-gray-500 bg-gray-100 rounded-lg px-3 py-2">
@@ -517,22 +520,48 @@ export default function Configuracoes() {
         </div>
       </div>
 
+      {/* Sobre o Almeida Finance — card discreto. Mostra apenas o que existe de
+          verdade no projeto (nome + descrição). NÃO inventa versão, links de
+          Política/Termos nem contato de suporte, pois não há configuração real
+          para esses itens. */}
+      <div className="card">
+        <h2 className="text-base font-semibold text-gray-900">Sobre o Almeida Finance</h2>
+        <p className="text-sm text-gray-500 mt-1">
+          Seu controle financeiro pessoal: saldo, receitas, despesas, cartões, benefícios,
+          reserva e projeções em um só lugar.
+        </p>
+        <p className="text-xs text-gray-400 mt-3">Almeida Finance</p>
+      </div>
+
       {/* Modal de confirmação — Zerar dados */}
-      <Modal aberto={modalAberto} onFechar={() => !zerando && setModalAberto(false)} titulo="Zerar todas as informações">
+      <Modal aberto={modalAberto} onFechar={() => !zerando && setModalAberto(false)} titulo="Apagar dados financeiros">
         <div className="space-y-4">
           <div className="flex items-start gap-2.5 bg-red-50 border border-red-100 rounded-xl p-3">
             <AlertTriangle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-red-700">
-              Tem certeza de que deseja zerar todas as suas informações?
-              Esta ação não poderá ser desfeita.
+              Esta ação <strong>exclui permanentemente</strong> seus registros financeiros e não pode ser desfeita.
+              Sua conta e seu login serão mantidos.
             </p>
           </div>
+
+          <label className="flex items-start gap-2.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={confirmaApagar}
+              onChange={(e) => setConfirmaApagar(e.target.checked)}
+              disabled={zerando}
+              className="w-4 h-4 mt-0.5 flex-shrink-0 accent-red-600"
+            />
+            <span className="text-sm text-gray-700">
+              Entendo que esta exclusão é permanente e desejo apagar meus dados financeiros.
+            </span>
+          </label>
 
           {erro && (
             <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{erro}</p>
           )}
 
-          <div className="flex gap-3 pt-1">
+          <div className="flex flex-col sm:flex-row gap-3 pt-1">
             <button
               type="button"
               onClick={() => setModalAberto(false)}
@@ -544,12 +573,12 @@ export default function Configuracoes() {
             <button
               type="button"
               onClick={handleZerar}
-              disabled={zerando}
+              disabled={zerando || !confirmaApagar}
               className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {zerando
-                ? <><Loader2 size={15} className="animate-spin" /> Zerando...</>
-                : 'Confirmar'}
+                ? <><Loader2 size={15} className="animate-spin" /> Apagando...</>
+                : 'Apagar dados financeiros'}
             </button>
           </div>
         </div>

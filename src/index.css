@@ -264,6 +264,25 @@
     opacity: 0;
     transition: opacity 0.5s ease-in;
   }
+
+  /* Barra de carregamento INDETERMINADA da splash: desliza da esquerda para a
+     direita em loop (sem porcentagem/progresso falso). Movimento discreto. */
+  @keyframes splash-bar {
+    0%   { transform: translateX(-120%); }
+    100% { transform: translateX(320%); }
+  }
+  .splash-bar {
+    animation: splash-bar 1.3s ease-in-out infinite;
+  }
+  /* Respeita quem prefere movimento reduzido: sem deslize; mostra uma barra
+     estática com leve pulsar de opacidade (suave e discreto). */
+  @media (prefers-reduced-motion: reduce) {
+    .splash-bar {
+      animation: sky-twinkle 2s ease-in-out infinite;
+      transform: none;
+      width: 100%;
+    }
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

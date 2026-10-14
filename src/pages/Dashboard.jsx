@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Sun, Plus, Pencil,
   CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank, AlertTriangle, MessageCircle, BarChart2,
-  Receipt, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap
+  Receipt, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap, Info
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useCategorias } from '../hooks/useCategorias'
@@ -1004,6 +1004,7 @@ function CardGastoHoje({
   saldoAtual = 0,
   onEditarSaldo,
   mostrarSaldo = false,
+  configIncompleta = false,
 }) {
   const { ocultar } = useOcultarValores()
   if (carregando) {
@@ -1089,16 +1090,18 @@ function CardGastoHoje({
               </button>
             )}
           </div>
-          <p className={`text-xs lg:text-sm mt-0.5 ${orcamentoNegativo && !semBaseFinanceira ? 'text-red-100 font-medium' : 'text-white/80'}`}>
+          <p className={`text-xs lg:text-sm mt-0.5 ${orcamentoNegativo && !semBaseFinanceira && !configIncompleta ? 'text-red-100 font-medium' : 'text-white/80'}`}>
             {semBaseFinanceira
               ? 'Cadastre sua renda para calcular seu limite diário'
-              : estadoOrcamento === 'negativo'
-                ? `Faltam ${exibirMoeda(Math.abs(disponivelReal), ocultar)} para equilibrar seu orçamento`
-                : estadoOrcamento === 'equilibrado'
-                  ? 'Seu orçamento está equilibrado'
-                  : estadoOrcamento === 'positivo'
-                    ? `Você tem ${exibirMoeda(disponivelReal, ocultar)} disponíveis até a próxima receita`
-                    : 'Sem comprometer seu planejamento'}
+              : configIncompleta
+                ? 'Finalize sua configuração para ver um cálculo mais preciso.'
+                : estadoOrcamento === 'negativo'
+                  ? `Faltam ${exibirMoeda(Math.abs(disponivelReal), ocultar)} para equilibrar seu orçamento`
+                  : estadoOrcamento === 'equilibrado'
+                    ? 'Seu orçamento está equilibrado'
+                    : estadoOrcamento === 'positivo'
+                      ? `Você tem ${exibirMoeda(disponivelReal, ocultar)} disponíveis até a próxima receita`
+                      : 'Sem comprometer seu planejamento'}
           </p>
         </div>
         {/* Saldo atual dentro do card azul */}
@@ -1161,6 +1164,19 @@ function CardGastoHoje({
           </p>
         </div>
       </div>
+
+      {/* Aviso discreto: configuração incompleta (faltam dados-base como saldo,
+          renda ou despesas recorrentes). O número exibido é uma ESTIMATIVA
+          provisória — não um orçamento validado. Não altera nenhum cálculo. */}
+      {!semBaseFinanceira && configIncompleta && (
+        <div className="mt-2.5 flex items-start gap-2 bg-black/20 rounded-xl px-3 py-2">
+          <Info size={14} className="flex-shrink-0 mt-0.5 text-white/80" />
+          <p className="text-[11px] lg:text-xs text-white/80 leading-snug">
+            <span className="font-semibold text-white">Estimativa provisória.</span>{' '}
+            Finalize sua configuração para ver um cálculo mais preciso.
+          </p>
+        </div>
+      )}
 
       {/* Rodapé do card: "Ver planejamento completo" + (quando aplicável) o
           check-in "Não gastei hoje" alinhado à direita. Mesma função de antes
@@ -1254,7 +1270,7 @@ function CardProximos7Dias({ total, itens, onVerTodos }) {
 
 export default function Dashboard() {
   const [abaMovimentacoes, setAbaMovimentacoes] = useState('transacoes');
-  const { perfil, atualizarPreferenciasLimite, somenteLeitura, usuario, idUsuarioLogado } = useAuth()
+  const { perfil, atualizarPreferenciasLimite, somenteLeitura, usuario, idUsuarioLogado, corTema } = useAuth()
   const { ocultar, alternar } = useOcultarValores()
 
   // ── Aparência dinâmica dia/noite (só o FUNDO do cabeçalho da Home) ──
@@ -1786,6 +1802,19 @@ const carregandoLimite = carregando
     (mostrarComecePorAqui) || Boolean(horizonteResumo?.dataNegativa)
   )
 
+  // Fundo escuro do cabeçalho que ACOMPANHA a cor do tema. Hex estáticos (sem
+  // classes Tailwind dinâmicas), com contraste alto para texto branco (WCAG AA).
+  // Enquanto a preferência carrega (corTema indefinido), usa um grafite escuro
+  // legível como fallback. Atualiza na hora ao trocar a cor (corTema muda).
+  const HEADER_BG = {
+    azul:  'linear-gradient(135deg, #0b1f3a 0%, #0a1626 100%)', // azul-marinho escuro
+    rosa:  'linear-gradient(135deg, #4a1130 0%, #2c0a1d 100%)', // rosa-escuro
+    verde: 'linear-gradient(135deg, #0b3a2a 0%, #07241a 100%)', // verde-escuro
+    roxo:  'linear-gradient(135deg, #2e1246 0%, #1d0b2d 100%)', // roxo-escuro
+    preto: 'linear-gradient(135deg, #1f2937 0%, #0b0f17 100%)', // grafite escuro
+  }
+  const headerBg = HEADER_BG[corTema] || HEADER_BG.preto
+
   return (
     // pb extra no MOBILE: garante que o último card ("Seu dia financeiro" com o
     // botão "Registrar gasto de hoje") role totalmente acima da barra inferior
@@ -1794,9 +1823,10 @@ const carregandoLimite = carregando
       {/* 1 ─ Cabeçalho: saudação (horário de Brasília) + subtítulo fixo, sininho
           de notificações (ponto vermelho só quando há pendência real) e botão
           global de ocultar valores. */}
-      <div className={`flex items-center justify-between gap-3 transition-colors duration-500 ${
-        aparenciaDinamica ? `sky-dyn ${ehNoite ? 'sky-night' : 'sky-day'} px-3 py-2 sm:py-2.5 -mx-1` : ''
-      }`}>
+      <div
+        className="relative flex items-center justify-between gap-3 rounded-2xl px-3.5 py-3 sm:py-3.5 -mx-1 shadow-sm overflow-hidden"
+        style={{ backgroundImage: headerBg }}
+      >
         {/* Estrelas (só à noite, decorativas) */}
         {ehNoite && <span className="sky-stars" aria-hidden="true" />}
         <div className="min-w-0 relative">
@@ -1808,27 +1838,23 @@ const carregandoLimite = carregando
                 : <Sun size={16} className="text-amber-400 flex-shrink-0" aria-hidden="true" />
             )}
           </div>
-          <p className={`text-xs sm:text-sm truncate ${ehNoite ? 'text-slate-300' : 'text-gray-500'}`}>Vamos cuidar das suas finanças hoje?</p>
+          <p className="text-xs sm:text-sm truncate text-slate-300">Vamos cuidar das suas finanças hoje?</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 relative">
           <button
             onClick={() => setModalNotificacoes(true)}
             aria-label={temNotificacao ? 'Você tem notificações' : 'Notificações'}
-            className={`relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-colors ${
-              ehNoite ? 'bg-white/15 text-slate-100 hover:bg-white/25' : 'bg-gray-100 text-gray-500 hover:text-gray-900 hover:bg-gray-200'
-            }`}
+            className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-colors bg-white/15 text-slate-100 hover:bg-white/25"
           >
             <Bell size={18} />
             {temNotificacao && (
-              <span className={`absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 ring-2 ${ehNoite ? 'ring-slate-800' : 'ring-white'}`} />
+              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-red-500 ring-2 ring-slate-800" />
             )}
           </button>
           <button
             onClick={alternar}
             aria-label={ocultar ? 'Mostrar valores' : 'Ocultar valores'}
-            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-colors ${
-              ehNoite ? 'bg-white/15 text-slate-100 hover:bg-white/25' : 'bg-gray-100 text-gray-500 hover:text-gray-900 hover:bg-gray-200'
-            }`}
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-colors bg-white/15 text-slate-100 hover:bg-white/25"
           >
             {ocultar ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>
@@ -1869,6 +1895,7 @@ const carregandoLimite = carregando
         limiteHoje={limiteHoje}
         saldoAtual={saldoDisponivelAgora}
 mostrarSaldo={saldoConfigurado}
+configIncompleta={mostrarComecePorAqui}
 onEditarSaldo={somenteLeitura ? undefined : () => setModalSaldo(true)}
         gastosHoje={gastosDeHoje}
         gastosCartaoHoje={gastosCartaoHoje}
@@ -2011,15 +2038,50 @@ onEditarSaldo={somenteLeitura ? undefined : () => setModalSaldo(true)}
       {!somenteLeitura && (
         <button
           onClick={() => setModalCenarios(true)}
-          className="w-full flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+          className="group relative w-full overflow-hidden rounded-2xl bg-marca-grad text-left px-5 py-5 sm:px-6 sm:py-6 shadow-sm hover:shadow-md transition-shadow"
         >
-          <span className="w-9 h-9 rounded-xl bg-marca-100 flex items-center justify-center flex-shrink-0">
-            <Rocket size={18} className="text-marca" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-sm font-semibold text-gray-900">E se...?</span>
-            <span className="block text-xs text-gray-500">Simule aumento, perda de renda, demissão e uso do FGTS</span>
-          </span>
+          {/* Gráfico decorativo no canto INFERIOR DIREITO, discreto (opacidade
+              baixa) para não competir com o conteúdo. */}
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 120 60"
+            preserveAspectRatio="none"
+            className="pointer-events-none absolute bottom-0 right-0 h-20 w-48 opacity-15"
+          >
+            <polyline
+              points="0,48 20,40 40,44 60,28 80,32 100,14 120,6"
+              fill="none" stroke="white" strokeWidth="2.5"
+              strokeLinecap="round" strokeLinejoin="round"
+            />
+            <polygon
+              points="0,48 20,40 40,44 60,28 80,32 100,14 120,6 120,60 0,60"
+              fill="white" opacity="0.5"
+            />
+          </svg>
+
+          {/* Cabeçalho: ícone + título/subtítulo com mais destaque. */}
+          <div className="relative flex items-center gap-3.5">
+            <span className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+              <Rocket size={22} className="text-white" />
+            </span>
+            <div className="min-w-0">
+              <span className="block text-lg sm:text-xl font-extrabold text-white leading-tight">E se...?</span>
+              <span className="block text-xs sm:text-sm text-white/85 mt-0.5 leading-snug">Simule cenários e veja impactos no seu futuro financeiro.</span>
+            </div>
+          </div>
+
+          {/* Chips de modo (decorativos — a seleção real fica no modal). */}
+          <div className="relative mt-4 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center rounded-full bg-white/25 text-white text-xs font-semibold px-3.5 py-1.5">Pessoal</span>
+            <span className="inline-flex items-center rounded-full bg-white/10 text-white/90 text-xs font-semibold px-3.5 py-1.5">Profissional</span>
+          </div>
+
+          {/* Botão (visual) maior e proporcional — o clique do card abre o modal. */}
+          <div className="relative mt-4">
+            <span className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-white text-marca text-sm sm:text-base font-semibold px-5 py-2.5 shadow-sm group-hover:gap-3 transition-all">
+              Simular meu futuro <ArrowRight size={16} />
+            </span>
+          </div>
         </button>
       )}
 
