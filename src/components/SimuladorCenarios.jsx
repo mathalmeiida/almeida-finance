@@ -582,71 +582,124 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
             <div><label className="label">Investimento pontual (R$)</label><InputMoeda valor={investimentoPontual} onChangeValor={setInvestimentoPontual} className="input" prefixo={null} /></div>
           </div>
 
-          {/* Atual × Simulado */}
-          <div className="card">
-            <p className="text-xs text-gray-600 font-medium uppercase tracking-wide mb-2 flex items-center gap-1.5">
-              <Wallet size={14} className="text-emerald-600" /> Atual × simulado
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl bg-gray-50 border border-gray-100 p-3">
-                <p className="text-xs text-gray-400 mb-1">Hoje</p>
-                <p className="text-xs text-gray-500">Resultado mensal</p>
-                <p className={`text-lg font-bold ${resultadoAtual >= 0 ? 'text-gray-900' : 'text-red-600'}`}>{formatCurrency(resultadoAtual)}</p>
-              </div>
-              <div className="rounded-xl bg-marca-100 border border-marca p-3">
-                <p className="text-xs text-marca mb-1">No cenário</p>
-                <p className="text-xs text-gray-500">Resultado mensal</p>
-                <p className={`text-lg font-bold ${resultadoSimulado >= 0 ? 'text-gray-900' : 'text-red-600'}`}>{formatCurrency(resultadoSimulado)}</p>
-              </div>
-            </div>
+          {/* ── Resultado da sua simulação ── */}
+          {(() => {
+            // Variação % vs. resultado atual (Não aplicável se atual = 0).
+            const variacaoPct = resultadoAtual !== 0
+              ? (diferenca / Math.abs(resultadoAtual)) * 100
+              : null
+            // Impacto adicional acumulado: SÓ o ganho adicional (diferença),
+            // descontando o investimento UMA única vez. Não inclui o resultado
+            // atual nem é o saldo total projetado.
+            const impacto = [3, 6, 12].map(meses => ({
+              meses,
+              valor: diferenca * meses - investimento,
+            }))
+            // Recuperação do investimento: só faz sentido se a diferença for
+            // positiva. Caso contrário, não há recuperação no horizonte.
+            const recupera = investimento > 0 && diferenca > 0
+              ? Math.ceil(investimento / diferenca)
+              : null
+            const semRecuperacao = investimento > 0 && diferenca <= 0
+            const sinal = diferenca > 0 ? 'pos' : diferenca < 0 ? 'neg' : 'zero'
+            const Icone = sinal === 'pos' ? TrendingUp : sinal === 'neg' ? TrendingDown : Wallet
+            const corDif = sinal === 'pos' ? 'text-emerald-600' : sinal === 'neg' ? 'text-red-600' : 'text-gray-700'
 
-            {/* Projeção 3/6/12 meses */}
-            <div className="mt-3">
-              <p className="text-xs text-gray-500 mb-1.5">Projeção simplificada (reserva inicial + resultado mensal constante)</p>
-              <div className="grid grid-cols-3 gap-2">
-                {projPro.resultado.map(h => (
-                  <div key={h.meses} className="rounded-xl bg-gray-50 border border-gray-100 p-2.5 text-center">
-                    <p className="text-xs text-gray-400">{h.meses} meses</p>
-                    <p className={`text-sm font-bold ${h.acumulado >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{formatCurrency(h.acumulado)}</p>
+            // Explicação automática simples e correta.
+            const explica = sinal === 'pos'
+              ? `Neste cenário você ganha cerca de ${formatCurrency(diferenca)} a mais por mês. Esse é o ganho adicional (não o seu saldo total).${investimento > 0 ? (recupera ? ` O investimento de ${formatCurrency(investimento)} se recupera em ~${recupera} ${recupera === 1 ? 'mês' : 'meses'}.` : '') : ''}`
+              : sinal === 'neg'
+                ? `Neste cenário seu resultado mensal cai cerca de ${formatCurrency(Math.abs(diferenca))}. Avalie se o retorno compensa os custos adicionais.`
+                : 'Com os valores informados, o resultado mensal não muda em relação à situação atual.'
+
+            return (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-600 font-medium uppercase tracking-wide flex items-center gap-1.5">
+                  <Wallet size={14} className="text-emerald-600" /> Resultado da sua simulação
+                </p>
+
+                {/* Dois cards: resultado atual × simulado por mês */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-gray-50 border border-gray-100 p-3">
+                    <p className="text-xs text-gray-500">Resultado atual / mês</p>
+                    <p className={`text-lg font-bold break-words ${resultadoAtual >= 0 ? 'text-gray-900' : 'text-red-600'}`}>{formatCurrency(resultadoAtual)}</p>
                   </div>
-                ))}
+                  <div className="rounded-xl bg-marca-100 border border-marca p-3">
+                    <p className="text-xs text-marca">Resultado simulado / mês</p>
+                    <p className={`text-lg font-bold break-words ${resultadoSimulado >= 0 ? 'text-gray-900' : 'text-red-600'}`}>{formatCurrency(resultadoSimulado)}</p>
+                  </div>
+                </div>
+
+                {/* Card principal destacado: diferença mensal + variação % */}
+                <div className="rounded-2xl bg-marca-grad text-white p-4">
+                  <div className="flex items-center gap-2">
+                    <Icone size={18} className="flex-shrink-0" />
+                    <p className="text-xs font-medium uppercase tracking-wide text-white/85">Diferença mensal estimada</p>
+                  </div>
+                  <p className="text-2xl sm:text-3xl font-extrabold mt-1 break-words">
+                    {diferenca >= 0 ? '+' : '−'}{formatCurrency(Math.abs(diferenca))}
+                    <span className="text-sm font-semibold text-white/85 ml-2">
+                      {variacaoPct == null ? 'Não aplicável' : `${variacaoPct >= 0 ? '+' : ''}${variacaoPct.toFixed(1).replace('.', ',')}%`}
+                    </span>
+                  </p>
+                  <p className="text-xs text-white/85 mt-1">
+                    {sinal === 'pos' ? 'Cenário positivo — ganho mensal estimado.'
+                      : sinal === 'neg' ? 'Cenário negativo — redução no resultado mensal.'
+                      : 'Sem alteração no resultado mensal.'}
+                  </p>
+                </div>
+
+                {/* Impacto adicional acumulado (3/6/12 meses) */}
+                <div>
+                  <p className="text-xs text-gray-500 mb-1.5">Impacto adicional acumulado (ganho/perda extra, já descontando o investimento uma vez)</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {impacto.map(h => (
+                      <div key={h.meses} className="rounded-xl bg-gray-50 border border-gray-100 p-2.5 text-center">
+                        <p className="text-xs text-gray-400">{h.meses} meses</p>
+                        <p className={`text-sm font-bold break-words ${h.valor >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {h.valor >= 0 ? '+' : '−'}{formatCurrency(Math.abs(h.valor))}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Investimento inicial + recuperação */}
+                {investimento > 0 && (
+                  <div className="flex items-start gap-2 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
+                    <Info size={15} className="text-marca flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-gray-600">
+                      Investimento inicial de <strong>{formatCurrency(investimento)}</strong>.{' '}
+                      {recupera
+                        ? <>Recuperação estimada em <strong>~{recupera} {recupera === 1 ? 'mês' : 'meses'}</strong> com o ganho mensal.</>
+                        : semRecuperacao
+                          ? 'Sem recuperação no horizonte calculado, pois não há ganho mensal positivo.'
+                          : 'Informe um ganho mensal positivo para estimar a recuperação.'}
+                    </p>
+                  </div>
+                )}
+
+                {/* O que isso significa? */}
+                <div className="card space-y-2" aria-live="polite">
+                  <div className="flex items-center gap-2">
+                    <Info size={16} className="text-marca" />
+                    <strong className="text-sm text-gray-900">O que isso significa?</strong>
+                  </div>
+                  <p className={`text-sm ${corDif}`}>{explica}</p>
+                  <p className="text-xs text-gray-400">
+                    Estimativas com valores mensais constantes. "Diferença" e "impacto acumulado" são o ganho ADICIONAL do cenário — não o seu saldo total nem faturamento.
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-2.5 bg-blue-50 border border-blue-100 rounded-xl p-3">
+                  <Info size={16} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-700">
+                    Simulação temporária: não altera seus dados. Estimativas genéricas para apoiar a decisão.
+                  </p>
+                </div>
               </div>
-              {projPro.mesEsgota != null && (
-                <p className="text-xs text-amber-700 mt-2">Nesse ritmo, o dinheiro acaba por volta do mês {projPro.mesEsgota}.</p>
-              )}
-            </div>
-          </div>
-
-          {/* Análise + recomendação */}
-          <div className="card space-y-3" aria-live="polite">
-            <div className="flex items-center gap-2">
-              <Info size={16} className="text-marca" />
-              <strong className="text-sm text-gray-900">Análise do seu cenário</strong>
-            </div>
-            <p className="text-sm text-gray-700">
-              {diferenca > 0
-                ? `Seu resultado mensal estimado cresce ${formatCurrency(diferenca)} em relação à situação atual.`
-                : diferenca < 0
-                  ? `Seu resultado mensal estimado diminui ${formatCurrency(Math.abs(diferenca))} em relação à situação atual.`
-                  : 'O resultado mensal permanece igual à situação atual com os valores informados.'}
-            </p>
-            {mesesRetorno != null && (
-              <p className="text-xs text-gray-600">
-                Com o ganho adicional, o investimento de {formatCurrency(investimento)} se paga em cerca de <strong>{mesesRetorno} {mesesRetorno === 1 ? 'mês' : 'meses'}</strong>.
-              </p>
-            )}
-            <p className="text-sm text-gray-700"><strong>Recomendação:</strong> {recomendacaoPro}</p>
-            <p className="text-xs text-gray-400">
-              Projeções usam valores mensais constantes e reserva informada. O investimento pontual não entra no resultado mensal; é usado só para estimar o tempo de retorno.
-            </p>
-          </div>
-
-          <div className="flex items-start gap-2.5 bg-blue-50 border border-blue-100 rounded-xl p-3">
-            <Info size={16} className="text-blue-500 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-blue-700">
-              Simulação temporária: não altera seus dados. Estimativas genéricas para apoiar a decisão.
-            </p>
-          </div>
+            )
+          })()}
         </div>
       )
     })()}
