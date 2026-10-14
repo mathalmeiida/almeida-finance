@@ -80,6 +80,10 @@ export default function HorizonteFinanceiro({
   const [idxSel, setIdxSel] = useState(0)
   const mesSel = horizonte[idxSel] || horizonte[0]
 
+  // Ref do trilho do carrossel (usado em aoRolar/irPara). Faltava declarar —
+  // sua ausência quebrava a renderização da página /projecao.
+  const trilhoRef = useRef(null)
+
   // Descobre qual coluna está centralizada no carrossel (sincroniza o resumo).
   const aoRolar = useCallback(() => {
     const trilho = trilhoRef.current

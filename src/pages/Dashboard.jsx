@@ -287,8 +287,13 @@ function calcularLimiteDiario({
     Math.ceil((fim - inicio) / 86400000)
   )
 
-  const disponivel = Math.max(0, Number(baseLivre) || 0)
-  const limiteSeguro = disponivel / dias
+  // Reserva PLANEJADA descontada UMA vez (igual a derivarResumoGastar), para o
+  // limite da Home e o do Planejamento completo nunca divergirem. baseLivre
+  // (saldoSeguroHoje) já vem SEM reserva; aqui aplicamos o percentual salvo.
+  const pctSeguro = Math.min(100, Math.max(0, Number(reservaPct) || 0))
+  const reserva = Math.max(0, Number(receitaMes) || 0) * (pctSeguro / 100)
+  const disponivel = Math.max(0, (Number(baseLivre) || 0) - reserva)
+  const limiteSeguro = dias > 0 ? disponivel / dias : 0
 
   if (modo === 'manual') {
     return Math.max(0, Number(limiteManual) || 0)
@@ -339,18 +344,34 @@ function derivarResumoGastar({
   )
 
   const ehManual = modo === 'manual'
-  const reserva = receitaMes > 0
-    ? receitaMes * (pct / 100)
+  // Reserva PLANEJADA (não é a já acumulada): percentual sobre a receita do mês.
+  // Protege contra NaN/negativos e percentuais fora de 0–100.
+  const pctSeguro = Math.min(100, Math.max(0, Number(pct) || 0))
+  const receitaSegura = Math.max(0, Number(receitaMes) || 0)
+  const reserva = receitaSegura > 0
+    ? receitaSegura * (pctSeguro / 100)
     : 0
 
-  const baseLivre = saldoConfigurado
-    ? Math.max(0, Number(saldoSeguroHoje) || 0)
+  // Saldo seguro já vem SEM reserva do useProjecao; aqui descontamos a reserva
+  // planejada UMA única vez. Ao mudar o percentual, baseLivre (e tudo que
+  // depende dela: disponível e gasto diário) recalcula imediatamente, pois usa
+  // o `pct` local. Clamp em 0 evita disponível/limite negativos indevidos.
+  const saldoSeguroNum = Math.max(0, Number(saldoSeguroHoje) || 0)
+  // Disponível REAL (com SINAL), arredondado a centavos — pode ser negativo
+  // quando a reserva + compromissos superam o saldo seguro. Fonte ÚNICA do
+  // estado do orçamento (equilibrado/positivo/negativo), sem cálculo paralelo.
+  const disponivelReal = saldoConfigurado
+    ? Math.round((saldoSeguroNum - reserva) * 100) / 100
     : 0
+  // Saldo seguro JÁ considerando a reserva planejada (reage ao percentual).
+  // Clamp em 0 para exibição e para o gasto diário não ficar negativo.
+  const saldoSeguroAjustado = Math.max(0, disponivelReal)
+  const baseLivre = saldoSeguroAjustado
 
   const disponivelAuto = baseLivre
   const disponivelMes = baseLivre
 
-  const limiteAuto = saldoConfigurado
+  const limiteAuto = saldoConfigurado && dias > 0
     ? disponivelAuto / dias
     : 0
 
@@ -361,9 +382,14 @@ function derivarResumoGastar({
     : limiteAuto
 
   const status = statusOrcamento(receitaMes, disponivelMes)
-  const orcamentoNegativo = saldoConfigurado
-    ? saldoSeguroHoje <= 0
-    : false
+  // Estado do orçamento pelo disponível REAL arredondado (evita "Faltam R$ 0,00"
+  // por diferença de centavos): < 0 negativo, == 0 equilibrado, > 0 positivo.
+  const estadoOrcamento = !saldoConfigurado
+    ? null
+    : disponivelReal < 0 ? 'negativo'
+    : disponivelReal === 0 ? 'equilibrado'
+    : 'positivo'
+  const orcamentoNegativo = estadoOrcamento === 'negativo'
 
   const manualAcimaDoRecomendado =
     ehManual && limiteManualNum > limiteAuto
@@ -372,6 +398,9 @@ function derivarResumoGastar({
     dias,
     ehManual,
     reserva,
+    saldoSeguroAjustado,
+    disponivelReal,
+    estadoOrcamento,
     baseLivre,
     disponivelAuto,
     disponivelMes,
@@ -403,6 +432,7 @@ function CardQuantoPossoGastar({
   // sem esperar o salvamento no banco. Sincroniza quando o perfil carrega/muda.
   const [pctLocal, setPctLocal] = useState(reservaPercentual != null ? Number(reservaPercentual) : 20)
   const [erroSalvar, setErroSalvar] = useState(false)
+  const [salvo, setSalvo] = useState(false)
 
   useEffect(() => {
     if (reservaPercentual != null) setPctLocal(Number(reservaPercentual))
@@ -437,7 +467,7 @@ function CardQuantoPossoGastar({
   // Deriva TODOS os valores pela MESMA função do resumo compacto (sem duplicar
   // fórmula). A reserva fica separada e só é descontada no modo automático.
   const {
-    dias, ehManual, reserva, limiteAuto, limiteManualNum,
+    dias, ehManual, reserva, saldoSeguroAjustado, limiteAuto, limiteManualNum,
     disponivelMes, limiteExibido, status, orcamentoNegativo, manualAcimaDoRecomendado,
  } = derivarResumoGastar({
   modo,
@@ -539,7 +569,7 @@ function CardQuantoPossoGastar({
         Valor descontado até a próxima receita
       </span>
       <span className="font-medium">
-        − {formatCurrency(Math.max(0, saldoAtual - saldoSeguroHoje))}
+        − {formatCurrency(Math.max(0, saldoAtual - saldoSeguroAjustado))}
       </span>
     </div>
 
@@ -548,7 +578,7 @@ function CardQuantoPossoGastar({
         Saldo seguro até a próxima receita
       </span>
       <span className="font-bold">
-        {formatCurrency(saldoSeguroHoje)}
+        {formatCurrency(saldoSeguroAjustado)}
       </span>
     </div>
   </div>
@@ -987,7 +1017,7 @@ function CardGastoHoje({
   // Disponível no mês + status — MESMA derivação do card detalhado (sem recalcular
   // regra).
   const pct = reservaPercentual != null ? Number(reservaPercentual) : 20
-  const { disponivelMes, status, orcamentoNegativo } = derivarResumoGastar({
+  const { disponivelMes, disponivelReal, estadoOrcamento, status, orcamentoNegativo } = derivarResumoGastar({
     modo, receitaMes, compromissosMes, limiteManual, hoje,
     pct, saldoConfigurado, previsaoFimMes,
   })
@@ -1061,9 +1091,13 @@ function CardGastoHoje({
           <p className={`text-xs lg:text-sm mt-0.5 ${orcamentoNegativo && !semBaseFinanceira ? 'text-red-100 font-medium' : 'text-white/80'}`}>
             {semBaseFinanceira
               ? 'Cadastre sua renda para calcular seu limite diário'
-              : orcamentoNegativo
-                ? `Faltam ${exibirMoeda(Math.abs(disponivelMes), ocultar)} para equilibrar seu orçamento`
-                : 'Sem comprometer seu planejamento'}
+              : estadoOrcamento === 'negativo'
+                ? `Faltam ${exibirMoeda(Math.abs(disponivelReal), ocultar)} para equilibrar seu orçamento`
+                : estadoOrcamento === 'equilibrado'
+                  ? 'Seu orçamento está equilibrado'
+                  : estadoOrcamento === 'positivo'
+                    ? `Você tem ${exibirMoeda(disponivelReal, ocultar)} disponíveis até a próxima receita`
+                    : 'Sem comprometer seu planejamento'}
           </p>
         </div>
         {/* Saldo atual dentro do card azul */}
@@ -1384,7 +1418,12 @@ const carregandoLimite = carregando
   modo: modoLimite,
   limiteManual,
   hoje,
-  baseLivre: saldoSeguroHoje,
+  baseLivre: Math.max(
+  0,
+  (Number(saldoSeguroHoje) || 0) -
+  (Math.max(0, Number(receitaMes) || 0) *
+    Math.min(100, Math.max(0, Number(reservaPercentual) || 0)) / 100)
+),
   saldoConfigurado,
   dataProximaReceita,
 })
