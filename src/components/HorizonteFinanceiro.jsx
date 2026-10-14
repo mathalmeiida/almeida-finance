@@ -100,13 +100,16 @@ export default function HorizonteFinanceiro({
     setIdxSel(prev => (prev !== maisProx ? maisProx : prev))
   }, [])
 
-  // Setas: rola o carrossel até a coluna alvo (snap suave).
+  // Setas: muda o mês selecionado (mobile) e, no desktop, também rola o
+  // carrossel até a coluna alvo (snap suave). Funciona nos dois modos.
   const irPara = useCallback((idx) => {
-    const trilho = trilhoRef.current
-    if (!trilho) return
     const alvo = Math.min(Math.max(0, idx), horizonte.length - 1)
-    const col = trilho.children[alvo]
-    if (col) trilho.scrollTo({ left: col.offsetLeft, behavior: 'smooth' })
+    setIdxSel(alvo)
+    const trilho = trilhoRef.current
+    if (trilho) {
+      const col = trilho.children[alvo]
+      if (col) trilho.scrollTo({ left: col.offsetLeft, behavior: 'smooth' })
+    }
   }, [horizonte.length])
 
   if (!horizonte.length) {
@@ -134,9 +137,9 @@ export default function HorizonteFinanceiro({
         </div>
       </div>
 
-      {/* ── Navegação ‹ › do carrossel (apenas desktop; no mobile os cartões
-          já listam todos os meses). ── */}
-      <div className="hidden md:flex items-center justify-between gap-2">
+      {/* ── Navegação ‹ › do período (desktop rola o carrossel; mobile troca o
+          mês dos cartões diários). Visível nos dois modos. ── */}
+      <div className="flex items-center justify-between gap-2">
         <button
           onClick={() => irPara(idxSel - 1)}
           disabled={idxSel === 0}
@@ -168,42 +171,48 @@ export default function HorizonteFinanceiro({
         ))}
       </div>
 
-      {/* ── MOBILE (<md): cartões compactos por mês (sem rolagem horizontal).
-          Usa os MESMOS agregados do mês (entradas/saídas/saldo final) — nenhum
-          cálculo novo. Ocupam toda a largura disponível. ── */}
-      <div className="md:hidden space-y-2.5">
-        {horizonte.map(m => {
-          const positivo = m.saldoFinal >= 0
-          return (
+      {/* ── MOBILE (<md): cada DIA do mês selecionado em um cartão compacto,
+          sem rolagem horizontal. Mostra data, receitas, despesas e saldo
+          projetado (acumulado) do dia. Usa os MESMOS dados de mesSel.dias —
+          nenhum cálculo novo. pb-20 garante que o menu inferior não cubra o
+          último cartão. ── */}
+      <div className="md:hidden">
+        <p className="text-xs text-gray-500 mb-2">
+          Dias de <span className="capitalize font-semibold text-gray-700">{mesSel.label}</span>
+        </p>
+        <div className="space-y-2 pb-20">
+          {mesSel.dias.map(d => (
             <div
-              key={`${m.ano}-${m.mes}`}
-              className={`rounded-xl border p-3 ${m.ehMesAtual ? 'border-blue-300 bg-blue-50/40' : 'border-gray-200 bg-white'}`}
+              key={d.dia}
+              className={`rounded-xl border p-3 ${d.ehHoje ? 'border-blue-300 bg-blue-50/50' : 'border-gray-200 bg-white'}`}
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="capitalize font-semibold text-gray-800 text-sm">{m.label}</span>
-                {m.ehMesAtual && (
-                  <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">atual</span>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className={`text-sm font-semibold ${d.ehHoje ? 'text-blue-700' : 'text-gray-800'}`}>
+                  Dia {String(d.dia).padStart(2, '0')}
+                </span>
+                {d.ehHoje && (
+                  <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">hoje</span>
                 )}
               </div>
               <div className="grid grid-cols-3 gap-x-3">
                 <div className="min-w-0">
                   <p className="text-[11px] text-gray-400">Receitas</p>
-                  <p className="text-sm font-semibold text-green-600 tabular-nums break-words">{formatCurrency(m.entradas)}</p>
+                  <p className="text-sm font-semibold text-green-600 tabular-nums break-words">{formatCurrency(d.entradas)}</p>
                 </div>
                 <div className="min-w-0">
                   <p className="text-[11px] text-gray-400">Despesas</p>
-                  <p className="text-sm font-semibold text-red-500 tabular-nums break-words">{formatCurrency(m.saidas)}</p>
+                  <p className="text-sm font-semibold text-red-500 tabular-nums break-words">{formatCurrency(d.saidas)}</p>
                 </div>
                 <div className="min-w-0">
                   <p className="text-[11px] text-gray-400">Saldo projetado</p>
-                  <p className={`text-sm font-bold tabular-nums break-words ${positivo ? 'text-blue-600' : 'text-red-600'}`}>
-                    {formatCurrency(m.saldoFinal)}
+                  <p className={`text-sm font-bold tabular-nums break-words ${d.saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatCurrency(d.saldo)}
                   </p>
                 </div>
               </div>
             </div>
-          )
-        })}
+          ))}
+        </div>
       </div>
 
       <p className="text-xs text-gray-400">
