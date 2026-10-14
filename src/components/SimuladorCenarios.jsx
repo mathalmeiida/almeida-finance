@@ -452,35 +452,54 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
 
 
-        {/* Projeção 3/6/12 meses */}
-
-        <div className="mt-3">
-
-          <p className="text-xs text-gray-500 mb-1.5">Projeção simplificada (reserva inicial + sobra mensal constante)</p>
-
-          <div className="grid grid-cols-3 gap-2">
-
-            {horizontes.resultado.map(h => (
-
-              <div key={h.meses} className="rounded-xl bg-gray-50 border border-gray-100 p-2.5 text-center">
-
-                <p className="text-xs text-gray-400">{h.meses} meses</p>
-
-                <p className={`text-sm font-bold ${h.acumulado >= 0 ? 'text-blue-600' : 'text-red-600'}`}>{formatCurrency(h.acumulado)}</p>
-
+        {/* Diferença mensal estimada (+ variação %) e impacto adicional
+            acumulado — mesmo padrão do modo profissional. Reaproveita
+            diferencaMensal já calculado. O modo pessoal não tem investimento
+            pontual, então investimentoPessoal = 0 (descontado uma única vez). */}
+        {(() => {
+          const investimentoPessoal = 0
+          const variacaoPct = atual.saldoMensal !== 0
+            ? (diferencaMensal / Math.abs(atual.saldoMensal)) * 100
+            : null
+          const impacto = [3, 6, 12].map(meses => ({
+            meses,
+            valor: diferencaMensal * meses - investimentoPessoal,
+          }))
+          return (
+            <>
+              {/* Diferença mensal estimada */}
+              <div className="mt-3 rounded-2xl bg-marca-grad text-white p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-white/85">Diferença mensal estimada</p>
+                <p className="text-2xl sm:text-3xl font-extrabold mt-1 break-words">
+                  {diferencaMensal >= 0 ? '+' : '−'}{formatCurrency(Math.abs(diferencaMensal))}
+                  <span className="text-sm font-semibold text-white/85 ml-2">
+                    {variacaoPct == null ? 'Não aplicável' : `${variacaoPct >= 0 ? '+' : ''}${variacaoPct.toFixed(1).replace('.', ',')}%`}
+                  </span>
+                </p>
+                <p className="text-xs text-white/85 mt-1">
+                  {diferencaMensal > 0 ? 'Cenário positivo — sua sobra mensal aumentaria.'
+                    : diferencaMensal < 0 ? 'Cenário negativo — sua sobra mensal diminuiria.'
+                    : 'Sem alteração na sua sobra mensal.'}
+                </p>
               </div>
 
-            ))}
-
-          </div>
-
-          {horizontes.mesEsgota != null && (
-
-            <p className="text-xs text-amber-700 mt-2">Nesse ritmo, o dinheiro acaba por volta do mês {horizontes.mesEsgota}.</p>
-
-          )}
-
-        </div>
+              {/* Impacto adicional acumulado (ganho/perda extra, não o saldo total) */}
+              <div className="mt-3">
+                <p className="text-xs text-gray-500 mb-1.5">Impacto adicional acumulado (só o ganho ou perda extra do cenário)</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {impacto.map(h => (
+                    <div key={h.meses} className="rounded-xl bg-gray-50 border border-gray-100 p-2.5 text-center">
+                      <p className="text-xs text-gray-400">{h.meses} meses</p>
+                      <p className={`text-sm font-bold break-words ${h.valor >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {h.valor >= 0 ? '+' : '−'}{formatCurrency(Math.abs(h.valor))}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )
+        })()}
 
       </div>
 
