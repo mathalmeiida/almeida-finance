@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:beneficios": "node tests/beneficios.test.mjs",
-    "test:financiamento": "node tests/financiamento.test.mjs"
+    "test:financiamento": "node tests/financiamento.test.mjs",
+    "test:cenarios": "node tests/cenarios.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

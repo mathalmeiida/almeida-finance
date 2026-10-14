@@ -21,6 +21,7 @@ import Modal from '../components/Modal'
 import ModalAnteciparPagamento from '../components/ModalAnteciparPagamento'
 import HorizonteFinanceiro from '../components/HorizonteFinanceiro'
 import { gerarHorizonte } from '../lib/horizonteFinanceiro'
+import SimuladorCenarios from '../components/SimuladorCenarios'
 
 // Chaves lidas em App.jsx (AreaAutenticada) para reabrir o onboarding e saber
 // em qual etapa começar. Mesmas chaves usadas pela tela de Configurações.
@@ -1319,6 +1320,7 @@ export default function Dashboard() {
   const [salvandoSaldo, setSalvandoSaldo] = useState(false)
   const [modalProjecao, setModalProjecao] = useState(false) // detalhes dos 12 meses
   const [modalPlanejamento, setModalPlanejamento] = useState(false) // "Quanto posso gastar?" completo
+  const [modalCenarios, setModalCenarios] = useState(false) // simulador "E se...?"
   const [modalNotificacoes, setModalNotificacoes] = useState(false) // central de notificações (sino)
   // Antecipação de pagamento a partir do card "Próximos 7 dias".
   const [despesaAntecipar, setDespesaAntecipar] = useState(null)
@@ -2004,6 +2006,23 @@ onEditarSaldo={somenteLeitura ? undefined : () => setModalSaldo(true)}
         </div>
       )}
 
+      {/* 5b ─ Card compacto "E se...?": abre o simulador de cenários (temporário,
+          não altera dados). Logo abaixo de "Posso comprar?", sem mexer no menu. */}
+      {!somenteLeitura && (
+        <button
+          onClick={() => setModalCenarios(true)}
+          className="w-full flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+        >
+          <span className="w-9 h-9 rounded-xl bg-marca-100 flex items-center justify-center flex-shrink-0">
+            <Rocket size={18} className="text-marca" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold text-gray-900">E se...?</span>
+            <span className="block text-xs text-gray-500">Simule aumento, perda de renda, demissão e uso do FGTS</span>
+          </span>
+        </button>
+      )}
+
       {/* 6 ─ Movimentações e próximos pagamentos: une as 2 transações mais
           recentes + os 2 compromissos pendentes mais próximos num único card
           compacto. Dados reais já carregados (ultimasTransacoes / proximos7Dias),
@@ -2205,6 +2224,17 @@ onEditarSaldo={somenteLeitura ? undefined : () => setModalSaldo(true)}
           dataProximaReceita={dataProximaReceita}
         />
       </Modal>
+
+      {/* Modal: simulador "E se...?" (cenários temporários; não altera dados).
+          Base = receita e despesa mensais REAIS + reserva acumulada. */}
+      <Modal aberto={modalCenarios} onFechar={() => setModalCenarios(false)} titulo="E se...?">
+        <SimuladorCenarios
+          receitaAtual={Number(resumoMes?.receitaTotal) || 0}
+          despesaMensal={(Number(resumoMes?.despesaTotal) || 0) + (Number(resumoMes?.parcelasTotal) || 0) + (Number(resumoMes?.faturasTotal) || 0)}
+          reservaAtual={reservaAtual}
+        />
+      </Modal>
+
       {/* Modal: Central de notificações (aberta pelo sino). Lista pendências
           REAIS já derivadas (configuração incompleta e risco de saldo negativo),
           sem backend novo. O Horizonte NÃO é mais aberto pelo sino — fica no seu

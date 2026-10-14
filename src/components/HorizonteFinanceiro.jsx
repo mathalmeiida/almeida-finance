@@ -134,8 +134,9 @@ export default function HorizonteFinanceiro({
         </div>
       </div>
 
-      {/* ── Navegação ‹ › + indicador do mês atual do carrossel ── */}
-      <div className="flex items-center justify-between gap-2">
+      {/* ── Navegação ‹ › do carrossel (apenas desktop; no mobile os cartões
+          já listam todos os meses). ── */}
+      <div className="hidden md:flex items-center justify-between gap-2">
         <button
           onClick={() => irPara(idxSel - 1)}
           disabled={idxSel === 0}
@@ -155,13 +156,11 @@ export default function HorizonteFinanceiro({
         </button>
       </div>
 
-      {/* ── Carrossel de meses: desliza horizontalmente, com snap e SEM barra
-          de rolagem visível. Mobile: ~1 mês por vez (86vw). Desktop: vários
-          lado a lado. Cada coluna NÃO tem rolagem vertical própria. ── */}
+      {/* ── DESKTOP (md+): carrossel de meses com o detalhe dia a dia. ── */}
       <div
         ref={trilhoRef}
         onScroll={aoRolar}
-        className="flex gap-3 overflow-x-auto scrollbar-none snap-x snap-mandatory"
+        className="hidden md:flex gap-3 overflow-x-auto scrollbar-none snap-x snap-mandatory"
         style={{ scrollPadding: '0' }}
       >
         {horizonte.map(m => (
@@ -169,8 +168,47 @@ export default function HorizonteFinanceiro({
         ))}
       </div>
 
+      {/* ── MOBILE (<md): cartões compactos por mês (sem rolagem horizontal).
+          Usa os MESMOS agregados do mês (entradas/saídas/saldo final) — nenhum
+          cálculo novo. Ocupam toda a largura disponível. ── */}
+      <div className="md:hidden space-y-2.5">
+        {horizonte.map(m => {
+          const positivo = m.saldoFinal >= 0
+          return (
+            <div
+              key={`${m.ano}-${m.mes}`}
+              className={`rounded-xl border p-3 ${m.ehMesAtual ? 'border-blue-300 bg-blue-50/40' : 'border-gray-200 bg-white'}`}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <span className="capitalize font-semibold text-gray-800 text-sm">{m.label}</span>
+                {m.ehMesAtual && (
+                  <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">atual</span>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-x-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] text-gray-400">Receitas</p>
+                  <p className="text-sm font-semibold text-green-600 tabular-nums break-words">{formatCurrency(m.entradas)}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] text-gray-400">Despesas</p>
+                  <p className="text-sm font-semibold text-red-500 tabular-nums break-words">{formatCurrency(m.saidas)}</p>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] text-gray-400">Saldo projetado</p>
+                  <p className={`text-sm font-bold tabular-nums break-words ${positivo ? 'text-blue-600' : 'text-red-600'}`}>
+                    {formatCurrency(m.saldoFinal)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
       <p className="text-xs text-gray-400">
-        Deslize para o lado para ver os próximos meses. O saldo acumula dia a dia conforme entradas e
+        <span className="hidden md:inline">Deslize para o lado para ver os próximos meses. </span>
+        O saldo acumula dia a dia conforme entradas e
         compromissos com data definida. A reserva aparece no resumo e não é descontada do fluxo diário.
       </p>
     </div>
