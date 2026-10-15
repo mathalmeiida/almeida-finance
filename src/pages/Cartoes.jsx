@@ -11,8 +11,13 @@ import InputMoeda from '../components/InputMoeda'
 import { formatCurrency, formatDate, labelMes, hojeISO } from '../lib/utils'
 import { calcularParcelas, useParcelamentos } from '../hooks/useParcelamentos'
 import {
-  valorFaturaCartaoNoMes, limiteComprometido, linhasFaturaCompleta,
-  anoMesChave, faturaInformadaNoMes, totalFaturaComOverride,
+  valorFaturaCartaoNoMes,
+  limiteComprometido,
+  linhasFaturaCompleta,
+  anoMesChave,
+  faturaInformadaNoMes,
+  totalFaturaComOverride,
+  totalParcelasFuturas,
 } from '../lib/faturaCartao'
 
 const hoje = new Date()
@@ -416,10 +421,22 @@ const [modalFatura, setModalFatura] = useState(false)
   }
 
   // Resumo do cartão
-  const totalFaturaAtual = proximosMeses[0].total
+  const totalFaturaAtual = proximosMeses[0]?.total ?? 0
   const totalProximaFatura = proximosMeses[1]?.total ?? 0
-  // Compras futuras parceladas = parcelas que vencem DEPOIS da fatura atual
-  const comprasFuturasParceladas = proximosMeses.slice(1).reduce((a, m) => a + m.total, 0)
+
+  // Parcelas futuras: somente parcelas cadastradas
+  // Não inclui valores de faturas informados manualmente
+  const comprasFuturasParceladas = totalParcelasFuturas(
+    compras,
+    parcelamentos.filter(
+      p => String(p.cartao_id) === String(cartao.id)
+    ),
+    cartao.dia_fechamento,
+    refData.ano,
+    refData.mes
+  )
+
+
 
   async function handleSalvar(dados) {
     setSalvando(true); setErro('')
