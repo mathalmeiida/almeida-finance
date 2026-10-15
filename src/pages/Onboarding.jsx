@@ -508,16 +508,67 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
     setDespEditIdx(i)
     setErro('')
   }
-  function adicionarDespesaLocal() {
+  // Salva cada despesa assim que o usuário toca em Adicionar / Salvar alteração.
+  // O hook useDespesas retorna o registro do Supabase com ID, evitando duplicações.
+  async function adicionarDespesaLocal() {
+    if (salvando || emGravacao.current) return false
+    if (!usuario?.id || carregandoDespesas || erroCarregamentoDespesas || !despHidratado) {
+      setErro('Aguarde o carregamento das despesas. Se houver erro, toque em Tentar novamente.')
+      return false
+    }
     if (!validarDespForm()) return false
+
     const item = itemDespesaDoForm()
-    setDespesas(prev => {
-      if (despEditIdx == null) return [...prev, item]
-      return prev.map((d, i) => i === despEditIdx ? { ...d, ...item } : d)
+    const registroAnterior = despEditIdx != null ? despesas[despEditIdx] : null
+    const cat = categoriasDespesa.find(c => c.id === item.categoria_id)
+    const tipo_despesa = classificarDespesa({
+      descricao: item.descricao, categoria: cat?.nome || '',
     })
-    limparDespForm()
+    let freq = item.frequencia
+    let recorrencia_meses = null
+    if (freq === 'mensal' && Number(item.recorrenciaMeses) > 0) {
+      freq = 'por_meses'
+      recorrencia_meses = Number(item.recorrenciaMeses)
+    }
+    const payload = {
+      descricao: item.descricao,
+      valor: item.valor,
+      data: item.data,
+      recorrente: freq !== 'nao_repete',
+      frequencia: freq,
+      recorrencia_meses,
+      categoria_id: item.categoria_id,
+      tipo_despesa,
+      forma_pagamento: item.forma_pagamento || null,
+      cartao_id: item.forma_pagamento === 'cartao_credito'
+        ? (cartaoIdValido(item.cartao_id) || null) : null,
+    }
+
+    emGravacao.current = true
+    setSalvando(true)
     setErro('')
-    return true
+    try {
+      const salvo = registroAnterior?.id
+        ? await atualizarDespesa(registroAnterior.id, payload)
+        : await criarDespesa(payload)
+      if (!salvo?.id) throw new Error('O banco não confirmou o salvamento da despesa.')
+
+      const itemSalvo = { ...item, id: salvo.id }
+      if (despEditIdx != null) {
+        setDespesas(prev => prev.map((d, i) => i === despEditIdx ? itemSalvo : d))
+      } else {
+        setDespesas(prev => [...prev, itemSalvo])
+      }
+      limparDespForm()
+      return true
+    } catch (e) {
+      // Preserva o formulário para o usuário tentar novamente.
+      setErro(`Não foi possível salvar a despesa. ${e?.message || 'Tente novamente.'}`)
+      return false
+    } finally {
+      setSalvando(false)
+      emGravacao.current = false
+    }
   }
   async function removerDespesaLocal(i) {
     const d = despesas[i]
@@ -1134,9 +1185,11 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                   )
                 )}
               </div>
-              <button onClick={adicionarDespesaLocal}
-                className="btn-secondary w-full mt-2 flex items-center justify-center gap-1 text-sm">
-                <Plus size={15} /> {despEditIdx != null ? 'Salvar alteração' : 'Adicionar outra despesa'}
+              <button type="button" onClick={adicionarDespesaLocal}
+                disabled={salvando || carregandoDespesas || !despHidratado || !!erroCarregamentoDespesas}
+                className="btn-secondary w-full mt-2 flex items-center justify-center gap-1 text-sm disabled:opacity-50">
+                {salvando ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+                {salvando ? 'Salvando despesa...' : despEditIdx != null ? 'Salvar alteração' : 'Adicionar outra despesa'}
               </button>
               {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
 
