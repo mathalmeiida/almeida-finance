@@ -50,6 +50,7 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
     data: despesaInicial?.data ?? hojeISO(),
     frequencia: freqInicial(despesaInicial),
     categoria_id: despesaInicial?.categoria_id ?? '',
+    subcategoria_id: despesaInicial?.subcategoria_id ?? '',
     forma_pagamento: despesaInicial?.forma_pagamento ?? '',
     // Duração da recorrência mensal (só UI): 'sem_fim' | 'quantidade' + nº meses
     duracaoMensal: duracaoInicial(despesaInicial),
@@ -105,6 +106,7 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
         // 1ª parcela = mês da data informada (mesmo formato do FormParcelamento)
         primeira_parcela: form.data.slice(0, 7) + '-01',
         categoria_id: form.categoria_id || null,
+        // A tabela parcelamentos não tem subcategoria_id; preservar cadastro parcelado.
         forma_pagamento: 'cartao_credito',
         cartao_id: form.cartao_id || null,
       })
@@ -144,6 +146,7 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
       frequencia: freq,
       recorrencia_meses: recorrenciaMeses,
       categoria_id: form.categoria_id || null,
+      subcategoria_id: form.subcategoria_id || null,
       tipo_despesa,
       forma_pagamento: form.forma_pagamento || null,
       // Vínculo de cartão (metadado): só quando a forma é cartão de crédito e um
@@ -202,7 +205,9 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
       <SeletorCategoriaModerno
         categorias={categorias}
         value={form.categoria_id}
-        onChange={(categoria_id) => setForm(prev => ({ ...prev, categoria_id }))}
+        onChange={(categoria_id) => setForm(prev => ({ ...prev, categoria_id, subcategoria_id: '' }))}
+        subcategoriaValue={form.subcategoria_id}
+        onSubcategoriaChange={(subcategoria_id) => setForm(prev => ({ ...prev, subcategoria_id }))}
       />
 
       <div>

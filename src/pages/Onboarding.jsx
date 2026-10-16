@@ -227,7 +227,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   // ETAPA Despesas — lista local.
   const [despesas, setDespesas] = useState([]) // { descricao, valor, categoria_id, data, frequencia, recorrenciaMeses }
   const [despForm, setDespForm] = useState({
-    descricao: '', valor: '', categoria_id: '', data: hojeISO(),
+    descricao: '', valor: '', categoria_id: '', subcategoria_id: '', data: hojeISO(),
     frequencia: 'mensal', recorrenciaMeses: '',
     forma_pagamento: '', cartao_id: '',
   })
@@ -241,7 +241,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
       if (anteriores.length) return anteriores
       return (despesasExistentes || []).map(d => ({
         id: d.id, descricao: d.descricao, valor: Number(d.valor) || 0,
-        categoria_id: d.categoria_id || '', data: d.data,
+        categoria_id: d.categoria_id || '', subcategoria_id: d.subcategoria_id || '', data: d.data,
         frequencia: d.frequencia === 'por_meses' ? 'mensal' :
           (d.frequencia || (d.recorrente ? 'mensal' : 'nao_repete')),
         recorrenciaMeses: d.frequencia === 'por_meses' ||
@@ -474,13 +474,13 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
     id && cartoes.some(c => c.id === id) ? id : ''
 
   const despFormVazio = () => ({
-    descricao: '', valor: '', categoria_id: '', data: hojeISO(),
+    descricao: '', valor: '', categoria_id: '', subcategoria_id: '', data: hojeISO(),
     frequencia: 'mensal', recorrenciaMeses: '', forma_pagamento: '', cartao_id: '',
   })
   function itemDespesaDoForm() {
     return {
       descricao: despForm.descricao.trim(), valor: Number(despForm.valor) || 0,
-      categoria_id: despForm.categoria_id || null, data: despForm.data || hojeISO(),
+      categoria_id: despForm.categoria_id || null, subcategoria_id: despForm.subcategoria_id || null, data: despForm.data || hojeISO(),
       frequencia: despForm.frequencia, recorrenciaMeses: despForm.recorrenciaMeses,
       forma_pagamento: despForm.forma_pagamento || '',
       cartao_id: despForm.forma_pagamento === 'cartao_credito'
@@ -501,7 +501,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
     if (!d) return
     setDespForm({
       descricao: d.descricao || '', valor: d.valor ?? '',
-      categoria_id: d.categoria_id || '', data: d.data || hojeISO(),
+      categoria_id: d.categoria_id || '', subcategoria_id: d.subcategoria_id || '', data: d.data || hojeISO(),
       frequencia: d.frequencia || 'mensal',
       recorrenciaMeses: d.recorrenciaMeses ?? '',
       forma_pagamento: d.forma_pagamento || '', cartao_id: d.cartao_id || '',
@@ -539,6 +539,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
       frequencia: freq,
       recorrencia_meses,
       categoria_id: item.categoria_id,
+      subcategoria_id: item.subcategoria_id || null,
       tipo_despesa,
       forma_pagamento: item.forma_pagamento || null,
       cartao_id: item.forma_pagamento === 'cartao_credito'
@@ -622,7 +623,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
         const payload = {
           descricao: d.descricao, valor: d.valor, data: d.data,
           recorrente: freq !== 'nao_repete', frequencia: freq,
-          recorrencia_meses, categoria_id: d.categoria_id, tipo_despesa,
+          recorrencia_meses, categoria_id: d.categoria_id, subcategoria_id: d.subcategoria_id || null, tipo_despesa,
           forma_pagamento: d.forma_pagamento || null,
           cartao_id: d.forma_pagamento === 'cartao_credito' ?
             (cartaoIdValido(d.cartao_id) || null) : null,
@@ -1138,7 +1139,9 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                 <SeletorCategoriaModerno
                   categorias={categoriasDespesa}
                   value={despForm.categoria_id}
-                  onChange={(categoria_id) => setDespForm(p => ({ ...p, categoria_id }))}
+                  onChange={(categoria_id) => setDespForm(p => ({ ...p, categoria_id, subcategoria_id: '' }))}
+                  subcategoriaValue={despForm.subcategoria_id}
+                  onSubcategoriaChange={(subcategoria_id) => setDespForm(p => ({ ...p, subcategoria_id }))}
                 />
                 <select className="input" value={despForm.frequencia}
                   onChange={(e) => setDespForm(p => ({ ...p, frequencia: e.target.value }))}>
