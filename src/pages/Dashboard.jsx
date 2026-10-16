@@ -912,24 +912,40 @@ function CardComecePorAqui({ itens, totalConcluidos, onIrPara, onContinuar }) {
     : resumoPendentes.slice(0, -1).join(', ') + ' e ' + resumoPendentes[resumoPendentes.length - 1]
 
   return (
-    <div className="card">
+    <div className={expandido ? 'card' : 'card !p-4'}>
+      {/* Visão COMPACTA (faixa horizontal): título + pendências à esquerda,
+          progresso e botão à direita no desktop; empilha no mobile. */}
+      {!expandido ? (
+        <div className="sm:flex sm:items-center sm:gap-4">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm sm:text-base font-semibold text-gray-900 flex items-center gap-2 min-w-0">
+              <Rocket size={17} className="text-marca flex-shrink-0" />
+              <span className="truncate">Complete sua configuração</span>
+              <span className="text-xs font-medium text-gray-500 flex-shrink-0">· {totalConcluidos} de {total}</span>
+            </h2>
+            {pendentes.length > 0 && (
+              <p className="text-xs sm:text-sm text-gray-500 mt-1 truncate">Faltam: {textoFaltam}</p>
+            )}
+          </div>
+          <button
+            onClick={() => setExpandido(true)}
+            className="btn-primary w-full sm:w-auto mt-3 sm:mt-0 flex items-center justify-center gap-2 sm:px-5 flex-shrink-0"
+          >
+            Continuar <ArrowRight size={16} />
+          </button>
+        </div>
+      ) : (
+      <>
       {/* Cabeçalho compacto */}
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2 min-w-0">
-          <Rocket size={18} className="text-blue-600 flex-shrink-0" />
+          <Rocket size={18} className="text-marca flex-shrink-0" />
           <span className="truncate">Complete sua configuração</span>
         </h2>
         <span className="text-xs font-medium text-gray-500 flex-shrink-0">
           {totalConcluidos} de {total} concluídos
         </span>
       </div>
-
-      {/* Resumo dos pendentes — só na visão compacta */}
-      {!expandido && pendentes.length > 0 && (
-        <p className="text-sm text-gray-500 mt-2">
-          Faltam: {textoFaltam}
-        </p>
-      )}
 
       {/* Checklist completo — expande ao tocar "Continuar" */}
       {expandido && (
@@ -959,23 +975,16 @@ function CardComecePorAqui({ itens, totalConcluidos, onIrPara, onContinuar }) {
         </ul>
       )}
 
-      {/* Ações */}
-      {!expandido ? (
-        <button
-          onClick={() => setExpandido(true)}
-          className="btn-primary w-full mt-3 flex items-center justify-center gap-2"
-        >
-          Continuar <ArrowRight size={16} />
+      {/* Ações (expandido) */}
+      <div className="flex gap-3 mt-4">
+        <button onClick={() => setExpandido(false)} className="btn-secondary flex-1">
+          Recolher
         </button>
-      ) : (
-        <div className="flex gap-3 mt-4">
-          <button onClick={() => setExpandido(false)} className="btn-secondary flex-1">
-            Recolher
-          </button>
-          <button onClick={onContinuar} className="btn-primary flex-1 flex items-center justify-center gap-2">
-            Continuar configuração <ArrowRight size={16} />
-          </button>
-        </div>
+        <button onClick={onContinuar} className="btn-primary flex-1 flex items-center justify-center gap-2">
+          Continuar configuração <ArrowRight size={16} />
+        </button>
+      </div>
+      </>
       )}
     </div>
   )
@@ -1053,7 +1062,7 @@ function CardGastoHoje({
     : 'rgba(255,255,255,0.95)'
 
   return (
-    <div className="bg-marca-grad rounded-2xl p-2.5 sm:p-4 lg:p-4 lg:shadow-lg lg:shadow-black/5 text-white">
+    <div className="bg-marca-grad-dark rounded-2xl p-2.5 sm:p-4 lg:p-4 lg:shadow-lg lg:shadow-black/5 text-white">
       {/* Compacto: anel do % à esquerda + limite diário em destaque com Editar.
           Sem o "Resumo do mês" (movido para a aba Planejamento). No desktop
           (lg) cresce um pouco, mantendo a Home dentro de uma tela. */}
@@ -1890,30 +1899,130 @@ const carregandoLimite = carregando
       {/* 2 ─ Card azul do LIMITE DIÁRIO (consolidado): limite + anel do % usado
           + gasto de hoje + restante + lápis para editar (Automático/Personalizado
           no planejamento completo). Mesmos cálculos de sempre. */}
-      <CardGastoHoje
-        carregando={carregando}
-        limiteHoje={limiteHoje}
-        saldoAtual={saldoDisponivelAgora}
-mostrarSaldo={saldoConfigurado}
-configIncompleta={mostrarComecePorAqui}
-onEditarSaldo={somenteLeitura ? undefined : () => setModalSaldo(true)}
-        gastosHoje={gastosDeHoje}
-        gastosCartaoHoje={gastosCartaoHoje}
-        disponivelHoje={disponivelHoje}
-        modo={modoLimite}
-        receitaMes={receitaMes}
-        compromissosMes={compromissosMes}
-        limiteManual={limiteManual}
-        hoje={hoje}
-        reservaPercentual={reservaPercentual}
-        saldoConfigurado={saldoConfigurado}
-        previsaoFimMes={previsaoFimMes}
-        onVerCompleto={() => setModalPlanejamento(true)}
-        onEditarLimite={somenteLeitura ? undefined : () => setModalPlanejamento(true)}
-        mostrarCheckin={!somenteLeitura && gastosDeHoje <= 0}
-        jaFezCheckin={jaFezCheckin}
-        onNaoGasteiHoje={marcarNaoGasteiHoje}
-      />
+      {/* Saldo atual e Limite diário em DOIS cards independentes. Desktop:
+          saldo 1/3 + limite 2/3; mobile: empilhados. O saldo sai de dentro do
+          card de limite (mostrarSaldo=false) para NÃO duplicar. Mesmos valores,
+          cálculos, estados e funções já existentes. */}
+      
+
+<div className="lg:grid lg:grid-cols-3 lg:gap-4 lg:items-stretch space-y-2.5 lg:space-y-0">
+        {saldoConfigurado && (
+  <div className="bg-marca-grad-dark text-white rounded-2xl p-4 lg:col-span-1 flex flex-col">
+
+    {/* SALDO ATUAL */}
+    <div className="flex items-center gap-2">
+      <span className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center flex-shrink-0">
+        <Wallet size={16} />
+      </span>
+
+      <p className="text-xs font-medium uppercase tracking-wide text-white/85">
+        Saldo atual
+      </p>
+
+      {!somenteLeitura && (
+        <button
+          type="button"
+          onClick={() => setModalSaldo(true)}
+          className="ml-auto inline-flex items-center gap-1 text-xs text-white/90 hover:text-white"
+        >
+          <Pencil size={13} /> Editar
+        </button>
+      )}
+    </div>
+
+    <p className="text-2xl sm:text-3xl font-extrabold mt-2 break-words">
+      {exibirMoeda(saldoDisponivelAgora, ocultar)}
+    </p>
+
+    <p className="text-[11px] text-white/80 mt-1">
+      Disponível hoje, sem a reserva de emergência.
+    </p>
+
+    {/* RESERVA DE EMERGÊNCIA */}
+    <div className="mt-5 lg:mt-auto pt-4 border-t border-white/20">
+
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <PiggyBank size={17} />
+          <span className="text-sm font-semibold">
+            Reserva de emergência
+          </span>
+        </div>
+
+        {!somenteLeitura && (
+          <button
+            type="button"
+            onClick={() => setModalReservaAtual(true)}
+            aria-label="Editar reserva de emergência"
+            className="text-white/90 hover:text-white"
+          >
+            <Pencil size={14} />
+          </button>
+        )}
+      </div>
+
+      <p className="text-xl font-bold mt-2">
+        {exibirMoeda(reservaAtual, ocultar)}
+      </p>
+
+      <div className="mt-3">
+        <div className="flex justify-between gap-2 text-xs text-white/80">
+          <span>
+            {metaReserva > 0
+              ? `Meta: ${exibirMoeda(metaReserva, ocultar)}`
+              : 'Meta não definida'}
+          </span>
+
+          <span>
+            {metaReserva > 0
+              ? `${Math.min(100, Math.max(0, (reservaAtual / metaReserva) * 100)).toFixed(0)}%`
+              : '—'}
+          </span>
+        </div>
+
+        <div className="w-full h-2 bg-black/20 rounded-full mt-2 overflow-hidden">
+          <div
+            className="h-full bg-white/90 rounded-full transition-all duration-300"
+style={{
+  width: `${metaReserva > 0
+    ? Math.min(100, Math.max(0, (reservaAtual / metaReserva) * 100))
+    : 0}%`
+}}
+          />
+        </div>
+      </div>
+
+    </div>
+  </div>
+)}
+
+        <div className={saldoConfigurado ? 'lg:col-span-2' : 'lg:col-span-3'}>
+          <CardGastoHoje
+            carregando={carregando}
+            limiteHoje={limiteHoje}
+            saldoAtual={saldoDisponivelAgora}
+            mostrarSaldo={false}
+            configIncompleta={mostrarComecePorAqui}
+            onEditarSaldo={somenteLeitura ? undefined : () => setModalSaldo(true)}
+            gastosHoje={gastosDeHoje}
+            gastosCartaoHoje={gastosCartaoHoje}
+            disponivelHoje={disponivelHoje}
+            modo={modoLimite}
+            receitaMes={receitaMes}
+            compromissosMes={compromissosMes}
+            limiteManual={limiteManual}
+            hoje={hoje}
+            reservaPercentual={reservaPercentual}
+            saldoConfigurado={saldoConfigurado}
+            previsaoFimMes={previsaoFimMes}
+            onVerCompleto={() => setModalPlanejamento(true)}
+            onEditarLimite={somenteLeitura ? undefined : () => setModalPlanejamento(true)}
+            mostrarCheckin={!somenteLeitura && gastosDeHoje <= 0}
+            jaFezCheckin={jaFezCheckin}
+            onNaoGasteiHoje={marcarNaoGasteiHoje}
+          />
+        </div>
+      </div>
 
       {/* 3 ─ Acesso rápido: 5 atalhos compactos para as funcionalidades
           existentes. Mesma linha no celular (grid-cols-5). Reaproveitam
@@ -2038,15 +2147,14 @@ onEditarSaldo={somenteLeitura ? undefined : () => setModalSaldo(true)}
       {!somenteLeitura && (
         <button
           onClick={() => setModalCenarios(true)}
-          className="group relative w-full overflow-hidden rounded-2xl bg-marca-grad text-left px-5 py-5 sm:px-6 sm:py-6 shadow-sm hover:shadow-md transition-shadow"
+          className="group relative w-full overflow-hidden rounded-2xl bg-marca-grad-dark text-left px-4 py-3.5 sm:px-5 sm:py-4 shadow-sm hover:shadow-md transition-shadow"
         >
-          {/* Gráfico decorativo no canto INFERIOR DIREITO, discreto (opacidade
-              baixa) para não competir com o conteúdo. */}
+          {/* Gráfico decorativo no canto inferior direito, discreto. */}
           <svg
             aria-hidden="true"
             viewBox="0 0 120 60"
             preserveAspectRatio="none"
-            className="pointer-events-none absolute bottom-0 right-0 h-20 w-48 opacity-15"
+            className="pointer-events-none absolute bottom-0 right-0 h-14 w-40 opacity-10"
           >
             <polyline
               points="0,48 20,40 40,44 60,28 80,32 100,14 120,6"
@@ -2059,27 +2167,28 @@ onEditarSaldo={somenteLeitura ? undefined : () => setModalSaldo(true)}
             />
           </svg>
 
-          {/* Cabeçalho: ícone + título/subtítulo com mais destaque. */}
-          <div className="relative flex items-center gap-3.5">
-            <span className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-              <Rocket size={22} className="text-white" />
-            </span>
-            <div className="min-w-0">
-              <span className="block text-lg sm:text-xl font-extrabold text-white leading-tight">E se...?</span>
-              <span className="block text-xs sm:text-sm text-white/85 mt-0.5 leading-snug">Simule cenários e veja impactos no seu futuro financeiro.</span>
+          {/* Layout compacto: no desktop, header + chips + botão na MESMA linha;
+              no mobile, empilha. */}
+          <div className="relative sm:flex sm:items-center sm:gap-4">
+            <div className="flex items-center gap-3 min-w-0 sm:flex-1">
+              <span className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+                <Rocket size={18} className="text-white" />
+              </span>
+              <div className="min-w-0">
+                <span className="block text-base font-extrabold text-white leading-tight">E se...?</span>
+                <span className="block text-xs text-white/85 leading-snug truncate">Simule cenários e veja impactos no seu futuro.</span>
+              </div>
             </div>
-          </div>
 
-          {/* Chips de modo (decorativos — a seleção real fica no modal). */}
-          <div className="relative mt-4 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center rounded-full bg-white/25 text-white text-xs font-semibold px-3.5 py-1.5">Pessoal</span>
-            <span className="inline-flex items-center rounded-full bg-white/10 text-white/90 text-xs font-semibold px-3.5 py-1.5">Profissional</span>
-          </div>
+            {/* Chips (decorativos — a seleção real fica no modal). */}
+            <div className="flex items-center gap-2 mt-2.5 sm:mt-0 flex-shrink-0">
+              <span className="inline-flex items-center rounded-full bg-white/25 text-white text-xs font-semibold px-3 py-1">Pessoal</span>
+              <span className="inline-flex items-center rounded-full bg-white/10 text-white/90 text-xs font-semibold px-3 py-1">Profissional</span>
+            </div>
 
-          {/* Botão (visual) maior e proporcional — o clique do card abre o modal. */}
-          <div className="relative mt-4">
-            <span className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-white text-marca text-sm sm:text-base font-semibold px-5 py-2.5 shadow-sm group-hover:gap-3 transition-all">
-              Simular meu futuro <ArrowRight size={16} />
+            {/* Botão (visual) — o clique do card abre o modal. */}
+            <span className="mt-2.5 sm:mt-0 inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-white text-marca text-sm font-semibold px-4 py-2 shadow-sm group-hover:gap-3 transition-all flex-shrink-0">
+              Simular meu futuro <ArrowRight size={15} />
             </span>
           </div>
         </button>

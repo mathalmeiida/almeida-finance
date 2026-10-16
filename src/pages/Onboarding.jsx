@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useReceitas } from '../hooks/useReceitas'
 import { useDespesas } from '../hooks/useDespesas'
 import { useCategorias } from '../hooks/useCategorias'
+import SeletorCategoriaModerno from '../components/SeletorCategoriaModerno'
 import { useCartoes } from '../hooks/useCartoes'
 import { useBeneficios } from '../hooks/useBeneficios'
 import InputMoeda from '../components/InputMoeda'
@@ -1134,11 +1135,11 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                     onChange={(e) => setDespForm(p => ({ ...p, data: e.target.value }))} />
                 </div>
                 <p className="text-[11px] text-gray-400 -mt-1">O dia da data é usado como vencimento.</p>
-                <select className="input" value={despForm.categoria_id}
-                  onChange={(e) => setDespForm(p => ({ ...p, categoria_id: e.target.value }))}>
-                  <option value="">Sem categoria</option>
-                  {categoriasDespesa.map(c => <option key={c.id} value={c.id}>{c.icone} {c.nome}</option>)}
-                </select>
+                <SeletorCategoriaModerno
+                  categorias={categoriasDespesa}
+                  value={despForm.categoria_id}
+                  onChange={(categoria_id) => setDespForm(p => ({ ...p, categoria_id }))}
+                />
                 <select className="input" value={despForm.frequencia}
                   onChange={(e) => setDespForm(p => ({ ...p, frequencia: e.target.value }))}>
                   <option value="nao_repete">Não repete (só uma vez)</option>

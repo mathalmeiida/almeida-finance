@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { TrendingDown, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, CreditCard, CheckCircle2, ChevronDown, ChevronUp, CalendarClock, Zap } from 'lucide-react'
+import { TrendingDown, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, CreditCard, CheckCircle2, ChevronDown, ChevronUp, CalendarClock, Zap, Lightbulb, Target, Wallet, ArrowDownRight } from 'lucide-react'
 import { useDespesas } from '../hooks/useDespesas'
 import { useDespesaTipoExcecoes } from '../hooks/useDespesaTipoExcecoes'
 import { useParcelamentos, valorParcelaNoMes, calcularParcelas } from '../hooks/useParcelamentos'
 import { useCategorias } from '../hooks/useCategorias'
+import SeletorCategoriaModerno from '../components/SeletorCategoriaModerno'
 import { useCartoes } from '../hooks/useCartoes'
 import { useProjecao } from '../hooks/useProjecao'
 import Modal from '../components/Modal'
@@ -198,15 +199,11 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
         você poderá corrigir manualmente para o valor realmente pago.
       </p>
 
-      <div>
-        <label className="label">Categoria</label>
-        <select name="categoria_id" value={form.categoria_id} onChange={handleChange} className="input">
-          <option value="">Sem categoria</option>
-          {categorias.map(c => (
-            <option key={c.id} value={c.id}>{c.icone} {c.nome}</option>
-          ))}
-        </select>
-      </div>
+      <SeletorCategoriaModerno
+        categorias={categorias}
+        value={form.categoria_id}
+        onChange={(categoria_id) => setForm(prev => ({ ...prev, categoria_id }))}
+      />
 
       <div>
         <label className="label">Forma de pagamento</label>
@@ -908,6 +905,117 @@ function FormRegistrarAmortizacao({ parcelamento, onConfirmar, onCancelar, salva
   )
 }
 
+// ─── Inteligência financeira: somente leitura, nenhum dado é alterado ───────
+const CATEGORIAS_REVISAVEIS = /lazer|entretenimento|restaurante|delivery|assinatura|streaming|compras|vestuário|vestuario|shopping|viagem|supérfluo|superfluo|beleza/i
+const DESPESAS_PROTEGIDAS = /aluguel|moradia|condom[ií]nio|financiamento|empr[eé]stimo|cons[oó]rcio|escola|faculdade|educa[cç][aã]o|energia|[aá]gua|g[aá]s|sa[uú]de|rem[eé]dio|seguro|imposto|ipva|transporte|mercado|supermercado|alimenta[cç][aã]o/i
+
+function ResumoInteligenteDespesas({ despesas, parcelasDoMes, tipoNoMes, anoMesAtual, totalFixas, totalVariaveis, totalGeral, carregando }) {
+  const [mostrarDetalhes, setMostrarDetalhes] = useState(false)
+  const [mostrarSimulador, setMostrarSimulador] = useState(false)
+  const [percentualMeta, setPercentualMeta] = useState(20)
+  if (carregando) return null
+
+  const pctF = totalGeral > 0 ? (totalFixas / totalGeral) * 100 : 0
+  const pctV = totalGeral > 0 ? (totalVariaveis / totalGeral) * 100 : 0
+  const grupos = new Map()
+  const adicionar = (nome, valor) => {
+    const chave = nome?.trim() || 'Sem categoria'
+    grupos.set(chave, (grupos.get(chave) || 0) + (Number(valor) || 0))
+  }
+  despesas.forEach(d => adicionar(d.categorias?.nome, d.valor))
+  parcelasDoMes.forEach(({ parcelamento: p, valor }) => adicionar(p.categorias?.nome, valor))
+  const maiorCategoria = [...grupos.entries()].sort((a,b) => b[1] - a[1])[0]
+
+  // Uma despesa variável NÃO é necessariamente dispensável. Só usamos itens
+  // com categoria/nome explicitamente revisável e excluímos obrigações.
+  const revisaveis = despesas.filter(d => {
+    if (tipoNoMes(d, anoMesAtual) === 'fixa') return false
+    const categoria = String(d.categorias?.nome || '')
+    const nome = String(d.descricao || '')
+    return CATEGORIAS_REVISAVEIS.test(categoria + ' ' + nome) &&
+      !DESPESAS_PROTEGIDAS.test(categoria + ' ' + nome)
+  })
+  const totalRevisavel = revisaveis.reduce((s, d) => s + Math.max(0, Number(d.valor) || 0), 0)
+  const economiaEstimada = Math.round(totalRevisavel * 0.20 * 100) / 100
+  const metaSimulada = Math.round(totalVariaveis * percentualMeta) / 100
+  const nomesRevisaveis = [...new Set(revisaveis.map(d => d.categorias?.nome || d.descricao))].slice(0, 2)
+  const sugestoes = [
+    ...nomesRevisaveis.map(nome => `Revise seus gastos com ${nome.toLowerCase()}.`),
+    ...(parcelasDoMes.some(x => /empr[eé]stimo|financiamento/i.test(x.parcelamento?.descricao || '')) || despesas.some(d => /empr[eé]stimo|financiamento/i.test(d.descricao || ''))
+      ? ['Considere comparar condições de renegociação dos empréstimos; verifique juros e custo total.'] : []),
+    'Antecipe pagamentos apenas quando houver benefício real e dinheiro disponível.'
+  ].slice(0, 3)
+
+  return (
+    <section className="card min-w-0 overflow-hidden !p-4 sm:!p-5 border border-marca/25" aria-label="Resumo inteligente do mês">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="w-10 h-10 shrink-0 rounded-xl bg-marca-100 flex items-center justify-center"><Lightbulb size={19} className="text-marca" /></div>
+          <div><h2 className="text-base sm:text-lg font-bold text-gray-900">Resumo inteligente do mês</h2>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1">Entenda seus gastos e descubra oportunidades de economia.</p></div>
+        </div>
+        <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3 md:min-w-60">
+          <div className="flex items-center gap-2 text-emerald-700 text-xs font-semibold"><Target size={16} /> Meta simulada de economia</div>
+          <p className="text-xl sm:text-2xl font-bold text-emerald-700 mt-1">{formatCurrency(metaSimulada)}</p>
+          <p className="text-xs text-emerald-800 mt-1">{percentualMeta}% das despesas variáveis — objetivo hipotético, não economia garantida.</p>
+          <button type="button" onClick={() => setMostrarSimulador(v => !v)}
+            aria-expanded={mostrarSimulador}
+            className="mt-2 rounded-lg bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+            {mostrarSimulador ? 'Fechar simulação' : 'Simular minha meta'}
+          </button>
+        </div>
+      </div>
+      {mostrarSimulador && (
+        <div className="mt-4 rounded-xl border border-marca/20 bg-gray-50 p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-gray-900">Simulador de meta mensal</h3>
+            <span className="text-sm font-bold text-marca">{percentualMeta}%</span>
+          </div>
+          <input type="range" min="0" max="30" step="5" value={percentualMeta}
+            onChange={e => setPercentualMeta(Number(e.target.value))}
+            aria-label="Percentual da meta de redução das despesas variáveis"
+            className="w-full accent-current text-marca" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+            <p className="text-gray-600">Base: <strong>{formatCurrency(totalVariaveis)}</strong> em despesas variáveis.</p>
+            <p className="text-gray-600">Meta simulada: <strong>{formatCurrency(metaSimulada)}</strong> por mês.</p>
+          </div>
+          <p className="text-xs text-gray-500 leading-relaxed">Esta é uma simulação de planejamento, não uma previsão. Despesas variáveis podem incluir gastos essenciais ou obrigatórios. Não reduza saúde, alimentação necessária nem pagamentos contratados apenas para cumprir a meta. Identificamos {formatCurrency(economiaEstimada)} em gastos potencialmente revisáveis por categoria; avalie cada despesa antes de definir cortes.</p>
+        </div>
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-4 mt-5">
+        <div className="flex flex-col items-center justify-center gap-2 rounded-xl bg-gray-50 px-5 py-4">
+          <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-full flex items-center justify-center"
+            style={{ background: `conic-gradient(var(--cor-marca, #3b82f6) 0% ${pctF}%, #a78bfa ${pctF}% 100%)` }}>
+            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-white flex flex-col items-center justify-center text-center p-1">
+              <strong className="text-sm text-gray-900 break-words">{formatCurrency(totalGeral)}</strong>
+              <span className="text-xs text-gray-500">total do mês</span>
+            </div>
+          </div>
+          <p className="text-[11px] text-gray-500">Proporção entre despesas fixas e variáveis</p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 content-center">
+          <div className="rounded-xl bg-gray-50 p-3 min-w-0"><p className="text-xs text-gray-500">Fixas</p><p className="text-xl font-bold text-gray-900">{Math.round(pctF)}%</p><p className="text-xs text-gray-500 break-words">{formatCurrency(totalFixas)}</p><div className="h-1.5 bg-gray-200 rounded-full mt-3 overflow-hidden"><div className="h-full bg-marca rounded-full" style={{ width: `${pctF}%` }} /></div></div>
+          <div className="rounded-xl bg-gray-50 p-3 min-w-0"><p className="text-xs text-gray-500">Variáveis</p><p className="text-xl font-bold text-gray-900">{Math.round(pctV)}%</p><p className="text-xs text-gray-500 break-words">{formatCurrency(totalVariaveis)}</p><div className="h-1.5 bg-gray-200 rounded-full mt-3 overflow-hidden"><div className="h-full bg-purple-400 rounded-full" style={{ width: `${pctV}%` }} /></div></div>
+          <div className="rounded-xl bg-gray-50 p-3 min-w-0"><p className="text-xs text-gray-500">Maior categoria</p><p className="text-sm font-bold text-gray-900 break-words mt-2">{maiorCategoria?.[0] || 'Não identificada'}</p><p className="text-xs text-gray-500 mt-1">{formatCurrency(maiorCategoria?.[1] || 0)}</p></div>
+        </div>
+      </div>
+      <div className="mt-5 border-t border-gray-100 pt-4">
+        <div className="flex items-center justify-between gap-2"><h3 className="font-semibold text-sm text-gray-900">Onde economizar</h3>
+          <button type="button" onClick={() => setMostrarDetalhes(x => !x)} className="text-xs font-semibold text-marca hover:underline">{mostrarDetalhes ? 'Menos detalhes' : 'Como calculamos?'}</button></div>
+        {totalGeral <= 0 ? <p className="text-sm text-gray-500 mt-2">Cadastre despesas para receber orientações.</p> : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3">
+            {(sugestoes.length ? sugestoes : ['Acompanhe seus gastos para encontrar oportunidades de redução.']).map((s,i) => (
+              <div key={i} className="rounded-xl border border-gray-100 bg-gray-50 p-3 flex gap-2 items-start"><ArrowDownRight size={17} className="text-marca shrink-0 mt-0.5" /><p className="text-xs text-gray-700 leading-relaxed">{s}</p></div>
+            ))}
+          </div>
+        )}
+        {totalRevisavel === 0 && totalGeral > 0 && <p className="text-xs text-gray-500 mt-3">Ainda não identificamos gastos discricionários suficientes para estimar uma economia. Zero não significa ausência de oportunidades.</p>}
+        {mostrarDetalhes && <p className="text-xs text-gray-500 mt-3 leading-relaxed">A identificação automática de oportunidades usa despesas variáveis à vista de categorias potencialmente revisáveis e aplica 20% sobre elas. Já a simulação permite escolher uma meta de 0% a 30% sobre todas as despesas variáveis. Nenhuma dessas estimativas representa economia garantida. Obrigações, empréstimos, financiamentos e parcelas não são tratados como cortes disponíveis. Os percentuais do gráfico são calculados sobre o total de despesas deste mês, não sobre a renda.</p>}
+      </div>
+    </section>
+  )
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function Despesas() {
   const {
@@ -931,6 +1039,8 @@ export default function Despesas() {
   const { cartoes } = useCartoes()
 
   const [filtro, setFiltro] = useState('Todas')
+  const [ordemDespesas, setOrdemDespesas] = useState('maior')
+  const [ordemParceladas, setOrdemParceladas] = useState('maior_saldo')
   const [modalAberto, setModalAberto] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [salvandoParc, setSalvandoParc] = useState(false)
@@ -1027,6 +1137,25 @@ export default function Despesas() {
 
   const mostrarParceladas = filtro === 'Parceladas'
   const totalLinhas = despesasVisiveis.length + parcelasVisiveis.length
+  // Unifica as linhas para que a ordenação funcione entre despesas e parcelas.
+  // Os valores abaixo são apenas de exibição; não alteram os hooks nem o banco.
+  const linhasOrdenadas = [
+    ...despesasVisiveis.map(d => ({ chave: `desp-${d.id}`, tipo: 'despesa', dados: d, valor: Number(d.valor) || 0, data: d.data || '' })),
+    ...parcelasVisiveis.map(x => ({ chave: `parc-${x.parcelamento.id}`, tipo: 'parcela', dados: x, valor: Number(x.valor) || 0, data: x.parcelamento.primeira_parcela || '' })),
+  ].sort((a, b) => {
+    if (ordemDespesas === 'maior') return b.valor - a.valor
+    if (ordemDespesas === 'menor') return a.valor - b.valor
+    if (ordemDespesas === 'vencimento') return (a.data || '9999').localeCompare(b.data || '9999')
+    if (ordemDespesas === 'vencimento_desc') return (b.data || '').localeCompare(a.data || '')
+    return 0
+  })
+  const totalFiltrado = linhasOrdenadas.reduce((s, linha) => s + linha.valor, 0)
+  const parcelamentosOrdenados = [...parcAtivos].sort((a, b) => {
+    if (ordemParceladas === 'maior_saldo') return (Number(b.valorRestante) || 0) - (Number(a.valorRestante) || 0)
+    if (ordemParceladas === 'menor_saldo') return (Number(a.valorRestante) || 0) - (Number(b.valorRestante) || 0)
+    if (ordemParceladas === 'maior_parcela') return (Number(valorParcelaNoMes(b, anoAtual, mesAtual)) || 0) - (Number(valorParcelaNoMes(a, anoAtual, mesAtual)) || 0)
+    return (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR')
+  })
 
   // Atalho do botão "+" (menu inferior mobile): ?novo=1 abre o modal de nova
   // despesa; ?novo=parcelado abre o modal e já posiciona na aba Parceladas.
@@ -1276,6 +1405,18 @@ export default function Despesas() {
         </div>
       </div>
 
+      {/* Painel inteligente: leitura dos valores existentes, sem persistência */}
+      <ResumoInteligenteDespesas
+        despesas={despesas}
+        parcelasDoMes={parcelasDoMes}
+        tipoNoMes={tipoNoMes}
+        anoMesAtual={anoMesAtual}
+        totalFixas={totalFixas}
+        totalVariaveis={totalVariaveis}
+        totalGeral={totalGeral}
+        carregando={carregando || carregandoParc}
+      />
+
       {/* Notificação de classificação automática */}
       {ultimaDespesa && (
         <NotificacaoClassificacao
@@ -1356,10 +1497,24 @@ export default function Despesas() {
       {/* ─── Lista de despesas à vista + parcelas do mês ─── */}
       {filtro !== 'Parceladas' && (
         <div className="card">
-          <h2 className="text-base font-semibold text-gray-900 mb-4">
-            {filtro === 'Todas' ? 'Despesas do mês' : `Despesas ${filtro.toLowerCase()}`}
-            <span className="ml-2 text-sm font-normal text-gray-400">({totalLinhas})</span>
-          </h2>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-4">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">
+                {filtro === 'Todas' ? 'Despesas do mês' : `Despesas ${filtro.toLowerCase()}`}
+                <span className="ml-2 text-sm font-normal text-gray-400">({totalLinhas})</span>
+              </h2>
+              <p className="text-xs text-gray-500 mt-1">Total selecionado: <strong className="text-gray-900">{formatCurrency(totalFiltrado)}</strong></p>
+            </div>
+            <label className="flex items-center gap-2 text-xs text-gray-500">
+              Ordenar por
+              <select className="input !w-auto !py-2 !text-xs min-w-0" value={ordemDespesas} onChange={e => setOrdemDespesas(e.target.value)} aria-label="Ordenar despesas">
+                <option value="maior">Maior valor primeiro</option>
+                <option value="menor">Menor valor primeiro</option>
+                <option value="vencimento">Vencimento mais próximo</option>
+                <option value="vencimento_desc">Vencimento mais distante</option>
+              </select>
+            </label>
+          </div>
 
           {(carregando || carregandoParc) ? (
             <div className="flex items-center justify-center py-12">
@@ -1375,8 +1530,9 @@ export default function Despesas() {
             </div>
           ) : (
             <div className="space-y-3">
-              {/* Linhas de parcela do mês */}
-              {parcelasVisiveis.map(({ parcelamento: p, valor, tipo_despesa }) => {
+              {linhasOrdenadas.map(linha => {
+                if (linha.tipo === 'parcela') {
+                  const { parcelamento: p, valor, tipo_despesa } = linha.dados
                 const { label: tipoLabel, classes: tipoClasses } = labelTipoDespesa(tipo_despesa)
                 const nomeCategoria = p.categorias?.nome
                 return (
@@ -1413,10 +1569,8 @@ export default function Despesas() {
                     </div>
                   </div>
                 )
-              })}
-
-              {/* Linhas de despesa à vista */}
-              {despesasVisiveis.map(d => {
+                }
+                const d = linha.dados
                 const nomeCategoria = d.categorias?.nome
                 // Tipo exibido respeita a exceção do mês (se houver).
                 const tipoExibido = tipoNoMes(d, anoMesAtual)
@@ -1444,6 +1598,11 @@ export default function Despesas() {
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${tipoClasses}`}>
                             {tipoLabel}
                           </span>
+                          {totalGeral > 0 && (
+                            <span className="text-xs text-gray-500" title="Participação desta despesa no total mensal">
+                              {Math.round((Number(d.valor) || 0) / totalGeral * 100)}% do total
+                            </span>
+                          )}
                           {d.recorrente && (
                             <span className="flex items-center gap-1 text-xs text-blue-500">
                               <RefreshCw size={10} />
@@ -1499,9 +1658,24 @@ export default function Despesas() {
       {/* ─── Seção de parcelamentos ─── */}
       {mostrarParceladas && (
         <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Acompanhamento de parcelas</h2>
+              <p className="text-xs text-gray-500 mt-1">Veja compromissos ativos, parcelas restantes e valores futuros.</p>
+            </div>
+            <label className="flex items-center gap-2 text-xs text-gray-500">
+              Ordenar por
+              <select className="input !w-auto !py-2 !text-xs" value={ordemParceladas} onChange={e => setOrdemParceladas(e.target.value)} aria-label="Ordenar parcelamentos">
+                <option value="maior_saldo">Maior saldo restante</option>
+                <option value="menor_saldo">Menor saldo restante</option>
+                <option value="maior_parcela">Maior parcela neste mês</option>
+                <option value="nome">Nome (A–Z)</option>
+              </select>
+            </label>
+          </div>
           {/* Resumo de parcelamentos */}
           {parcAtivos.length > 0 && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="card">
                 <p className="text-xs text-gray-500 mb-1">Parcelas este mês</p>
                 <p className="text-xl font-bold text-orange-600">{formatCurrency(totalMesAtual)}</p>
@@ -1535,7 +1709,7 @@ export default function Despesas() {
             <>
               {parcAtivos.length > 0 && (
                 <>
-                  {parcAtivos.map(p => (
+                  {parcelamentosOrdenados.map(p => (
                     <CardParcelamento key={p.id} p={p}
                       onQuitar={handleQuitar} onRemover={handleRemoverParc}
                       onEditar={handleEditarParc} onAmortizar={setParcelamentoAmortizar}

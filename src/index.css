@@ -87,7 +87,9 @@
 
 @layer components {
   .card {
-    @apply bg-white rounded-2xl shadow-sm border border-gray-200 p-5;
+    @apply bg-white rounded-2xl border border-gray-200/80 p-5;
+    /* Sombra premium discreta em camadas (mais suave e com profundidade). */
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 16px rgba(16, 24, 40, 0.06);
   }
 
   /* Em telas muito estreitas (≤360px, ex.: iPhone SE/alguns Android), reduz o
@@ -103,7 +105,7 @@
      variável CSS, trocar o tema (Fase 2) reflete em todos os botões primários
      sem editar componente algum. */
   .btn-primary {
-    @apply bg-marca hover:bg-marca-hover text-white font-medium px-4 py-2 rounded-lg transition-colors duration-200;
+    @apply bg-marca hover:bg-marca-hover text-white font-medium px-4 py-2 rounded-xl shadow-sm transition-colors duration-200;
   }
 
   .btn-secondary {
@@ -124,6 +126,8 @@
   .tema-preto .card {
     background-color: rgb(var(--superficie));
     border-color: rgb(var(--borda));
+    /* Sombra mais profunda para o card "flutuar" sobre o fundo escuro. */
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.35);
   }
   .tema-preto .btn-secondary {
     background-color: rgb(var(--superficie-2));
@@ -168,6 +172,18 @@
     background-image:
       radial-gradient(120% 120% at 0% 0%, rgba(255,255,255,0.12), rgba(255,255,255,0) 45%),
       linear-gradient(135deg, rgb(var(--marca)) 0%, rgb(var(--marca-hover)) 100%);
+  }
+
+  /* Variante PREMIUM mais escura/sofisticada: mistura a cor da marca com preto
+     via color-mix, então segue --marca automaticamente nos 5 temas (sem cores
+     fixas). Usada nos cards destacados (Saldo, Limite, "E se...?"). Texto branco
+     mantém contraste acessível sobre esses tons escuros. */
+  .bg-marca-grad-dark {
+    background-image:
+      radial-gradient(120% 130% at 0% 0%, rgba(255,255,255,0.08), rgba(255,255,255,0) 50%),
+      linear-gradient(135deg,
+        color-mix(in srgb, rgb(var(--marca)) 72%, #000) 0%,
+        color-mix(in srgb, rgb(var(--marca-hover)) 55%, #000) 100%);
   }
 
   /* ── Cabeçalho dinâmico dia/noite (Home) ──────────────────────────────────
