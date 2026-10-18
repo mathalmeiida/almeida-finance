@@ -11,6 +11,7 @@ import { useCartoes } from '../hooks/useCartoes'
 import { useComprasCartao } from '../hooks/useComprasCartao'
 import { useConsultoriaInteresses } from '../hooks/useConsultoria'
 import { useBeneficios } from '../hooks/useBeneficios'
+import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useOcultarValores } from '../contexts/OcultarValoresContext'
 import InputMoeda from '../components/InputMoeda'
@@ -21,7 +22,6 @@ import Modal from '../components/Modal'
 import ModalAnteciparPagamento from '../components/ModalAnteciparPagamento'
 import HorizonteFinanceiro from '../components/HorizonteFinanceiro'
 import { gerarHorizonte } from '../lib/horizonteFinanceiro'
-import SimuladorCenarios from '../components/SimuladorCenarios'
 
 // Chaves lidas em App.jsx (AreaAutenticada) para reabrir o onboarding e saber
 // em qual etapa começar. Mesmas chaves usadas pela tela de Configurações.
@@ -193,6 +193,198 @@ function SummaryCard({ title, value, icon: Icon, color, bgColor, subtitle, carre
         {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
       </div>
     </div>
+  )
+}
+
+// ─── Limite diário dos benefícios na Home ────────────────────────────────────
+// Mesma regra da aba Benefícios: saldo / dias até próxima recarga, ou limite manual.
+// VR/VA independentes e separados do limite diário bancário.
+function dataProximaRecargaBeneficio(b, agora = new Date()) {
+  const dia = Number(b.recarga_dia)
+  if (!Number.isInteger(dia) || dia < 1 || dia > 31) return null
+  const a = agora.getFullYear(), m = agora.getMonth()
+  for (let i = 0; i < 14; i++) {
+    const mes = new Date(a, m + i, 1)
+    const ultimo = new Date(mes.getFullYear(), mes.getMonth() + 1, 0).getDate()
+    const candidato = new Date(mes.getFullYear(), mes.getMonth(), Math.min(dia, ultimo), 12)
+    if (candidato > new Date(a, m, agora.getDate(), 12)) return candidato
+  }
+  return null
+}
+
+function diasAteRecargaBeneficio(data, agora = new Date()) {
+  if (!data) return null
+  const origem = Date.UTC(agora.getFullYear(), agora.getMonth(), agora.getDate())
+  const destino = Date.UTC(data.getFullYear(), data.getMonth(), data.getDate())
+  return Math.max(1, Math.round((destino - origem) / 86400000))
+}
+
+function CardLimiteBeneficioHome({ b, titulo, Icone, saldo, proximaRecarga, ocultar, usuarioId, somenteLeitura, onGastoRapido }) {
+  const [manual, setManual] = useState(null)
+  const [editando, setEditando] = useState(false)
+  const [valorEditado, setValorEditado] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [carregandoLimite, setCarregandoLimite] = useState(true)
+  const [erroLimite, setErroLimite] = useState('')
+
+  useEffect(() => {
+    let ativo = true
+    setManual(null)
+    setCarregandoLimite(true)
+    setErroLimite('')
+    if (!usuarioId || !b?.id) { setCarregandoLimite(false); return }
+    async function carregar() {
+      const { data, error } = await supabase
+        .from('beneficios_limites_diarios')
+        .select('limite_manual')
+        .eq('usuario_id', usuarioId)
+        .eq('beneficio_id', b.id)
+        .maybeSingle()
+      if (!ativo) return
+      if (error) {
+        console.error('[Home] Erro ao carregar limite VR/VA:', error)
+        setErroLimite('Não foi possível carregar o limite. Confira o SQL dos benefícios.')
+      } else {
+        setManual(data?.limite_manual == null ? null : Number(data.limite_manual))
+      }
+      setCarregandoLimite(false)
+    }
+    carregar()
+    return () => { ativo = false }
+  }, [usuarioId, b?.id])
+
+  const prox = dataProximaRecargaBeneficio(b)
+  const dias = diasAteRecargaBeneficio(prox)
+  const automatico = dias ? Math.max(0, Number(saldo) || 0) / dias : null
+  const personalizado = manual != null && Number(manual) > 0
+  const limite = personalizado ? Number(manual) : automatico
+
+  async function salvarLimite(e) {
+    e.preventDefault()
+    if (!usuarioId || somenteLeitura || salvando) return
+    const valor = Number(valorEditado)
+    if (!Number.isFinite(valor) || valor <= 0) {
+      setErroLimite('Informe um limite maior que zero.')
+      return
+    }
+    setSalvando(true)
+    setErroLimite('')
+    try {
+      const { error } = await supabase.from('beneficios_limites_diarios').upsert({
+        beneficio_id: b.id,
+        usuario_id: usuarioId,
+        limite_manual: valor,
+        atualizado_em: new Date().toISOString(),
+      }, { onConflict: 'beneficio_id' })
+      if (error) throw error
+      setManual(valor)
+      setEditando(false)
+    } catch (err) {
+      setErroLimite(err.message || 'Não foi possível salvar o limite.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  async function voltarAutomatico() {
+    if (!usuarioId || somenteLeitura || salvando) return
+    setSalvando(true)
+    setErroLimite('')
+    try {
+      const { error } = await supabase.from('beneficios_limites_diarios')
+        .delete().eq('beneficio_id', b.id).eq('usuario_id', usuarioId)
+      if (error) throw error
+      setManual(null)
+      setEditando(false)
+    } catch (err) {
+      setErroLimite(err.message || 'Não foi possível voltar ao automático.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <div className="rounded-xl bg-white border border-gray-200 px-3 py-3 min-w-0 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Icone size={15} className="text-marca flex-shrink-0" />
+          <span className="text-xs font-semibold text-gray-700 truncate">{titulo}</span>
+        </div>
+        {!somenteLeitura && (
+          <button type="button" aria-label={`Editar limite diário ${b.tipo}`}
+            onClick={() => { setEditando(v => !v); setValorEditado(personalizado ? String(manual) : ''); setErroLimite('') }}
+            className="text-marca rounded-lg p-1 hover:bg-gray-100" title="Editar limite diário">
+            <Pencil size={14} />
+          </button>
+        )}
+      </div>
+      <p className="text-[11px] text-gray-500">Saldo: <strong>{exibirMoeda(saldo, ocultar)}</strong></p>
+      <div>
+        <p className="text-[11px] text-gray-500">Limite diário {personalizado ? 'personalizado' : 'automático'}</p>
+        <p className="text-lg sm:text-xl font-bold text-marca leading-tight break-words">
+          {carregandoLimite ? 'Carregando...' : limite == null ? 'Não disponível' : exibirMoeda(limite, ocultar)}
+          {!carregandoLimite && limite != null && <span className="text-xs font-normal text-gray-500"> /dia</span>}
+        </p>
+        <p className="text-[11px] text-gray-400 mt-1">
+          {dias ? `${dias} dias até a próxima recarga` : 'Configure a data da recarga para cálculo automático'}
+        </p>
+      </div>
+      {editando && !somenteLeitura && (
+        <form onSubmit={salvarLimite} className="space-y-2 border-t border-gray-100 pt-2">
+          <label className="text-xs font-medium text-gray-600 block">Meu limite por dia (R$)</label>
+          <InputMoeda valor={valorEditado} onChangeValor={setValorEditado} className="input" />
+          <div className="flex flex-wrap gap-2">
+            <button type="submit" disabled={salvando} className="btn-primary text-xs px-3 py-2">
+              {salvando ? 'Salvando...' : 'Salvar limite'}
+            </button>
+            <button type="button" disabled={salvando} onClick={voltarAutomatico}
+              className="btn-secondary text-xs px-3 py-2">Automático</button>
+          </div>
+        </form>
+      )}
+      {!somenteLeitura && (
+        <button type="button" onClick={onGastoRapido}
+          className="w-full rounded-lg bg-marca-100 text-marca hover:opacity-80 py-2 px-3 text-xs font-semibold flex items-center justify-center gap-1.5">
+          <Plus size={14} /> Gasto rápido
+        </button>
+      )}
+      {erroLimite && <p role="alert" className="text-xs text-red-600">{erroLimite}</p>}
+    </div>
+  )
+}
+
+// Gasto rápido específico do benefício, isolado do saldo bancário.
+function FormGastoRapidoBeneficioHome({ beneficio, saldo, onSalvar, onCancelar, salvando, erro }) {
+  const [valor, setValor] = useState('')
+  const [descricao, setDescricao] = useState('')
+  const valorNum = Number(valor) || 0
+  function enviar(e) {
+    e.preventDefault()
+    if (salvando || valorNum <= 0 || valorNum > saldo) return
+    onSalvar({ beneficio_id: beneficio.id, valor: valorNum, descricao: descricao.trim() })
+  }
+  return (
+    <form onSubmit={enviar} className="space-y-4">
+      <p className="text-sm text-gray-600">{beneficio.nome} — saldo disponível: {formatCurrency(saldo)}</p>
+      {erro && <p role="alert" className="text-sm text-red-600 bg-red-50 rounded-lg p-2">{erro}</p>}
+      <div>
+        <label className="label">Valor gasto</label>
+        <InputMoeda valor={valor} onChangeValor={setValor} className="input" autoFocus />
+      </div>
+      <div>
+        <label className="label">Descrição (opcional)</label>
+        <input className="input" value={descricao} onChange={e => setDescricao(e.target.value)}
+          placeholder={beneficio.tipo === 'VR' ? 'Ex.: Almoço' : 'Ex.: Mercado'} />
+      </div>
+      {valorNum > saldo && <p className="text-xs text-red-600">Saldo insuficiente no benefício.</p>}
+      <div className="flex gap-2">
+        <button type="button" className="btn-secondary flex-1" disabled={salvando} onClick={onCancelar}>Cancelar</button>
+        <button type="submit" className="btn-primary flex-1 flex items-center justify-center gap-2"
+          disabled={salvando || valorNum <= 0 || valorNum > saldo}>
+          {salvando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : 'Confirmar gasto'}
+        </button>
+      </div>
+    </form>
   )
 }
 
@@ -1329,10 +1521,26 @@ export default function Dashboard() {
   const jaRegistrouConsultoria = (interessesConsultoria?.length ?? 0) > 0
   // Benefícios (VR/VA) — dados reais do Supabase para os 2 cards compactos da
   // Home. Reutiliza o MESMO hook da aba Benefícios (sem duplicar lógica).
-  const { beneficios, saldoDoBeneficio, proximaRecarga } = useBeneficios()
+  const { beneficios, saldoDoBeneficio, proximaRecarga, registrarGastoRapido } = useBeneficios()
   const beneficioPorTipo = (tipo) => beneficios.find(b => b.tipo === tipo) || null
   const navigate = useNavigate()
 
+  const [gastoRapidoBeneficio, setGastoRapidoBeneficio] = useState(null)
+  const [salvandoGastoBeneficio, setSalvandoGastoBeneficio] = useState(false)
+  const [erroGastoBeneficio, setErroGastoBeneficio] = useState('')
+  async function salvarGastoBeneficio(dados) {
+    if (salvandoGastoBeneficio || somenteLeitura) return
+    setSalvandoGastoBeneficio(true)
+    setErroGastoBeneficio('')
+    try {
+      await registrarGastoRapido(dados)
+      setGastoRapidoBeneficio(null)
+    } catch (err) {
+      setErroGastoBeneficio(err?.message || 'Não foi possível registrar o gasto.')
+    } finally {
+      setSalvandoGastoBeneficio(false)
+    }
+  }
   const [modalGasto, setModalGasto] = useState(false)
   const [salvandoGasto, setSalvandoGasto] = useState(false)
   const [erroGasto, setErroGasto] = useState('')
@@ -1345,7 +1553,7 @@ export default function Dashboard() {
   const [salvandoSaldo, setSalvandoSaldo] = useState(false)
   const [modalProjecao, setModalProjecao] = useState(false) // detalhes dos 12 meses
   const [modalPlanejamento, setModalPlanejamento] = useState(false) // "Quanto posso gastar?" completo
-  const [modalCenarios, setModalCenarios] = useState(false) // simulador "E se...?"
+
   const [modalNotificacoes, setModalNotificacoes] = useState(false) // central de notificações (sino)
   // Antecipação de pagamento a partir do card "Próximos 7 dias".
   const [despesaAntecipar, setDespesaAntecipar] = useState(null)
@@ -1828,7 +2036,7 @@ const carregandoLimite = carregando
     // pb extra no MOBILE: garante que o último card ("Seu dia financeiro" com o
     // botão "Registrar gasto de hoje") role totalmente acima da barra inferior
     // fixa (que tem o botão "+" saliente). Zera no desktop (md:pb-0).
-    <div className="flex flex-col gap-2.5 sm:gap-5 lg:gap-3 md:space-y-0 pb-mobilenav md:pb-0">
+    <div className="flex flex-col gap-2 sm:gap-4 lg:gap-3 md:space-y-0 pb-mobilenav md:pb-0">
       {/* 1 ─ Cabeçalho: saudação (horário de Brasília) + subtítulo fixo, sininho
           de notificações (ponto vermelho só quando há pendência real) e botão
           global de ocultar valores. */}
@@ -1905,96 +2113,30 @@ const carregandoLimite = carregando
           cálculos, estados e funções já existentes. */}
       
 
-<div className="lg:grid lg:grid-cols-3 lg:gap-4 lg:items-stretch space-y-2.5 lg:space-y-0">
+<div className="flex flex-col gap-2.5 lg:grid lg:grid-cols-3 lg:gap-4 lg:items-stretch">
         {saldoConfigurado && (
-  <div className="bg-marca-grad-dark text-white rounded-2xl p-4 lg:col-span-1 flex flex-col">
-
-    {/* SALDO ATUAL */}
-    <div className="flex items-center gap-2">
-      <span className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center flex-shrink-0">
-        <Wallet size={16} />
-      </span>
-
-      <p className="text-xs font-medium uppercase tracking-wide text-white/85">
-        Saldo atual
-      </p>
-
-      {!somenteLeitura && (
-        <button
-          type="button"
-          onClick={() => setModalSaldo(true)}
-          className="ml-auto inline-flex items-center gap-1 text-xs text-white/90 hover:text-white"
-        >
-          <Pencil size={13} /> Editar
-        </button>
-      )}
-    </div>
-
-    <p className="text-2xl sm:text-3xl font-extrabold mt-2 break-words">
-      {exibirMoeda(saldoDisponivelAgora, ocultar)}
-    </p>
-
-    <p className="text-[11px] text-white/80 mt-1">
-      Disponível hoje, sem a reserva de emergência.
-    </p>
-
-    {/* RESERVA DE EMERGÊNCIA */}
-    <div className="mt-5 lg:mt-auto pt-4 border-t border-white/20">
-
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <PiggyBank size={17} />
-          <span className="text-sm font-semibold">
-            Reserva de emergência
-          </span>
-        </div>
-
-        {!somenteLeitura && (
-          <button
-            type="button"
-            onClick={() => setModalReservaAtual(true)}
-            aria-label="Editar reserva de emergência"
-            className="text-white/90 hover:text-white"
-          >
-            <Pencil size={14} />
-          </button>
+          <div className="grid grid-cols-2 gap-2 lg:col-span-1 lg:gap-3">
+            <div className="min-w-0 rounded-2xl bg-marca-grad-dark text-white p-3 sm:p-4 flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[11px] sm:text-xs font-semibold flex items-center gap-1"><Wallet size={14}/> Saldo atual</span>
+                {!somenteLeitura && <button type="button" onClick={() => setModalSaldo(true)} aria-label="Editar saldo atual" className="p-1"><Pencil size={13}/></button>}
+              </div>
+              <p className="text-lg sm:text-2xl font-extrabold break-words mt-2">{exibirMoeda(saldoDisponivelAgora, ocultar)}</p>
+              <p className="text-[10px] sm:text-xs text-white/75 mt-1">Disponível hoje</p>
+            </div>
+            <div className="min-w-0 rounded-2xl bg-marca-grad-dark text-white p-3 sm:p-4 flex flex-col justify-between">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[11px] sm:text-xs font-semibold flex items-center gap-1"><PiggyBank size={14}/> Reserva</span>
+                {!somenteLeitura && <button type="button" onClick={() => setModalReservaAtual(true)} aria-label="Editar reserva de emergência" className="p-1"><Pencil size={13}/></button>}
+              </div>
+              <p className="text-lg sm:text-2xl font-extrabold break-words mt-2">{exibirMoeda(reservaAtual, ocultar)}</p>
+              <div className="mt-1.5">
+                <div className="h-1.5 rounded-full bg-black/20 overflow-hidden"><div className="h-full rounded-full bg-white/90" style={{width: `${metaReserva > 0 ? Math.min(100, Math.max(0, reservaAtual / metaReserva * 100)) : 0}%`}}/></div>
+                <p className="text-[10px] sm:text-xs text-white/75 mt-1">{metaReserva > 0 ? `${Math.min(100, Math.max(0, reservaAtual / metaReserva * 100)).toFixed(0)}% da meta` : 'Meta não definida'}</p>
+              </div>
+            </div>
+          </div>
         )}
-      </div>
-
-      <p className="text-xl font-bold mt-2">
-        {exibirMoeda(reservaAtual, ocultar)}
-      </p>
-
-      <div className="mt-3">
-        <div className="flex justify-between gap-2 text-xs text-white/80">
-          <span>
-            {metaReserva > 0
-              ? `Meta: ${exibirMoeda(metaReserva, ocultar)}`
-              : 'Meta não definida'}
-          </span>
-
-          <span>
-            {metaReserva > 0
-              ? `${Math.min(100, Math.max(0, (reservaAtual / metaReserva) * 100)).toFixed(0)}%`
-              : '—'}
-          </span>
-        </div>
-
-        <div className="w-full h-2 bg-black/20 rounded-full mt-2 overflow-hidden">
-          <div
-            className="h-full bg-white/90 rounded-full transition-all duration-300"
-style={{
-  width: `${metaReserva > 0
-    ? Math.min(100, Math.max(0, (reservaAtual / metaReserva) * 100))
-    : 0}%`
-}}
-          />
-        </div>
-      </div>
-
-    </div>
-  </div>
-)}
 
         <div className={saldoConfigurado ? 'lg:col-span-2' : 'lg:col-span-3'}>
           <CardGastoHoje
@@ -2023,39 +2165,6 @@ style={{
           />
         </div>
       </div>
-
-      {/* 3 ─ Acesso rápido: 5 atalhos compactos para as funcionalidades
-          existentes. Mesma linha no celular (grid-cols-5). Reaproveitam
-          rotas/modais já existentes, sem duplicar lógica. */}
-<div className="grid grid-cols-5 gap-1.5 sm:gap-2.5 lg:gap-4">
-  {[
-    { label: 'Despesas', icon: Receipt, onClick: () => navigate('/despesas'), cor: 'text-blue-600', fundo: 'bg-blue-50' },
-    { label: 'Cartões', icon: CreditCard, onClick: () => navigate('/cartoes'), cor: 'text-violet-600', fundo: 'bg-violet-50' },
-    { label: 'Planejamento', icon: BarChart2, onClick: () => setModalPlanejamento(true), cor: 'text-emerald-600', fundo: 'bg-emerald-50' },
-    { label: 'Metas', icon: Target, onClick: () => navigate('/metas'), cor: 'text-rose-600', fundo: 'bg-rose-50' },
-    { label: 'Consultoria', icon: MessageCircle, onClick: () => navigate('/consultoria'), cor: 'text-amber-600', fundo: 'bg-amber-50' },
-  ].map(a => (
-    <button
-      key={a.label}
-      type="button"
-      onClick={a.onClick}
-      aria-label={a.label}
-      className="group flex flex-col lg:flex-row items-center justify-center lg:justify-between gap-1 lg:gap-2 min-w-0 rounded-xl lg:rounded-2xl bg-white border border-slate-200 p-2 lg:p-4 shadow-sm hover:shadow-md hover:border-slate-300 transition-all"
-    >
-      <span className="flex flex-col lg:flex-row items-center gap-1 lg:gap-3 min-w-0">
-        <span className={`w-9 h-9 lg:w-11 lg:h-11 rounded-full ${a.fundo} flex items-center justify-center shrink-0`}>
-          <a.icon size={21} className={a.cor} />
-        </span>
-<span className="text-[10px] sm:text-xs lg:text-sm font-medium text-slate-800 text-center lg:text-left break-words" style={{ color: 'rgb(var(--texto, 30 41 59))' }}>
-        {a.label}
-        </span>
-      </span>
-      <span className="hidden lg:block text-slate-400 group-hover:text-blue-600 text-xl shrink-0">
-        ›
-      </span>
-    </button>
-  ))}
-</div>
 
       {/* 3b ─ Atalho DISCRETO para Benefícios (VR/VA), uma linha, sem poluir. */}
       {/* 3b ─ Benefícios: mostra APENAS os benefícios que o usuário possui (VR
@@ -2091,29 +2200,23 @@ style={{
           )
         }
 
-        // Possui um ou dois: grade só com o(s) que existe(m).
+        // Os limites diários ficam visíveis diretamente na Home; cada lápis
+        // edita o valor salvo no Supabase, sem alterar os saldos.
         return (
           <div className={`grid gap-2 sm:gap-3 ${possuidos.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
             {possuidos.map(({ tipo, titulo, icon: Icone, b }) => (
-              <button
-                key={tipo}
-                type="button"
-                onClick={() => navigate('/beneficios')}
-                className="text-left rounded-xl bg-white border border-gray-200 px-3 py-2.5 hover:border-marca/40 hover:shadow-sm transition-all min-w-0"
-              >
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <Icone size={14} className="text-marca flex-shrink-0" />
-                  <span className="text-xs font-medium text-gray-700 truncate">{titulo}</span>
-                </div>
-                <p className="text-lg font-bold text-gray-900 leading-tight break-words mt-1">
-                  {exibirMoeda(saldoDoBeneficio(b.id), ocultar)}
-                </p>
-                <p className="text-[11px] text-gray-400 leading-tight mt-0.5">
-                  {b.recarga_recorrente && proximaRecarga(b)
-                    ? <>Próx. {proximaRecarga(b)} • {exibirMoeda(Number(b.recarga_valor) || 0, ocultar)}</>
-                    : 'Sem recarga automática'}
-                </p>
-              </button>
+              <CardLimiteBeneficioHome
+                key={b.id}
+                b={b}
+                titulo={titulo}
+                Icone={Icone}
+                saldo={saldoDoBeneficio(b.id)}
+                proximaRecarga={proximaRecarga(b)}
+                ocultar={ocultar}
+                usuarioId={usuario?.id}
+                somenteLeitura={somenteLeitura}
+                onGastoRapido={() => { setErroGastoBeneficio(''); setGastoRapidoBeneficio(b) }}
+              />
             ))}
           </div>
         )
@@ -2122,77 +2225,22 @@ style={{
       {/* O card "Saldo disponível agora" foi movido para a aba Planejamento
           (/projecao), deixando a Home mais compacta. */}
 
-      {/* 4 ─ Botão principal (largura total) logo abaixo dos atalhos: abre o
-          fluxo de registro de compra/gasto já existente. 5 ─ Botão secundário
-          "Posso comprar?" logo abaixo. Reaproveitam os fluxos existentes. */}
-      {!somenteLeitura && (
-        <div className="space-y-1.5 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-4">
-          <button
-            onClick={() => setModalGasto(true)}
-            className="btn-primary w-full flex items-center justify-center gap-2 text-sm lg:text-base text-center leading-tight py-2 lg:py-2.5"
-          >
-            <Plus size={16} strokeWidth={2.5} className="flex-shrink-0" /> Registrar uma compra ou gasto
-          </button>
-          <Link
-            to="/posso-comprar"
-            className="w-full flex items-center justify-center gap-2 bg-white border border-marca text-marca font-semibold text-sm lg:text-base px-4 py-2 lg:py-2.5 rounded-xl hover:bg-marca-100 transition-colors text-center leading-tight"
-          >
-            <ShoppingCart size={16} className="flex-shrink-0" /> Posso comprar?
-          </Link>
-        </div>
-      )}
-
-      {/* 5b ─ Card compacto "E se...?": abre o simulador de cenários (temporário,
-          não altera dados). Logo abaixo de "Posso comprar?", sem mexer no menu. */}
-      {!somenteLeitura && (
-        <button
-          onClick={() => setModalCenarios(true)}
-          className="group relative w-full overflow-hidden rounded-2xl bg-marca-grad-dark text-left px-4 py-3.5 sm:px-5 sm:py-4 shadow-sm hover:shadow-md transition-shadow"
-        >
-          {/* Gráfico decorativo no canto inferior direito, discreto. */}
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 120 60"
-            preserveAspectRatio="none"
-            className="pointer-events-none absolute bottom-0 right-0 h-14 w-40 opacity-10"
-          >
-            <polyline
-              points="0,48 20,40 40,44 60,28 80,32 100,14 120,6"
-              fill="none" stroke="white" strokeWidth="2.5"
-              strokeLinecap="round" strokeLinejoin="round"
-            />
-            <polygon
-              points="0,48 20,40 40,44 60,28 80,32 100,14 120,6 120,60 0,60"
-              fill="white" opacity="0.5"
-            />
-          </svg>
-
-          {/* Layout compacto: no desktop, header + chips + botão na MESMA linha;
-              no mobile, empilha. */}
-          <div className="relative sm:flex sm:items-center sm:gap-4">
-            <div className="flex items-center gap-3 min-w-0 sm:flex-1">
-              <span className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-                <Rocket size={18} className="text-white" />
-              </span>
-              <div className="min-w-0">
-                <span className="block text-base font-extrabold text-white leading-tight">E se...?</span>
-                <span className="block text-xs text-white/85 leading-snug truncate">Simule cenários e veja impactos no seu futuro.</span>
-              </div>
-            </div>
-
-            {/* Chips (decorativos — a seleção real fica no modal). */}
-            <div className="flex items-center gap-2 mt-2.5 sm:mt-0 flex-shrink-0">
-              <span className="inline-flex items-center rounded-full bg-white/25 text-white text-xs font-semibold px-3 py-1">Pessoal</span>
-              <span className="inline-flex items-center rounded-full bg-white/10 text-white/90 text-xs font-semibold px-3 py-1">Profissional</span>
-            </div>
-
-            {/* Botão (visual) — o clique do card abre o modal. */}
-            <span className="mt-2.5 sm:mt-0 inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-white text-marca text-sm font-semibold px-4 py-2 shadow-sm group-hover:gap-3 transition-all flex-shrink-0">
-              Simular meu futuro <ArrowRight size={15} />
-            </span>
-          </div>
+      {/* Ações principais: navegação sem duplicar Despesas/Planejamento.
+          O registro continua disponível no botão + do menu inferior existente. */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <Link to="/posso-comprar" className="min-w-0 rounded-2xl border border-blue-100 bg-blue-50 p-3 sm:p-4 flex flex-col items-center justify-center gap-2 text-center hover:shadow-sm transition-shadow">
+          <span className="w-10 h-10 rounded-full bg-white flex items-center justify-center"><ShoppingCart size={21} className="text-blue-600"/></span>
+          <span className="text-xs sm:text-sm font-semibold text-slate-800 leading-tight">Posso comprar?</span>
+        </Link>
+        <button type="button" onClick={() => navigate('/e-se')} className="min-w-0 rounded-2xl border border-violet-100 bg-violet-50 p-3 sm:p-4 flex flex-col items-center justify-center gap-2 text-center hover:shadow-sm transition-shadow">
+          <span className="w-10 h-10 rounded-full bg-white flex items-center justify-center"><BarChart2 size={21} className="text-violet-600"/></span>
+          <span className="text-xs sm:text-sm font-semibold text-slate-800 leading-tight">E se...?</span>
         </button>
-      )}
+        <Link to="/metas" className="min-w-0 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 sm:p-4 flex flex-col items-center justify-center gap-2 text-center hover:shadow-sm transition-shadow">
+          <span className="w-10 h-10 rounded-full bg-white flex items-center justify-center"><Target size={21} className="text-emerald-600"/></span>
+          <span className="text-xs sm:text-sm font-semibold text-slate-800 leading-tight">Minhas metas</span>
+        </Link>
+      </div>
 
       {/* 6 ─ Movimentações e próximos pagamentos: une as 2 transações mais
           recentes + os 2 compromissos pendentes mais próximos num único card
@@ -2396,16 +2444,6 @@ style={{
         />
       </Modal>
 
-      {/* Modal: simulador "E se...?" (cenários temporários; não altera dados).
-          Base = receita e despesa mensais REAIS + reserva acumulada. */}
-      <Modal aberto={modalCenarios} onFechar={() => setModalCenarios(false)} titulo="E se...?">
-        <SimuladorCenarios
-          receitaAtual={Number(resumoMes?.receitaTotal) || 0}
-          despesaMensal={(Number(resumoMes?.despesaTotal) || 0) + (Number(resumoMes?.parcelasTotal) || 0) + (Number(resumoMes?.faturasTotal) || 0)}
-          reservaAtual={reservaAtual}
-        />
-      </Modal>
-
       {/* Modal: Central de notificações (aberta pelo sino). Lista pendências
           REAIS já derivadas (configuração incompleta e risco de saldo negativo),
           sem backend novo. O Horizonte NÃO é mais aberto pelo sino — fica no seu
@@ -2477,6 +2515,20 @@ style={{
      saldoInicial={resumoMes.saldoConfigurado ? resumoMes.saldoDisponivelAgora : 0}
 dataReferencia={hojeISO}
         />
+      </Modal>
+
+      {/* Gasto rápido exclusivo de VR/VA: não registra despesa bancária */}
+      <Modal aberto={!!gastoRapidoBeneficio}
+        onFechar={() => { if (!salvandoGastoBeneficio) setGastoRapidoBeneficio(null) }}
+        titulo={gastoRapidoBeneficio ? `Gasto rápido — ${gastoRapidoBeneficio.tipo}` : 'Gasto rápido VR/VA'}>
+        {gastoRapidoBeneficio && (
+          <FormGastoRapidoBeneficioHome key={gastoRapidoBeneficio.id}
+            beneficio={gastoRapidoBeneficio}
+            saldo={saldoDoBeneficio(gastoRapidoBeneficio.id)}
+            onSalvar={salvarGastoBeneficio}
+            onCancelar={() => setGastoRapidoBeneficio(null)}
+            salvando={salvandoGastoBeneficio} erro={erroGastoBeneficio} />
+        )}
       </Modal>
 
       {/* Modal de Gasto rápido */}
