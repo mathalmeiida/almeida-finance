@@ -5,17 +5,10 @@ import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
 import { hojeISO, partesHojeBrasil } from '../lib/utils'
 import { efeitoNoSaldo, calcularSaldo, totalGastoNoMesCompetencia } from '../lib/beneficiosCalculos'
 
-// Reexporta a função pura (compat. com quem importava daqui).
 export { efeitoNoSaldo }
 
-/**
- * Hook de Benefícios (VR/VA). Lê benefícios + movimentações do usuário e expõe
- * o saldo derivado (soma assinada das movimentações) e o total gasto no mês.
- * Totalmente separado do saldo bancário/limite diário (nada aqui alimenta o
- * useProjecao).
- */
+/** Hook de benefícios (VR/VA), separado das contas bancárias. */
 export function useBeneficios() {
-  // LEITURAS usam idEfetivo (cliente no modo consultoria); ESCRITAS usam usuario.id.
   const { usuario, idEfetivo, modoConsultoria } = useAuth()
   const [beneficios, setBeneficios] = useState([])
   const [movimentacoes, setMovimentacoes] = useState([])
@@ -23,8 +16,14 @@ export function useBeneficios() {
   const [erro, setErro] = useState(null)
 
   const buscar = useCallback(async () => {
-    if (!idEfetivo) return
-    setCarregando(true); setErro(null)
+    if (!idEfetivo) {
+      setBeneficios([])
+      setMovimentacoes([])
+      setCarregando(false)
+      return
+    }
+    setCarregando(true)
+    setErro(null)
     try {
       const [b, m] = await Promise.all([
         supabase.from('beneficios').select('*').eq('usuario_id', idEfetivo).order('criado_em', { ascending: true }),
@@ -41,9 +40,8 @@ export function useBeneficios() {
     }
   }, [idEfetivo])
 
-  useEffect(() => { if (idEfetivo) buscar() }, [idEfetivo, buscar])
+  useEffect(() => { buscar() }, [buscar])
 
-  // ─── Benefícios (CRUD) ───
   async function criarBeneficio({ nome, tipo, saldo_inicial = 0, recarga_valor = 0, recarga_dia = null, recarga_recorrente = false }) {
     bloquearSeConsultoria(modoConsultoria)
     const { data, error } = await supabase
@@ -56,12 +54,9 @@ export function useBeneficios() {
         recarga_dia: recarga_dia || null,
         recarga_recorrente: !!recarga_recorrente,
       }])
-      .select()
-      .single()
+      .select().single()
     if (error) throw error
     setBeneficios(prev => [...prev, data])
-    // Saldo inicial > 0 vira a 1ª movimentação (recarga manual), para o extrato
-    // refletir de onde veio o saldo.
     const ini = Number(saldo_inicial) || 0
     if (ini > 0) {
       await criarMovimentacao({
@@ -75,7 +70,9 @@ export function useBeneficios() {
   async function atualizarBeneficio(id, campos) {
     bloquearSeConsultoria(modoConsultoria)
     const { data, error } = await supabase
-      .from('beneficios').update(campos).eq('id', id).select().single()
+      .from('beneficios').update(campos)
+      .eq('id', id).eq('usuario_id', usuario.id)
+      .select().single()
     if (error) throw error
     setBeneficios(prev => prev.map(b => b.id === id ? data : b))
     return data
@@ -83,14 +80,13 @@ export function useBeneficios() {
 
   async function removerBeneficio(id) {
     bloquearSeConsultoria(modoConsultoria)
-    // As movimentações caem por ON DELETE CASCADE no banco.
-    const { error } = await supabase.from('beneficios').delete().eq('id', id)
+    const { error } = await supabase.from('beneficios').delete()
+      .eq('id', id).eq('usuario_id', usuario.id)
     if (error) throw error
     setBeneficios(prev => prev.filter(b => b.id !== id))
     setMovimentacoes(prev => prev.filter(m => m.beneficio_id !== id))
   }
 
-  // ─── Movimentações (CRUD) ───
   async function criarMovimentacao({ beneficio_id, tipo, valor, descricao = null, data: dataMov = null, competencia = null, automatica = false }) {
     bloquearSeConsultoria(modoConsultoria)
     const { data, error } = await supabase
@@ -104,8 +100,7 @@ export function useBeneficios() {
         competencia: competencia || null,
         automatica: !!automatica,
       }])
-      .select()
-      .single()
+      .select().single()
     if (error) throw error
     setMovimentacoes(prev => [data, ...prev])
     return data
@@ -116,7 +111,9 @@ export function useBeneficios() {
     const limpo = { ...campos }
     if (limpo.valor != null) limpo.valor = Math.abs(Number(limpo.valor) || 0)
     const { data, error } = await supabase
-      .from('beneficios_movimentacoes').update(limpo).eq('id', id).select().single()
+      .from('beneficios_movimentacoes').update(limpo)
+      .eq('id', id).eq('usuario_id', usuario.id)
+      .select().single()
     if (error) throw error
     setMovimentacoes(prev => prev.map(m => m.id === id ? data : m))
     return data
@@ -124,17 +121,56 @@ export function useBeneficios() {
 
   async function removerMovimentacao(id) {
     bloquearSeConsultoria(modoConsultoria)
-    const { error } = await supabase.from('beneficios_movimentacoes').delete().eq('id', id)
+    const { error } = await supabase.from('beneficios_movimentacoes').delete()
+      .eq('id', id).eq('usuario_id', usuario.id)
     if (error) throw error
     setMovimentacoes(prev => prev.filter(m => m.id !== id))
   }
 
-  // ─── Recarga automática do mês (idempotente) ───
-  // Para benefícios com recarga recorrente, lança a recarga do mês corrente SE:
-  //   • hoje >= recarga_dia; e
-  //   • ainda não existe recarga automática para (benefício, competência).
-  // O índice único parcial no banco é a trava final contra duplicidade; aqui
-  // evitamos a tentativa quando já há uma na memória.
+  /** Registra um gasto simples e atualiza o saldo derivado pelo histórico. */
+  async function registrarGastoRapido({ beneficio_id, valor, descricao = '' }) {
+    bloquearSeConsultoria(modoConsultoria)
+    if (!usuario?.id) throw new Error('Entre na sua conta para registrar o gasto.')
+    if (!beneficio_id) throw new Error('Selecione um cartão VR ou VA.')
+
+    const quantia = typeof valor === 'string'
+      ? Number(valor.trim().includes(',') ? valor.trim().replace(/\./g, '').replace(',', '.') : valor.trim())
+      : Number(valor)
+    if (!Number.isFinite(quantia) || quantia <= 0) {
+      throw new Error('Informe um valor maior que zero.')
+    }
+    const centavos = Math.round(quantia * 100)
+    if (centavos <= 0) throw new Error('Informe um valor válido.')
+    const valorFinal = centavos / 100
+
+    const { data: beneficio, error: erroBeneficio } = await supabase
+      .from('beneficios').select('id, tipo')
+      .eq('id', beneficio_id).eq('usuario_id', usuario.id).single()
+    if (erroBeneficio || !beneficio) throw new Error('Benefício não encontrado nesta conta.')
+    if (!['vr', 'va'].includes(String(beneficio.tipo).toLowerCase())) {
+      throw new Error('Escolha um benefício VR ou VA.')
+    }
+
+    // Consulta atualizada para evitar validar contra um saldo antigo da tela.
+    const { data: movs, error: erroMovs } = await supabase
+      .from('beneficios_movimentacoes').select('*')
+      .eq('beneficio_id', beneficio_id).eq('usuario_id', usuario.id)
+    if (erroMovs) throw erroMovs
+    const saldoAtual = calcularSaldo(movs || [])
+    if (centavos > Math.round(saldoAtual * 100)) {
+      throw new Error('Saldo insuficiente neste benefício.')
+    }
+
+    return criarMovimentacao({
+      beneficio_id,
+      tipo: 'gasto',
+      valor: valorFinal,
+      descricao: String(descricao || '').trim() || 'Gasto rápido',
+      data: hojeISO(),
+      automatica: false,
+    })
+  }
+
   async function aplicarRecargasDoMes() {
     if (modoConsultoria || !usuario) return
     const { ano, mes, dia } = partesHojeBrasil()
@@ -144,7 +180,7 @@ export function useBeneficios() {
       const valor = Number(b.recarga_valor) || 0
       if (valor <= 0) continue
       const diaRecarga = Number(b.recarga_dia) || 1
-      if (dia < diaRecarga) continue // ainda não chegou o dia da recarga
+      if (dia < diaRecarga) continue
       const jaTem = movimentacoes.some(m =>
         m.beneficio_id === b.id && m.tipo === 'recarga' && m.automatica && m.competencia === competencia
       )
@@ -156,12 +192,11 @@ export function useBeneficios() {
           competencia, automatica: true,
         })
       } catch {
-        // Conflito do índice único (corrida/duplicata) é ignorado com segurança.
+        // O índice único no banco impede uma segunda recarga automática.
       }
     }
   }
 
-  // ─── Derivações (saldo e total do mês) ───
   const movsDeBeneficio = (bid) => movimentacoes.filter(m => m.beneficio_id === bid)
 
   function saldoDoBeneficio(bid) {
@@ -173,12 +208,14 @@ export function useBeneficios() {
     return totalGastoNoMesCompetencia(movsDeBeneficio(bid), competencia)
   }
 
-  // Próxima data de recarga (texto curto) a partir de recarga_dia.
   function proximaRecarga(b) {
     if (!b.recarga_recorrente || !b.recarga_dia) return null
     const { ano, mes, dia } = partesHojeBrasil()
     let alvoAno = ano, alvoMes = mes
-    if (dia >= b.recarga_dia) { alvoMes += 1; if (alvoMes > 12) { alvoMes = 1; alvoAno += 1 } }
+    if (dia >= b.recarga_dia) {
+      alvoMes += 1
+      if (alvoMes > 12) { alvoMes = 1; alvoAno += 1 }
+    }
     const diaStr = String(b.recarga_dia).padStart(2, '0')
     return `${diaStr}/${String(alvoMes).padStart(2, '0')}/${alvoAno}`
   }
@@ -187,6 +224,7 @@ export function useBeneficios() {
     beneficios, movimentacoes, carregando, erro,
     criarBeneficio, atualizarBeneficio, removerBeneficio,
     criarMovimentacao, atualizarMovimentacao, removerMovimentacao,
+    registrarGastoRapido,
     aplicarRecargasDoMes,
     saldoDoBeneficio, totalGastoNoMes, movsDeBeneficio, proximaRecarga,
     recarregar: buscar,
