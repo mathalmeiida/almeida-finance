@@ -163,7 +163,7 @@ export function useBeneficios() {
 
     return criarMovimentacao({
       beneficio_id,
-      tipo: 'gasto',
+      tipo: 'compra',
       valor: valorFinal,
       descricao: String(descricao || '').trim() || 'Gasto rápido',
       data: hojeISO(),

@@ -1,259 +1,357 @@
-import { useState, useEffect } from 'react'
+
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
 import { hojeISO } from '../lib/utils'
 
-// Normaliza a frequência de uma despesa, com retrocompatibilidade:
-// despesas antigas só têm "recorrente" + "recorrencia_meses".
+const CAMPOS = '*, categorias (id, nome, icone, cor)'
+
 export function frequenciaDaDespesa(d) {
   if (d.frequencia) return d.frequencia
-  if (d.recorrente) return d.recorrencia_meses != null ? 'por_meses' : 'mensal'
+  if (d.recorrente) {
+    return d.recorrencia_meses != null
+      ? 'por_meses'
+      : 'mensal'
+  }
   return 'nao_repete'
 }
 
-// Conta quantas vezes um dia da semana (0-6) ocorre em um mês/ano,
-// a partir de um dia inicial (para o primeiro mês, conta só a partir dele).
-function ocorrenciasSemanaisNoMes(ano, mes, diaSemana, diaInicialNoMes) {
+function ocorrenciasSemanaisNoMes(
+  ano, mes, diaSemana, diaInicialNoMes
+) {
   const ultimoDia = new Date(ano, mes, 0).getDate()
   let count = 0
+
   for (let dia = diaInicialNoMes; dia <= ultimoDia; dia++) {
-    if (new Date(ano, mes - 1, dia).getDay() === diaSemana) count++
+    if (
+      new Date(ano, mes - 1, dia).getDay() === diaSemana
+    ) {
+      count++
+    }
   }
+
   return count
 }
 
-/**
- * Calcula o valor total que uma despesa recorrente representa em um mês/ano,
- * considerando a frequência:
- *   - 'mensal'     → o próprio valor, 1x no mês
- *   - 'por_meses'  → o próprio valor, 1x no mês, limitado à duração
- *   - 'semanal'    → valor × número real de ocorrências do dia da semana no mês
- *   - 'diaria'     → valor × número real de dias do mês (ou dias restantes, no 1º mês)
- *   - 'nao_repete' → 0 (conta apenas no mês de origem, tratado à parte)
- *
- * A coluna "data" é a primeira ocorrência.
- *
- * @param {object} d    despesa
- * @param {number} ano
- * @param {number} mes  1-12
- * @returns {number} valor do mês (0 se não ativa nesse mês)
- */
 export function valorDespesaRecorrenteNoMes(d, ano, mes) {
   const freq = frequenciaDaDespesa(d)
-  if (freq === 'nao_repete') return 0
 
-  const inicio = new Date(d.data + 'T12:00:00')
+  if (freq === 'nao_repete' || !d.data) return 0
+
+  const inicio = new Date(`${d.data}T12:00:00`)
+  if (Number.isNaN(inicio.getTime())) return 0
+
   const valor = Number(d.valor)
+  if (!Number.isFinite(valor)) return 0
 
   const indiceMes =
-    (ano - inicio.getFullYear()) * 12 + ((mes - 1) - inicio.getMonth())
-  if (indiceMes < 0) return 0 // antes da primeira ocorrência
+    (ano - inicio.getFullYear()) * 12 +
+    (mes - 1 - inicio.getMonth())
 
-  const ehPrimeiroMes = indiceMes === 0
-  const ultimoDiaDoMes = new Date(ano, mes, 0).getDate()
+  if (indiceMes < 0) return 0
 
-  if (freq === 'mensal') {
-    return valor
-  }
+  if (freq === 'mensal') return valor
 
   if (freq === 'por_meses') {
-    const limite = d.recorrencia_meses != null ? Number(d.recorrencia_meses) : Infinity
+    const limite =
+      d.recorrencia_meses != null
+        ? Number(d.recorrencia_meses)
+        : Infinity
+
     return indiceMes < limite ? valor : 0
   }
 
+  const diaInicial =
+    indiceMes === 0 ? inicio.getDate() : 1
+
   if (freq === 'diaria') {
-    // nº de dias do mês; no primeiro mês, conta a partir do dia de início
-    const diaInicial = ehPrimeiroMes ? inicio.getDate() : 1
-    const dias = ultimoDiaDoMes - diaInicial + 1
-    return valor * dias
+    const ultimoDia = new Date(ano, mes, 0).getDate()
+    return valor * (ultimoDia - diaInicial + 1)
   }
 
   if (freq === 'semanal') {
-    const diaSemana = inicio.getDay()
-    const diaInicial = ehPrimeiroMes ? inicio.getDate() : 1
-    const ocorrencias = ocorrenciasSemanaisNoMes(ano, mes, diaSemana, diaInicial)
+    const ocorrencias = ocorrenciasSemanaisNoMes(
+      ano,
+      mes,
+      inicio.getDay(),
+      diaInicial
+    )
+
     return valor * ocorrencias
   }
 
   return 0
 }
 
-/**
- * Mantida por compatibilidade: indica se a despesa recorrente tem valor neste mês.
- */
 export function despesaRecorrenteAtivaNoMes(d, ano, mes) {
   return valorDespesaRecorrenteNoMes(d, ano, mes) > 0
 }
 
 export function useDespesas(mes, ano) {
-  // LEITURAS usam idEfetivo (cliente no modo consultoria); ESCRITAS usam usuario.id.
   const { usuario, idEfetivo, modoConsultoria } = useAuth()
+
   const [despesas, setDespesas] = useState([])
-  // Todas as despesas recorrentes do usuário (sem filtro de mês).
-  // Necessário para a projeção considerar recorrências com início em
-  // qualquer mês e com duração definida.
   const [recorrentes, setRecorrentes] = useState([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState(null)
 
-  useEffect(() => {
-    if (!idEfetivo) return
-    buscar()
-    buscarRecorrentes()
-    // Depende do ID efetivo: recarrega ao renovar sessão e ao entrar/sair do
-    // modo consultoria.
-  }, [idEfetivo, mes, ano])
+  const buscar = useCallback(async () => {
+    if (!idEfetivo) {
+      setDespesas([])
+      setCarregando(false)
+      return []
+    }
 
-  async function buscar() {
     setCarregando(true)
     setErro(null)
+
     try {
       let query = supabase
         .from('despesas')
-        .select(`
-          *,
-          categorias (id, nome, icone, cor)
-        `)
+        .select(CAMPOS)
         .eq('usuario_id', idEfetivo)
         .order('data', { ascending: false })
 
-      if (mes !== undefined && ano !== undefined) {
-        const inicio = `${ano}-${String(mes).padStart(2, '0')}-01`
-        const fim = new Date(ano, mes, 0).toISOString().split('T')[0]
-        query = query.gte('data', inicio).lte('data', fim)
+      if (mes != null && ano != null) {
+        const inicio =
+          `${ano}-${String(mes).padStart(2, '0')}-01`
+
+        const ultimoDia =
+          new Date(ano, mes, 0).getDate()
+
+        const fim =
+          `${ano}-${String(mes).padStart(2, '0')}-` +
+          String(ultimoDia).padStart(2, '0')
+
+        query = query
+          .gte('data', inicio)
+          .lte('data', fim)
       }
 
       const { data, error } = await query
+
       if (error) throw error
+
       setDespesas(data || [])
+      return data || []
     } catch (err) {
-      setErro(err.message)
+      console.error('[Despesas] Erro ao carregar:', err)
+      setErro(err.message || 'Erro ao carregar despesas')
+      throw err
     } finally {
       setCarregando(false)
     }
-  }
+  }, [idEfetivo, mes, ano])
 
-  // Busca todas as despesas recorrentes (independente do mês selecionado)
-  async function buscarRecorrentes() {
+  const buscarRecorrentes = useCallback(async () => {
+    if (!idEfetivo) {
+      setRecorrentes([])
+      return []
+    }
+
     try {
       const { data, error } = await supabase
         .from('despesas')
-        .select(`*, categorias (id, nome, icone, cor)`)
+        .select(CAMPOS)
         .eq('usuario_id', idEfetivo)
         .eq('recorrente', true)
+
       if (error) throw error
+
       setRecorrentes(data || [])
-    } catch {
-      // silencioso: a projeção apenas não considerará recorrências se falhar
+      return data || []
+    } catch (err) {
+      console.error(
+        '[Despesas] Erro ao carregar recorrentes:',
+        err
+      )
+      setErro(err.message || 'Erro nas recorrências')
+      throw err
+    }
+  }, [idEfetivo])
+
+  useEffect(() => {
+    let ativo = true
+
+    if (!idEfetivo) {
+      setDespesas([])
+      setRecorrentes([])
+      setCarregando(false)
+      return
+    }
+
+    async function carregarTudo() {
+      const resultados = await Promise.allSettled([
+        buscar(),
+        buscarRecorrentes()
+      ])
+
+      if (!ativo) return
+
+      resultados.forEach(resultado => {
+        if (resultado.status === 'rejected') {
+          console.error(
+            '[Despesas] Falha no carregamento:',
+            resultado.reason
+          )
+        }
+      })
+    }
+
+    carregarTudo()
+
+    return () => {
+      ativo = false
+    }
+  }, [idEfetivo, buscar, buscarRecorrentes])
+
+  async function sincronizar() {
+    const resultados = await Promise.allSettled([
+      buscar(),
+      buscarRecorrentes()
+    ])
+
+    const falha = resultados.find(
+      resultado => resultado.status === 'rejected'
+    )
+
+    if (falha) {
+      console.error(
+        '[Despesas] Falha na sincronização:',
+        falha.reason
+      )
+      setErro('Dados salvos, mas houve erro ao atualizar a tela.')
+    }
+  }
+
+  function validarEscrita() {
+    bloquearSeConsultoria(modoConsultoria)
+
+    if (!usuario?.id) {
+      throw new Error(
+        'Sessão não encontrada. Entre novamente na sua conta.'
+      )
     }
   }
 
   async function criar(dados) {
-    bloquearSeConsultoria(modoConsultoria)
-    const { data, error } = await supabase
-      .from('despesas')
-      .insert([{ ...dados, usuario_id: usuario.id }])
-      .select(`*, categorias (id, nome, icone, cor)`)
-      .single()
-    if (error) throw error
-    setDespesas(prev => [data, ...prev])
-    buscarRecorrentes()
-    return data
-  }
+    validarEscrita()
 
-  async function atualizar(id, dados) {
-    bloquearSeConsultoria(modoConsultoria)
+    if (!dados || typeof dados !== 'object') {
+      throw new Error('Dados da despesa inválidos.')
+    }
+
+    const payload = {
+      ...dados,
+      usuario_id: usuario.id
+    }
+
     const { data, error } = await supabase
       .from('despesas')
-      .update(dados)
-      .eq('id', id)
-      .select(`*, categorias (id, nome, icone, cor)`)
+      .insert([payload])
+      .select(CAMPOS)
       .single()
+
     if (error) {
-      // Log detalhado do erro real do Supabase (message, details, hint, code)
-      console.error('[atualizar despesa] erro Supabase:', {
+      console.error('[Despesas] Erro ao criar:', {
         message: error.message,
         details: error.details,
         hint: error.hint,
         code: error.code,
+        payload
       })
       throw error
     }
-    setDespesas(prev => prev.map(d => d.id === id ? data : d))
-    buscarRecorrentes()
+
+    await sincronizar()
+    return data
+  }
+
+  async function atualizar(id, dados) {
+    validarEscrita()
+
+    if (!id) throw new Error('Despesa não identificada.')
+
+    const { data, error } = await supabase
+      .from('despesas')
+      .update(dados)
+      .eq('id', id)
+      .eq('usuario_id', usuario.id)
+      .select(CAMPOS)
+      .single()
+
+    if (error) {
+      console.error('[Despesas] Erro ao atualizar:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+        dados
+      })
+      throw error
+    }
+
+    await sincronizar()
     return data
   }
 
   async function remover(id) {
-    bloquearSeConsultoria(modoConsultoria)
+    validarEscrita()
+
     const { error } = await supabase
       .from('despesas')
       .delete()
       .eq('id', id)
-    if (error) throw error
-    setDespesas(prev => prev.filter(d => d.id !== id))
-    buscarRecorrentes()
+      .eq('usuario_id', usuario.id)
+
+    if (error) {
+      console.error('[Despesas] Erro ao remover:', error)
+      throw error
+    }
+
+    await sincronizar()
   }
 
-  // Permite corrigir manualmente a classificação automática (fixa/variavel)
   async function alterarTipo(id, tipo) {
-    bloquearSeConsultoria(modoConsultoria)
-    const { data, error } = await supabase
-      .from('despesas')
-      .update({ tipo_despesa: tipo })
-      .eq('id', id)
-      .select(`*, categorias (id, nome, icone, cor)`)
-      .single()
-    if (error) throw error
-    setDespesas(prev => prev.map(d => d.id === id ? data : d))
-    buscarRecorrentes()
-    return data
+    return atualizar(id, { tipo_despesa: tipo })
   }
 
-  // ─── Pagamento antecipado ───
-  // Marca a despesa como paga em "pago_em" (data do pagamento), SEM alterar a
-  // "data" (vencimento original). Opcionalmente registra a forma/conta usada.
-  // O saldo passa a considerar pago_em (ver useProjecao), evitando dupla baixa.
-  async function anteciparPagamento(id, { pago_em, forma_pagamento } = {}) {
-    bloquearSeConsultoria(modoConsultoria)
-    const campos = { pago_em: pago_em || hojeISO() }
-    // Só sobrescreve a forma de pagamento se o usuário escolher uma.
-    if (forma_pagamento) campos.forma_pagamento = forma_pagamento
-    const { data, error } = await supabase
-      .from('despesas')
-      .update(campos)
-      .eq('id', id)
-      .select(`*, categorias (id, nome, icone, cor)`)
-      .single()
-    if (error) throw error
-    setDespesas(prev => prev.map(d => d.id === id ? data : d))
-    buscarRecorrentes()
-    return data
+  async function anteciparPagamento(
+    id, { pago_em, forma_pagamento } = {}
+  ) {
+    const campos = {
+      pago_em: pago_em || hojeISO()
+    }
+
+    if (forma_pagamento) {
+      campos.forma_pagamento = forma_pagamento
+    }
+
+    return atualizar(id, campos)
   }
 
-  // Desfaz a antecipação (volta pago_em para NULL). Mantido para permitir
-  // corrigir um pagamento marcado por engano, sem apagar a despesa.
   async function desfazerAntecipacao(id) {
-    bloquearSeConsultoria(modoConsultoria)
-    const { data, error } = await supabase
-      .from('despesas')
-      .update({ pago_em: null })
-      .eq('id', id)
-      .select(`*, categorias (id, nome, icone, cor)`)
-      .single()
-    if (error) throw error
-    setDespesas(prev => prev.map(d => d.id === id ? data : d))
-    buscarRecorrentes()
-    return data
+    return atualizar(id, { pago_em: null })
   }
 
-  const total = despesas.reduce((acc, d) => acc + Number(d.valor), 0)
+  const total = despesas.reduce(
+    (acc, d) => acc + (Number(d.valor) || 0),
+    0
+  )
 
   return {
-    despesas, recorrentes, total, carregando, erro,
-    criar, atualizar, remover, alterarTipo,
-    anteciparPagamento, desfazerAntecipacao,
-    recarregar: buscar,
+    despesas,
+    recorrentes,
+    total,
+    carregando,
+    erro,
+    criar,
+    atualizar,
+    remover,
+    alterarTipo,
+    anteciparPagamento,
+    desfazerAntecipacao,
+    recarregar: buscar
   }
 }

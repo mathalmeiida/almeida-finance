@@ -53,18 +53,46 @@ export function useProjecao() {
   //   (2) parcelamentos vinculados por cartao_id — competência pela 1ª parcela
   // Nada é duplicado: parcelamentos COM cartao_id entram SÓ aqui; os sem
   // cartão entram em parcelasAvulsasNoMes.
-  function faturasNoMes(ano, mes) {
-    return cartoes.reduce((acc, c) => {
-      const comprasDoCartao = comprasCartao.filter(cp => cp.cartao_id === c.id)
-      const parcelamentosDoCartao = parcelamentos.filter(p => p.cartao_id === c.id)
-      // Override: se há TOTAL INFORMADO para (cartão, mês), ele substitui a soma
-      // das compras/parcelamentos daquele cartão/mês — nunca soma (sem duplicar).
-      const total = totalFaturaComOverride(
-        comprasDoCartao, parcelamentosDoCartao, faturasInformadas, c.id, c.dia_fechamento, ano, mes
-      )
-      return acc + total
-    }, 0)
-  }
+  
+function faturasNoMes(ano, mes) {
+  return cartoes.reduce((acc, c) => {
+    const diaVenc = Number(c.dia_vencimento) || 1
+    const diaFech = Number(c.dia_fechamento) || 1
+
+    // Identifica o ciclo cujo pagamento ocorre no mês solicitado.
+    let compAno = ano
+    let compMes = mes
+
+    if (diaVenc < diaFech) {
+      compMes -= 1
+
+      if (compMes < 1) {
+        compMes = 12
+        compAno -= 1
+      }
+    }
+
+    const comprasDoCartao = comprasCartao.filter(
+      cp => cp.cartao_id === c.id
+    )
+
+    const parcelamentosDoCartao = parcelamentos.filter(
+      p => p.cartao_id === c.id
+    )
+
+    const total = totalFaturaComOverride(
+      comprasDoCartao,
+      parcelamentosDoCartao,
+      faturasInformadas,
+      c.id,
+      c.dia_fechamento,
+      compAno,
+      compMes
+    )
+
+    return acc + total
+  }, 0)
+}
 
   // FONTE ÚNICA das parcelas avulsas (SEM cartão) devidas em um mês/ano.
   // Usada tanto no total do mês (Dashboard) quanto na projeção de 12 meses,

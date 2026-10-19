@@ -1,98 +1,75 @@
 import React, { useState } from 'react'
-import { Target, Plus, Calendar, TrendingUp, Trash2, Loader2, Pencil } from 'lucide-react'
+import { Target, Plus, Calendar, TrendingUp, Trash2, Loader2, Pencil, CheckCircle2, PiggyBank } from 'lucide-react'
 import { useMetas } from '../hooks/useMetas'
 import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
 import { formatCurrency, formatDate } from '../lib/utils'
 
-const CORES_PRESET = ['#2563eb','#7c3aed','#059669','#dc2626','#d97706','#0891b2','#be185d']
+const CORES_PRESET = ['#059669', '#2563eb', '#7c3aed', '#d97706', '#dc2626', '#0891b2', '#be185d']
+const numero = value => Number(value) || 0
+const progresso = (atual, objetivo) => objetivo > 0 ? Math.min(100, Math.max(0, atual / objetivo * 100)) : 0
 
-function ProgressRing({ value, max, color, size = 80 }) {
-  const pct = Math.min(100, (value / max) * 100)
-  const r = (size / 2) - 8
-  const circ = 2 * Math.PI * r
-  const offset = circ - (pct / 100) * circ
-  return (
-    <svg width={size} height={size} className="-rotate-90">
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#f3f4f6" strokeWidth="6" />
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth="6"
-        strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round"
-        style={{ transition: 'stroke-dashoffset 0.6s ease' }} />
-    </svg>
-  )
-}
-
+// Mantém a lógica de prazo mensal usada anteriormente, mas interpreta a data em horário local.
 function calcularMesesRestantes(prazo) {
   if (!prazo) return 0
+  const partes = String(prazo).split('-').map(Number)
+  if (partes.length !== 3 || partes.some(n => !Number.isFinite(n))) return 0
   const hoje = new Date()
-  const fim = new Date(prazo)
-  return Math.max(0, (fim.getFullYear() - hoje.getFullYear()) * 12 + (fim.getMonth() - hoje.getMonth()))
+  return Math.max(0, (partes[0] - hoje.getFullYear()) * 12 + (partes[1] - 1 - hoje.getMonth()))
 }
 
 function FormMeta({ meta, onSalvar, onCancelar, carregando }) {
   const [form, setForm] = useState({
     nome: meta?.nome || '',
-    valor_desejado: meta?.valor_desejado || '',
-    valor_atual: meta?.valor_atual || '0',
+    valor_desejado: meta?.valor_desejado ?? '',
+    valor_atual: meta?.valor_atual ?? 0,
     prazo: meta?.prazo || '',
-    cor: meta?.cor || '#2563eb',
+    cor: meta?.cor || '#059669',
   })
-
-  function handleChange(e) {
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
-  }
-
-  function handleSubmit(e) {
+  const faltante = Math.max(0, numero(form.valor_desejado) - numero(form.valor_atual))
+  const meses = calcularMesesRestantes(form.prazo)
+  function enviar(e) {
     e.preventDefault()
+    if (!form.nome.trim() || numero(form.valor_desejado) <= 0 || numero(form.valor_atual) < 0) return
     onSalvar({
-      nome: form.nome,
-      valor_desejado: Number(form.valor_desejado) || 0,
-      valor_atual: Number(form.valor_atual) || 0,
+      nome: form.nome.trim(),
+      valor_desejado: numero(form.valor_desejado),
+      valor_atual: numero(form.valor_atual),
       prazo: form.prazo || null,
       cor: form.cor,
     })
   }
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={enviar} className="space-y-4">
       <div>
         <label className="label">Nome da meta</label>
-        <input name="nome" value={form.nome} onChange={handleChange}
-          className="input" placeholder="Ex: Reserva de emergência, Viagem..." required />
+        <input className="input" required value={form.nome} onChange={e => setForm(p => ({...p, nome: e.target.value}))} placeholder="Ex.: iPhone, viagem, casa..." />
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label">Valor desejado (R$)</label>
-          <InputMoeda valor={form.valor_desejado}
-            onChangeValor={(n) => setForm(prev => ({ ...prev, valor_desejado: n }))}
-            className="input" />
-        </div>
-        <div>
-          <label className="label">Já tenho (R$)</label>
-          <InputMoeda valor={form.valor_atual}
-            onChangeValor={(n) => setForm(prev => ({ ...prev, valor_atual: n }))}
-            className="input" />
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div><label className="label">Valor desejado (R$)</label><InputMoeda valor={form.valor_desejado} onChangeValor={v => setForm(p => ({...p, valor_desejado:v}))} className="input" /></div>
+        <div><label className="label">Já tenho guardado (R$)</label><InputMoeda valor={form.valor_atual} onChangeValor={v => setForm(p => ({...p, valor_atual:v}))} className="input" /></div>
       </div>
       <div>
-        <label className="label">Prazo <span className="text-gray-400">(opcional)</span></label>
-        <input name="prazo" value={form.prazo} onChange={handleChange} type="date" className="input" />
+        <label className="label">Quero alcançar até <span className="text-gray-400">(opcional)</span></label>
+        <input type="date" className="input" value={form.prazo} onChange={e => setForm(p => ({...p, prazo:e.target.value}))} />
       </div>
+      {form.prazo && (
+        <div className="rounded-xl bg-marca-100 p-3 text-sm text-gray-700">
+          {faltante <= 0 ? 'Essa meta já está atingida.' : meses > 0
+            ? <>Para alcançar seu objetivo, reserve aproximadamente <strong className="text-marca">{formatCurrency(faltante / meses)} por mês</strong> durante {meses} {meses === 1 ? 'mês' : 'meses'}.</>
+            : 'O prazo selecionado é este mês ou já passou. Escolha um mês futuro para calcular o aporte mensal.'}
+          <p className="text-xs text-gray-500 mt-1">Estimativa sem considerar rendimentos ou inflação.</p>
+        </div>
+      )}
       <div>
-        <label className="label">Cor</label>
-        <div className="flex gap-2 flex-wrap mt-1">
-          {CORES_PRESET.map(cor => (
-            <button key={cor} type="button" onClick={() => setForm(p => ({ ...p, cor }))}
-              className={`w-7 h-7 rounded-full border-2 transition-transform ${form.cor === cor ? 'border-gray-800 scale-110' : 'border-transparent'}`}
-              style={{ backgroundColor: cor }} />
-          ))}
+        <label className="label">Cor da meta</label>
+        <div className="flex flex-wrap gap-2 mt-2">
+          {CORES_PRESET.map(c => <button key={c} type="button" aria-label={`Selecionar cor ${c}`} aria-pressed={form.cor === c} onClick={() => setForm(p => ({...p, cor:c}))} className={`w-8 h-8 rounded-full border-2 transition-transform ${form.cor === c ? 'border-gray-800 scale-110' : 'border-transparent'}`} style={{backgroundColor:c}} />)}
         </div>
       </div>
-      <div className="flex gap-3 pt-1">
-        <button type="button" onClick={onCancelar} className="btn-secondary flex-1">Cancelar</button>
-        <button type="submit" disabled={carregando} className="btn-primary flex-1 flex items-center justify-center gap-2">
-          {carregando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : 'Salvar meta'}
-        </button>
+      <div className="flex gap-3 pt-2">
+        <button type="button" className="btn-secondary flex-1" onClick={onCancelar}>Cancelar</button>
+        <button type="submit" disabled={carregando || numero(form.valor_desejado) <= 0} className="btn-primary flex-1 flex justify-center items-center gap-2">{carregando ? <Loader2 size={16} className="animate-spin" /> : null} Salvar meta</button>
       </div>
     </form>
   )
@@ -100,226 +77,108 @@ function FormMeta({ meta, onSalvar, onCancelar, carregando }) {
 
 function FormAporte({ meta, onSalvar, onCancelar, carregando }) {
   const [valor, setValor] = useState(0)
-
-  function handleSubmit(e) {
+  const faltante = Math.max(0, numero(meta.valor_desejado) - numero(meta.valor_atual))
+  function enviar(e) {
     e.preventDefault()
-    if (!valor || valor <= 0) return
-    const novoValor = Math.min(
-      Number(meta.valor_desejado),
-      Number(meta.valor_atual) + valor
-    )
-    onSalvar({ valor_atual: novoValor })
+    if (numero(valor) <= 0) return
+    // Mantém a regra anterior: o valor acumulado não ultrapassa o objetivo.
+    onSalvar({valor_atual: Math.min(numero(meta.valor_desejado), numero(meta.valor_atual) + numero(valor))})
   }
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <p className="text-sm text-gray-600">
-        Atualize o valor acumulado em <strong>{meta.nome}</strong>.
-        Atual: <strong>{formatCurrency(meta.valor_atual)}</strong>
-      </p>
-      <div>
-        <label className="label">Valor do aporte (R$)</label>
-        <InputMoeda valor={valor} onChangeValor={setValor} className="input" autoFocus />
-      </div>
-      <div className="flex gap-3 pt-1">
-        <button type="button" onClick={onCancelar} className="btn-secondary flex-1">Cancelar</button>
-        <button type="submit" disabled={carregando} className="btn-primary flex-1 flex items-center justify-center gap-2">
-          {carregando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : 'Registrar aporte'}
-        </button>
-      </div>
+    <form onSubmit={enviar} className="space-y-4">
+      <p className="text-sm text-gray-600">Acumule mais dinheiro na meta <strong>{meta.nome}</strong>. Atual: <strong>{formatCurrency(meta.valor_atual)}</strong>.</p>
+      <p className="text-sm text-gray-500">Ainda faltam {formatCurrency(faltante)} para concluir.</p>
+      <div><label className="label">Valor do aporte (R$)</label><InputMoeda valor={valor} onChangeValor={setValor} className="input" autoFocus /></div>
+      <p className="text-xs text-gray-500">O aporte atualiza o acompanhamento desta meta; não movimenta automaticamente seu saldo bancário.</p>
+      <div className="flex gap-3"><button type="button" className="btn-secondary flex-1" onClick={onCancelar}>Cancelar</button><button type="submit" disabled={carregando || numero(valor) <= 0 || faltante <= 0} className="btn-primary flex-1">{carregando ? 'Salvando...' : 'Registrar aporte'}</button></div>
     </form>
   )
 }
 
+function Indicador({ titulo, valor, icone: Icone, cor }) {
+  return (
+    <div className="card !p-3 sm:!p-4 min-w-0">
+      <div className="flex items-center gap-1.5 text-gray-500 mb-2"><Icone size={15} className={cor} /><span className="text-[11px] sm:text-xs">{titulo}</span></div>
+      <p className={`font-bold text-sm sm:text-xl break-words ${cor}`}>{valor}</p>
+    </div>
+  )
+}
+
 export default function Metas() {
-  const { metas, carregando, criar, atualizar, remover } = useMetas()
-  const [modal, setModal] = useState(null) // null | 'nova' | { tipo: 'aporte'|'editar', meta }
+  const {metas, carregando, criar, atualizar, remover} = useMetas()
+  const [modal, setModal] = useState(null)
   const [salvando, setSalvando] = useState(false)
   const [removendo, setRemovendo] = useState(null)
   const [erroAcao, setErroAcao] = useState('')
+  const totalDesejado = metas.reduce((s,m) => s + numero(m.valor_desejado), 0)
+  const totalAcumulado = metas.reduce((s,m) => s + numero(m.valor_atual), 0)
+  const pctTotal = progresso(totalAcumulado,totalDesejado)
 
-  const totalDesejado = metas.reduce((acc, m) => acc + Number(m.valor_desejado), 0)
-  const totalAcumulado = metas.reduce((acc, m) => acc + Number(m.valor_atual), 0)
-
-  async function handleSalvar(dados) {
+  async function salvar(dados) {
     setSalvando(true)
     setErroAcao('')
     try {
-      if (modal === 'nova') {
-        await criar(dados)
-      } else if (modal?.tipo === 'editar') {
-        await atualizar(modal.meta.id, dados)
-      } else if (modal?.tipo === 'aporte') {
-        await atualizar(modal.meta.id, dados)
-      }
+      if (modal === 'nova') await criar(dados)
+      else if (modal?.tipo === 'editar' || modal?.tipo === 'aporte') await atualizar(modal.meta.id, dados)
       setModal(null)
-    } catch {
-      setErroAcao('Erro ao salvar. Tente novamente.')
-    } finally {
-      setSalvando(false)
-    }
+    } catch (e) {
+      setErroAcao(e?.message || 'Não foi possível salvar. Tente novamente.')
+    } finally {setSalvando(false)}
   }
-
-  async function handleRemover(id) {
-    if (!confirm('Remover esta meta?')) return
+  async function excluir(id) {
+    if (!window.confirm('Remover esta meta?')) return
     setRemovendo(id)
-    try {
-      await remover(id)
-    } catch {
-      setErroAcao('Erro ao remover. Tente novamente.')
-    } finally {
-      setRemovendo(null)
-    }
+    setErroAcao('')
+    try { await remover(id) }
+    catch (e) { setErroAcao(e?.message || 'Não foi possível excluir a meta.') }
+    finally {setRemovendo(null)}
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Metas financeiras</h1>
-          <p className="text-sm text-gray-500 mt-1">Acompanhe seu progresso rumo aos seus objetivos</p>
-        </div>
-        <button onClick={() => setModal('nova')} className="btn-primary flex items-center gap-2 self-start sm:self-auto">
-          <Plus size={16} /> Nova meta
-        </button>
+    <div className="space-y-5 pb-mobilenav md:pb-0">
+      <div className="flex items-start justify-between gap-3">
+        <div><h1 className="text-2xl font-bold text-gray-900">Metas financeiras</h1><p className="text-sm text-gray-500 mt-1">Planeje seus objetivos e acompanhe sua evolução.</p></div>
+        <button type="button" onClick={() => setModal('nova')} className="btn-primary inline-flex gap-2 items-center text-sm flex-shrink-0"><Plus size={16} /> <span className="hidden sm:inline">Nova meta</span><span className="sm:hidden">Nova</span></button>
       </div>
-
-      {metas.length > 0 && (
-        <div className="grid grid-cols-2 gap-4">
-          <div className="card">
-            <p className="text-xs text-gray-500 mb-1">Total acumulado</p>
-            <p className="text-2xl font-bold text-blue-600">{formatCurrency(totalAcumulado)}</p>
-            <p className="text-xs text-gray-400 mt-1">em {metas.length} meta{metas.length > 1 ? 's' : ''}</p>
-          </div>
-          <div className="card">
-            <p className="text-xs text-gray-500 mb-1">Total planejado</p>
-            <p className="text-2xl font-bold text-gray-800">{formatCurrency(totalDesejado)}</p>
-            <p className="text-xs text-gray-400 mt-1">
-              {totalDesejado > 0 ? Math.round((totalAcumulado / totalDesejado) * 100) : 0}% concluído
-            </p>
-          </div>
-        </div>
-      )}
-
-      {erroAcao && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{erroAcao}</p>}
-
-      {carregando ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 size={24} className="animate-spin text-blue-500" />
-        </div>
-      ) : metas.length === 0 ? (
-        <div className="card text-center py-12">
-          <Target size={36} className="text-gray-200 mx-auto mb-3" />
-          <p className="text-sm text-gray-500">Nenhuma meta cadastrada ainda.</p>
-          <button onClick={() => setModal('nova')} className="mt-3 text-sm text-blue-600 hover:underline">
-            Criar primeira meta
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {metas.map(meta => {
-            const pct = meta.valor_desejado > 0
-              ? Math.min(100, Math.round((Number(meta.valor_atual) / Number(meta.valor_desejado)) * 100))
-              : 0
-            const mesesRestantes = calcularMesesRestantes(meta.prazo)
-            const valorFaltante = Number(meta.valor_desejado) - Number(meta.valor_atual)
-            const aporteMensal = mesesRestantes > 0 ? valorFaltante / mesesRestantes : null
-            const concluida = pct >= 100
-
-            return (
-              <div key={meta.id} className="card group">
-                <div className="flex items-start gap-4">
-                  <div className="relative flex-shrink-0">
-                    <ProgressRing value={Number(meta.valor_atual)} max={Number(meta.valor_desejado)} color={meta.cor} />
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-xs font-bold text-gray-700">{pct}%</span>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">{meta.nome}</p>
-                        {meta.prazo && (
-                          <div className="flex items-center gap-1 mt-0.5 text-xs text-gray-400">
-                            <Calendar size={11} />
-                            <span>Prazo: {formatDate(meta.prazo)}</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <div className="text-right mr-1">
-                          <p className="text-xs text-gray-400">Meta</p>
-                          <p className="text-sm font-bold text-gray-800">{formatCurrency(meta.valor_desejado)}</p>
-                        </div>
-                        <button onClick={() => setModal({ tipo: 'editar', meta })}
-                          aria-label="Editar meta"
-                          className="touch-target rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
-                          <Pencil size={15} />
-                        </button>
-                        <button onClick={() => handleRemover(meta.id)} disabled={removendo === meta.id}
-                          aria-label="Remover meta"
-                          className="touch-target rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
-                          {removendo === meta.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="mt-3">
-                      <div className="flex justify-between text-xs text-gray-500 mb-1">
-                        <span>{formatCurrency(meta.valor_atual)} acumulado</span>
-                        <span className="text-gray-400">faltam {formatCurrency(Math.max(0, valorFaltante))}</span>
-                      </div>
-                      <div className="w-full bg-gray-100 rounded-full h-2">
-                        <div className="h-2 rounded-full transition-all duration-700"
-                          style={{ width: `${pct}%`, backgroundColor: meta.cor }} />
-                      </div>
-                    </div>
-
-                    {!concluida && (
-                      <div className="mt-3 flex items-center justify-between gap-2">
-                        {aporteMensal !== null && (
-                          <div className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-3 py-2 flex-1">
-                            <TrendingUp size={13} style={{ color: meta.cor }} />
-                            <p className="text-xs text-gray-600">
-                              Guardar <strong>{formatCurrency(aporteMensal)}/mês</strong> para atingir em {mesesRestantes} meses
-                            </p>
-                          </div>
-                        )}
-                        <button onClick={() => setModal({ tipo: 'aporte', meta })}
-                          className="flex-shrink-0 text-xs font-medium px-3 py-2 rounded-lg border border-gray-200 hover:border-blue-300 hover:text-blue-600 transition-colors">
-                          + Aporte
-                        </button>
-                      </div>
-                    )}
-
-                    {concluida && (
-                      <div className="mt-3 flex items-center gap-2 bg-green-50 rounded-lg px-3 py-2">
-                        <span className="text-green-600">🎉</span>
-                        <p className="text-xs text-green-700 font-medium">Meta atingida!</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+      {erroAcao && <p role="alert" className="text-sm text-red-700 bg-red-50 rounded-xl p-3">{erroAcao}</p>}
+      {metas.length > 0 && <div className="grid grid-cols-3 gap-2 sm:gap-4">
+        <Indicador titulo="Acumulado" valor={formatCurrency(totalAcumulado)} icone={PiggyBank} cor="text-marca" />
+        <Indicador titulo="Planejado" valor={formatCurrency(totalDesejado)} icone={Target} cor="text-gray-900" />
+        <Indicador titulo="Progresso" valor={`${Math.round(pctTotal)}%`} icone={TrendingUp} cor="text-marca" />
+      </div>}
+      {carregando ? <div className="flex justify-center py-16"><Loader2 size={24} className="animate-spin text-marca" /></div>
+      : metas.length === 0 ? <div className="card py-12 text-center"><Target size={38} className="text-marca mx-auto mb-3" /><p className="text-gray-600 text-sm">Você ainda não criou nenhuma meta.</p><button onClick={() => setModal('nova')} className="btn-primary mt-4">Criar primeira meta</button></div>
+      : <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {metas.map(meta => {
+          const atual = numero(meta.valor_atual)
+          const desejado = numero(meta.valor_desejado)
+          const pct = progresso(atual,desejado)
+          const faltante = Math.max(0,desejado-atual)
+          const meses = calcularMesesRestantes(meta.prazo)
+          const concluida = desejado > 0 && atual >= desejado
+          return <section key={meta.id} className="card !p-4 sm:!p-5 min-w-0">
+            <div className="flex justify-between items-start gap-3">
+              <div className="flex gap-3 min-w-0 items-center">
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{backgroundColor:`${meta.cor || '#059669'}1A`}}><Target size={22} style={{color:meta.cor || '#059669'}} /></div>
+                <div className="min-w-0"><h2 className="font-semibold text-gray-900 break-words">{meta.nome}</h2><p className="text-xs text-gray-500">{meta.prazo ? `Prazo: ${formatDate(meta.prazo)}` : 'Sem prazo definido'}</p></div>
               </div>
-            )
-          })}
-        </div>
-      )}
-
-      <Modal aberto={modal === 'nova'} onFechar={() => setModal(null)} titulo="Nova meta">
-        <FormMeta onSalvar={handleSalvar} onCancelar={() => setModal(null)} carregando={salvando} />
-      </Modal>
-      <Modal aberto={modal?.tipo === 'editar'} onFechar={() => setModal(null)} titulo="Editar meta">
-        {modal?.tipo === 'editar' && (
-          <FormMeta meta={modal.meta} onSalvar={handleSalvar} onCancelar={() => setModal(null)} carregando={salvando} />
-        )}
-      </Modal>
-      <Modal aberto={modal?.tipo === 'aporte'} onFechar={() => setModal(null)} titulo="Registrar aporte">
-        {modal?.tipo === 'aporte' && (
-          <FormAporte meta={modal.meta} onSalvar={handleSalvar} onCancelar={() => setModal(null)} carregando={salvando} />
-        )}
-      </Modal>
+              <div className="flex gap-1 flex-shrink-0"><button type="button" title="Editar meta" aria-label="Editar meta" onClick={() => setModal({tipo:'editar',meta})} className="touch-target text-gray-500 hover:text-marca rounded-lg"><Pencil size={16}/></button><button type="button" title="Excluir meta" aria-label="Excluir meta" onClick={() => excluir(meta.id)} disabled={removendo === meta.id} className="touch-target text-gray-500 hover:text-red-600 rounded-lg">{removendo === meta.id ? <Loader2 size={16} className="animate-spin"/> : <Trash2 size={16}/>}</button></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-4"><div><p className="text-xs text-gray-500">Já acumulado</p><p className="font-bold text-base sm:text-xl text-gray-900 break-words">{formatCurrency(atual)}</p></div><div className="text-right"><p className="text-xs text-gray-500">Objetivo</p><p className="font-bold text-base sm:text-xl text-gray-900 break-words">{formatCurrency(desejado)}</p></div></div>
+            <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden mt-3"><div className="h-full rounded-full transition-all duration-500" style={{width:`${pct}%`,backgroundColor:meta.cor || '#059669'}} /></div>
+            <div className="flex items-center justify-between gap-2 mt-2"><span className="text-xs text-gray-500">{Math.round(pct)}% concluído</span><span className="text-xs text-gray-500">Faltam {formatCurrency(faltante)}</span></div>
+            {concluida ? <div className="mt-4 bg-green-50 text-green-700 rounded-lg px-3 py-2 text-sm flex items-center gap-2"><CheckCircle2 size={16}/> Meta atingida!</div>
+              : <>
+                {meta.prazo && <div className="mt-4 bg-gray-50 rounded-xl px-3 py-3 flex items-start gap-2"><Calendar size={16} className="text-marca mt-0.5 flex-shrink-0" /><div><p className="text-sm text-gray-700">{meses > 0 ? <>Guarde <strong>{formatCurrency(faltante / meses)}/mês</strong> para alcançar sua meta.</> : 'Prazo neste mês ou vencido. Edite a data para recalcular.'}</p><p className="text-xs text-gray-500 mt-1">Estimativa sem rendimentos.</p></div></div>}
+                <button type="button" onClick={() => setModal({tipo:'aporte',meta})} className="btn-primary w-full flex justify-center items-center gap-2 mt-4"><Plus size={16}/> Registrar aporte</button>
+              </>}
+          </section>
+        })}
+      </div>}
+      <p className="text-xs text-gray-500">Os valores das metas representam objetivos registrados e não são descontados automaticamente do saldo bancário.</p>
+      <Modal aberto={modal === 'nova'} onFechar={() => setModal(null)} titulo="Nova meta"><FormMeta onSalvar={salvar} onCancelar={() => setModal(null)} carregando={salvando}/></Modal>
+      <Modal aberto={modal?.tipo === 'editar'} onFechar={() => setModal(null)} titulo="Editar meta">{modal?.tipo === 'editar' && <FormMeta meta={modal.meta} onSalvar={salvar} onCancelar={() => setModal(null)} carregando={salvando}/>}</Modal>
+      <Modal aberto={modal?.tipo === 'aporte'} onFechar={() => setModal(null)} titulo="Registrar aporte">{modal?.tipo === 'aporte' && <FormAporte meta={modal.meta} onSalvar={salvar} onCancelar={() => setModal(null)} carregando={salvando}/>}</Modal>
     </div>
   )
 }

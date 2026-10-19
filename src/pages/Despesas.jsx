@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { TrendingDown, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, CreditCard, CheckCircle2, ChevronDown, ChevronUp, CalendarClock, Zap, Lightbulb, Target, Wallet, ArrowDownRight } from 'lucide-react'
 import { useDespesas } from '../hooks/useDespesas'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 import { useDespesaTipoExcecoes } from '../hooks/useDespesaTipoExcecoes'
 import { useParcelamentos, valorParcelaNoMes, calcularParcelas } from '../hooks/useParcelamentos'
 import { useCategorias } from '../hooks/useCategorias'
@@ -96,6 +98,16 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
 
   function handleSubmit(e) {
     e.preventDefault()
+
+    if (!form.descricao.trim() || !form.data || !(Number(form.valor) > 0)) {
+      window.alert('Informe descrição, data e um valor maior que zero.');
+      return
+    }
+    if (form.frequencia === 'mensal' && form.duracaoMensal === 'quantidade' &&
+        (!Number.isInteger(Number(form.recorrenciaMeses)) || Number(form.recorrenciaMeses) < 1 || Number(form.recorrenciaMeses) > 120)) {
+      window.alert('Informe uma duração válida de 1 a 120 meses.');
+      return
+    }
 
     // ── Caminho PARCELAMENTO (compra parcelada no cartão) ──
     if (ehParcelada) {
@@ -917,7 +929,79 @@ const DESPESAS_PROTEGIDAS = /aluguel|moradia|condom[ií]nio|financiamento|empr[e
 function ResumoInteligenteDespesas({ despesas, parcelasDoMes, tipoNoMes, anoMesAtual, totalFixas, totalVariaveis, totalGeral, carregando }) {
   const [mostrarDetalhes, setMostrarDetalhes] = useState(false)
   const [mostrarSimulador, setMostrarSimulador] = useState(false)
-  const [percentualMeta, setPercentualMeta] = useState(20)
+  const { usuario } = useAuth()
+  const [meta, setMeta] = useState(null)
+  const [metaValor, setMetaValor] = useState('')
+  const [referenciaValor, setReferenciaValor] = useState('')
+  const [salvandoMeta, setSalvandoMeta] = useState(false)
+  const [carregandoMeta, setCarregandoMeta] = useState(true)
+  const [erroMeta, setErroMeta] = useState('')
+  const [avisoMeta, setAvisoMeta] = useState('')
+
+  useEffect(() => {
+    let ativo = true
+    async function carregarMeta() {
+      setCarregandoMeta(true)
+      setErroMeta('')
+      setMeta(null)
+      setMetaValor('')
+      setReferenciaValor('')
+      if (!usuario?.id) { setCarregandoMeta(false); return }
+      const { data, error } = await supabase
+        .from('metas_economia_mensal')
+        .select('meta_valor, referencia_valor')
+        .eq('usuario_id', usuario.id)
+        .eq('competencia', anoMesAtual)
+        .maybeSingle()
+      if (!ativo) return
+      if (error) {
+        console.error('[Meta economia] Erro ao carregar', error)
+        setErroMeta('Não foi possível carregar a meta. Confira a tabela no Supabase.')
+      } else if (data) {
+        setMeta(data)
+        setMetaValor(String(data.meta_valor))
+        setReferenciaValor(String(data.referencia_valor))
+      }
+      setCarregandoMeta(false)
+    }
+    carregarMeta()
+    return () => { ativo = false }
+  }, [usuario?.id, anoMesAtual])
+
+  async function salvarMeta(e) {
+    e.preventDefault()
+    if (!usuario?.id) { setErroMeta('Faça login para salvar a meta.'); return }
+    const alvo = Number(metaValor)
+    const base = Number(referenciaValor)
+    if (!metaValor.trim() || !referenciaValor.trim() || !Number.isFinite(alvo) || !Number.isFinite(base) || alvo <= 0 || base <= 0 || alvo > base) {
+      setErroMeta('Informe uma referência maior que zero e uma meta de economia entre R$ 0,01 e a referência.')
+      return
+    }
+    setSalvandoMeta(true)
+    setErroMeta('')
+    setAvisoMeta('')
+    const payload = {
+      usuario_id: usuario.id,
+      competencia: anoMesAtual,
+      meta_valor: alvo,
+      referencia_valor: base,
+    }
+    const { data, error } = await supabase
+      .from('metas_economia_mensal')
+      .upsert(payload, { onConflict: 'usuario_id,competencia' })
+      .select('meta_valor, referencia_valor')
+      .single()
+    setSalvandoMeta(false)
+    if (error) {
+      console.error('[Meta economia] Erro ao salvar', error)
+      setErroMeta(`Não foi possível salvar: ${error.message}`)
+      return
+    }
+    setMeta(data)
+    setAvisoMeta('Meta salva para este mês.')
+    setMostrarSimulador(false)
+  }
+
   if (carregando) return null
 
   const pctF = totalGeral > 0 ? (totalFixas / totalGeral) * 100 : 0
@@ -942,7 +1026,17 @@ function ResumoInteligenteDespesas({ despesas, parcelasDoMes, tipoNoMes, anoMesA
   })
   const totalRevisavel = revisaveis.reduce((s, d) => s + Math.max(0, Number(d.valor) || 0), 0)
   const economiaEstimada = Math.round(totalRevisavel * 0.20 * 100) / 100
-  const metaSimulada = Math.round(totalVariaveis * percentualMeta) / 100
+  // Não contabilizar gastos essenciais como passíveis de corte.
+  // O valor abaixo considera apenas despesas à vista e categorias revisáveis;
+  // parcelas são omitidas intencionalmente para evitar prometer economia fictícia.
+  const baseSalva = Number(meta?.referencia_valor || 0)
+  const alvoSalvo = Number(meta?.meta_valor || 0)
+  const tetoGastos = Math.max(0, baseSalva - alvoSalvo)
+  const diferencaComparativa = baseSalva > 0 ? baseSalva - totalRevisavel : 0
+  const dentroDoLimite = !!meta && totalRevisavel <= tetoGastos
+  const progressoOrcamento = meta && tetoGastos > 0
+    ? Math.min(100, (totalRevisavel / tetoGastos) * 100)
+    : 0
   const nomesRevisaveis = [...new Set(revisaveis.map(d => d.categorias?.nome || d.descricao))].slice(0, 2)
   const sugestoes = [
     ...nomesRevisaveis.map(nome => `Revise seus gastos com ${nome.toLowerCase()}.`),
@@ -960,31 +1054,44 @@ function ResumoInteligenteDespesas({ despesas, parcelasDoMes, tipoNoMes, anoMesA
             <p className="text-xs sm:text-sm text-gray-500 mt-1">Entenda seus gastos e descubra oportunidades de economia.</p></div>
         </div>
         <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3 md:min-w-60">
-          <div className="flex items-center gap-2 text-emerald-700 text-xs font-semibold"><Target size={16} /> Meta simulada de economia</div>
-          <p className="text-xl sm:text-2xl font-bold text-emerald-700 mt-1">{formatCurrency(metaSimulada)}</p>
-          <p className="text-xs text-emerald-800 mt-1">{percentualMeta}% das despesas variáveis — objetivo hipotético, não economia garantida.</p>
+          <div className="flex items-center gap-2 text-emerald-700 text-xs font-semibold"><Target size={16} /> Meta de economia mensal</div>
+          <p className="text-xl sm:text-2xl font-bold text-emerald-700 mt-1">{meta ? formatCurrency(alvoSalvo) : 'Ainda não definida'}</p>
+          <p className="text-xs text-emerald-800 mt-1">{meta ? `Limite para gastos revisáveis: ${formatCurrency(tetoGastos)}` : 'Defina uma meta personalizada em reais.'}</p>
           <button type="button" onClick={() => setMostrarSimulador(v => !v)}
             aria-expanded={mostrarSimulador}
-            className="mt-2 rounded-lg bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
-            {mostrarSimulador ? 'Fechar simulação' : 'Simular minha meta'}
+            className="mt-2 rounded-lg bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold hover:bg-emerald-800">
+            {mostrarSimulador ? 'Fechar' : meta ? 'Editar meta' : 'Criar meta'}
           </button>
+        {mostrarSimulador && (
+          <form onSubmit={salvarMeta} className="mt-3 rounded-xl border border-emerald-200 bg-white p-3 space-y-3">
+            <h3 className="text-sm font-semibold text-gray-900">Definir meta para {anoMesAtual}</h3>
+            <p className="text-xs text-gray-600">Use como referência quanto costuma gastar por mês com lazer, delivery, compras e outras despesas opcionais. Não inclua saúde, alimentação necessária ou contas obrigatórias.</p>
+            <div className="grid grid-cols-1 gap-3">
+              <label className="text-xs font-medium text-gray-700">Referência mensal (R$)
+                <input type="number" min="0.01" step="0.01" value={referenciaValor} onChange={e => setReferenciaValor(e.target.value)} required placeholder="Ex.: 500" className="input mt-1 w-full" />
+              </label>
+              <label className="text-xs font-medium text-gray-700">Quero economizar (R$)
+                <input type="number" min="0.01" step="0.01" value={metaValor} onChange={e => setMetaValor(e.target.value)} required placeholder="Ex.: 100" className="input mt-1 w-full" />
+              </label>
+            </div>
+            <p className="text-xs text-gray-600">Limite de gastos proposto: <strong>{formatCurrency(Math.max(0, (Number(referenciaValor) || 0) - (Number(metaValor) || 0)))}</strong></p>
+            <button type="submit" disabled={salvandoMeta} className="btn-primary disabled:opacity-50">{salvandoMeta ? 'Salvando...' : 'Salvar meta do mês'}</button>
+          </form>
+        )}
         </div>
       </div>
-      {mostrarSimulador && (
-        <div className="mt-4 rounded-xl border border-marca/20 bg-gray-50 p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-gray-900">Simulador de meta mensal</h3>
-            <span className="text-sm font-bold text-marca">{percentualMeta}%</span>
-          </div>
-          <input type="range" min="0" max="30" step="5" value={percentualMeta}
-            onChange={e => setPercentualMeta(Number(e.target.value))}
-            aria-label="Percentual da meta de redução das despesas variáveis"
-            className="w-full accent-current text-marca" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-            <p className="text-gray-600">Base: <strong>{formatCurrency(totalVariaveis)}</strong> em despesas variáveis.</p>
-            <p className="text-gray-600">Meta simulada: <strong>{formatCurrency(metaSimulada)}</strong> por mês.</p>
-          </div>
-          <p className="text-xs text-gray-500 leading-relaxed">Esta é uma simulação de planejamento, não uma previsão. Despesas variáveis podem incluir gastos essenciais ou obrigatórios. Não reduza saúde, alimentação necessária nem pagamentos contratados apenas para cumprir a meta. Identificamos {formatCurrency(economiaEstimada)} em gastos potencialmente revisáveis por categoria; avalie cada despesa antes de definir cortes.</p>
+      {erroMeta && <p role="alert" className="text-xs text-red-700 mt-3">{erroMeta}</p>}
+      {avisoMeta && <p role="status" className="text-xs text-emerald-700 mt-3">{avisoMeta}</p>}
+      {carregandoMeta && <p className="text-xs text-gray-500 mt-3">Carregando meta salva...</p>}
+      {!!meta && !carregandoMeta && (
+        <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-2">
+          <div className="flex justify-between text-sm gap-2"><span>Gastos revisáveis registrados neste mês</span><strong>{formatCurrency(totalRevisavel)}</strong></div>
+          <div className="flex justify-between text-sm gap-2"><span>Limite mensal definido</span><strong>{formatCurrency(tetoGastos)}</strong></div>
+          <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden"><div className={dentroDoLimite ? 'h-full bg-emerald-600' : 'h-full bg-amber-500'} style={{ width: `${tetoGastos === 0 ? 100 : progressoOrcamento}%` }} /></div>
+          <p className={`text-xs font-medium ${dentroDoLimite ? 'text-emerald-700' : 'text-amber-700'}`}>
+            {dentroDoLimite ? `Restam ${formatCurrency(tetoGastos - totalRevisavel)} no limite de gastos revisáveis.` : `Limite excedido em ${formatCurrency(totalRevisavel - tetoGastos)}.`}
+          </p>
+          <p className="text-xs text-gray-500">Diferença em relação à referência: {formatCurrency(diferencaComparativa)}. Comparação parcial do mês, não representa dinheiro guardado. Confira também despesas recorrentes e parcelas antes de avaliar sua economia real.</p>
         </div>
       )}
       <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-4 mt-5">
@@ -1015,8 +1122,74 @@ function ResumoInteligenteDespesas({ despesas, parcelasDoMes, tipoNoMes, anoMesA
           </div>
         )}
         {totalRevisavel === 0 && totalGeral > 0 && <p className="text-xs text-gray-500 mt-3">Ainda não identificamos gastos discricionários suficientes para estimar uma economia. Zero não significa ausência de oportunidades.</p>}
-        {mostrarDetalhes && <p className="text-xs text-gray-500 mt-3 leading-relaxed">A identificação automática de oportunidades usa despesas variáveis à vista de categorias potencialmente revisáveis e aplica 20% sobre elas. Já a simulação permite escolher uma meta de 0% a 30% sobre todas as despesas variáveis. Nenhuma dessas estimativas representa economia garantida. Obrigações, empréstimos, financiamentos e parcelas não são tratados como cortes disponíveis. Os percentuais do gráfico são calculados sobre o total de despesas deste mês, não sobre a renda.</p>}
+        {mostrarDetalhes && <p className="text-xs text-gray-500 mt-3 leading-relaxed">A identificação automática de oportunidades usa despesas variáveis à vista de categorias potencialmente revisáveis e aplica 20% sobre elas. A meta salva compara esses gastos com uma referência definida por você; não mede saldo guardado. Despesas recorrentes e parcelas podem não estar incluídas nessa comparação. Obrigações, empréstimos, financiamentos e parcelas não são tratados como cortes disponíveis. Os percentuais do gráfico são calculados sobre o total de despesas deste mês, não sobre a renda.</p>}
       </div>
+    </section>
+  )
+}
+
+// Resumo somente leitura da meta salva. O formulário continua na aba Análises.
+function ResumoMetaEconomia({ competencia, onAbrir }) {
+  const { usuario } = useAuth()
+  const [meta, setMeta] = useState(null)
+  const [carregando, setCarregando] = useState(true)
+  const [erro, setErro] = useState(false)
+
+  useEffect(() => {
+    let ativo = true
+    async function carregar() {
+      setCarregando(true)
+      setErro(false)
+      setMeta(null)
+      if (!usuario?.id) {
+        if (ativo) setCarregando(false)
+        return
+      }
+      const { data, error } = await supabase
+        .from('metas_economia_mensal')
+        .select('meta_valor, referencia_valor')
+        .eq('usuario_id', usuario.id)
+        .eq('competencia', competencia)
+        .maybeSingle()
+      if (!ativo) return
+      if (error) {
+        console.error('[Despesas] Falha ao carregar resumo da meta:', error)
+        setErro(true)
+      } else {
+        setMeta(data)
+      }
+      setCarregando(false)
+    }
+    carregar()
+    return () => { ativo = false }
+  }, [usuario?.id, competencia])
+
+  const alvo = Number(meta?.meta_valor) || 0
+  const referencia = Number(meta?.referencia_valor) || 0
+  const limite = Math.max(0, referencia - alvo)
+
+  return (
+    <section className="card !p-4 space-y-2">
+      <div className="flex items-center gap-2">
+        <Target size={17} className="text-emerald-600" />
+        <h2 className="text-sm font-semibold text-gray-900">Meta de economia mensal</h2>
+      </div>
+      {carregando ? (
+        <p className="text-xs text-gray-500">Carregando meta...</p>
+      ) : erro ? (
+        <p className="text-xs text-amber-700">Não foi possível consultar a meta. Confira em Análises.</p>
+      ) : meta ? (
+        <>
+          <p className="text-xl font-bold text-emerald-700">{formatCurrency(alvo)}</p>
+          <p className="text-xs text-gray-600">Referência: {formatCurrency(referencia)}</p>
+          <p className="text-xs text-gray-600">Limite proposto de gastos revisáveis: <strong>{formatCurrency(limite)}</strong></p>
+        </>
+      ) : (
+        <p className="text-xs text-gray-500">Nenhuma meta cadastrada para este mês.</p>
+      )}
+      <button type="button" onClick={onAbrir} className="text-sm font-semibold text-marca hover:underline">
+        {meta ? 'Consultar ou editar meta →' : 'Criar minha meta →'}
+      </button>
     </section>
   )
 }
@@ -1027,6 +1200,8 @@ export default function Despesas() {
     despesas, total, carregando, criar, atualizar, remover, alterarTipo,
     anteciparPagamento, desfazerAntecipacao,
   } = useDespesas(mesAtual, anoAtual)
+  // Consulta independente: permite conferir despesas salvas em qualquer mês.
+  const { despesas: todosCadastros, carregando: carregandoTodos, recarregar: recarregarTodos } = useDespesas()
   const { salvarExcecao, tipoNoMes } = useDespesaTipoExcecoes()
   // Competência do mês exibido (mês fixo atual nesta tela): 'YYYY-MM'.
   const anoMesAtual = `${anoAtual}-${String(mesAtual).padStart(2, '0')}`
@@ -1044,6 +1219,7 @@ export default function Despesas() {
   const { cartoes } = useCartoes()
 
   const [filtro, setFiltro] = useState('Todas')
+  const [pagina, setPagina] = useState('visao')
   const [ordemDespesas, setOrdemDespesas] = useState('maior')
   const [ordemParceladas, setOrdemParceladas] = useState('maior_saldo')
   const [modalAberto, setModalAberto] = useState(false)
@@ -1053,6 +1229,8 @@ export default function Despesas() {
   const [removendoParc, setRemovendoParc] = useState(null)
   const [quitando, setQuitando] = useState(null)
   const [erroAcao, setErroAcao] = useState('')
+  const [avisoSalvo, setAvisoSalvo] = useState('')
+  const [mostrarTodosCadastros, setMostrarTodosCadastros] = useState(false)
   const [ultimaDespesa, setUltimaDespesa] = useState(null)
   const [mostrarConcluidos, setMostrarConcluidos] = useState(false)
   const [despesaEditando, setDespesaEditando] = useState(null) // null = modo criação
@@ -1121,20 +1299,27 @@ export default function Despesas() {
   const parcConcluidos = parcelamentos.filter(p => !p.ativo)
 
   // Filtros/abas
-  const abas = ['Todas', 'Fixas', 'Variáveis', 'Parceladas']
+  const abas = ['Todas', 'Fixas', 'Variáveis']
+
+  // Registros originais com data em mês posterior ao mês do resumo.
+  // Não cria ocorrências de recorrência e não altera os totais do mês.
+  const fimMesAtual = `${anoAtual}-${String(mesAtual).padStart(2, '0')}-${String(new Date(anoAtual, mesAtual, 0).getDate()).padStart(2, '0')}`
+  const despesasFuturas = todosCadastros
+    .filter(d => d.data && d.data > fimMesAtual)
+    .sort((a, b) => a.data.localeCompare(b.data) || (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR'))
 
   // Despesas (à vista) filtradas conforme a aba — usa o tipo do MÊS (exceção
   // mensal quando existir), para o filtro bater com o rótulo exibido.
   const despesasVisiveis = (() => {
     if (filtro === 'Fixas') return despesas.filter(d => tipoNoMes(d, anoMesAtual) === 'fixa')
     if (filtro === 'Variáveis') return despesas.filter(d => tipoNoMes(d, anoMesAtual) !== 'fixa')
-    if (filtro === 'Parceladas') return [] // aba parceladas mostra os parcelamentos, não as despesas à vista
+    if (filtro === 'Parceladas' || filtro === 'Futuras') return [] // abas dedicadas
     return despesas // Todas
   })()
 
   // Parcelas do mês exibidas como linhas nas abas Todas/Fixas/Variáveis
   const parcelasVisiveis = (() => {
-    if (filtro === 'Parceladas') return [] // na aba Parceladas usamos os cards completos
+    if (filtro === 'Parceladas' || filtro === 'Futuras') return [] // abas dedicadas
     if (filtro === 'Fixas') return parcelasDoMes.filter(x => x.tipo_despesa === 'fixa')
     if (filtro === 'Variáveis') return parcelasDoMes.filter(x => x.tipo_despesa !== 'fixa')
     return parcelasDoMes // Todas
@@ -1199,6 +1384,7 @@ export default function Despesas() {
   async function handleSalvar(dados) {
     setSalvando(true)
     setErroAcao('')
+    setAvisoSalvo('')
     try {
       if (despesaEditando) {
         // Separa os metadados de controle do tipo (não são colunas da despesa).
@@ -1222,11 +1408,15 @@ export default function Despesas() {
         const nova = await criar(payload)
         setUltimaDespesa(nova)
       }
+      await recarregarTodos().catch(e => console.warn('Falha ao atualizar histórico:', e))
+      const mesRegistro = dados.data?.slice(0, 7)
+      setAvisoSalvo(mesRegistro && mesRegistro !== anoMesAtual
+        ? `Despesa salva. A data é ${dados.data}; este resumo exibe apenas ${nomeMes}. Confira em "Próximas despesas" abaixo.`
+        : 'Despesa salva no banco. Você pode conferir em "Todos os cadastros" abaixo.')
       fecharModal()
-    } catch {
-      setErroAcao(despesaEditando
-        ? 'Erro ao salvar alterações. Tente novamente.'
-        : 'Erro ao salvar despesa. Tente novamente.')
+    } catch (e) {
+      console.error('[Despesas] Erro ao salvar:', e)
+      setErroAcao(`Não foi possível salvar: ${e?.message || 'erro desconhecido'}`)
     } finally {
       setSalvando(false)
     }
@@ -1237,6 +1427,7 @@ export default function Despesas() {
     setRemovendo(id)
     try {
       await remover(id)
+      await recarregarTodos().catch(e => console.warn('Falha ao atualizar histórico:', e))
       if (ultimaDespesa?.id === id) setUltimaDespesa(null)
     } catch {
       setErroAcao('Erro ao remover. Tente novamente.')
@@ -1291,8 +1482,9 @@ export default function Despesas() {
       await criarParcelamento(dados)
       setModalAberto(false)
       setFiltro('Parceladas') // leva o usuário à aba onde o item aparece
-    } catch {
-      setErroAcao('Erro ao salvar parcelamento. Tente novamente.')
+    } catch (e) {
+      console.error('[Despesas] Erro ao salvar parcelamento:', e)
+      setErroAcao(`Erro ao salvar parcelamento: ${e?.message || 'erro desconhecido'}`)
     } finally {
       setSalvandoParc(false)
     }
@@ -1399,7 +1591,7 @@ export default function Despesas() {
             : <p className="text-xs text-gray-400 mt-0.5">—</p>}
         </div>
         <div className="card min-w-0 !p-4 sm:!p-5">
-          <div className="w-9 h-9 bg-gray-100 rounded-xl flex items-center justify-center mb-2">
+          <div className="w-8 h-8 bg-gray-100 rounded-xl flex items-center justify-center mb-2">
             <span className="text-sm">🛒</span>
           </div>
           <p className="text-xs text-gray-500 mb-0.5">Variáveis</p>
@@ -1410,17 +1602,19 @@ export default function Despesas() {
         </div>
       </div>
 
-      {/* Painel inteligente: leitura dos valores existentes, sem persistência */}
-      <ResumoInteligenteDespesas
-        despesas={despesas}
-        parcelasDoMes={parcelasDoMes}
-        tipoNoMes={tipoNoMes}
-        anoMesAtual={anoMesAtual}
-        totalFixas={totalFixas}
-        totalVariaveis={totalVariaveis}
-        totalGeral={totalGeral}
-        carregando={carregando || carregandoParc}
-      />
+      {/* Navegação compacta por áreas. Os valores e as operações permanecem nos hooks existentes. */}
+      <nav aria-label="Seções de despesas" className="card !p-2 flex items-center gap-1.5 overflow-x-auto">
+        {[
+          ['visao', 'Visão geral'], ['mes', 'Despesas do mês'],
+          ['futuras', 'Futuras'], ['parceladas', 'Parceladas'], ['analises', 'Análises'],
+        ].map(([id, rotulo]) => (
+          <button key={id} type="button" onClick={() => setPagina(id)}
+            aria-current={pagina === id ? 'page' : undefined}
+            className={`shrink-0 rounded-xl px-3 sm:px-4 py-2.5 text-sm font-semibold transition-colors ${pagina === id ? 'bg-marca text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}>
+            {rotulo}{id === 'futuras' && despesasFuturas.length ? ` (${despesasFuturas.length})` : ''}
+          </button>
+        ))}
+      </nav>
 
       {/* Notificação de classificação automática */}
       {ultimaDespesa && (
@@ -1435,54 +1629,17 @@ export default function Despesas() {
         <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{erroAcao}</p>
       )}
 
-      {/* ─── Antecipar próximos vencimentos ─── */}
-      {/* Só aparece quando há despesas com vencimento futuro ainda não pagas. */}
-      {!carregando && proximosVencimentos.length > 0 && (
-        <div className="card">
-          <div className="flex items-center gap-2 mb-3">
-            <CalendarClock size={18} className="text-blue-500 flex-shrink-0" />
-            <h2 className="text-base font-semibold text-gray-900">Próximos vencimentos</h2>
-          </div>
-          <div className="space-y-2">
-            {proximosVencimentos.map(({ despesa: d, diasFaltam }) => (
-              <div key={d.id}
-                className="flex items-center justify-between gap-3 p-3 rounded-xl bg-gray-50">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{d.descricao}</p>
-                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    <span className="flex items-center gap-1 text-xs text-gray-400">
-                      <Calendar size={11} />{formatDate(d.data)}
-                    </span>
-                    <span className="text-xs font-medium text-blue-500">
-                      {diasFaltam === 1 ? 'Vence amanhã' : `Faltam ${diasFaltam} dias`}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex flex-col items-end gap-1 flex-shrink-0 sm:flex-row sm:items-center sm:gap-2">
-                  <span className="text-sm font-bold text-red-500 whitespace-nowrap">-{formatCurrency(d.valor)}</span>
-                  <button
-                    onClick={() => setDespesaAntecipar(d)}
-                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
-                  >
-                    <Zap size={13} /> Antecipar
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-          {pagasAntecipadamente.length > 0 && (
-            <p className="text-xs text-gray-400 mt-3 flex items-center gap-1">
-              <CheckCircle2 size={12} className="text-green-500" />
-              {pagasAntecipadamente.length} despesa{pagasAntecipadamente.length !== 1 ? 's' : ''} paga{pagasAntecipadamente.length !== 1 ? 's' : ''} antecipadamente neste mês.
-            </p>
-          )}
-        </div>
+      {avisoSalvo && (
+        <p role="status" className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">{avisoSalvo}</p>
       )}
 
+      {(pagina === 'visao' || pagina === 'mes') && (
+        <div className={pagina === 'visao' ? 'grid grid-cols-1 xl:grid-cols-3 gap-4 items-start' : 'space-y-4'}>
+          <div className={pagina === 'visao' ? 'xl:col-span-2 space-y-4' : 'space-y-4'}>
       {/* Abas de filtro */}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {abas.map(aba => {
-          const qtd = aba === 'Parceladas' ? parcAtivos.length : null
+          const qtd = aba === 'Parceladas' ? parcAtivos.length : aba === 'Futuras' ? despesasFuturas.length : null
           return (
             <button
               key={aba}
@@ -1500,7 +1657,7 @@ export default function Despesas() {
       </div>
 
       {/* ─── Lista de despesas à vista + parcelas do mês ─── */}
-      {filtro !== 'Parceladas' && (
+      {filtro !== 'Parceladas' && filtro !== 'Futuras' && (
         <div className="card">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-4">
             <div>
@@ -1534,17 +1691,17 @@ export default function Despesas() {
               </button>
             </div>
           ) : (
-            <div className="space-y-3">
-              {linhasOrdenadas.map(linha => {
+            <div className="space-y-2">
+              {(pagina === 'visao' ? linhasOrdenadas.slice(0, 5) : linhasOrdenadas).map(linha => {
                 if (linha.tipo === 'parcela') {
                   const { parcelamento: p, valor, tipo_despesa } = linha.dados
                 const { label: tipoLabel, classes: tipoClasses } = labelTipoDespesa(tipo_despesa)
                 const nomeCategoria = p.categorias?.nome
                 return (
                   <div key={`parc-${p.id}`}
-                    className="flex items-center justify-between p-3 rounded-xl bg-orange-50/50 border border-orange-100">
+                    className="flex items-center justify-between px-3 py-2 rounded-xl bg-orange-50/50 border border-orange-100">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <div className="w-8 h-8 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
                         {p.categorias?.icone
                           ? <span className="text-base">{p.categorias.icone}</span>
                           : <CreditCard size={16} className="text-orange-600" />}
@@ -1584,7 +1741,7 @@ export default function Despesas() {
                 const labelOposto = tipoOposto === 'fixa' ? 'Fixa' : 'Variável'
                 return (
                   <div key={d.id}
-                    className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors group">
+                    className="flex items-center justify-between px-3 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors group">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-9 h-9 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0">
                         {d.categorias?.icone
@@ -1660,8 +1817,161 @@ export default function Despesas() {
         </div>
       )}
 
+            {pagina === 'visao' && linhasOrdenadas.length > 5 && (
+              <button type="button" onClick={() => setPagina('mes')} className="text-sm font-semibold text-marca hover:underline">
+                Ver todas as {linhasOrdenadas.length} despesas do mês →
+              </button>
+            )}
+          </div>
+          {pagina === 'visao' && (
+            <aside className="space-y-4 min-w-0">
+      {/* ─── Antecipar próximos vencimentos ─── */}
+      {/* Só aparece quando há despesas com vencimento futuro ainda não pagas. */}
+      {!carregando && (proximosVencimentos.length > 0 || despesasFuturas.length > 0) && (
+        <div className="card">
+          <div className="flex items-center gap-2 mb-3">
+            <CalendarClock size={18} className="text-blue-500 flex-shrink-0" />
+            <h2 className="text-base font-semibold text-gray-900">Próximos vencimentos</h2>
+          </div>
+          <div className="space-y-2">
+            {proximosVencimentos.slice(0, 5).map(({ despesa: d, diasFaltam }) => (
+              <div key={d.id}
+                className="flex items-center justify-between gap-3 p-3 rounded-xl bg-gray-50">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{d.descricao}</p>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span className="flex items-center gap-1 text-xs text-gray-400">
+                      <Calendar size={11} />{formatDate(d.data)}
+                    </span>
+                    <span className="text-xs font-medium text-blue-500">
+                      {diasFaltam === 1 ? 'Vence amanhã' : `Faltam ${diasFaltam} dias`}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0 sm:flex-row sm:items-center sm:gap-2">
+                  <span className="text-sm font-bold text-red-500 whitespace-nowrap">-{formatCurrency(d.valor)}</span>
+                  <button
+                    onClick={() => setDespesaAntecipar(d)}
+                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                  >
+                    <Zap size={13} /> Antecipar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          {despesasFuturas.length > 0 && (
+            <div className="mt-3 border-t border-gray-100 pt-3 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-xs font-semibold text-gray-700">Cadastros de meses seguintes</h3>
+                <button type="button" onClick={() => setPagina('futuras')}
+                  className="text-xs font-semibold text-marca hover:underline">Ver todos →</button>
+              </div>
+              {despesasFuturas.slice(0, 2).map(d => (
+                <div key={`preview-${d.id}`} className="flex items-center justify-between gap-2 rounded-lg bg-emerald-50/60 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-gray-800 truncate">{d.descricao}</p>
+                    <p className="text-xs text-gray-500">{formatDate(d.data)} · Cadastro futuro</p>
+                  </div>
+                  <span className="text-xs font-semibold text-red-600 whitespace-nowrap">-{formatCurrency(d.valor)}</span>
+                </div>
+              ))}
+              <p className="text-[11px] text-gray-500">Valores de meses seguintes não entram no total atual. Recorrências futuras são projetadas separadamente.</p>
+            </div>
+          )}
+          {pagasAntecipadamente.length > 0 && (
+            <p className="text-xs text-gray-400 mt-3 flex items-center gap-1">
+              <CheckCircle2 size={12} className="text-green-500" />
+              {pagasAntecipadamente.length} despesa{pagasAntecipadamente.length !== 1 ? 's' : ''} paga{pagasAntecipadamente.length !== 1 ? 's' : ''} antecipadamente neste mês.
+            </p>
+          )}
+        </div>
+      )}
+
+              <ResumoMetaEconomia competencia={anoMesAtual} onAbrir={() => setPagina('analises')} />
+            </aside>
+          )}
+        </div>
+      )}
+
+      {pagina === 'visao' && (
+        <section className="card !p-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center"><Lightbulb size={19} className="text-emerald-600" /></div>
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">Resumo inteligente do mês</h2>
+              <p className="text-xs text-gray-500">Confira a distribuição dos gastos e a meta de economia.</p>
+            </div>
+          </div>
+          <button type="button" onClick={() => setPagina('analises')} className="text-sm font-semibold text-marca hover:underline">Ver análises →</button>
+        </section>
+      )}
+
+      {pagina === 'futuras' && (
+        <div className="space-y-4">
+      {/* Despesas cadastradas para meses seguintes: visíveis sem afetar o resumo atual. */}
+      {true && (
+        <section className="card" aria-label="Próximas despesas cadastradas">
+          <div className="flex items-center gap-2 mb-2">
+            <CalendarClock size={18} className="text-blue-600 flex-shrink-0" />
+            <h2 className="text-base font-semibold text-gray-900">
+              Próximas despesas <span className="text-sm font-normal text-gray-400">({despesasFuturas.length})</span>
+            </h2>
+          </div>
+          <p className="text-xs text-gray-500 mb-4">
+            Lançamentos originais de meses futuros. Não entram no total de {nomeMes}.
+            Despesas recorrentes são projetadas separadamente, sem gerar novos cadastros.
+          </p>
+          {carregandoTodos ? (
+            <div className="flex items-center gap-2 text-sm text-gray-500 py-4">
+              <Loader2 size={16} className="animate-spin" /> Carregando próximas despesas...
+            </div>
+          ) : despesasFuturas.length === 0 ? (
+            <p className="text-sm text-gray-500 py-3">Nenhuma despesa cadastrada para os próximos meses.</p>
+          ) : (
+            <div className="space-y-2">
+              {despesasFuturas.map(d => (
+                <div key={`futura-${d.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 shrink-0 rounded-xl bg-blue-50 flex items-center justify-center">
+                      {d.categorias?.icone || <CalendarClock size={16} className="text-blue-600" />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 break-words">{d.descricao}</p>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-1">
+                        <span><Calendar size={11} className="inline mr-1" />{formatDate(d.data)}</span>
+                        <span className="rounded-full bg-blue-50 text-blue-700 px-2 py-0.5">Vence em {new Date(`${d.data}T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</span>
+                        {d.recorrente && <span className="text-blue-600 flex items-center gap-1"><RefreshCw size={11} />Recorrente</span>}
+                        {d.categorias?.nome && <span>{d.categorias.nome}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 ml-auto flex-shrink-0">
+                    <strong className="text-sm text-red-500 whitespace-nowrap">-{formatCurrency(d.valor)}</strong>
+                    <button type="button" onClick={() => handleEditar(d)}
+                      title="Editar despesa futura" aria-label={`Editar ${d.descricao}`}
+                      className="touch-target rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50">
+                      <Pencil size={16} />
+                    </button>
+                    <button type="button" onClick={() => handleRemover(d.id)} disabled={removendo === d.id}
+                      title="Excluir despesa futura" aria-label={`Excluir ${d.descricao}`}
+                      className="touch-target rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 disabled:opacity-50">
+                      {removendo === d.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+        </div>
+      )}
+
+      {pagina === 'parceladas' && (
+        <div>
       {/* ─── Seção de parcelamentos ─── */}
-      {mostrarParceladas && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
@@ -1747,6 +2057,49 @@ export default function Despesas() {
               )}
             </>
           )}
+        </div>
+        </div>
+      )}
+
+      {pagina === 'analises' && (
+        <div className="space-y-4">
+      {/* Painel inteligente: leitura dos valores existentes, sem persistência */}
+      <ResumoInteligenteDespesas
+        despesas={despesas}
+        parcelasDoMes={parcelasDoMes}
+        tipoNoMes={tipoNoMes}
+        anoMesAtual={anoMesAtual}
+        totalFixas={totalFixas}
+        totalVariaveis={totalVariaveis}
+        totalGeral={totalGeral}
+        carregando={carregando || carregandoParc}
+      />
+
+      {/* Conferência de registros originais, inclusive lançamentos de outros meses. */}
+      <section className="card">
+        <button type="button" onClick={() => setMostrarTodosCadastros(v => !v)}
+          className="w-full flex items-center justify-between gap-3 text-left">
+          <span className="font-semibold text-gray-900">Todos os cadastros de despesas ({todosCadastros.length})</span>
+          {mostrarTodosCadastros ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </button>
+        <p className="text-xs text-gray-500 mt-1">Consulte registros originais de qualquer mês. Recorrências futuras são calculadas na projeção, não são novos registros.</p>
+        {mostrarTodosCadastros && (
+          <div className="mt-3 max-h-80 overflow-y-auto space-y-2">
+            {carregandoTodos ? <p className="text-sm text-gray-500">Carregando cadastros...</p>
+              : todosCadastros.length === 0 ? <p className="text-sm text-gray-500">Nenhum registro encontrado.</p>
+              : todosCadastros.map(d => (
+                <div key={d.id} className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 p-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{d.descricao}</p>
+                    <p className="text-xs text-gray-500">{formatDate(d.data)} • {d.frequencia === 'por_meses' ? `Mensal por ${d.recorrencia_meses} meses` : d.recorrente ? (d.frequencia || 'Mensal') : 'Não repete'}</p>
+                  </div>
+                  <strong className="text-sm shrink-0">{formatCurrency(d.valor)}</strong>
+                </div>
+              ))}
+          </div>
+        )}
+      </section>
+
         </div>
       )}
 

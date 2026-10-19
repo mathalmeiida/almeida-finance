@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Sun, Plus, Pencil,
@@ -1543,6 +1543,7 @@ export default function Dashboard() {
   }
   const [modalGasto, setModalGasto] = useState(false)
   const [salvandoGasto, setSalvandoGasto] = useState(false)
+  const salvamentoGastoEmAndamento = useRef(false)
   const [erroGasto, setErroGasto] = useState('')
   const [confirmacaoGasto, setConfirmacaoGasto] = useState(null) // { msg, limite }
   const [modalLimite, setModalLimite] = useState(false)
@@ -1653,12 +1654,8 @@ const carregandoLimite = carregando
   modo: modoLimite,
   limiteManual,
   hoje,
-  baseLivre: Math.max(
-  0,
-  (Number(saldoSeguroHoje) || 0) -
-  (Math.max(0, Number(receitaMes) || 0) *
-    Math.min(100, Math.max(0, Number(reservaPercentual) || 0)) / 100)
-),
+  // calcularLimiteDiario já deduz a reserva: não subtrair aqui novamente.
+  baseLivre: Math.max(0, Number(saldoSeguroHoje) || 0),
   saldoConfigurado,
   dataProximaReceita,
 })
@@ -1807,6 +1804,9 @@ const carregandoLimite = carregando
 
   // ─── Handler do Gasto rápido ───
   async function handleSalvarGasto(dados, categoriaNome) {
+    // Ref impede dois inserts mesmo em cliques feitos antes do próximo render.
+    if (salvamentoGastoEmAndamento.current) return
+    salvamentoGastoEmAndamento.current = true
     setSalvandoGasto(true)
     setErroGasto('')
     try {
@@ -1818,8 +1818,14 @@ const carregandoLimite = carregando
       if (!idUsuarioLogado) {
         throw new Error('Sessão expirada. Entre novamente para registrar o gasto.')
       }
-      const valorGasto = Number(dados.valor) || 0
-      const noCartaoCredito = dados.forma_pagamento === 'cartao_credito' && dados.cartao_id
+      const valorGasto = Number(dados.valor)
+      if (!Number.isFinite(valorGasto) || valorGasto <= 0) {
+        throw new Error('Informe um valor maior que zero.')
+      }
+      if (dados.forma_pagamento === 'cartao_credito' && !dados.cartao_id) {
+        throw new Error('Selecione o cartão de crédito para registrar esta compra.')
+      }
+      const noCartaoCredito = dados.forma_pagamento === 'cartao_credito' 
 
       if (noCartaoCredito) {
         // ── Gasto no CARTÃO DE CRÉDITO ──
@@ -1863,6 +1869,7 @@ const carregandoLimite = carregando
       const motivo = err?.message || err?.hint || err?.details
       setErroGasto(motivo ? `Erro ao salvar o gasto: ${motivo}` : 'Erro ao salvar o gasto. Tente novamente.')
     } finally {
+      salvamentoGastoEmAndamento.current = false
       setSalvandoGasto(false)
     }
   }
