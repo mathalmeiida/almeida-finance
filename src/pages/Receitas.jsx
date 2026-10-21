@@ -120,16 +120,16 @@ function FormReceita({ onSalvar, onCancelar, carregando, receitaInicial, textoBo
         {/* Término da recorrência — só quando repete */}
         {ehRepete && (
           <div className="mt-3">
-            <label className="label">Quando termina?</label>
+            <label className="label">Até quando?</label>
             <select name="termino" value={form.termino} onChange={handleChange} className="input">
-              <option value="sem_fim">Sem data para terminar</option>
-              <option value="ocorrencias">Após um número de recebimentos</option>
-              <option value="data">Em uma data final</option>
+              <option value="sem_fim">Sem data de término</option>
+              <option value="ocorrencias">Durante X ocorrências</option>
+              <option value="data">Até uma data específica</option>
             </select>
             {form.termino === 'ocorrencias' && (
               <input name="ocorrencias" value={form.ocorrencias} onChange={handleChange}
                 type="number" min="1" max="600" inputMode="numeric" className="input mt-2"
-                placeholder="Nº de recebimentos (ex: 12)" />
+                placeholder="Nº de recebimentos (ex.: 12)" />
             )}
             {form.termino === 'data' && (
               <input name="data_fim" value={form.data_fim} onChange={handleChange}
