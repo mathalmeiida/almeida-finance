@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Sun, Plus, Pencil,
   CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank, AlertTriangle, MessageCircle, BarChart2,
-  Receipt, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap, Info
+  Receipt, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap, Info, X
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useCategorias } from '../hooks/useCategorias'
@@ -1085,7 +1085,7 @@ function ModalReservaAtual({ aberto, onFechar, valorAtual, metaAtual, onSalvar, 
 
 // ─── Card "Comece por aqui" (checklist de primeiro uso) ───────────────────────
 // Versão compacta por padrão; o checklist completo expande ao tocar "Continuar".
-function CardComecePorAqui({ itens, totalConcluidos, onIrPara, onContinuar }) {
+function CardComecePorAqui({ itens, totalConcluidos, onIrPara, onContinuar, onDispensar }) {
   const total = itens.length
   const [expandido, setExpandido] = useState(false)
 
@@ -1114,17 +1114,39 @@ function CardComecePorAqui({ itens, totalConcluidos, onIrPara, onContinuar }) {
               <Rocket size={17} className="text-marca flex-shrink-0" />
               <span className="truncate">Complete sua configuração</span>
               <span className="text-xs font-medium text-gray-500 flex-shrink-0">· {totalConcluidos} de {total}</span>
+              {onDispensar && (
+                <button
+                  type="button"
+                  onClick={onDispensar}
+                  aria-label="Dispensar"
+                  className="ml-auto sm:hidden text-gray-400 hover:text-gray-600 flex-shrink-0"
+                >
+                  <X size={16} />
+                </button>
+              )}
             </h2>
             {pendentes.length > 0 && (
               <p className="text-xs sm:text-sm text-gray-500 mt-1 truncate">Faltam: {textoFaltam}</p>
             )}
           </div>
-          <button
-            onClick={() => setExpandido(true)}
-            className="btn-primary w-full sm:w-auto mt-3 sm:mt-0 flex items-center justify-center gap-2 sm:px-5 flex-shrink-0"
-          >
-            Continuar <ArrowRight size={16} />
-          </button>
+          <div className="flex items-center gap-2 mt-3 sm:mt-0 flex-shrink-0">
+            <button
+              onClick={() => setExpandido(true)}
+              className="btn-primary w-full sm:w-auto flex items-center justify-center gap-2 sm:px-5"
+            >
+              Continuar <ArrowRight size={16} />
+            </button>
+            {onDispensar && (
+              <button
+                type="button"
+                onClick={onDispensar}
+                aria-label="Dispensar"
+                className="hidden sm:inline-flex text-gray-400 hover:text-gray-600 flex-shrink-0 p-1"
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
         </div>
       ) : (
       <>
@@ -1621,8 +1643,23 @@ export default function Dashboard() {
   const totalConcluidos = onboardingItens.filter(i => i.concluido).length
   const dataProximaReceita = resumoMes.dataProximaReceita
   const primeiroPendente = onboardingItens.find(i => !i.concluido)
-  // Mostra só até concluir os 4; some automaticamente quando tudo estiver pronto.
-  const mostrarComecePorAqui = !carregando && totalConcluidos < onboardingItens.length
+  // Dispensa do card (persistida no perfil, não em localStorage). Enquanto a
+  // coluna não existir no banco, o estado local (dispensadoLocal) segura a
+  // dispensa na sessão e a gravação falha em silêncio (fallback).
+  const [dispensadoLocal, setDispensadoLocal] = useState(false)
+  const comeceDispensado = perfil?.comece_por_aqui_dispensado === true || dispensadoLocal
+  // Mostra só até concluir os 4 OU até o usuário dispensar; some automaticamente
+  // quando tudo estiver pronto.
+  const mostrarComecePorAqui = !carregando && totalConcluidos < onboardingItens.length && !comeceDispensado
+
+  async function handleDispensarComece() {
+    setDispensadoLocal(true) // some imediatamente (otimista)
+    try {
+      await atualizarPreferenciasLimite({ comece_por_aqui_dispensado: true })
+    } catch {
+      // Coluna ausente ou falha de rede: mantém dispensado só nesta sessão.
+    }
+  }
 
   // ─── "Quanto posso gastar?" ───
   // Compromissos do mês = despesas + parcelas + faturas de cartão, SEM duplicar.
@@ -2094,6 +2131,7 @@ const carregandoLimite = carregando
           totalConcluidos={totalConcluidos}
           onIrPara={(item) => continuarConfiguracao(item?.chave)}
           onContinuar={() => continuarConfiguracao(primeiroPendente?.chave)}
+          onDispensar={handleDispensarComece}
         />
       )}
 

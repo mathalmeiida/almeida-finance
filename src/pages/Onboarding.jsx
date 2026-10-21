@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect, useMemo } from 'react'
 import {
   Wallet, TrendingUp, TrendingDown, ShieldCheck, Sparkles,
   CheckCircle2, ArrowRight, ArrowLeft, Plus, Trash2, Loader2, UtensilsCrossed,
-  CreditCard, ShoppingBag, Pencil,
+  CreditCard, ShoppingBag, Pencil, Landmark, BarChart2, Target, ShoppingCart, MessagesSquare,
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useReceitas } from '../hooks/useReceitas'
 import { useDespesas } from '../hooks/useDespesas'
@@ -51,12 +52,14 @@ const labelFormaOnboarding = (value) =>
 // na barra de progresso "X de 4" (que cobre só saldo/renda/despesas/reserva).
 // Opções e rótulo da recorrência de RECEITAS (reutilizadas no form e na lista).
 const FREQUENCIAS_RECEITA = [
-  { value: 'nao_repete',    label: 'Uma única vez' },
-  { value: 'semanal',       label: 'Semanalmente' },
-  { value: 'quinzenal',     label: 'A cada 15 dias' },
-  { value: 'mensal',        label: 'Mensalmente' },
-  { value: 'por_meses',     label: 'A cada X meses' },
-  { value: 'personalizado', label: 'Personalizado' },
+  { value: 'nao_repete',     label: 'Uma única vez' },
+  { value: 'semanal',        label: 'Semanalmente' },
+  { value: 'a_cada_10_dias', label: 'A cada 10 dias' },
+  { value: 'quinzenal',      label: 'A cada 15 dias' },
+  { value: 'a_cada_20_dias', label: 'A cada 20 dias' },
+  { value: 'mensal',         label: 'Mensalmente' },
+  { value: 'por_meses',      label: 'A cada X meses' },
+  { value: 'personalizado',  label: 'Personalizado' },
 ]
 const labelFrequenciaReceita = (freq) => {
   const f = freq || 'mensal'
@@ -128,6 +131,7 @@ function LinhaResumo({ label, valor, cor = 'text-gray-900' }) {
 
 export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   const { usuario, perfil, atualizarPreferenciasLimite, corTema, atualizarCorTema } = useAuth()
+  const navigate = useNavigate()
   // Hooks das MESMAS tabelas usadas no app — sem estrutura paralela.
   const { receitas: receitasExistentes, criar: criarReceita, atualizar: atualizarReceita } = useReceitas()
   const { despesas: despesasExistentes, criar: criarDespesa, atualizar: atualizarDespesa, remover: removerDespesa, carregando: carregandoDespesas, erro: erroCarregamentoDespesas, recarregar: recarregarDespesas } = useDespesas()
@@ -844,6 +848,21 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
     }
   }
 
+  // Conclui o onboarding e navega para um módulo avançado existente (atalhos da
+  // etapa final). Reutiliza finalizar() — não cria fluxo paralelo.
+  async function finalizarEIrPara(rota) {
+    if (emGravacao.current) return
+    emGravacao.current = true
+    setSalvando(true)
+    try {
+      await aoConcluir?.()
+      navigate(rota)
+    } finally {
+      setSalvando(false)
+      emGravacao.current = false
+    }
+  }
+
   // ─── Resumo da tela final ───
   // Soma o que foi configurado AGORA + o que já existia (admin reset / revisão),
   // lendo das mesmas tabelas do app, para o resumo refletir o estado real.
@@ -1538,6 +1557,33 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                   valor={formatCurrency(resumo.disponivelEstimado)}
                   cor={resumo.disponivelEstimado >= 0 ? 'text-gray-900' : 'text-red-600'}
                 />
+              </div>
+
+              {/* Configurações avançadas (opcional): atalhos para módulos JÁ
+                  existentes. Não obrigam preenchimento. Cada um conclui o
+                  onboarding e abre o módulo correspondente. */}
+              <div className="mb-4">
+                <p className="text-xs font-medium text-gray-500 mb-2">Explorar depois (opcional)</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { rota: '/posso-comprar', icone: ShoppingCart, label: 'Financiamentos, consórcio e amortização' },
+                    { rota: '/e-se',          icone: Sparkles,     label: 'Simular cenários (E se...?)' },
+                    { rota: '/projecao',      icone: BarChart2,    label: 'Horizonte financeiro (12 meses)' },
+                    { rota: '/metas',         icone: Target,       label: 'Metas financeiras' },
+                    { rota: '/consultoria',   icone: MessagesSquare, label: 'Consultoria' },
+                  ].map(({ rota, icone: Ic, label }) => (
+                    <button
+                      key={rota}
+                      type="button"
+                      onClick={() => finalizarEIrPara(rota)}
+                      disabled={salvando}
+                      className="flex items-center gap-2 p-2.5 rounded-xl border border-gray-200 text-left text-xs font-medium text-gray-700 hover:border-marca/40 hover:bg-marca-100 transition-colors disabled:opacity-60"
+                    >
+                      <Ic size={15} className="text-marca flex-shrink-0" />
+                      <span className="min-w-0 leading-snug">{label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <button onClick={finalizar} disabled={salvando}

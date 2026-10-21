@@ -10,19 +10,19 @@ import { formatCurrency, exibirMoeda, hojeISO, formatDate } from '../lib/utils'
 import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
 import { supabase } from '../lib/supabase'
-// R├│tulos dos tipos de movimenta├º├úo (visual).
+// Rótulos dos tipos de movimentação (visual).
 const TIPO_MOV = {
   compra:  { label: 'Compra',  icon: ArrowDownCircle, cor: 'text-red-500' },
   recarga: { label: 'Recarga', icon: ArrowUpCircle,   cor: 'text-green-600' },
   estorno: { label: 'Estorno', icon: RotateCcw,       cor: 'text-green-600' },
   ajuste:  { label: 'Ajuste',  icon: SlidersHorizontal, cor: 'text-gray-500' },
 }
-// ÔöÇÔöÇÔöÇ Formul├írio de benef├¡cio (cadastrar/editar) ÔöÇÔöÇÔöÇ
+// ─── Formulário de benefício (cadastrar/editar) ───
 function FormBeneficio({ inicial, onSalvar, onCancelar, salvando }) {
   const [form, setForm] = useState({
     nome: inicial?.nome ?? '',
     tipo: inicial?.tipo ?? 'VR',
-    saldo_inicial: inicial ? '' : '',          // s├│ no cadastro inicial
+    saldo_inicial: inicial ? '' : '',          // só no cadastro inicial
     recarga_valor: inicial?.recarga_valor != null ? String(inicial.recarga_valor) : '',
     recarga_dia: inicial?.recarga_dia ?? '',
     recarga_recorrente: inicial?.recarga_recorrente ?? false,
@@ -44,15 +44,15 @@ function FormBeneficio({ inicial, onSalvar, onCancelar, salvando }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="label">Nome do cart├úo ou operadora</label>
+        <label className="label">Nome do cartão ou operadora</label>
         <input className="input" value={form.nome}
           onChange={e => setForm(p => ({ ...p, nome: e.target.value }))}
-          placeholder="Ex.: Alelo, VR Benef├¡cios" autoFocus />
+          placeholder="Ex.: Alelo, VR Benefícios" autoFocus />
       </div>
       <div>
         <label className="label">Tipo</label>
         <div className="grid grid-cols-2 gap-2">
-          {[{ v: 'VR', t: 'Vale-Refei├º├úo' }, { v: 'VA', t: 'Vale-Alimenta├º├úo' }].map(op => (
+          {[{ v: 'VR', t: 'Vale-Refeição' }, { v: 'VA', t: 'Vale-Alimentação' }].map(op => (
             <button key={op.v} type="button"
               onClick={() => setForm(p => ({ ...p, tipo: op.v }))}
               className={`rounded-xl border p-2.5 text-sm font-medium transition-colors ${
@@ -83,7 +83,7 @@ function FormBeneficio({ inicial, onSalvar, onCancelar, salvando }) {
           <input type="checkbox" checked={form.recarga_recorrente}
             onChange={e => setForm(p => ({ ...p, recarga_recorrente: e.target.checked }))}
             className="w-4 h-4 accent-current text-marca" />
-          <span className="text-sm text-gray-700">Recarga autom├ítica</span>
+          <span className="text-sm text-gray-700">Recarga automática</span>
         </label>
       </div>
       <div className="flex gap-3 pt-1">
@@ -95,7 +95,7 @@ function FormBeneficio({ inicial, onSalvar, onCancelar, salvando }) {
     </form>
   )
 }
-// ÔöÇÔöÇÔöÇ Formul├írio de movimenta├º├úo ÔöÇÔöÇÔöÇ
+// ─── Formulário de movimentação ───
 function FormMovimentacao({ inicial, onSalvar, onCancelar, salvando }) {
   const [form, setForm] = useState({
     tipo: inicial?.tipo ?? 'compra',
@@ -112,7 +112,7 @@ function FormMovimentacao({ inicial, onSalvar, onCancelar, salvando }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="label">Tipo de movimenta├º├úo</label>
+        <label className="label">Tipo de movimentação</label>
         <div className="grid grid-cols-2 gap-2">
           {Object.entries(TIPO_MOV).map(([v, info]) => (
             <button key={v} type="button"
@@ -131,7 +131,7 @@ function FormMovimentacao({ inicial, onSalvar, onCancelar, salvando }) {
           className="input text-xl font-bold text-center py-3" prefixo={null} autoFocus />
       </div>
       <div>
-        <label className="label">Descri├º├úo <span className="text-gray-400">(opcional)</span></label>
+        <label className="label">Descrição <span className="text-gray-400">(opcional)</span></label>
         <input className="input" value={form.descricao}
           onChange={e => setForm(p => ({ ...p, descricao: e.target.value }))} placeholder="Ex.: Mercado" />
       </div>
@@ -142,7 +142,7 @@ function FormMovimentacao({ inicial, onSalvar, onCancelar, salvando }) {
       </div>
       {form.tipo === 'ajuste' && (
         <p className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
-          Ajuste SOMA ao saldo. Para reduzir o saldo manualmente, use "Compra" com a descri├º├úo "Ajuste".
+          Ajuste SOMA ao saldo. Para reduzir o saldo manualmente, use "Compra" com a descrição "Ajuste".
         </p>
       )}
       <div className="flex gap-3 pt-1">
@@ -154,7 +154,7 @@ function FormMovimentacao({ inicial, onSalvar, onCancelar, salvando }) {
     </form>
   )
 }
-// Ajuste do saldo por diferen├ºa, sem alterar o cadastro nem apagar o extrato.
+// Ajuste do saldo por diferença, sem alterar o cadastro nem apagar o extrato.
 function FormAjusteSaldo({ beneficio, saldoAtual, onSalvar, onCancelar, salvando }) {
   const [novoSaldo, setNovoSaldo] = useState(Number(saldoAtual) || 0)
   const atual = Math.round((Number(saldoAtual) || 0) * 100) / 100
@@ -167,19 +167,19 @@ function FormAjusteSaldo({ beneficio, saldoAtual, onSalvar, onCancelar, salvando
   }
   return (
     <form onSubmit={enviar} className="space-y-4">
-      <p className="text-sm text-gray-500">Defina quanto existe agora no cart├úo {beneficio?.nome}. O aplicativo registrar├í somente a diferen├ºa.</p>
+      <p className="text-sm text-gray-500">Defina quanto existe agora no cartão {beneficio?.nome}. O aplicativo registrará somente a diferença.</p>
       <div>
         <p className="label">Saldo calculado atual</p>
         <p className="text-lg font-bold text-gray-900">{formatCurrency(atual)}</p>
       </div>
       <div>
-        <label className="label">Novo saldo dispon├¡vel</label>
+        <label className="label">Novo saldo disponível</label>
         <InputMoeda valor={novoSaldo} onChangeValor={setNovoSaldo} className="input" autoFocus />
       </div>
       <p className="text-xs text-gray-500 rounded-lg bg-gray-50 px-3 py-2">
-        {diferenca > 0 ? `Ser├í registrado um ajuste de entrada de ${formatCurrency(diferenca)}.`
-          : diferenca < 0 ? `Ser├í registrada uma redu├º├úo de ${formatCurrency(Math.abs(diferenca))}. Na l├│gica atual, a redu├º├úo ├® classificada como compra e entra em ÔÇ£Usado no m├¬sÔÇØ.`
-          : 'O saldo informado ├® igual ao atual.'}
+        {diferenca > 0 ? `Será registrado um ajuste de entrada de ${formatCurrency(diferenca)}.`
+          : diferenca < 0 ? `Será registrada uma redução de ${formatCurrency(Math.abs(diferenca))}. Na lógica atual, a redução é classificada como compra e entra em “Usado no mês”.`
+          : 'O saldo informado é igual ao atual.'}
       </p>
       <div className="flex gap-3">
         <button type="button" onClick={onCancelar} className="btn-secondary flex-1">Cancelar</button>
@@ -191,8 +191,8 @@ function FormAjusteSaldo({ beneficio, saldoAtual, onSalvar, onCancelar, salvando
     </form>
   )
 }
-// A pr├│xima recarga ├® calculada pelo dia configurado no benef├¡cio.
-// O limite ├® apenas orientativo e N├âO afeta o limite di├írio da conta banc├íria.
+// A próxima recarga é calculada pelo dia configurado no benefício.
+// O limite é apenas orientativo e NÃO afeta o limite diário da conta bancária.
 function proximaDataRecarga(b, hoje = new Date()) {
   const dia = Number(b.recarga_dia)
   if (!Number.isInteger(dia) || dia < 1 || dia > 31) return null
@@ -222,20 +222,20 @@ function FormCesta13({ inicial, beneficio, salvando, onSalvar, onCancelar }) {
   }
   return (
     <form onSubmit={enviar} className="space-y-4">
-      <p className="text-sm text-gray-600">13┬¬ cesta do {beneficio?.tipo === 'VR' ? 'Vale-Refei├º├úo' : 'Vale-Alimenta├º├úo'} ÔÇö {beneficio?.nome}.</p>
-      <div><label className="label">Valor previsto da 13┬¬ cesta</label>
+      <p className="text-sm text-gray-600">13ª cesta do {beneficio?.tipo === 'VR' ? 'Vale-Refeição' : 'Vale-Alimentação'} — {beneficio?.nome}.</p>
+      <div><label className="label">Valor previsto da 13ª cesta</label>
         <InputMoeda valor={valor} onChangeValor={setValor} className="input" />
       </div>
       <div><label className="label">Data prevista para receber</label>
         <input type="date" className="input" value={data} onChange={e => setData(e.target.value)} required />
       </div>
-      <p className="text-xs text-gray-500">O valor n├úo entra no saldo at├® voc├¬ confirmar que recebeu. Cadastros de VR e VA s├úo independentes.</p>
+      <p className="text-xs text-gray-500">O valor não entra no saldo até você confirmar que recebeu. Cadastros de VR e VA são independentes.</p>
       <div className="flex gap-2"><button className="btn-secondary flex-1" type="button" onClick={onCancelar}>Cancelar</button>
-        <button className="btn-primary flex-1" type="submit" disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar previs├úo'}</button></div>
+        <button className="btn-primary flex-1" type="submit" disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar previsão'}</button></div>
     </form>
   )
 }
-// Registro simplificado sem alterar o saldo banc├írio.
+// Registro simplificado sem alterar o saldo bancário.
 function FormGastoRapido({ beneficio, saldo, onSalvar, onCancelar, salvando }) {
   const [valor, setValor] = useState('')
   const [descricao, setDescricao] = useState('')
@@ -250,18 +250,18 @@ function FormGastoRapido({ beneficio, saldo, onSalvar, onCancelar, salvando }) {
 
   return (
     <form onSubmit={enviar} className="space-y-4">
-      <p className="text-sm text-gray-600">{beneficio.tipo === 'VR' ? 'Vale-Refei├º├úo' : 'Vale-Alimenta├º├úo'} ÔÇö {beneficio.nome}</p>
-      <p className="text-sm text-gray-500">Saldo dispon├¡vel: <strong>{formatCurrency(saldo)}</strong></p>
+      <p className="text-sm text-gray-600">{beneficio.tipo === 'VR' ? 'Vale-Refeição' : 'Vale-Alimentação'} — {beneficio.nome}</p>
+      <p className="text-sm text-gray-500">Saldo disponível: <strong>{formatCurrency(saldo)}</strong></p>
       <div>
         <label className="label">Valor gasto</label>
         <InputMoeda valor={valor} onChangeValor={setValor} className="input text-xl font-bold text-center py-3" autoFocus />
       </div>
       <div>
-        <label className="label">Descri├º├úo (opcional)</label>
+        <label className="label">Descrição (opcional)</label>
         <input className="input" value={descricao} onChange={e => setDescricao(e.target.value)}
-          placeholder={beneficio.tipo === 'VR' ? 'Ex.: Almo├ºo' : 'Ex.: Supermercado'} />
+          placeholder={beneficio.tipo === 'VR' ? 'Ex.: Almoço' : 'Ex.: Supermercado'} />
       </div>
-      <p className="text-xs text-gray-500">Data: hoje. O gasto ser├í lan├ºado apenas neste benef├¡cio.</p>
+      <p className="text-xs text-gray-500">Data: hoje. O gasto será lançado apenas neste benefício.</p>
       {quantia > saldo && <p className="text-sm text-red-600">Saldo insuficiente para este gasto.</p>}
       <div className="flex gap-3">
         <button type="button" onClick={onCancelar} className="btn-secondary flex-1">Cancelar</button>
@@ -273,7 +273,7 @@ function FormGastoRapido({ beneficio, saldo, onSalvar, onCancelar, salvando }) {
   )
 }
 
-// ÔöÇÔöÇÔöÇ Card de um benef├¡cio ÔöÇÔöÇÔöÇ
+// ─── Card de um benefício ───
 function CardBeneficio({ b, saldo, recargaValor, proximaRecarga, totalMes, onMovimentar, onGastoRapido, onEditar, onAjustarSaldo, onRemover, onVerExtrato, onCesta13, onSalvarLimite, cesta13, limiteManual, salvandoLimite, somenteLeitura }) {
   const { ocultar } = useOcultarValores()
   const Icone = b.tipo === 'VR' ? UtensilsCrossed : ShoppingBag
@@ -293,7 +293,7 @@ function CardBeneficio({ b, saldo, recargaValor, proximaRecarga, totalMes, onMov
           </span>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-gray-900 truncate">{b.nome}</p>
-            <p className="text-xs text-gray-400">{b.tipo === 'VR' ? 'Vale-Refei├º├úo' : 'Vale-Alimenta├º├úo'}</p>
+            <p className="text-xs text-gray-400">{b.tipo === 'VR' ? 'Vale-Refeição' : 'Vale-Alimentação'}</p>
           </div>
         </div>
         {!somenteLeitura && (
@@ -304,41 +304,41 @@ function CardBeneficio({ b, saldo, recargaValor, proximaRecarga, totalMes, onMov
         )}
       </div>
       <div className="mt-3">
-        <p className="text-xs text-gray-400">Saldo dispon├¡vel</p>
+        <p className="text-xs text-gray-400">Saldo disponível</p>
         <p className={`text-2xl font-bold leading-tight break-words ${saldo < 0 ? 'text-red-600' : 'text-gray-900'}`}>
           {exibirMoeda(saldo, ocultar)}
         </p>
         {!somenteLeitura && (
           <button type="button" onClick={onAjustarSaldo}
             className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-marca hover:underline">
-            <Pencil size={13} /> Ajustar saldo dispon├¡vel
+            <Pencil size={13} /> Ajustar saldo disponível
           </button>
         )}
       </div>
       <div className="grid grid-cols-3 gap-2 mt-3">
         <div className="bg-gray-50 rounded-xl px-2.5 py-2 min-w-0">
-          <p className="text-[11px] text-gray-400">Recarga/m├¬s</p>
+          <p className="text-[11px] text-gray-400">Recarga/mês</p>
           <p className="text-sm font-semibold text-gray-700 break-words">{exibirMoeda(recargaValor, ocultar)}</p>
         </div>
         <div className="bg-gray-50 rounded-xl px-2.5 py-2 min-w-0">
-          <p className="text-[11px] text-gray-400">Pr├│xima</p>
-          <p className="text-sm font-semibold text-gray-700 break-words">{proximaRecarga || 'ÔÇö'}</p>
+          <p className="text-[11px] text-gray-400">Próxima</p>
+          <p className="text-sm font-semibold text-gray-700 break-words">{proximaRecarga || '—'}</p>
         </div>
         <div className="bg-gray-50 rounded-xl px-2.5 py-2 min-w-0">
-          <p className="text-[11px] text-gray-400">Usado no m├¬s</p>
+          <p className="text-[11px] text-gray-400">Usado no mês</p>
           <p className="text-sm font-semibold text-red-500 break-words">{exibirMoeda(totalMes, ocultar)}</p>
         </div>
       </div>
       <div className="rounded-xl border border-marca/20 bg-marca-50/40 px-3 py-3 mt-3 space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-semibold text-gray-800">Limite di├írio do {b.tipo}</p>
+          <p className="text-sm font-semibold text-gray-800">Limite diário do {b.tipo}</p>
           {!somenteLeitura && <button type="button" className="text-xs font-medium text-marca hover:underline"
             onClick={() => { setEditandoLimite(v => !v); setValorLimite(personalizado ? String(limiteManual) : '') }}>
             {editandoLimite ? 'Fechar' : 'Personalizar'}
           </button>}
         </div>
-        <p className="text-xl font-bold text-marca">{limite == null ? 'Configure a pr├│xima recarga' : exibirMoeda(limite, ocultar)}<span className="text-xs font-normal"> /dia</span></p>
-        <p className="text-xs text-gray-500">{personalizado ? 'Limite escolhido por voc├¬.' : dias ? `Saldo dividido por ${dias} dia(s) at├® a pr├│xima recarga.` : 'Informe o dia da recarga para calcular automaticamente.'}</p>
+        <p className="text-xl font-bold text-marca">{limite == null ? 'Configure a próxima recarga' : exibirMoeda(limite, ocultar)}<span className="text-xs font-normal"> /dia</span></p>
+        <p className="text-xs text-gray-500">{personalizado ? 'Limite escolhido por você.' : dias ? `Saldo dividido por ${dias} dia(s) até a próxima recarga.` : 'Informe o dia da recarga para calcular automaticamente.'}</p>
         {editandoLimite && !somenteLeitura && (
           <div className="space-y-2">
             <label className="label">Limite personalizado (R$)</label>
@@ -347,26 +347,26 @@ function CardBeneficio({ b, saldo, recargaValor, proximaRecarga, totalMes, onMov
               <button type="button" disabled={salvandoLimite || !(Number(valorLimite) > 0)}
                 className="btn-primary text-xs" onClick={async () => { if (await onSalvarLimite(b, Number(valorLimite))) setEditandoLimite(false) }}>Salvar limite</button>
               <button type="button" disabled={salvandoLimite} className="btn-secondary text-xs"
-                onClick={async () => { if (await onSalvarLimite(b, null)) setEditandoLimite(false) }}>Usar autom├ítico</button>
+                onClick={async () => { if (await onSalvarLimite(b, null)) setEditandoLimite(false) }}>Usar automático</button>
             </div>
           </div>
         )}
       </div>
       <div className="rounded-xl border border-gray-200 px-3 py-3 mt-3 space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-semibold text-gray-800">13┬¬ cesta ÔÇö {b.tipo}</p>
+          <p className="text-sm font-semibold text-gray-800">13ª cesta — {b.tipo}</p>
           {!somenteLeitura && <button type="button" onClick={onCesta13} className="text-xs font-semibold text-marca hover:underline">{cesta13 ? 'Editar' : '+ Cadastrar'}</button>}
         </div>
         {cesta13 ? <>
           <p className="text-sm font-semibold text-gray-800">{exibirMoeda(cesta13.valor, ocultar)}</p>
-          <p className="text-xs text-gray-500">Prevista: {formatDate(cesta13.data_prevista)} ┬À {cesta13.recebida ? 'Recebida' : 'Aguardando recebimento'}</p>
-          {!cesta13.recebida && <p className="text-xs text-amber-700">Ainda n├úo somada ao saldo. Ao receber, registre uma recarga no bot├úo Movimentar, identificando-a como 13┬¬ cesta.</p>}
-        </> : <p className="text-xs text-gray-500">Opcional. Cadastre a previs├úo da sua cesta extra anual.</p>}
+          <p className="text-xs text-gray-500">Prevista: {formatDate(cesta13.data_prevista)} · {cesta13.recebida ? 'Recebida' : 'Aguardando recebimento'}</p>
+          {!cesta13.recebida && <p className="text-xs text-amber-700">Ainda não somada ao saldo. Ao receber, registre uma recarga no botão Movimentar, identificando-a como 13ª cesta.</p>}
+        </> : <p className="text-xs text-gray-500">Opcional. Cadastre a previsão da sua cesta extra anual.</p>}
       </div>
       {!somenteLeitura && (
         <div className="grid grid-cols-2 gap-2 mt-3">
             <button onClick={onGastoRapido} className="btn-primary col-span-2 flex items-center justify-center gap-1.5 text-sm py-2">
-              <Plus size={15} /> Gasto r├ípido
+              <Plus size={15} /> Gasto rápido
             </button>
             <button onClick={onMovimentar} className="btn-primary flex-1 flex items-center justify-center gap-1.5 text-sm py-2">
             <Plus size={15} /> Movimentar
@@ -403,8 +403,8 @@ export default function Beneficios() {
       ])
       if (!ativo) return
       if (r1.error || r2.error) {
-        console.error('[Benef├¡cios extra]', r1.error, r2.error)
-        setErroAcao('Falha ao carregar 13┬¬ cesta ou limites. Execute o SQL de configura├º├úo no Supabase.')
+        console.error('[Benefícios extra]', r1.error, r2.error)
+        setErroAcao('Falha ao carregar 13ª cesta ou limites. Execute o SQL de configuração no Supabase.')
       }
       if (!r1.error) setCestas(Object.fromEntries((r1.data || []).map(x => [String(x.beneficio_id), x])))
       if (!r2.error) setLimites(Object.fromEntries((r2.data || []).map(x => [String(x.beneficio_id), x.limite_manual])))
@@ -433,7 +433,7 @@ export default function Beneficios() {
       const ano = Number(dados.data_prevista.slice(0, 4))
       if (ano !== new Date().getFullYear()) throw new Error('Selecione uma data do ano atual para esta cesta.')
       const anterior = cestas[String(cestaBeneficio.id)]
-      if (anterior?.recebida) throw new Error('Esta cesta j├í foi marcada como recebida e n├úo pode ser alterada.')
+      if (anterior?.recebida) throw new Error('Esta cesta já foi marcada como recebida e não pode ser alterada.')
       const { data, error } = await supabase.from('beneficios_cestas_13').upsert({
         beneficio_id: cestaBeneficio.id, usuario_id: usuario.id, ano,
         valor: dados.valor, data_prevista: dados.data_prevista,
@@ -441,18 +441,18 @@ export default function Beneficios() {
       if (error) throw error
       setCestas(prev => ({ ...prev, [String(cestaBeneficio.id)]: data }))
       setCestaBeneficio(null)
-    } catch (e) { setErroAcao(e.message || 'Erro ao salvar 13┬¬ cesta.') }
+    } catch (e) { setErroAcao(e.message || 'Erro ao salvar 13ª cesta.') }
     finally { setSalvandoExtra(false) }
   }
   const [modalBeneficio, setModalBeneficio] = useState(false)
-  const [editando, setEditando] = useState(null)       // benef├¡cio em edi├º├úo
+  const [editando, setEditando] = useState(null)       // benefício em edição
   const [ajustandoSaldo, setAjustandoSaldo] = useState(null)
   const [gastoRapidoDe, setGastoRapidoDe] = useState(null)
-  const [modalMov, setModalMov] = useState(null)        // benef├¡cio alvo da movimenta├º├úo
-  const [extratoDe, setExtratoDe] = useState(null)      // benef├¡cio do extrato
+  const [modalMov, setModalMov] = useState(null)        // benefício alvo da movimentação
+  const [extratoDe, setExtratoDe] = useState(null)      // benefício do extrato
   const [salvando, setSalvando] = useState(false)
   const [erroAcao, setErroAcao] = useState('')
-// Aplica recargas autom├íticas pendentes do m├¬s ao abrir (idempotente).
+// Aplica recargas automáticas pendentes do mês ao abrir (idempotente).
   useEffect(() => {
     if (!carregando && beneficios.length > 0) aplicarRecargasDoMes()
 // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -464,7 +464,7 @@ export default function Beneficios() {
       else await criarBeneficio(dados)
       setModalBeneficio(false); setEditando(null)
     } catch (e) {
-      setErroAcao(e.message || 'Erro ao salvar o benef├¡cio.')
+      setErroAcao(e.message || 'Erro ao salvar o benefício.')
     } finally { setSalvando(false) }
   }
   async function salvarMovimentacao(dados) {
@@ -473,7 +473,7 @@ export default function Beneficios() {
       await criarMovimentacao({ beneficio_id: modalMov.id, ...dados })
       setModalMov(null)
     } catch (e) {
-      setErroAcao(e.message || 'Erro ao registrar a movimenta├º├úo.')
+      setErroAcao(e.message || 'Erro ao registrar a movimentação.')
     } finally { setSalvando(false) }
   }
   async function salvarGastoRapido(dados) {
@@ -484,7 +484,7 @@ export default function Beneficios() {
       await registrarGastoRapido(dados)
       setGastoRapidoDe(null)
     } catch (e) {
-      setErroAcao(e.message || 'N├úo foi poss├¡vel registrar o gasto r├ípido.')
+      setErroAcao(e.message || 'Não foi possível registrar o gasto rápido.')
     } finally {
       setSalvando(false)
     }
@@ -495,12 +495,12 @@ export default function Beneficios() {
     setSalvando(true)
     setErroAcao('')
     try {
-// O hook existente soma "ajuste" e subtrai "compra".// Preserva a fonte ├║nica do saldo; n├úo altera saldo_inicial.
+// O hook existente soma "ajuste" e subtrai "compra".// Preserva a fonte única do saldo; não altera saldo_inicial.
       await criarMovimentacao({
         beneficio_id: ajustandoSaldo.id,
         tipo: diferenca > 0 ? 'ajuste' : 'compra',
         valor: Math.abs(diferenca),
-        descricao: diferenca > 0 ? 'Ajuste de saldo (entrada)' : 'Ajuste de saldo (redu├º├úo)',
+        descricao: diferenca > 0 ? 'Ajuste de saldo (entrada)' : 'Ajuste de saldo (redução)',
         data: hojeISO(),
       })
       setAjustandoSaldo(null)
@@ -511,19 +511,19 @@ export default function Beneficios() {
     }
   }
   async function excluirBeneficio(b) {
-    if (!confirm(`Remover "${b.nome}" e todas as suas movimenta├º├Áes?`)) return
+    if (!confirm(`Remover "${b.nome}" e todas as suas movimentações?`)) return
     try { await removerBeneficio(b.id) } catch (e) { setErroAcao(e.message || 'Erro ao remover.') }
   }
   async function excluirMov(id) {
-    if (!confirm('Remover esta movimenta├º├úo? O saldo ser├í recalculado.')) return
-    try { await removerMovimentacao(id) } catch (e) { setErroAcao(e.message || 'Erro ao remover a movimenta├º├úo.') }
+    if (!confirm('Remover esta movimentação? O saldo será recalculado.')) return
+    try { await removerMovimentacao(id) } catch (e) { setErroAcao(e.message || 'Erro ao remover a movimentação.') }
   }
   return (
     <div className="space-y-5 pb-mobilenav md:pb-0">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900">Benef├¡cios</h1>
-          <p className="text-sm text-gray-500 mt-1">Vale-Refei├º├úo e Vale-Alimenta├º├úo, separados do seu saldo em conta.</p>
+          <h1 className="text-2xl font-bold text-gray-900">Benefícios</h1>
+          <p className="text-sm text-gray-500 mt-1">Vale-Refeição e Vale-Alimentação, separados do seu saldo em conta.</p>
         </div>
         {!somenteLeitura && (
           <button onClick={() => { setEditando(null); setModalBeneficio(true) }}
@@ -539,7 +539,7 @@ export default function Beneficios() {
       ) : beneficios.length === 0 ? (
         <div className="card text-center py-12">
           <UtensilsCrossed size={36} className="text-gray-200 mx-auto mb-3" />
-          <p className="text-sm text-gray-500">Nenhum benef├¡cio cadastrado ainda.</p>
+          <p className="text-sm text-gray-500">Nenhum benefício cadastrado ainda.</p>
           {!somenteLeitura && (
             <button onClick={() => { setEditando(null); setModalBeneficio(true) }}
               className="mt-3 text-sm text-marca font-medium hover:underline">+ Cadastrar VR ou VA</button>
@@ -572,50 +572,50 @@ export default function Beneficios() {
         </div>
       )}
       <p className="text-xs text-gray-400">
-        O VR e o VA s├úo separados do saldo banc├írio e do limite di├írio da conta. O limite di├írio mostrado aqui ├® exclusivo de cada benef├¡cio.
+        O VR e o VA são separados do saldo bancário e do limite diário da conta. O limite diário mostrado aqui é exclusivo de cada benefício.
       </p>
-      {/* Planejamento da 13┬¬ cesta ÔÇö sem cr├®dito autom├ítico no saldo */}
+      {/* Planejamento da 13ª cesta — sem crédito automático no saldo */}
       <Modal aberto={!!cestaBeneficio} onFechar={() => setCestaBeneficio(null)}
-        titulo={cestaBeneficio ? `13┬¬ cesta ÔÇö ${cestaBeneficio.tipo}` : '13┬¬ cesta'}>
+        titulo={cestaBeneficio ? `13ª cesta — ${cestaBeneficio.tipo}` : '13ª cesta'}>
         {cestaBeneficio && <FormCesta13 key={String(cestaBeneficio.id)}
           beneficio={cestaBeneficio} inicial={cestas[String(cestaBeneficio.id)]}
           salvando={salvandoExtra} onSalvar={salvarCesta13}
           onCancelar={() => setCestaBeneficio(null)} />}
       </Modal>
-      {/* Modal: cadastrar/editar benef├¡cio */}
+      {/* Modal: cadastrar/editar benefício */}
       <Modal aberto={modalBeneficio} onFechar={() => { setModalBeneficio(false); setEditando(null) }}
-        titulo={editando ? 'Editar benef├¡cio' : 'Novo benef├¡cio'}>
+        titulo={editando ? 'Editar benefício' : 'Novo benefício'}>
         <FormBeneficio inicial={editando} onSalvar={salvarBeneficio}
           onCancelar={() => { setModalBeneficio(false); setEditando(null) }} salvando={salvando} />
       </Modal>
-      {/* Modal: gasto r├ípido */}
+      {/* Modal: gasto rápido */}
         <Modal aberto={!!gastoRapidoDe} onFechar={() => { if (!salvando) setGastoRapidoDe(null) }}
-          titulo={gastoRapidoDe ? `Gasto r├ípido ÔÇö ${gastoRapidoDe.nome}` : 'Gasto r├ípido'}>
+          titulo={gastoRapidoDe ? `Gasto rápido — ${gastoRapidoDe.nome}` : 'Gasto rápido'}>
           {gastoRapidoDe && <FormGastoRapido key={gastoRapidoDe.id} beneficio={gastoRapidoDe}
             saldo={saldoDoBeneficio(gastoRapidoDe.id)} onSalvar={salvarGastoRapido}
             onCancelar={() => setGastoRapidoDe(null)} salvando={salvando} />}
         </Modal>
 
-        {/* Modal: nova movimenta├º├úo */}
+        {/* Modal: nova movimentação */}
       <Modal aberto={!!modalMov} onFechar={() => setModalMov(null)}
-        titulo={modalMov ? `Movimentar ÔÇö ${modalMov.nome}` : 'Movimentar'}>
+        titulo={modalMov ? `Movimentar — ${modalMov.nome}` : 'Movimentar'}>
         <FormMovimentacao onSalvar={salvarMovimentacao} onCancelar={() => setModalMov(null)} salvando={salvando} />
       </Modal>
       {/* Modal: ajustar saldo calculado */}
       <Modal aberto={!!ajustandoSaldo} onFechar={() => setAjustandoSaldo(null)}
-        titulo={ajustandoSaldo ? `Ajustar saldo ÔÇö ${ajustandoSaldo.nome}` : 'Ajustar saldo'}>
+        titulo={ajustandoSaldo ? `Ajustar saldo — ${ajustandoSaldo.nome}` : 'Ajustar saldo'}>
         {ajustandoSaldo && (
           <FormAjusteSaldo key={ajustandoSaldo.id} beneficio={ajustandoSaldo}
             saldoAtual={saldoDoBeneficio(ajustandoSaldo.id)}
             onSalvar={salvarAjusteSaldo} onCancelar={() => setAjustandoSaldo(null)} salvando={salvando} />
         )}
       </Modal>
-      {/* Modal: extrato do benef├¡cio */}
+      {/* Modal: extrato do benefício */}
       <Modal aberto={!!extratoDe} onFechar={() => setExtratoDe(null)}
-        titulo={extratoDe ? `Extrato ÔÇö ${extratoDe.nome}` : 'Extrato'}>
+        titulo={extratoDe ? `Extrato — ${extratoDe.nome}` : 'Extrato'}>
         {extratoDe && (() => {
           const movs = movsDeBeneficio(extratoDe.id)
-          if (movs.length === 0) return <p className="text-sm text-gray-500">Nenhuma movimenta├º├úo ainda.</p>
+          if (movs.length === 0) return <p className="text-sm text-gray-500">Nenhuma movimentação ainda.</p>
           return (
             <ul className="space-y-2">
               {movs.map(m => {
@@ -627,7 +627,7 @@ export default function Beneficios() {
                       <info.icon size={16} className={`${info.cor} flex-shrink-0`} />
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{m.descricao || info.label}</p>
-                        <p className="text-xs text-gray-400">{info.label} ÔÇó {formatDate(m.data)}</p>
+                        <p className="text-xs text-gray-400">{info.label} • {formatDate(m.data)}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">

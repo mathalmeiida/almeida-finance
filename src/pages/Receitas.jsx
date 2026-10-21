@@ -11,13 +11,25 @@ const { ano: anoAtual, mes: mesAtual } = partesHojeBrasil()
 
 function FormReceita({ onSalvar, onCancelar, carregando, receitaInicial, textoBotao, dataPadrao }) {
   const { categorias } = useCategorias('receita')
+  // Frequência inicial (retrocompatível): usa a coluna "frequencia" quando
+  // existir; senão deriva do booleano "recorrente" (mensal/pontual).
+  const freqInicial = receitaInicial?.frequencia
+    || (receitaInicial == null ? 'mensal' : (receitaInicial.recorrente ? 'mensal' : 'nao_repete'))
+  // Término inicial: por nº de ocorrências, por data, ou sem fim.
+  const terminoInicial = receitaInicial?.ocorrencias != null ? 'ocorrencias'
+    : receitaInicial?.data_fim ? 'data' : 'sem_fim'
+
   const [form, setForm] = useState({
     descricao: receitaInicial?.descricao ?? '',
     valor: receitaInicial != null ? String(receitaInicial.valor) : '',
     data: receitaInicial?.data ?? dataPadrao ?? hojeISO(),
-    // padrão: recorrente (a maioria das receitas é mensal); na edição usa o valor salvo
-    recorrente: receitaInicial != null ? !!receitaInicial.recorrente : true,
     categoria: receitaInicial?.categoria ?? '',
+    frequencia: freqInicial,
+    // intervalo em meses (só para "personalizado")
+    recorrencia_meses: receitaInicial?.recorrencia_meses != null ? String(receitaInicial.recorrencia_meses) : '2',
+    termino: terminoInicial,
+    ocorrencias: receitaInicial?.ocorrencias != null ? String(receitaInicial.ocorrencias) : '12',
+    data_fim: receitaInicial?.data_fim ?? '',
   })
 
   function handleChange(e) {
@@ -25,12 +37,40 @@ function FormReceita({ onSalvar, onCancelar, carregando, receitaInicial, textoBo
     setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
   }
 
+  // Opções de frequência — mesmas do onboarding, suportadas pelo banco
+  // (CHECK da coluna frequencia). Cálculo via lib recorrenciaReceita.
+  const OPCOES_FREQ = [
+    { v: 'nao_repete',     t: 'Não repete (só este mês)' },
+    { v: 'semanal',        t: 'Semanal' },
+    { v: 'a_cada_10_dias', t: 'A cada 10 dias' },
+    { v: 'quinzenal',      t: 'Quinzenal (a cada 15 dias)' },
+    { v: 'a_cada_20_dias', t: 'A cada 20 dias' },
+    { v: 'mensal',         t: 'Mensal' },
+    { v: 'por_meses',      t: 'A cada X meses' },
+    { v: 'personalizado',  t: 'Personalizado (intervalo em meses)' },
+  ]
+  const ehRepete = form.frequencia !== 'nao_repete'
+  const usaIntervaloMeses = form.frequencia === 'por_meses' || form.frequencia === 'personalizado'
+
   function handleSubmit(e) {
     e.preventDefault()
-    onSalvar({
-      ...form,
+    const freq = form.frequencia
+    const recorrente = freq !== 'nao_repete'
+    // Monta o payload mapeando para as colunas reais da tabela receitas.
+    const payload = {
+      descricao: form.descricao,
       valor: Number(form.valor) || 0,
-    })
+      data: form.data,
+      categoria: form.categoria,
+      recorrente, // mantém compatibilidade com registros/telas antigas
+      frequencia: freq,
+      recorrencia_meses: usaIntervaloMeses ? (Math.max(1, parseInt(form.recorrencia_meses, 10) || 1)) : null,
+      ocorrencias: recorrente && form.termino === 'ocorrencias'
+        ? Math.max(1, parseInt(form.ocorrencias, 10) || 1)
+        : null,
+      data_fim: recorrente && form.termino === 'data' && form.data_fim ? form.data_fim : null,
+    }
+    onSalvar(payload)
   }
 
   return (
@@ -61,36 +101,46 @@ function FormReceita({ onSalvar, onCancelar, carregando, receitaInicial, textoBo
         </select>
       </div>
 
-      {/* Seletor de recorrência visível */}
+      {/* Frequência da receita */}
       <div>
-        <label className="label">Esta receita se repete todo mês?</label>
-        <div className="flex gap-3 mt-1">
-          <label className={`flex-1 flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-            form.recorrente ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
-          }`}>
-            <input type="radio" name="recorrente" checked={form.recorrente === true}
-              onChange={() => setForm(p => ({ ...p, recorrente: true }))} className="hidden" />
-            <span className="text-lg">🔁</span>
-            <div>
-              <p className="text-sm font-medium text-gray-900">Sim, todo mês</p>
-              <p className="text-xs text-gray-400">Ex: salário, aluguel recebido</p>
-            </div>
-          </label>
-          <label className={`flex-1 flex items-center gap-2.5 p-3 rounded-xl border-2 cursor-pointer transition-all ${
-            !form.recorrente ? 'border-gray-500 bg-gray-50' : 'border-gray-200 hover:border-gray-300'
-          }`}>
-            <input type="radio" name="recorrente" checked={form.recorrente === false}
-              onChange={() => setForm(p => ({ ...p, recorrente: false }))} className="hidden" />
-            <span className="text-lg">1️⃣</span>
-            <div>
-              <p className="text-sm font-medium text-gray-900">Não, só este mês</p>
-              <p className="text-xs text-gray-400">Ex: bônus, venda pontual</p>
-            </div>
-          </label>
-        </div>
+        <label className="label">Com que frequência você recebe?</label>
+        <select name="frequencia" value={form.frequencia} onChange={handleChange} className="input">
+          {OPCOES_FREQ.map(o => <option key={o.v} value={o.v}>{o.t}</option>)}
+        </select>
+
+        {/* Intervalo em meses (por_meses / personalizado) */}
+        {usaIntervaloMeses && (
+          <div className="mt-2">
+            <label className="label">A cada quantos meses?</label>
+            <input name="recorrencia_meses" value={form.recorrencia_meses} onChange={handleChange}
+              type="number" min="1" max="60" inputMode="numeric" className="input" placeholder="Ex: 2" />
+          </div>
+        )}
+
+        {/* Término da recorrência — só quando repete */}
+        {ehRepete && (
+          <div className="mt-3">
+            <label className="label">Quando termina?</label>
+            <select name="termino" value={form.termino} onChange={handleChange} className="input">
+              <option value="sem_fim">Sem data para terminar</option>
+              <option value="ocorrencias">Após um número de recebimentos</option>
+              <option value="data">Em uma data final</option>
+            </select>
+            {form.termino === 'ocorrencias' && (
+              <input name="ocorrencias" value={form.ocorrencias} onChange={handleChange}
+                type="number" min="1" max="600" inputMode="numeric" className="input mt-2"
+                placeholder="Nº de recebimentos (ex: 12)" />
+            )}
+            {form.termino === 'data' && (
+              <input name="data_fim" value={form.data_fim} onChange={handleChange}
+                type="date" className="input mt-2" />
+            )}
+          </div>
+        )}
+
         <p className="text-xs text-gray-400 mt-2 flex items-start gap-1">
           <span>ℹ️</span>
-          <span>Receitas recorrentes aparecem na projeção dos próximos meses. Pontuais, apenas neste mês.</span>
+          <span>Receitas recorrentes aparecem na projeção dos próximos meses, respeitando a frequência e o término. "Não repete" conta apenas neste mês.</span>
         </p>
       </div>
 

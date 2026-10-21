@@ -1,40 +1,144 @@
+
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
-// Recorrência de receitas vive numa lib PURA (testável sem React/supabase).
-// Reexportada aqui para manter a superfície de import usada por useProjecao.
 import {
-  valorReceitaRecorrenteNoMes, frequenciaDaReceita, receitaRecorrenteAtivaNoMes,
+  valorReceitaRecorrenteNoMes,
+  frequenciaDaReceita,
+  receitaRecorrenteAtivaNoMes,
 } from '../lib/recorrenciaReceita'
-export { valorReceitaRecorrenteNoMes, frequenciaDaReceita, receitaRecorrenteAtivaNoMes }
+
+export {
+  valorReceitaRecorrenteNoMes,
+  frequenciaDaReceita,
+  receitaRecorrenteAtivaNoMes,
+}
+
+const FREQUENCIAS = new Set([
+  'nao_repete',
+  'semanal',
+  'quinzenal',
+  'mensal',
+  'por_meses',
+  'personalizado',
+  'a_cada_10_dias',
+  'a_cada_20_dias',
+  'dias_especificos',
+])
+
+function prepararDados(dados) {
+  const resultado = { ...dados }
+
+  if (Object.prototype.hasOwnProperty.call(resultado, 'frequencia')) {
+    if (!FREQUENCIAS.has(resultado.frequencia)) {
+      throw new Error('Frequência de receita inválida.')
+    }
+    resultado.recorrente = resultado.frequencia !== 'nao_repete'
+  }
+
+  if (Object.prototype.hasOwnProperty.call(resultado, 'dias_do_mes')) {
+    const dias = resultado.dias_do_mes
+    if (dias != null && (
+      !Array.isArray(dias) ||
+      dias.length === 0 ||
+      dias.some(d => !Number.isInteger(d) || d < 1 || d > 31) ||
+      new Set(dias).size !== dias.length
+    )) {
+      throw new Error('Selecione dias do mês entre 1 e 31, sem repetições.')
+    }
+    resultado.dias_do_mes = dias == null
+      ? null
+      : [...dias].sort((a, b) => a - b)
+  }
+
+  if (
+    resultado.frequencia === 'dias_especificos' &&
+    (!Array.isArray(resultado.dias_do_mes) ||
+      resultado.dias_do_mes.length === 0)
+  ) {
+    throw new Error('Selecione pelo menos um dia de recebimento.')
+  }
+
+  return resultado
+}
+
+function pertenceAoMes(dataISO, mes, ano) {
+  if (mes == null || ano == null) return true
+  if (!dataISO) return false
+  const prefixo = `${ano}-${String(mes).padStart(2, '0')}-`
+  return dataISO.startsWith(prefixo)
+}
 
 export function useReceitas(mes, ano) {
-  // idEfetivo = id do cliente no modo consultoria, senão o próprio. As LEITURAS
-  // usam idEfetivo; as ESCRITAS seguem usando usuario.id (o banco também bloqueia
-  // escrita cruzada: não há policy de escrita para o consultor).
   const { usuario, idEfetivo, modoConsultoria } = useAuth()
   const [receitas, setReceitas] = useState([])
-  // TODAS as receitas recorrentes do usuário (sem filtro de mês). Usado para
-  // projetar, na tela de Receitas, as recorrentes iniciadas em meses anteriores
-  // ao mês visualizado. NÃO entra em `receitas` (que o useProjecao consome),
-  // para não causar dupla contagem no saldo/projeção.
   const [recorrentes, setRecorrentes] = useState([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState(null)
 
   useEffect(() => {
-    if (!idEfetivo) return
-    buscar()
-    buscarRecorrentes()
-    // Depende do ID efetivo (não do objeto) para não refazer o fetch quando o
-    // Supabase apenas renova o token, e para recarregar ao entrar/sair do modo
-    // consultoria.
+    if (!idEfetivo) {
+      setReceitas([])
+      setRecorrentes([])
+      setCarregando(false)
+      return
+    }
+
+    let cancelado = false
+    setCarregando(true)
+    setErro(null)
+
+    async function carregar() {
+      try {
+        let query = supabase
+          .from('receitas')
+          .select('*')
+          .eq('usuario_id', idEfetivo)
+          .order('data', { ascending: false })
+
+        if (mes != null && ano != null) {
+          const inicio = `${ano}-${String(mes).padStart(2, '0')}-01`
+          const ultimoDia = new Date(ano, mes, 0).getDate()
+          const fim = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`
+          query = query.gte('data', inicio).lte('data', fim)
+        }
+
+        const [lista, todas] = await Promise.all([
+          query,
+          supabase
+            .from('receitas')
+            .select('*')
+            .eq('usuario_id', idEfetivo)
+            .eq('recorrente', true),
+        ])
+
+        if (lista.error) throw lista.error
+        if (todas.error) throw todas.error
+
+        if (!cancelado) {
+          setReceitas(lista.data || [])
+          setRecorrentes(todas.data || [])
+        }
+      } catch (e) {
+        if (!cancelado) {
+          setErro(e.message || 'Erro ao carregar receitas.')
+        }
+      } finally {
+        if (!cancelado) setCarregando(false)
+      }
+    }
+
+    carregar()
+    return () => { cancelado = true }
   }, [idEfetivo, mes, ano])
 
   async function buscar() {
+    if (!idEfetivo) return
+
     setCarregando(true)
     setErro(null)
+
     try {
       let query = supabase
         .from('receitas')
@@ -42,96 +146,124 @@ export function useReceitas(mes, ano) {
         .eq('usuario_id', idEfetivo)
         .order('data', { ascending: false })
 
-      // Filtra pelo mês/ano se informado
-      if (mes !== undefined && ano !== undefined) {
+      if (mes != null && ano != null) {
         const inicio = `${ano}-${String(mes).padStart(2, '0')}-01`
-        const fim = new Date(ano, mes, 0).toISOString().split('T')[0] // último dia do mês
+        const ultimoDia = new Date(ano, mes, 0).getDate()
+        const fim = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`
         query = query.gte('data', inicio).lte('data', fim)
       }
 
       const { data, error } = await query
       if (error) throw error
       setReceitas(data || [])
-    } catch (err) {
-      setErro(err.message)
+    } catch (e) {
+      setErro(e.message || 'Erro ao carregar receitas.')
+      throw e
     } finally {
       setCarregando(false)
     }
   }
 
-  // Busca todas as receitas recorrentes (independente do mês selecionado).
   async function buscarRecorrentes() {
-    try {
-      const { data, error } = await supabase
-        .from('receitas')
-        .select('*')
-        .eq('usuario_id', idEfetivo)
-        .eq('recorrente', true)
-      if (error) throw error
-      setRecorrentes(data || [])
-    } catch {
-      // Silencioso: sem recorrentes, a tela mostra apenas as do próprio mês.
+    if (!idEfetivo) return
+
+    const { data, error } = await supabase
+      .from('receitas')
+      .select('*')
+      .eq('usuario_id', idEfetivo)
+      .eq('recorrente', true)
+
+    if (error) {
+      setErro(error.message)
+      throw error
     }
+
+    setRecorrentes(data || [])
   }
 
   async function criar(dados) {
     bloquearSeConsultoria(modoConsultoria)
+    if (!usuario?.id) {
+      throw new Error('Usuário não autenticado.')
+    }
+
+    const payload = prepararDados(dados)
     const { data, error } = await supabase
       .from('receitas')
-      .insert([{ ...dados, usuario_id: usuario.id }])
+      .insert([{ ...payload, usuario_id: usuario.id }])
       .select()
       .single()
+
     if (error) throw error
-    // Só injeta a nova receita na lista em memória se ela pertencer ao mês/ano
-    // atualmente filtrado. Caso contrário (ex.: receita cadastrada para um mês
-    // futuro enquanto vemos outro mês), NÃO a adicionamos aqui — ela apareceria
-    // no mês errado e "sumiria" no próximo refetch. Ela foi salva no banco e
-    // aparece normalmente ao navegar até o mês correspondente à sua data.
-    if (pertenceAoMesFiltrado(data?.data)) {
+
+    if (pertenceAoMes(data.data, mes, ano)) {
       setReceitas(prev => [data, ...prev])
     }
-    buscarRecorrentes() // mantém a projeção de recorrentes atualizada
-    return data
-  }
 
-  // Verifica se uma data 'YYYY-MM-DD' cai no mês/ano filtrado por este hook.
-  // Sem filtro (mes/ano indefinidos) considera que tudo pertence (comportamento
-  // antigo preservado). Comparação por string, sem new Date(), para não sofrer
-  // deslocamento de timezone.
-  function pertenceAoMesFiltrado(dataISO) {
-    if (mes === undefined || ano === undefined) return true
-    if (!dataISO) return true
-    const inicio = `${ano}-${String(mes).padStart(2, '0')}-01`
-    const fim = new Date(ano, mes, 0).toISOString().split('T')[0]
-    return dataISO >= inicio && dataISO <= fim
+    await buscarRecorrentes()
+    return data
   }
 
   async function atualizar(id, dados) {
     bloquearSeConsultoria(modoConsultoria)
+    if (!usuario?.id) {
+      throw new Error('Usuário não autenticado.')
+    }
+
+    const payload = prepararDados(dados)
     const { data, error } = await supabase
       .from('receitas')
-      .update(dados)
+      .update(payload)
       .eq('id', id)
+      .eq('usuario_id', usuario.id)
       .select()
       .single()
+
     if (error) throw error
-    setReceitas(prev => prev.map(r => r.id === id ? data : r))
-    buscarRecorrentes()
+
+    setReceitas(prev => {
+      const semAntiga = prev.filter(r => r.id !== id)
+      return pertenceAoMes(data.data, mes, ano)
+        ? [data, ...semAntiga]
+        : semAntiga
+    })
+
+    await buscarRecorrentes()
     return data
   }
 
   async function remover(id) {
     bloquearSeConsultoria(modoConsultoria)
+    if (!usuario?.id) {
+      throw new Error('Usuário não autenticado.')
+    }
+
     const { error } = await supabase
       .from('receitas')
       .delete()
       .eq('id', id)
+      .eq('usuario_id', usuario.id)
+
     if (error) throw error
+
     setReceitas(prev => prev.filter(r => r.id !== id))
-    buscarRecorrentes()
+    await buscarRecorrentes()
   }
 
-  const total = receitas.reduce((acc, r) => acc + Number(r.valor), 0)
+  const total = receitas.reduce(
+    (acc, r) => acc + (Number(r.valor) || 0),
+    0
+  )
 
-  return { receitas, recorrentes, total, carregando, erro, criar, atualizar, remover, recarregar: buscar }
+  return {
+    receitas,
+    recorrentes,
+    total,
+    carregando,
+    erro,
+    criar,
+    atualizar,
+    remover,
+    recarregar: buscar,
+  }
 }
