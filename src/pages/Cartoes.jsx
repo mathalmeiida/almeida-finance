@@ -778,9 +778,10 @@ const [modalFatura, setModalFatura] = useState(false)
 
 
 
-  // ── Próximos 6 meses (a partir do mês atual) ──*
+  // ── Próximas faturas: começa em 6 meses; "Ver mais" soma +6 por vez ──*
+  const [mesesVisiveis, setMesesVisiveis] = useState(6)
 
-  const proximosMeses = Array.from({ length: 6 }, (_, i) => {
+  const proximosMeses = Array.from({ length: mesesVisiveis }, (_, i) => {
 
     const { ano, mes } = somaMeses(anoAtual, mesAtual, i)
 
@@ -1532,7 +1533,7 @@ const [modalFatura, setModalFatura] = useState(false)
 
         <h2 className="text-base font-semibold text-gray-900 mb-1">Próximas faturas</h2>
 
-        <p className="text-xs text-gray-400 mb-3">Previsão dos próximos 6 meses. Toque em um mês para ver os detalhes.</p>
+        <p className="text-xs text-gray-400 mb-3">Acompanhe suas faturas atuais e futuras</p>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
 
@@ -1568,6 +1569,27 @@ const [modalFatura, setModalFatura] = useState(false)
 
           })}
 
+        </div>
+
+        {/* Ver mais / ver menos meses (6 em 6). Permite acompanhar parcelas
+            futuras de 12, 24, 36x+ sem alterar lançamentos. */}
+        <div className="flex flex-wrap gap-2 mt-3">
+          <button
+            type="button"
+            onClick={() => setMesesVisiveis(n => n + 6)}
+            className="btn-secondary text-sm"
+          >
+            Ver mais meses
+          </button>
+          {mesesVisiveis > 6 && (
+            <button
+              type="button"
+              onClick={() => setMesesVisiveis(6)}
+              className="text-sm text-gray-500 hover:text-gray-700 underline underline-offset-2 px-2"
+            >
+              Ver menos
+            </button>
+          )}
         </div>
 
       </div>
