@@ -35,6 +35,10 @@ faturas_cartao
 -- (migration: 2026-10_reserva_configurada.sql)
 -- ALTER TABLE public.perfis
 --   ADD COLUMN IF NOT EXISTS reserva_configurada BOOLEAN NOT NULL DEFAULT FALSE;
+-- Marcador do card "Complete sua configuração" dispensado na Home (só UI).
+-- (migration: 2026-10_comece_por_aqui_dispensado.sql)
+-- ALTER TABLE public.perfis
+--   ADD COLUMN IF NOT EXISTS comece_por_aqui_dispensado BOOLEAN NOT NULL DEFAULT FALSE;
 -- Saldo atual real informado pelo usuário ("Quanto você tem disponível hoje?").
 -- saldo_base = valor informado; saldo_base_data = marco temporal (a partir dele
 -- as receitas/despesas alteram o saldo, evitando dupla contagem do histórico).
@@ -418,6 +422,9 @@ CREATE TABLE IF NOT EXISTS public.compras_cartao (
   data_compra      DATE NOT NULL,
   numero_parcelas  INTEGER NOT NULL DEFAULT 1 CHECK (numero_parcelas > 0),
   categoria_id     UUID REFERENCES public.categorias(id) ON DELETE SET NULL,
+  -- Subcategoria opcional (migration: 2026-10_compras_cartao_subcategoria.sql).
+  -- ALTER TABLE public.compras_cartao ADD COLUMN IF NOT EXISTS subcategoria_id UUID REFERENCES public.subcategorias(id) ON DELETE SET NULL;
+  subcategoria_id  UUID REFERENCES public.subcategorias(id) ON DELETE SET NULL,
   criado_em        TIMESTAMPTZ DEFAULT NOW()
 );
 

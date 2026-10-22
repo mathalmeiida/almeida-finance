@@ -13,6 +13,7 @@ import { useComprasCartao } from '../hooks/useComprasCartao'
 import { useFaturasCartao } from '../hooks/useFaturasCartao'
 
 import { useCategorias } from '../hooks/useCategorias'
+import SeletorCategoriaModerno from '../components/SeletorCategoriaModerno'
 
 import Modal from '../components/Modal'
 
@@ -208,7 +209,7 @@ function FormCartao({ onSalvar, onCancelar, carregando, cartaoInicial, textoBota
 
 // ─── Formulário de nova compra no cartão ──────────────────────────────────────*
 
-function FormCompra({ cartoes, cartaoIdFixo, onSalvar, onCancelar, carregando }) {
+function FormCompra({ cartoes, cartaoIdFixo, onSalvar, onCancelar, carregando, compraInicial }) {
 
   const { categorias } = useCategorias('despesa')
 
@@ -222,7 +223,9 @@ function FormCompra({ cartoes, cartaoIdFixo, onSalvar, onCancelar, carregando })
 
     data_compra: hojeISO(),
 
-    categoria_id: '',
+    categoria_id: compraInicial?.categoria_id ?? '',
+
+    subcategoria_id: compraInicial?.subcategoria_id ?? '',
 
     tipo: 'avista',
 
@@ -265,6 +268,8 @@ function FormCompra({ cartoes, cartaoIdFixo, onSalvar, onCancelar, carregando })
       data_compra: form.data_compra,
 
       categoria_id: form.categoria_id || null,
+
+      subcategoria_id: form.subcategoria_id || null,
 
       numero_parcelas: form.tipo === 'parcelada' ? nParc : 1,
 
@@ -332,19 +337,15 @@ function FormCompra({ cartoes, cartaoIdFixo, onSalvar, onCancelar, carregando })
 
       </div>
 
-      <div>
-
-        <label className="label">Categoria</label>
-
-        <select name="categoria_id" value={form.categoria_id} onChange={handleChange} className="input">
-
-          <option value="">Sem categoria</option>
-
-          {categorias.map(c => <option key={c.id} value={c.id}>{c.icone} {c.nome}</option>)}
-
-        </select>
-
-      </div>
+      {/* Categoria + subcategoria (mesmo seletor da aba Despesas). Ao trocar a
+          categoria, a subcategoria é limpa automaticamente pelo componente. */}
+      <SeletorCategoriaModerno
+        categorias={categorias}
+        value={form.categoria_id}
+        onChange={(categoria_id) => setForm(prev => ({ ...prev, categoria_id, subcategoria_id: '' }))}
+        subcategoriaValue={form.subcategoria_id}
+        onSubcategoriaChange={(subcategoria_id) => setForm(prev => ({ ...prev, subcategoria_id }))}
+      />
 
 
 
