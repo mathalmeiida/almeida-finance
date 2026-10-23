@@ -49,10 +49,10 @@ export default function Login() {
     <div className="min-h-screen lg:grid lg:grid-cols-2">
       {/* ── Apresentação (desktop) — fundo azul-marinho com gradiente discreto ── */}
       <aside
-        className="hidden lg:flex flex-col justify-center gap-8 p-10 xl:p-14 text-white relative overflow-hidden"
+        className="hidden lg:flex flex-col justify-center items-end gap-7 py-10 pl-10 pr-10 xl:pr-16 text-white relative overflow-hidden"
         style={{ backgroundImage: 'radial-gradient(120% 120% at 100% 0%, rgba(96,141,214,0.25), rgba(96,141,214,0) 55%), linear-gradient(135deg, #0b1f3a 0%, #0a1626 100%)' }}
       >
-        <div>
+        <div className="w-full max-w-md">
           <LogoMarca imgClassName="w-[150px] h-auto" padding="px-5 py-3.5" />
           <h1 className="text-3xl font-extrabold mt-7 leading-tight">Suas finanças em um só lugar</h1>
           <p className="text-sm text-slate-300 mt-2 max-w-md">
@@ -60,7 +60,7 @@ export default function Login() {
           </p>
         </div>
 
-        <ul className="grid grid-cols-2 gap-x-6 gap-y-4 max-w-lg">
+        <ul className="grid grid-cols-2 gap-x-6 gap-y-4 w-full max-w-md">
           {BENEFICIOS.map(b => (
             <li key={b.titulo} className="flex items-start gap-2.5">
               <span className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
@@ -77,10 +77,10 @@ export default function Login() {
 
       {/* ── Login (direita no desktop; única coluna no mobile) — fundo navy ── */}
       <main
-        className="flex items-center justify-center p-4 min-h-screen lg:min-h-0 text-white"
+        className="flex items-center justify-center lg:justify-start p-4 lg:pl-10 xl:pl-16 min-h-screen lg:min-h-0 text-white"
         style={{ backgroundImage: 'radial-gradient(120% 120% at 0% 100%, rgba(96,141,214,0.18), rgba(96,141,214,0) 55%), linear-gradient(135deg, #0a1626 0%, #0b1f3a 100%)' }}
       >
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-sm lg:max-w-md">
           {/* Mobile: logo e título compactos acima do formulário (no desktop a
               apresentação aparece na coluna da esquerda). */}
           <div className="flex flex-col items-center text-center mb-6 lg:hidden">
