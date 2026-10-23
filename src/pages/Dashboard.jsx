@@ -11,6 +11,7 @@ import { useCartoes } from '../hooks/useCartoes'
 import { useComprasCartao } from '../hooks/useComprasCartao'
 import { useConsultoriaInteresses } from '../hooks/useConsultoria'
 import { useBeneficios } from '../hooks/useBeneficios'
+import { useInvestimentos } from '../hooks/useInvestimentos'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useOcultarValores } from '../contexts/OcultarValoresContext'
@@ -1546,6 +1547,12 @@ export default function Dashboard() {
   // Home. Reutiliza o MESMO hook da aba Benefícios (sem duplicar lógica).
   const { beneficios, saldoDoBeneficio, proximaRecarga, registrarGastoRapido } = useBeneficios()
   const beneficioPorTipo = (tipo) => beneficios.find(b => b.tipo === tipo) || null
+  // Patrimônio investido (card "Meu Patrimônio"). Reutiliza o hook da aba
+  // Investimentos. NÃO entra no saldo/limite/receitas — é patrimônio separado.
+  const { investimentos, patrimonioTotal, reservaVinculada } = useInvestimentos()
+  // Modo da reserva: 'vinculada' soma reserva_valor dos investimentos; 'manual'
+  // usa perfis.reserva_atual (comportamento atual). Default manual.
+  const reservaModo = perfil?.reserva_modo === 'vinculada' ? 'vinculada' : 'manual'
   // Mesmo mês controla calendário e resumo; projeção vem do motor existente.
   const [mesCalendarioHome, setMesCalendarioHome] = useState(() => {
     const hoje = new Date()
@@ -2184,17 +2191,37 @@ const carregandoLimite = carregando
               <p className="text-lg sm:text-2xl font-extrabold break-words mt-2">{exibirMoeda(saldoDisponivelAgora, ocultar)}</p>
               <p className="text-[10px] sm:text-xs text-white/75 mt-1">Disponível hoje</p>
             </div>
-            <div className="min-w-0 rounded-2xl bg-marca-grad-dark text-white p-3 sm:p-4 flex flex-col justify-between">
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-[11px] sm:text-xs font-semibold flex items-center gap-1"><PiggyBank size={14}/> Reserva</span>
-                {!somenteLeitura && <button type="button" onClick={() => setModalReservaAtual(true)} aria-label="Editar reserva de emergência" className="p-1"><Pencil size={13}/></button>}
-              </div>
-              <p className="text-lg sm:text-2xl font-extrabold break-words mt-2">{exibirMoeda(reservaAtual, ocultar)}</p>
-              <div className="mt-1.5">
-                <div className="h-1.5 rounded-full bg-black/20 overflow-hidden"><div className="h-full rounded-full bg-white/90" style={{width: `${metaReserva > 0 ? Math.min(100, Math.max(0, reservaAtual / metaReserva * 100)) : 0}%`}}/></div>
-                <p className="text-[10px] sm:text-xs text-white/75 mt-1">{metaReserva > 0 ? `${Math.min(100, Math.max(0, reservaAtual / metaReserva * 100)).toFixed(0)}% da meta` : 'Meta não definida'}</p>
-              </div>
-            </div>
+            {(() => {
+              // Reserva exibida conforme o modo: vinculada (soma reserva_valor)
+              // ou manual (reserva_atual). A vinculada é recorte do patrimônio —
+              // NÃO é somada de novo ao patrimônio.
+              const reservaExibida = reservaModo === 'vinculada' ? reservaVinculada : reservaAtual
+              const pctMeta = metaReserva > 0 ? Math.min(100, Math.max(0, reservaExibida / metaReserva * 100)) : 0
+              const temInvest = (investimentos?.length || 0) > 0 || patrimonioTotal > 0
+              return (
+                <button type="button" onClick={() => navigate('/investimentos')}
+                  className="min-w-0 rounded-2xl bg-marca-grad-dark text-white p-3 sm:p-4 flex flex-col justify-between text-left hover:opacity-95 transition-opacity">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[11px] sm:text-xs font-semibold flex items-center gap-1"><PiggyBank size={14}/> Meu Patrimônio</span>
+                    <ArrowRight size={13} className="opacity-80" />
+                  </div>
+                  {/* Patrimônio investido (soma de valor_atual). Estado inicial
+                      sem inventar valores quando não há investimentos. */}
+                  <p className="text-lg sm:text-2xl font-extrabold break-words mt-2">
+                    {temInvest ? exibirMoeda(patrimonioTotal, ocultar) : 'Começar a investir'}
+                  </p>
+                  {/* Reserva de emergência dentro do mesmo card + meta/progresso */}
+                  <div className="mt-1.5">
+                    <p className="text-[10px] sm:text-xs text-white/85">
+                      Reserva: <strong>{exibirMoeda(reservaExibida, ocultar)}</strong>
+                      {reservaModo === 'vinculada' ? ' (vinculada)' : ''}
+                    </p>
+                    <div className="h-1.5 rounded-full bg-black/20 overflow-hidden mt-1"><div className="h-full rounded-full bg-white/90" style={{width: `${pctMeta}%`}}/></div>
+                    <p className="text-[10px] sm:text-xs text-white/75 mt-1">{metaReserva > 0 ? `${pctMeta.toFixed(0)}% da meta` : 'Meta não definida'}</p>
+                  </div>
+                </button>
+              )
+            })()}
           </div>
         )}
 
