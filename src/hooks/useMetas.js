@@ -68,5 +68,28 @@ export function useMetas() {
     setMetas(prev => prev.filter(m => m.id !== id))
   }
 
-  return { metas, carregando, erro, criar, atualizar, remover, recarregar: buscar }
+  // Aporte (delta > 0) ou retirada (delta < 0) sobre o valor acumulado da meta.
+  // Persiste em metas.valor_atual (por usuário, via RLS existente). Regras:
+  //  - aporte: nunca ultrapassa o objetivo (valor_desejado);
+  //  - retirada: nunca deixa o acumulado abaixo de zero (bloqueia retirar mais
+  //    do que o guardado).
+  // NÃO movimenta saldo bancário, reserva, investimentos, receitas nem despesas.
+  async function ajustarValor(id, delta) {
+    bloquearSeConsultoria(modoConsultoria)
+    const meta = metas.find(m => m.id === id)
+    if (!meta) throw new Error('Meta não encontrada.')
+    const atual = Number(meta.valor_atual) || 0
+    const objetivo = Number(meta.valor_desejado) || 0
+    const d = Number(delta) || 0
+    if (d === 0) throw new Error('Informe um valor maior que zero.')
+    if (d < 0 && atual + d < 0) {
+      throw new Error('Não é possível retirar mais do que o valor acumulado.')
+    }
+    let novo = atual + d
+    if (novo < 0) novo = 0
+    if (objetivo > 0 && novo > objetivo) novo = objetivo // aporte não passa do objetivo
+    return atualizar(id, { valor_atual: novo })
+  }
+
+  return { metas, carregando, erro, criar, atualizar, remover, ajustarValor, recarregar: buscar }
 }
