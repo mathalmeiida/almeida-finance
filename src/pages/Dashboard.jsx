@@ -22,6 +22,7 @@ import Modal from '../components/Modal'
 import ModalAnteciparPagamento from '../components/ModalAnteciparPagamento'
 import HorizonteFinanceiro from '../components/HorizonteFinanceiro'
 import { gerarHorizonte } from '../lib/horizonteFinanceiro'
+import CalendarioFinanceiroHome from '../components/CalendarioFinanceiroHome'
 
 // Chaves lidas em App.jsx (AreaAutenticada) para reabrir o onboarding e saber
 // em qual etapa começar. Mesmas chaves usadas pela tela de Configurações.
@@ -1545,6 +1546,20 @@ export default function Dashboard() {
   // Home. Reutiliza o MESMO hook da aba Benefícios (sem duplicar lógica).
   const { beneficios, saldoDoBeneficio, proximaRecarga, registrarGastoRapido } = useBeneficios()
   const beneficioPorTipo = (tipo) => beneficios.find(b => b.tipo === tipo) || null
+  // Mesmo mês controla calendário e resumo; projeção vem do motor existente.
+  const [mesCalendarioHome, setMesCalendarioHome] = useState(() => {
+    const hoje = new Date()
+    return new Date(hoje.getFullYear(), hoje.getMonth(), 1, 12)
+  })
+  const mesesAFrenteHome = (mesCalendarioHome.getFullYear() - new Date().getFullYear()) * 12
+    + mesCalendarioHome.getMonth() - new Date().getMonth()
+  const ehMesAtualHome = mesesAFrenteHome === 0
+  const projecaoHome = mesesAFrenteHome >= 0 ? projecao?.[mesesAFrenteHome] : null
+  const receitaResumoHome = ehMesAtualHome ? resumoMes.receitaTotal : projecaoHome?.receitas
+  const despesaResumoHome = ehMesAtualHome ? resumoMes.despesaTotal : projecaoHome?.despesas
+  const resultadoResumoHome = ehMesAtualHome ? resumoMes.sobraPrevista
+    : (projecaoHome && Number(projecaoHome.receitas || 0) - Number(projecaoHome.despesas || 0))
+  const valorResumoHome = valor => valor == null ? 'Sem projeção disponível' : exibirMoeda(valor, ocultar)
   const navigate = useNavigate()
 
   const [gastoRapidoBeneficio, setGastoRapidoBeneficio] = useState(null)
@@ -2287,132 +2302,21 @@ const carregandoLimite = carregando
         </Link>
       </div>
 
-      {/* 6 ─ Movimentações e próximos pagamentos: une as 2 transações mais
-          recentes + os 2 compromissos pendentes mais próximos num único card
-          compacto. Dados reais já carregados (ultimasTransacoes / proximos7Dias),
-          sem recalcular nada. Links separados: "Ver todas" (transações) e
-          "Ver todos" (compromissos) → /despesas. */}
+      {/* Calendário financeiro integrado à Home — resumo permanece à direita. */}
       {!carregando && (
       <div className="lg:grid lg:grid-cols-3 lg:gap-6 lg:items-start">
-        <div className="card !p-3 sm:!p-5 lg:!p-5 lg:col-span-2">
-          <h2 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 min-w-0 truncate">Movimentações e próximos pagamentos</h2>
-
-          {/* No desktop, as duas seções ficam lado a lado para aproveitar a
-              largura e melhorar a leitura; no mobile seguem empilhadas. */}
-  <div className="flex gap-5 border-b border-gray-200 mt-3 mb-4">
-    {[
-      { id: 'transacoes', nome: 'Últimas transações' },
-      { id: 'pagamentos', nome: 'Próximos 7 dias' }
-    ].map(aba => (
-      <button
-        key={aba.id}
-        type="button"
-        onClick={() => setAbaMovimentacoes(aba.id)}
-        className={`pb-2 text-sm font-medium border-b-2 transition-colors ${
-          abaMovimentacoes === aba.id
-            ? 'border-marca text-marca'
-            : 'border-transparent text-gray-500'
-        }`}
-      >
-        {aba.nome}
-      </button>
-    ))}
-  </div>
-  <div className="mt-2">
-
-          <div className={abaMovimentacoes === 'transacoes' ? 'block' : 'hidden'}>
-          {/* Últimas transações (2) */}
-          <div className="flex items-center justify-between gap-2 mt-2 lg:mt-0 mb-1 lg:mb-2">
-            <p className="text-xs lg:text-sm font-medium text-gray-500">Últimas transações</p>
-            <button
-              onClick={() => navigate('/despesas')}
-              className="flex items-center gap-1 text-xs lg:text-sm font-medium text-marca hover:opacity-80 flex-shrink-0"
-            >
-              Ver todas <ArrowRight size={13} />
-            </button>
-          </div>
-          {ultimasTransacoes.length === 0 ? (
-            <p className="text-sm text-gray-500">Nenhuma transação registrada ainda.</p>
-          ) : (
-            <ul className="space-y-1 lg:space-y-1.5">
-             {ultimasTransacoes.slice(0, 5).map(t => (
-                <li key={t.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-lg lg:rounded-xl px-2.5 py-1.5 lg:px-3 lg:py-2">
-                  <div className="min-w-0 flex items-center gap-2 lg:gap-3">
-                    <span className={`w-6 h-6 lg:w-9 lg:h-9 rounded-full flex items-center justify-center flex-shrink-0 ${t.tipo === 'receita' ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-                      {t.tipo === 'receita'
-                        ? <TrendingUp size={14} className="text-green-600 lg:w-[18px] lg:h-[18px]" />
-                        : <TrendingDown size={14} className="text-red-500 lg:w-[18px] lg:h-[18px]" />}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm lg:text-base font-medium text-gray-900 truncate leading-tight">{t.descricao}</p>
-                      <p className="text-[11px] lg:text-xs text-gray-500 leading-tight">{t.quando}</p>
-                    </div>
-                  </div>
-                  <span className={`text-sm lg:text-base font-semibold flex-shrink-0 whitespace-nowrap ${t.tipo === 'receita' ? 'text-green-600' : 'text-gray-900'}`}>
-                    {t.tipo === 'receita' ? '+' : '−'} {exibirMoeda(t.valor, ocultar)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          </div>
-
-          {/* Divisória discreta (só no mobile; no desktop as colunas separam) */}
-          <div className="border-t border-gray-100 my-1.5 lg:hidden" />
-
-          <div className={abaMovimentacoes === 'pagamentos' ? 'block' : 'hidden'}>
-          {/* Próximos 7 dias (2) */}
-          <div className="flex items-center justify-between gap-2 mb-1 lg:mb-2">
-            <p className="text-xs lg:text-sm font-medium text-gray-500">Próximos 7 dias</p>
-            {proximos7Dias.length > 0 && (
-              <button
-                onClick={() => navigate('/despesas')}
-                className="flex items-center gap-1 text-xs lg:text-sm font-medium text-marca hover:opacity-80 flex-shrink-0"
-              >
-                Ver todos <ArrowRight size={13} />
-              </button>
-            )}
-          </div>
-          {proximos7Dias.length === 0 ? (
-            <p className="text-sm text-gray-500">Nenhum compromisso previsto para os próximos 7 dias.</p>
-          ) : (
-            <ul className="space-y-1 lg:space-y-1.5">
-              {proximos7Dias.slice(0, 5).map(item => (
-                <li key={item.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-lg lg:rounded-xl px-2.5 py-1.5 lg:px-3 lg:py-2">
-                  <div className="min-w-0 flex items-center gap-2 lg:gap-3">
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.cor || 'bg-gray-300'}`} />
-                    <div className="min-w-0">
-                      <p className="text-sm lg:text-base font-medium text-gray-900 truncate leading-tight">{item.descricao}</p>
-                      <p className="text-[11px] lg:text-xs text-gray-500 leading-tight">{item.quando}</p>
-                      {/* Antecipar: só para DESPESAS (não para faturas) e fora do
-                          modo somente leitura. Abre o mesmo modal da página Despesas. */}
-                      {item.antecipavel && !somenteLeitura && (
-                        <button
-                          type="button"
-                          onClick={() => setDespesaAntecipar(item.despesa)}
-                          className="mt-0.5 inline-flex items-center gap-1 text-[11px] lg:text-xs font-medium text-marca hover:underline"
-                        >
-                          <Zap size={12} className="flex-shrink-0" /> Antecipar pagamento
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <span className="text-sm lg:text-base font-semibold text-gray-900 flex-shrink-0 whitespace-nowrap">
-                    {exibirMoeda(item.valor, ocultar)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          </div>
-          </div>
+        <div className="min-w-0 lg:col-span-2">
+          <CalendarioFinanceiroHome receitas={receitas} despesas={despesas} mesVisivel={mesCalendarioHome} onMudarMes={setMesCalendarioHome} />
         </div>
 
         {/* 4b ─ Resumo do mês — SOMENTE no desktop (hidden lg:block), ao lado do
             card de movimentações. Reutiliza resumoMes/limiteHoje já calculados;
             nenhum cálculo novo. No mobile não aparece (Home continua compacta). */}
         <div className="hidden lg:block card !p-5">
-          <h2 className="text-lg font-semibold text-gray-900">Resumo do mês</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold text-gray-900">Resumo do mês</h2>
+            <span className="text-xs capitalize text-gray-500">{mesCalendarioHome.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</span>
+          </div>
           <div className="mt-3 space-y-2">
             <div className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-3 py-2">
               <span className="flex items-center gap-2 text-sm text-gray-600">
@@ -2421,7 +2325,7 @@ const carregandoLimite = carregando
                 </span>
                 Receitas
               </span>
-              <span className="text-base font-bold text-green-600 whitespace-nowrap">{exibirMoeda(resumoMes.receitaTotal, ocultar)}</span>
+              <span className="text-base font-bold text-green-600 whitespace-nowrap">{valorResumoHome(receitaResumoHome)}</span>
             </div>
             <div className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-3 py-2">
               <span className="flex items-center gap-2 text-sm text-gray-600">
@@ -2430,17 +2334,17 @@ const carregandoLimite = carregando
                 </span>
                 Despesas
               </span>
-              <span className="text-base font-bold text-red-500 whitespace-nowrap">{exibirMoeda(resumoMes.despesaTotal, ocultar)}</span>
+              <span className="text-base font-bold text-red-500 whitespace-nowrap">{valorResumoHome(despesaResumoHome)}</span>
             </div>
-            <div className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2 ${resumoMes.sobraPrevista >= 0 ? 'bg-marca-100' : 'bg-red-50'}`}>
+            <div className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2 ${Number(resultadoResumoHome) >= 0 ? 'bg-marca-100' : 'bg-red-50'}`}>
               <span className="flex items-center gap-2 text-sm text-gray-700 font-medium">
-                <span className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${resumoMes.sobraPrevista >= 0 ? 'bg-marca-100' : 'bg-red-500/10'}`}>
-                  <Wallet size={16} className={resumoMes.sobraPrevista >= 0 ? 'text-marca' : 'text-red-600'} />
+                <span className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${Number(resultadoResumoHome) >= 0 ? 'bg-marca-100' : 'bg-red-500/10'}`}>
+                  <Wallet size={16} className={Number(resultadoResumoHome) >= 0 ? 'text-marca' : 'text-red-600'} />
                 </span>
                 Resultado previsto
               </span>
-              <span className={`text-lg font-bold whitespace-nowrap ${resumoMes.sobraPrevista >= 0 ? 'text-marca' : 'text-red-600'}`}>
-                {exibirMoeda(resumoMes.sobraPrevista, ocultar)}
+              <span className={`text-lg font-bold whitespace-nowrap ${Number(resultadoResumoHome) >= 0 ? 'text-marca' : 'text-red-600'}`}>
+                {valorResumoHome(resultadoResumoHome)}
               </span>
             </div>
           </div>
@@ -2449,9 +2353,9 @@ const carregandoLimite = carregando
               <span className="flex items-center gap-2 text-sm text-gray-500">
                 <Sun size={16} className="text-amber-500 flex-shrink-0" /> Gasto diário sugerido
               </span>
-              <span className="text-base font-bold text-gray-900 whitespace-nowrap">{exibirMoeda(Math.max(0, limiteHoje), ocultar)}</span>
+              <span className="text-base font-bold text-gray-900 whitespace-nowrap">{ehMesAtualHome ? exibirMoeda(Math.max(0, limiteHoje), ocultar) : '—'}</span>
             </div>
-            <p className="text-xs text-gray-400 mt-1.5">Receitas e compromissos deste mês. A reserva de emergência é separada.</p>
+            <p className="text-xs text-gray-400 mt-1.5">Resumo calculado pelo planejamento existente. O limite diário é mostrado somente para o mês atual; a reserva permanece separada.</p>
           </div>
         </div>
       </div>
