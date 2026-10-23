@@ -20,36 +20,36 @@ const BENEFICIOS = [
 // ─── Mockups leves (CSS/React, sem imagens/APIs). Valores são FICTÍCIOS. ───
 function MockHome() {
   return (
-    <div className="w-44 rounded-[1.4rem] bg-slate-900/80 border border-white/10 p-2.5 shadow-xl">
-      <div className="rounded-2xl bg-marca-grad-dark p-3 text-white">
-        <p className="text-[9px] text-white/70">Saldo atual</p>
-        <p className="text-base font-extrabold">R$ 3.250</p>
-        <div className="mt-2 rounded-lg bg-black/20 px-2 py-1">
-          <p className="text-[8px] text-white/70">Limite de hoje</p>
-          <p className="text-xs font-bold">R$ 82/dia</p>
+    <div className="w-56 xl:w-64 rounded-[1.8rem] bg-slate-900/80 border border-white/10 p-3 shadow-2xl ring-1 ring-white/5">
+      <div className="rounded-2xl bg-marca-grad-dark p-4 text-white">
+        <p className="text-[11px] text-white/70">Saldo atual</p>
+        <p className="text-2xl font-extrabold">R$ 3.250</p>
+        <div className="mt-2.5 rounded-lg bg-black/20 px-2.5 py-1.5">
+          <p className="text-[10px] text-white/70">Limite de hoje</p>
+          <p className="text-sm font-bold">R$ 82/dia</p>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-1.5 mt-2">
-        <div className="rounded-lg bg-white/10 text-white text-[8px] font-medium px-2 py-2 text-center">Posso comprar?</div>
-        <div className="rounded-lg bg-white/10 text-white text-[8px] font-medium px-2 py-2 text-center">E se...?</div>
+      <div className="grid grid-cols-2 gap-2 mt-2.5">
+        <div className="rounded-lg bg-white/10 text-white text-[10px] font-medium px-2 py-2.5 text-center">Posso comprar?</div>
+        <div className="rounded-lg bg-white/10 text-white text-[10px] font-medium px-2 py-2.5 text-center">E se...?</div>
       </div>
-      <p className="text-[7px] text-white/40 mt-2 text-center">Exemplo ilustrativo</p>
+      <p className="text-[8px] text-white/40 mt-2.5 text-center">Exemplo ilustrativo</p>
     </div>
   )
 }
 function MockESe() {
   const opcoes = ['Variação de renda', 'Nova despesa', 'Desligamento', 'Simulação de compra']
   return (
-    <div className="w-40 rounded-[1.4rem] bg-slate-900/80 border border-white/10 p-2.5 shadow-xl">
-      <div className="flex items-center gap-1.5 text-white mb-2">
-        <Sparkles size={12} /><p className="text-[10px] font-bold">E se...?</p>
+    <div className="w-52 xl:w-60 rounded-[1.8rem] bg-slate-900/80 border border-white/10 p-3 shadow-2xl ring-1 ring-white/5">
+      <div className="flex items-center gap-1.5 text-white mb-2.5">
+        <Sparkles size={15} /><p className="text-xs font-bold">E se...?</p>
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2">
         {opcoes.map(o => (
-          <div key={o} className="rounded-lg bg-white/10 text-white text-[8px] font-medium px-2 py-1.5">{o}</div>
+          <div key={o} className="rounded-lg bg-white/10 text-white text-[10px] font-medium px-2.5 py-2">{o}</div>
         ))}
       </div>
-      <p className="text-[7px] text-white/40 mt-2 text-center">Exemplo ilustrativo</p>
+      <p className="text-[8px] text-white/40 mt-2.5 text-center">Exemplo ilustrativo</p>
     </div>
   )
 }
@@ -118,15 +118,18 @@ export default function Login() {
         </div>
       </aside>
 
-      {/* ── Login (direita no desktop; única coluna no mobile) ── */}
-      <main className="flex items-center justify-center p-4 bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen lg:min-h-0">
+      {/* ── Login (direita no desktop; única coluna no mobile) — fundo navy ── */}
+      <main
+        className="flex items-center justify-center p-4 min-h-screen lg:min-h-0 text-white"
+        style={{ backgroundImage: 'radial-gradient(120% 120% at 0% 100%, rgba(96,141,214,0.18), rgba(96,141,214,0) 55%), linear-gradient(135deg, #0a1626 0%, #0b1f3a 100%)' }}
+      >
         <div className="w-full max-w-sm">
           {/* Logo só no mobile (no desktop ela aparece na apresentação). */}
           <div className="flex justify-center mb-8 lg:hidden">
             <LogoMarca imgClassName="w-[180px] h-auto" padding="px-7 py-5" />
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div className="bg-white rounded-t-2xl shadow-2xl shadow-black/30 ring-1 ring-white/10 border-b border-gray-100 p-6">
             <h2 className="text-xl font-bold text-gray-900">Bem-vindo de volta</h2>
             <p className="text-sm text-gray-500 mt-1 mb-5">Entre para continuar cuidando das suas finanças.</p>
 
@@ -199,8 +202,8 @@ export default function Login() {
             </form>
           </div>
 
-          {/* Card de privacidade — contraste melhorado (navy translúcido). */}
-          <div className="bg-slate-900 text-white rounded-2xl p-4 mt-4">
+          {/* Card de privacidade — integrado ao formulário (sem respiro, extensão escura do card). */}
+          <div className="bg-slate-900/95 text-white rounded-b-2xl p-5 border-t border-white/10 shadow-2xl shadow-black/30 ring-1 ring-white/10">
             <div className="flex items-center gap-2">
               <ShieldCheck size={16} className="text-white flex-shrink-0" />
               <h3 className="text-sm font-semibold">Sua privacidade importa</h3>
@@ -220,9 +223,9 @@ export default function Login() {
             </ul>
           </div>
 
-          <p className="text-center text-sm text-gray-600 mt-4">
+          <p className="text-center text-sm text-slate-300 mt-5">
             Não tem conta?{' '}
-            <Link to="/cadastro" className="text-marca font-medium hover:underline">
+            <Link to="/cadastro" className="text-white font-semibold underline decoration-white/40 underline-offset-2 hover:decoration-white">
               Criar conta gratuita
             </Link>
           </p>
