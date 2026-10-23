@@ -46,6 +46,8 @@ import Configuracoes from './pages/Configuracoes'
 
 import ReverApresentacao from './pages/ReverApresentacao'
 
+import Investimentos from './pages/Investimentos'
+
 import Admin from './pages/Admin'
 
 
@@ -413,6 +415,8 @@ function Rotas() {
                 <Route path="/cartoes" element={<Cartoes />} />
 
                 <Route path="/beneficios" element={<Beneficios />} />
+
+                <Route path="/investimentos" element={<Investimentos />} />
 
                 <Route path="/projecao" element={<Projecao />} />
 
