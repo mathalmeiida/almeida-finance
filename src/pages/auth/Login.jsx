@@ -30,12 +30,15 @@ function MockPhone() {
     { nome: 'Lazer', valor: 'R$ 150', pct: 22, cor: 'bg-amber-400' },
   ]
   return (
-    <div className="relative w-[256px] xl:w-[280px] rounded-[2.6rem] bg-slate-950 p-2.5 shadow-2xl ring-1 ring-white/10 border border-white/10">
-      {/* moldura / notch */}
-      <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-24 h-5 bg-slate-950 rounded-b-2xl z-10" />
-      <div className="relative overflow-hidden rounded-[2.1rem] bg-slate-900">
+    <div
+      className="relative w-[min(90vw,294px)] xl:w-[322px] rounded-[2.9rem] bg-gradient-to-b from-slate-800 via-slate-950 to-black p-2.5 ring-1 ring-white/15 border border-black/40"
+      style={{ boxShadow: '0 35px 60px -15px rgba(0,0,0,0.65), 0 0 0 2px rgba(255,255,255,0.04), inset 0 1px 1px rgba(255,255,255,0.12)' }}
+    >
+      {/* notch discreto (pílula central) */}
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 w-20 h-[22px] bg-black rounded-full z-10 ring-1 ring-white/5" />
+      <div className="relative overflow-hidden rounded-[2.3rem] bg-slate-900 ring-1 ring-black/60">
         {/* status bar */}
-        <div className="flex items-center justify-between px-5 pt-2.5 pb-1 text-[9px] text-white/60">
+        <div className="flex items-center justify-between px-5 pt-4 pb-1 text-[9px] text-white/60">
           <span>9:41</span>
           <span className="flex items-center gap-1"><Smartphone size={9} /> 100%</span>
         </div>
@@ -129,7 +132,7 @@ export default function Login() {
         style={{ backgroundImage: 'radial-gradient(120% 120% at 100% 0%, rgba(96,141,214,0.25), rgba(96,141,214,0) 55%), linear-gradient(135deg, #0b1f3a 0%, #0a1626 100%)' }}
       >
         {/* Textos e benefícios (esquerda) */}
-        <div className="flex flex-col gap-8 min-w-0">
+        <div className="flex flex-col gap-6 min-w-0">
           <div>
             <LogoMarca imgClassName="w-[150px] h-auto" padding="px-5 py-3.5" />
             <h1 className="text-3xl font-extrabold mt-7 leading-tight">Suas finanças em um só lugar</h1>
