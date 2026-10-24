@@ -18,6 +18,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useOcultarValores } from '../contexts/OcultarValoresContext'
 import InputMoeda from '../components/InputMoeda'
+import SeletorCategoriaModerno from '../components/SeletorCategoriaModerno'
 import { formatCurrency, exibirMoeda, FORMAS_PAGAMENTO, hojeISO as hojeISOBrasil, hojeDateBrasil } from '../lib/utils'
 import { classificarDespesa } from '../lib/classificarDespesa'
 import { parcelaCompraNoMes, totalFaturaComOverride } from '../lib/faturaCartao'
@@ -37,139 +38,128 @@ const CHAVE_ETAPA_ONBOARDING = 'almeida_onboarding_etapa'
 // rápido (apenas ordenação visual; não cria, renomeia nem apaga categorias).
 const CATEGORIAS_COMUNS = ['Alimentação', 'Transporte', 'Lazer', 'Mercado', 'Saúde', 'Serviços']
 
-function FormGastoRapido({ onSalvar, onCancelar, carregando, onMaisOpcoes, erro }) {
+function FormGastoRapido({ onSalvar, onCancelar, carregando, onMaisOpcoes, erro, beneficios = [] }) {
   const { categorias } = useCategorias('despesa')
   const { cartoes } = useCartoes()
   const [form, setForm] = useState({
-    descricao: '',
-    valor: '',
-    categoria_id: '',
-    forma_pagamento: '',
-    cartao_id: '',
+    descricao: '', valor: '', categoria_id: '', subcategoria_id: '',
+    data: hojeISOBrasil(), forma_pagamento: '', cartao_id: '', beneficio_id: '',
   })
 
-  const ehCartaoCredito = form.forma_pagamento === 'cartao_credito'
+  const formaSelecionada = FORMAS_PAGAMENTO.find(f => f.value === form.forma_pagamento)
+  const nomeForma = String(formaSelecionada?.label || '').toLowerCase()
+  const valorForma = String(form.forma_pagamento || '').toLowerCase()
+  const ehCartaoCredito = valorForma === 'cartao_credito'
+  const tipoBeneficio = ['vr', 'vale_refeicao', 'vale_refeição'].includes(valorForma)
+    || nomeForma.includes('refeição') ? 'VR'
+    : ['va', 'vale_alimentacao', 'vale_alimentação'].includes(valorForma)
+      || nomeForma.includes('alimentação') && (nomeForma.includes('vale') || nomeForma.includes('cartão')) ? 'VA' : null
+  const beneficiosCompativeis = beneficios.filter(b => String(b.tipo).toUpperCase() === tipoBeneficio)
 
-  // Ordena mostrando as categorias comuns primeiro (sem alterar os dados).
   const categoriasOrdenadas = [...categorias].sort((a, b) => {
     const ia = CATEGORIAS_COMUNS.indexOf(a.nome)
     const ib = CATEGORIAS_COMUNS.indexOf(b.nome)
-    const ra = ia === -1 ? 999 : ia
-    const rb = ib === -1 ? 999 : ib
-    return ra - rb || a.nome.localeCompare(b.nome)
+    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib) || a.nome.localeCompare(b.nome)
   })
 
   function handleChange(e) {
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
+    const { name, value } = e.target
+    setForm(prev => ({
+      ...prev, [name]: value,
+      ...(name === 'categoria_id' ? { subcategoria_id: '' } : {}),
+      ...(name === 'forma_pagamento' ? { cartao_id: '', beneficio_id: '' } : {}),
+    }))
   }
 
   function handleSubmit(e) {
     e.preventDefault()
-    const valorNum = Number(form.valor) || 0
-    if (valorNum <= 0) return
+    if (carregando) return
+    const valorNum = Number(form.valor)
+    if (!Number.isFinite(valorNum) || valorNum <= 0) return
+    if (!form.forma_pagamento) return
+    if (ehCartaoCredito && !form.cartao_id) return
+    if (tipoBeneficio && !form.beneficio_id) return
     const catSelecionada = categorias.find(c => c.id === form.categoria_id)
-    // Gasto rápido: à vista, não recorrente, data de hoje. Classificação
-    // automática (padrão variável). Mesma função/estrutura das demais despesas.
-    const tipo_despesa = classificarDespesa({
-      descricao: form.descricao,
-      categoria: catSelecionada?.nome || '',
-    })
-    const descricao = form.descricao?.trim() || (catSelecionada?.nome ?? 'Gasto')
+    const descricao = form.descricao.trim() || catSelecionada?.nome || 'Gasto'
+    const tipo_despesa = classificarDespesa({ descricao, categoria: catSelecionada?.nome || '' })
     onSalvar({
-      descricao,
-      valor: valorNum,
-      data: hojeISOBrasil(),
+      descricao, valor: valorNum,
+      data: tipoBeneficio ? hojeISOBrasil() : form.data,
       recorrente: false,
       categoria_id: form.categoria_id || null,
+      subcategoria_id: form.subcategoria_id || null,
       tipo_despesa,
-      // Forma de pagamento escolhida. Quando for cartão de crédito, também vai
-      // o cartão selecionado — o Dashboard decide gravar em compras_cartao
-      // (entra na fatura, NÃO desconta do saldo à vista) em vez de despesas.
-      forma_pagamento: form.forma_pagamento || null,
-      cartao_id: ehCartaoCredito ? (form.cartao_id || null) : null,
+      forma_pagamento: form.forma_pagamento,
+      cartao_id: ehCartaoCredito ? form.cartao_id : null,
+      beneficio_id: tipoBeneficio ? form.beneficio_id : null,
+      tipo_beneficio: tipoBeneficio,
     }, catSelecionada?.nome || 'Sem categoria')
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Erro de salvamento (ex.: RLS/sessão/coluna) — visível DENTRO do modal. */}
-      {erro && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{erro}</p>
-      )}
-      {/* Valor em destaque (foco imediato para registrar rápido) */}
-      <div>
-        <label className="label">Valor</label>
-        <InputMoeda
-          valor={form.valor}
-          onChangeValor={(n) => setForm(prev => ({ ...prev, valor: n }))}
-          className="input text-2xl font-bold text-center py-3"
-          prefixo={null}
-          autoFocus
-        />
-      </div>
-      <div>
-        <label className="label">Categoria</label>
-        <select name="categoria_id" value={form.categoria_id} onChange={handleChange} className="input">
-          <option value="">Selecionar categoria</option>
-          {categoriasOrdenadas.map(c => <option key={c.id} value={c.id}>{c.icone} {c.nome}</option>)}
-        </select>
+    <form onSubmit={handleSubmit} className="space-y-3">
+      {erro && <p role="alert" className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{erro}</p>}
+      <div className="rounded-xl bg-gray-50 p-3 text-center">
+        <label className="label">Quanto você gastou?</label>
+        <InputMoeda valor={form.valor} onChangeValor={n => setForm(prev => ({ ...prev, valor: n }))}
+          className="input text-2xl font-bold text-center py-3" prefixo={null} autoFocus />
       </div>
       <div>
         <label className="label">Descrição <span className="text-gray-400">(opcional)</span></label>
         <input name="descricao" value={form.descricao} onChange={handleChange}
-          className="input" placeholder="Ex.: Padaria" />
+          className="input" placeholder="Ex.: Almoço, mercado, transporte" />
       </div>
-
-      {/* Forma de pagamento. Reaproveita FORMAS_PAGAMENTO (mesma lista do app). */}
-      <div>
-        <label className="label">Forma de pagamento</label>
-        <select name="forma_pagamento" value={form.forma_pagamento} onChange={handleChange} className="input">
-          <option value="">Selecionar forma</option>
-          {FORMAS_PAGAMENTO.map(f => (
-            <option key={f.value} value={f.value}>{f.icone} {f.label}</option>
-          ))}
-        </select>
+      <SeletorCategoriaModerno categorias={categoriasOrdenadas} value={form.categoria_id}
+        onChange={categoria_id => setForm(prev => ({ ...prev, categoria_id, subcategoria_id: '' }))}
+        subcategoriaValue={form.subcategoria_id}
+        onSubcategoriaChange={subcategoria_id => setForm(prev => ({ ...prev, subcategoria_id }))} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="label">Forma de pagamento</label>
+          <select name="forma_pagamento" value={form.forma_pagamento} onChange={handleChange} className="input" required>
+            <option value="">Selecionar forma</option>
+            {FORMAS_PAGAMENTO.map(f => <option key={f.value} value={f.value}>{f.icone} {f.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label">Data do gasto</label>
+          <input name="data" type="date" value={tipoBeneficio ? hojeISOBrasil() : form.data}
+            onChange={handleChange} disabled={!!tipoBeneficio} className="input" required />
+        </div>
       </div>
-
-      {/* Cartão de crédito → escolher o cartão. A compra entra na FATURA do
-          cartão (não desconta do saldo à vista). */}
       {ehCartaoCredito && (
-        cartoes.length === 0 ? (
-          <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-500">
-            Você ainda não tem cartões cadastrados.
-            <Link to="/cartoes" className="block mt-2 text-blue-600 font-medium hover:underline">
-              + Cadastrar cartão
-            </Link>
-          </div>
-        ) : (
-          <div>
-            <label className="label">Em qual cartão?</label>
+        <div>
+          <label className="label">Em qual cartão?</label>
+          {cartoes.length ? (
             <select name="cartao_id" value={form.cartao_id} onChange={handleChange} className="input" required>
               <option value="">Selecionar cartão</option>
-              {cartoes.map(c => (
-                <option key={c.id} value={c.id}>{c.nome}{c.banco ? ` • ${c.banco}` : ''}</option>
-              ))}
+              {cartoes.map(c => <option key={c.id} value={c.id}>{c.nome}{c.banco ? ` • ${c.banco}` : ''}</option>)}
             </select>
-            <p className="text-xs text-gray-400 mt-1">
-              Este gasto entrará na fatura do cartão, sem descontar do seu saldo disponível agora.
-            </p>
-          </div>
-        )
+          ) : <p className="text-sm text-amber-600">Cadastre primeiro um cartão na aba Cartões.</p>}
+          <p className="text-xs text-gray-500 mt-1">O valor entrará na fatura, não no saldo bancário imediato.</p>
+        </div>
       )}
-
-      <button type="submit" disabled={carregando}
+      {tipoBeneficio && (
+        <div>
+          <label className="label">Qual benefício {tipoBeneficio}?</label>
+          {beneficiosCompativeis.length ? (
+            <select name="beneficio_id" value={form.beneficio_id} onChange={handleChange} className="input" required>
+              <option value="">Selecionar benefício</option>
+              {beneficiosCompativeis.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
+            </select>
+          ) : <p className="text-sm text-amber-600">Nenhum benefício {tipoBeneficio} cadastrado.</p>}
+          <p className="text-xs text-gray-500 mt-1">Será descontado apenas do saldo {tipoBeneficio}. Este registro usa a data de hoje.</p>
+        </div>
+      )}
+      <button type="submit" disabled={carregando || !form.forma_pagamento || Number(form.valor) <= 0
+        || (ehCartaoCredito && !form.cartao_id) || (tipoBeneficio && !form.beneficio_id)}
         className="btn-primary w-full flex items-center justify-center gap-2 py-3">
-        {carregando
-          ? <><Loader2 size={15} className="animate-spin" /> Salvando...</>
-          : 'Salvar gasto'}
+        {carregando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : 'Salvar gasto'}
       </button>
-
-      {/* Atalho para o cadastro COMPLETO já existente (fixa/variável,
-          recorrência, forma de pagamento, parcelamento etc.). */}
-      <button type="button" onClick={onMaisOpcoes}
-        className="w-full text-xs font-medium text-blue-600 hover:text-blue-700 py-1">
-        Mais opções
-      </button>
+      <div className="flex items-center justify-between gap-2">
+        <button type="button" onClick={onCancelar} className="text-xs font-medium text-gray-500 py-1">Cancelar</button>
+        <button type="button" onClick={onMaisOpcoes} className="text-xs font-medium text-blue-600 hover:text-blue-700 py-1">Mais opções</button>
+      </div>
     </form>
   )
 }
@@ -1905,6 +1895,24 @@ const carregandoLimite = carregando
       if (dados.forma_pagamento === 'cartao_credito' && !dados.cartao_id) {
         throw new Error('Selecione o cartão de crédito para registrar esta compra.')
       }
+      // Benefícios são movimentos separados: nunca lançá-los em despesas bancárias.
+      if (dados.tipo_beneficio) {
+        const beneficio = beneficios.find(b => String(b.id) === String(dados.beneficio_id))
+        if (!beneficio || String(beneficio.tipo).toUpperCase() !== dados.tipo_beneficio) {
+          throw new Error('Selecione um benefício VR/VA válido.')
+        }
+        await registrarGastoRapido({
+          beneficio_id: dados.beneficio_id,
+          valor: valorGasto,
+          descricao: dados.descricao,
+        })
+        setModalGasto(false)
+        setConfirmacaoGasto({
+          msg: `✓ ${formatCurrency(valorGasto)} descontado do ${dados.tipo_beneficio}`,
+          limite: Math.max(0, limiteHoje),
+        })
+        return
+      }
       const noCartaoCredito = dados.forma_pagamento === 'cartao_credito' 
 
       if (noCartaoCredito) {
@@ -1919,6 +1927,7 @@ const carregandoLimite = carregando
           data_compra: dados.data, // hoje
           numero_parcelas: 1,
           categoria_id: dados.categoria_id || null,
+          subcategoria_id: dados.subcategoria_id || null,
         })
         // Sucesso: fecha o modal e mostra o banner de confirmação na Home
         // (feedback visível + modal não fica "preso" aberto).
@@ -1933,7 +1942,7 @@ const carregandoLimite = carregando
       // ── Demais formas (Pix, dinheiro, débito, boleto, etc.) ──
       // Fluxo atual: grava em despesas (à vista, hoje) e desconta do saldo.
       // Remove campos que não são colunas de "despesas".
-      const { cartao_id, ...despesa } = dados
+      const { cartao_id, beneficio_id, tipo_beneficio, ...despesa } = dados
       await criarDespesa(despesa)   // atualiza o estado interno → indicadores recalculam
       // Sucesso: fecha o modal e mostra o banner de confirmação na Home.
       setModalGasto(false)
@@ -2538,6 +2547,7 @@ dataReferencia={hojeISO}
       <Modal aberto={modalGasto} onFechar={() => setModalGasto(false)} titulo="Gasto rápido">
         <FormGastoRapido
           onSalvar={handleSalvarGasto}
+          beneficios={beneficios}
           onCancelar={() => setModalGasto(false)}
           carregando={salvandoGasto}
           onMaisOpcoes={handleMaisOpcoes}
