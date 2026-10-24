@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Sun, Plus, Pencil,
@@ -6,6 +6,8 @@ import {
   Receipt, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap, Info, X
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
+import { useReceitas } from '../hooks/useReceitas'
+import { useDespesas } from '../hooks/useDespesas'
 import { useCategorias } from '../hooks/useCategorias'
 import { useCartoes } from '../hooks/useCartoes'
 import { useComprasCartao } from '../hooks/useComprasCartao'
@@ -1535,6 +1537,9 @@ export default function Dashboard() {
     // antecipação reaproveitada no card "Próximos 7 dias"
     anteciparPagamento,
   } = useProjecao()
+  // Fonte completa somente para o calendario; nao afeta useProjecao/orcamento.
+  const { receitas: receitasCalendario, carregando: carregandoReceitasCalendario } = useReceitas()
+  const { despesas: despesasCalendario, carregando: carregandoDespesasCalendario } = useDespesas()
   // Para gastos no cartão de crédito: grava em compras_cartao (entra na fatura,
   // não desconta do saldo à vista). Demais formas seguem em despesas.
   const { criar: criarCompraCartao } = useComprasCartao()
@@ -1699,6 +1704,22 @@ export default function Dashboard() {
   // ─── Saldo atual real (derivado no useProjecao) ───
   const saldoConfigurado = resumoMes.saldoConfigurado
   const saldoDisponivelAgora = resumoMes.saldoDisponivelAgora
+  // Calendário: usa o mesmo motor de fluxo de caixa do Horizonte Financeiro.
+  // Os valores são projetados a partir do saldo atual, sem alterar registros.
+  const horizonteCalendario = useMemo(() => {
+    if (carregando || carregandoReceitasCalendario || carregandoDespesasCalendario || !resumoMes.saldoConfigurado) return []
+    return gerarHorizonte({
+      receitas: receitasCalendario, despesas: despesasCalendario, recorrentes, parcelamentos,
+      cartoes, comprasCartao, faturasInformadas,
+      saldoInicial: Number(saldoDisponivelAgora) || 0,
+      reservaPct,
+      meses: 12,
+    })
+  }, [
+    carregando, carregandoReceitasCalendario, carregandoDespesasCalendario, resumoMes.saldoConfigurado, saldoDisponivelAgora,
+    receitasCalendario, despesasCalendario, recorrentes, parcelamentos,
+    cartoes, comprasCartao, faturasInformadas, reservaPct,
+  ])
   const previsaoFimMes = resumoMes.previsaoFimMes
   const saldoSeguroHoje = resumoMes.saldoSeguroHoje ?? 0
  const compromissosFuturosMes = resumoMes.compromissosFuturosMes
@@ -2048,10 +2069,10 @@ const carregandoLimite = carregando
   // mês, saldo no próximo mês e a 1ª data (nos próximos 30 dias) em que o saldo
   // projetado fica negativo, se houver. */
   const horizonteResumo = (() => {
-    if (carregando) return null
+    if (carregando || carregandoReceitasCalendario || carregandoDespesasCalendario) return null
     const saldoInicial = resumoMes.saldoConfigurado ? resumoMes.saldoDisponivelAgora : 0
     const meses = gerarHorizonte({
-      receitas, despesas, recorrentes, parcelamentos,
+      receitas: receitasCalendario, despesas: despesasCalendario, recorrentes, parcelamentos,
       cartoes, comprasCartao, faturasInformadas,
       saldoInicial, reservaPct, meses: 3,
     })
@@ -2333,7 +2354,13 @@ const carregandoLimite = carregando
       {!carregando && (
       <div className="lg:grid lg:grid-cols-3 lg:gap-6 lg:items-start">
         <div className="min-w-0 lg:col-span-2">
-          <CalendarioFinanceiroHome receitas={receitas} despesas={despesas} mesVisivel={mesCalendarioHome} onMudarMes={setMesCalendarioHome} />
+          <CalendarioFinanceiroHome
+            receitas={receitas}
+            despesas={despesas}
+            mesVisivel={mesCalendarioHome}
+            onMudarMes={setMesCalendarioHome}
+            horizonte={horizonteCalendario}
+          />
         </div>
 
         {/* 4b ─ Resumo do mês — SOMENTE no desktop (hidden lg:block), ao lado do
