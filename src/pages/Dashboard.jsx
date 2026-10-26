@@ -1270,13 +1270,50 @@ function CardGastoHoje({
     : 'rgba(255,255,255,0.95)'
 
   return (
-    <div className="bg-marca-grad-dark rounded-2xl p-2.5 sm:p-4 lg:p-4 lg:shadow-lg lg:shadow-black/5 text-white">
+    <div className="af-money-card h-full bg-marca-grad-dark rounded-2xl p-3 sm:p-5 lg:shadow-lg lg:shadow-black/5 text-white">
+      {/* Versão MOBILE compacta: mesmos dados e ações, sem cálculos paralelos. */}
+      <div className="sm:hidden">
+        <div className="flex items-center gap-2 text-xs font-semibold text-white/90 mb-2">
+          <Wallet size={16} /> Meu dinheiro
+        </div>
+        <div className="grid grid-cols-2 gap-3 items-start">
+          <div className="min-w-0 border-r border-white/20 pr-2">
+            <p className="text-[11px] text-white/75">Saldo atual</p>
+            <p className="text-xl font-extrabold tabular-nums tracking-tight leading-tight whitespace-nowrap">
+              {mostrarSaldo ? exibirMoeda(saldoAtual, ocultar) : '—'}
+            </p>
+            {onEditarSaldo && mostrarSaldo && (
+              <button type="button" onClick={onEditarSaldo} className="mt-1 inline-flex items-center gap-1 text-[11px] text-white/80">
+                <Pencil size={11} /> Editar saldo
+              </button>
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] text-white/75">Limite para hoje</p>
+            <div className="flex items-center gap-1">
+              <p className="text-xl font-extrabold tabular-nums tracking-tight leading-tight whitespace-nowrap">
+                {exibirMoeda(Math.max(0, limiteHoje), ocultar)}
+              </p>
+              {onEditarLimite && (
+                <button type="button" onClick={onEditarLimite} aria-label="Editar limite diário" className="shrink-0 text-white/80">
+                  <Pencil size={12} />
+                </button>
+              )}
+            </div>
+            <p className="mt-1 text-[11px] text-white/80">{temLimite ? `${pctLabel}% utilizado hoje` : 'Sem limite definido'}</p>
+          </div>
+        </div>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/20" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pctAnel}>
+          <div className="h-full rounded-full" style={{ width: `${pctAnel}%`, backgroundColor: corAnel }} />
+        </div>
+      </div>
+
       {/* Compacto: anel do % à esquerda + limite diário em destaque com Editar.
           Sem o "Resumo do mês" (movido para a aba Planejamento). No desktop
           (lg) cresce um pouco, mantendo a Home dentro de uma tela. */}
-      <div className="flex items-center gap-3 sm:gap-4 lg:gap-5">
+      <div className="hidden sm:grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1.25fr)] sm:gap-x-4">
         {/* Anel do % utilizado */}
-        <div className="flex-shrink-0">
+        <div className="order-2 shrink-0">
           <div
             className="relative w-14 h-14 sm:w-16 sm:h-16 lg:w-[72px] lg:h-[72px] rounded-full flex items-center justify-center"
             style={{ background: `conic-gradient(${corAnel} ${pctAnel * 3.6}deg, rgba(0,0,0,0.18) 0deg)` }}
@@ -1290,10 +1327,10 @@ function CardGastoHoje({
           </div>
         </div>
         {/* Limite diário + Editar */}
-        <div className="min-w-0 flex-1">
-          <p className="hidden lg:block text-sm text-white/80 mb-0.5">Limite para gastar hoje</p>
-          <div className="flex items-center gap-1.5 lg:gap-2">
-            <p className="text-2xl sm:text-3xl lg:text-4xl font-bold leading-tight break-words min-w-0">
+        <div className="order-3 min-w-0">
+          <p className="text-xs sm:text-sm text-white/80 mb-0.5">Limite para gastar hoje</p>
+          <div className="flex min-w-0 items-center gap-1.5 lg:gap-2">
+            <p className="min-w-0 whitespace-nowrap text-[clamp(1.25rem,2.3vw,1.875rem)] font-bold leading-tight tracking-tight tabular-nums">
               {exibirMoeda(Math.max(0, limiteHoje), ocultar)}
             </p>
             {onEditarLimite && (
@@ -1323,11 +1360,12 @@ function CardGastoHoje({
         </div>
         {/* Saldo atual dentro do card azul */}
 {mostrarSaldo && (
-  <div className="flex flex-col items-start gap-1 mt-2 sm:mt-0 sm:ml-auto sm:items-end">
-    <p className="text-xs text-white/80">
+  <div className="order-1 col-span-2 flex min-w-0 flex-col items-start gap-1 border-b border-white/15 pb-3 sm:col-span-1 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4">
+    <p className="text-xs font-semibold text-white/90 flex items-center gap-2"><Wallet size={17} /> Meu dinheiro</p>
+    <p className="text-xs text-white/75 mt-1">
       Saldo atual
     </p>
-    <p className="text-lg sm:text-xl font-bold text-white">
+    <p className="max-w-full text-2xl sm:text-[clamp(1.25rem,2.2vw,1.875rem)] font-extrabold text-white leading-tight tabular-nums break-words">
       {exibirMoeda(saldoAtual, ocultar)}
     </p>
     {onEditarSaldo && (
@@ -1345,7 +1383,7 @@ function CardGastoHoje({
 
 {/* Status do orçamento (compacto, quando couber) */}
        {(statusDiario || status) && (
-  <div className="hidden sm:flex items-center gap-1.5 flex-shrink-0 bg-black/15 rounded-full px-2.5 py-1">
+  <div className="af-daily-status order-4 col-span-2 hidden items-center gap-1.5 rounded-full bg-black/15 px-2.5 py-1 sm:col-span-3 xl:flex xl:w-fit">
     <span
       className={`w-2 h-2 rounded-full ${
         statusDiario?.cor === '🔴'
@@ -1363,7 +1401,7 @@ function CardGastoHoje({
       </div>
 
       {/* Gasto de hoje × restante */}
-      <div className="grid grid-cols-2 gap-2.5 lg:gap-3 mt-2.5 lg:mt-3">
+      <div className="grid grid-cols-2 gap-2 lg:gap-3 mt-2.5 lg:mt-3">
         <div className="bg-black/15 rounded-xl px-3 py-1.5 lg:px-4 lg:py-2 min-w-0">
           <p className="text-xs lg:text-sm text-white/70">Gasto de hoje</p>
           <p className="text-base sm:text-lg lg:text-xl font-bold leading-tight break-words">{exibirMoeda(gastosHoje, ocultar)}</p>
@@ -2132,12 +2170,77 @@ const carregandoLimite = carregando
     // pb extra no MOBILE: garante que o último card ("Seu dia financeiro" com o
     // botão "Registrar gasto de hoje") role totalmente acima da barra inferior
     // fixa (que tem o botão "+" saliente). Zera no desktop (md:pb-0).
-    <div className="flex flex-col gap-2 sm:gap-4 lg:gap-3 md:space-y-0 pb-mobilenav md:pb-0">
+    <div className="af-desktop-fit flex flex-col gap-2 sm:gap-4 lg:gap-2 md:space-y-0 pb-mobilenav md:pb-0 af-mobile-polished">
+      {/* Ajustes visuais apenas no desktop: compacta cards, calendário e atalhos.
+          Sem overflow forçado: em monitores baixos o scroll permanece possível. */}
+      <style>{`
+        /* Ajustes exclusivamente mobile. Desktop preservado. */
+        @media (max-width: 639px) {
+          .af-mobile-polished { gap: 5px; padding-bottom: max(110px, calc(env(safe-area-inset-bottom) + 95px)); }
+          .af-mobile-polished .af-home-header { padding: 6px 10px; min-height: 44px; border-radius: 12px; }
+          .af-mobile-polished .af-home-header h1 { font-size: 15px; line-height: 18px; }
+          .af-mobile-polished .af-home-header p { font-size: 10px; line-height: 13px; }
+          .af-mobile-polished .af-home-header button { width: 29px; height: 29px; border-radius: 8px; }
+          .af-mobile-polished .af-top-cards { gap: 5px; }
+          .af-mobile-polished .af-money-card { padding: 8px 10px; border-radius: 13px; }
+          .af-mobile-polished .af-money-card > div:first-child > div:first-child { margin-bottom: 2px; }
+          .af-mobile-polished .af-money-card > div:first-child .grid { gap: 5px; }
+          .af-mobile-polished .af-money-card > div:first-child .grid p.text-xl { font-size: 18px; }
+          .af-mobile-polished .af-money-card > .grid { margin-top: 4px; gap: 5px; }
+          .af-mobile-polished .af-money-card > .grid > div { padding: 4px 7px; }
+          .af-mobile-polished .af-money-card > div:last-child { margin-top: 4px; }
+          .af-mobile-polished .af-patrimonio { padding: 8px 10px; border-radius: 13px; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); column-gap: 8px; row-gap: 2px; align-items: center; }
+          .af-mobile-polished .af-patrimonio > div:first-child { grid-column: 1 / -1; }
+          .af-mobile-polished .af-patrimonio > div:nth-child(2) { margin-top: 0; }
+          .af-mobile-polished .af-patrimonio > div:nth-child(2) p.text-2xl { font-size: 20px; line-height: 25px; margin-top: 2px; }
+          .af-mobile-polished .af-patrimonio > div:nth-child(3) { margin-top: 0; padding: 5px 7px; }
+          .af-mobile-polished .af-patrimonio > div:nth-child(3) p { font-size: 10px; }
+          .af-mobile-polished .af-patrimonio > div:nth-child(3) p.text-base { font-size: 16px; }
+          .af-mobile-polished .af-patrimonio > div:nth-child(3) .h-1\.5 { margin-top: 2px; }
+          .af-mobile-polished .af-calendar-fit { padding: 7px 9px; }
+          .af-mobile-polished .af-calendar-fit header { margin-bottom: 5px; }
+          .af-mobile-polished .af-calendar-fit .af-month-bar { margin-bottom: 4px; padding-top: 3px; padding-bottom: 3px; }
+          .af-mobile-polished .af-calendar-fit .af-day-cell,
+          .af-mobile-polished .af-calendar-fit .af-calendar-empty { min-height: 40px; }
+          .af-mobile-polished .af-calendar-fit .af-day-cell { gap: 1px; padding-top: 2px; padding-bottom: 2px; }
+          /* Esconde apenas decorações e comprime margens; dados e botões permanecem. */
+          .af-mobile-polished .af-money-card .af-daily-status { display: none; }
+          .af-mobile-polished .af-money-card .order-1 { padding-bottom: 2px; gap: 0; }
+          .af-mobile-polished .af-money-card .order-1 p.mt-1 { margin-top: 1px; }
+          .af-mobile-polished .af-money-card .order-3 p.mt-0\.5 { margin-top: 0; }
+          .af-mobile-polished .af-patrimonio > div:nth-child(3) p.mt-1\.5 { margin-top: 2px; }
+          .af-mobile-polished .af-calendar-fit .af-calendar-footnote { margin-top: 4px; }
+          .af-mobile-polished .af-home-atalhos > * { padding: 8px 4px; gap: 4px; }
+          .af-mobile-polished .af-home-atalhos > * > span:first-child { width: 30px; height: 30px; }
+        }
+        @media (min-width: 1024px) {
+          .af-desktop-fit .af-home-header { padding-top: 9px; padding-bottom: 9px; }
+          .af-desktop-fit .af-home-header h1 { font-size: 1.25rem; }
+          .af-desktop-fit .af-top-cards { gap: 10px; }
+          .af-desktop-fit .af-money-card { padding: 13px 16px; }
+          .af-desktop-fit .af-money-card > div:nth-child(2) { column-gap: 10px; row-gap: 5px; }
+          .af-desktop-fit .af-money-card .af-daily-status { display: none; }
+          .af-desktop-fit .af-patrimonio { padding: 13px 16px; }
+          .af-desktop-fit .af-patrimonio > div:nth-child(2),
+          .af-desktop-fit .af-patrimonio > div:nth-child(3) { margin-top: 5px; }
+          .af-desktop-fit .af-calendar-fit { padding: 10px 14px; }
+          .af-desktop-fit .af-calendar-fit header { margin-bottom: 8px; }
+          .af-desktop-fit .af-calendar-fit .af-month-bar { margin-bottom: 6px; padding-top: 4px; padding-bottom: 4px; }
+          .af-desktop-fit .af-calendar-fit .af-day-cell,
+          .af-desktop-fit .af-calendar-fit .af-calendar-empty { min-height: 42px; }
+          .af-desktop-fit .af-calendar-fit .af-day-cell { padding-top: 2px; padding-bottom: 2px; gap: 1px; }
+          .af-desktop-fit .af-calendar-fit .af-calendar-footnote { margin-top: 5px; font-size: 10px; }
+          .af-desktop-fit .af-calendar-fit .af-day-details { padding: 9px; }
+          .af-desktop-fit .af-home-atalhos > * { padding: 6px 10px; flex-direction: row; gap: 10px; }
+          .af-desktop-fit .af-home-atalhos > * > span:first-child { width: 30px; height: 30px; }
+          .af-desktop-fit .af-home-atalhos > * > span:first-child svg { width: 17px; height: 17px; }
+        }
+      `}</style>
       {/* 1 ─ Cabeçalho: saudação (horário de Brasília) + subtítulo fixo, sininho
           de notificações (ponto vermelho só quando há pendência real) e botão
           global de ocultar valores. */}
       <div
-        className="relative flex items-center justify-between gap-3 rounded-2xl px-3.5 py-3 sm:py-3.5 -mx-1 shadow-sm overflow-hidden"
+        className="af-home-header relative flex items-center justify-between gap-3 rounded-2xl px-3.5 py-3 sm:py-3.5 -mx-1 shadow-sm overflow-hidden"
         style={{ backgroundImage: headerBg }}
       >
         {/* Estrelas (só à noite, decorativas) */}
@@ -2201,66 +2304,14 @@ const carregandoLimite = carregando
         </div>
       )}
 
-      {/* 2 ─ Card azul do LIMITE DIÁRIO (consolidado): limite + anel do % usado
-          + gasto de hoje + restante + lápis para editar (Automático/Personalizado
-          no planejamento completo). Mesmos cálculos de sempre. */}
-      {/* Saldo atual e Limite diário em DOIS cards independentes. Desktop:
-          saldo 1/3 + limite 2/3; mobile: empilhados. O saldo sai de dentro do
-          card de limite (mostrarSaldo=false) para NÃO duplicar. Mesmos valores,
-          cálculos, estados e funções já existentes. */}
-      
-
-<div className="flex flex-col gap-2.5 lg:grid lg:grid-cols-3 lg:gap-4 lg:items-stretch">
-        {saldoConfigurado && (
-          <div className="grid grid-cols-2 gap-2 lg:col-span-1 lg:gap-3">
-            <div className="min-w-0 rounded-2xl bg-marca-grad-dark text-white p-3 sm:p-4 flex flex-col justify-between">
-              <div className="flex items-center justify-between gap-1">
-                <span className="text-[11px] sm:text-xs font-semibold flex items-center gap-1"><Wallet size={14}/> Saldo atual</span>
-                {!somenteLeitura && <button type="button" onClick={() => setModalSaldo(true)} aria-label="Editar saldo atual" className="p-1"><Pencil size={13}/></button>}
-              </div>
-              <p className="text-lg sm:text-2xl font-extrabold break-words mt-2">{exibirMoeda(saldoDisponivelAgora, ocultar)}</p>
-              <p className="text-[10px] sm:text-xs text-white/75 mt-1">Disponível hoje</p>
-            </div>
-            {(() => {
-              // Reserva exibida conforme o modo: vinculada (soma reserva_valor)
-              // ou manual (reserva_atual). A vinculada é recorte do patrimônio —
-              // NÃO é somada de novo ao patrimônio.
-              const reservaExibida = reservaModo === 'vinculada' ? reservaVinculada : reservaAtual
-              const pctMeta = metaReserva > 0 ? Math.min(100, Math.max(0, reservaExibida / metaReserva * 100)) : 0
-              const temInvest = (investimentos?.length || 0) > 0 || patrimonioTotal > 0
-              return (
-                <button type="button" onClick={() => navigate('/investimentos')}
-                  className="min-w-0 rounded-2xl bg-marca-grad-dark text-white p-3 sm:p-4 flex flex-col justify-between text-left hover:opacity-95 transition-opacity">
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="text-[11px] sm:text-xs font-semibold flex items-center gap-1"><PiggyBank size={14}/> Meu Patrimônio</span>
-                    <ArrowRight size={13} className="opacity-80" />
-                  </div>
-                  {/* Patrimônio investido (soma de valor_atual). Estado inicial
-                      sem inventar valores quando não há investimentos. */}
-                  <p className="text-lg sm:text-2xl font-extrabold break-words mt-2">
-                    {temInvest ? exibirMoeda(patrimonioTotal, ocultar) : 'Começar a investir'}
-                  </p>
-                  {/* Reserva de emergência dentro do mesmo card + meta/progresso */}
-                  <div className="mt-1.5">
-                    <p className="text-[10px] sm:text-xs text-white/85">
-                      Reserva: <strong>{exibirMoeda(reservaExibida, ocultar)}</strong>
-                      {reservaModo === 'vinculada' ? ' (vinculada)' : ''}
-                    </p>
-                    <div className="h-1.5 rounded-full bg-black/20 overflow-hidden mt-1"><div className="h-full rounded-full bg-white/90" style={{width: `${pctMeta}%`}}/></div>
-                    <p className="text-[10px] sm:text-xs text-white/75 mt-1">{metaReserva > 0 ? `${pctMeta.toFixed(0)}% da meta` : 'Meta não definida'}</p>
-                  </div>
-                </button>
-              )
-            })()}
-          </div>
-        )}
-
-        <div className={saldoConfigurado ? 'lg:col-span-2' : 'lg:col-span-3'}>
+      {/* Home premium: dinheiro unificado e patrimônio independente. */}
+      <div className="af-top-cards grid grid-cols-1 gap-3 lg:grid-cols-5 lg:items-stretch">
+        <div className="min-w-0 lg:col-span-3">
           <CardGastoHoje
             carregando={carregando}
             limiteHoje={limiteHoje}
             saldoAtual={saldoDisponivelAgora}
-            mostrarSaldo={false}
+            mostrarSaldo={saldoConfigurado}
             configIncompleta={mostrarComecePorAqui}
             onEditarSaldo={somenteLeitura ? undefined : () => setModalSaldo(true)}
             gastosHoje={gastosDeHoje}
@@ -2281,70 +2332,59 @@ const carregandoLimite = carregando
             onNaoGasteiHoje={marcarNaoGasteiHoje}
           />
         </div>
-      </div>
-
-      {/* 3b ─ Atalho DISCRETO para Benefícios (VR/VA), uma linha, sem poluir. */}
-      {/* 3b ─ Benefícios: mostra APENAS os benefícios que o usuário possui (VR
-          e/ou VA são independentes). Dados reais (useBeneficios). Se o usuário
-          NÃO tem nenhum benefício, exibimos um único card discreto para
-          cadastrar (não dois placeholders) — e nada aparece se ele tiver os dois.
-          Isso oculta da Home o que o usuário não possui. Toque abre /beneficios. */}
-      {(() => {
-        const defs = [
-          { tipo: 'VR', titulo: 'VR — Vale-Refeição', icon: UtensilsCrossed },
-          { tipo: 'VA', titulo: 'VA — Vale-Alimentação', icon: ShoppingBag },
-        ]
-        const possuidos = defs
-          .map(d => ({ ...d, b: beneficioPorTipo(d.tipo) }))
-          .filter(d => d.b) // só os que o usuário realmente tem
-
-        // Nenhum benefício: card único e discreto de cadastro (não inventa valores).
-        if (possuidos.length === 0) {
+        {(() => {
+          const reservaExibida = reservaModo === 'vinculada' ? reservaVinculada : reservaAtual
+          const pctMeta = metaReserva > 0 ? Math.min(100, Math.max(0, reservaExibida / metaReserva * 100)) : 0
+          const temInvest = (investimentos?.length || 0) > 0 || patrimonioTotal > 0
           return (
-            <button
-              type="button"
-              onClick={() => navigate('/beneficios')}
-              className="w-full text-left rounded-xl bg-white border border-dashed border-gray-300 px-3 py-2.5 hover:border-marca/50 hover:shadow-sm transition-all"
-            >
-              <div className="flex items-center gap-1.5">
-                <UtensilsCrossed size={14} className="text-marca flex-shrink-0" />
-                <span className="text-xs font-medium text-gray-700">Vale-Refeição / Vale-Alimentação</span>
+            <button type="button" onClick={() => navigate('/investimentos')}
+              className="af-patrimonio min-w-0 rounded-2xl bg-marca-grad-dark text-white p-3 sm:p-5 flex flex-col justify-between text-left hover:opacity-95 transition-opacity lg:col-span-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold flex items-center gap-2"><PiggyBank size={19}/> Meu patrimônio</span>
+                <ArrowRight size={17} className="opacity-80" />
               </div>
-              <p className="text-xs text-marca font-medium mt-1 inline-flex items-center gap-1">
-                Cadastrar benefício <ArrowRight size={13} />
-              </p>
+              <div className="mt-2 sm:mt-3">
+                <p className="text-xs text-white/75">Patrimônio investido</p>
+                <p className="text-2xl sm:text-3xl font-extrabold break-words mt-1">
+                  {temInvest ? exibirMoeda(patrimonioTotal, ocultar) : 'Começar a investir'}
+                </p>
+              </div>
+              <div className="mt-2 sm:mt-3 bg-black/15 rounded-xl p-2.5 sm:p-3">
+                <p className="text-xs text-white/80">Reserva de emergência</p>
+                <p className="text-base sm:text-lg font-bold mt-0.5">{exibirMoeda(reservaExibida, ocultar)}</p>
+                <div className="h-1.5 rounded-full bg-black/20 overflow-hidden mt-1.5 sm:mt-2">
+                  <div className="h-full rounded-full bg-white/90" style={{ width: `${pctMeta}%` }} />
+                </div>
+                <p className="text-xs text-white/75 mt-1.5">
+                  {metaReserva > 0 ? `${pctMeta.toFixed(0)}% da meta` : 'Meta não definida'}
+                  {reservaModo === 'vinculada' ? ' · Reserva vinculada' : ''}
+                </p>
+              </div>
             </button>
           )
-        }
+        })()}
+      </div>
 
-        // Os limites diários ficam visíveis diretamente na Home; cada lápis
-        // edita o valor salvo no Supabase, sem alterar os saldos.
-        return (
-          <div className={`grid gap-2 sm:gap-3 ${possuidos.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
-            {possuidos.map(({ tipo, titulo, icon: Icone, b }) => (
-              <CardLimiteBeneficioHome
-                key={b.id}
-                b={b}
-                titulo={titulo}
-                Icone={Icone}
-                saldo={saldoDoBeneficio(b.id)}
-                proximaRecarga={proximaRecarga(b)}
-                ocultar={ocultar}
-                usuarioId={usuario?.id}
-                somenteLeitura={somenteLeitura}
-                onGastoRapido={() => { setErroGastoBeneficio(''); setGastoRapidoBeneficio(b) }}
-              />
-            ))}
-          </div>
-        )
-      })()}
+      {/* VR/VA continuam na aba Benefícios, inclusive limite personalizado e gasto rápido.
+          Apenas a apresentação duplicada foi retirada da Home. */}
 
       {/* O card "Saldo disponível agora" foi movido para a aba Planejamento
           (/projecao), deixando a Home mais compacta. */}
 
+      {/* Calendário financeiro: largura total, com seus próprios detalhes do dia. */}
+      {!carregando && (
+        <CalendarioFinanceiroHome
+          receitas={receitas}
+          despesas={despesas}
+          mesVisivel={mesCalendarioHome}
+          onMudarMes={setMesCalendarioHome}
+          horizonte={horizonteCalendario}
+        />
+      )}
+
       {/* Ações principais: navegação sem duplicar Despesas/Planejamento.
           O registro continua disponível no botão + do menu inferior existente. */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+      <div className="af-home-atalhos grid grid-cols-3 gap-2 sm:gap-3">
         <Link to="/posso-comprar" className="min-w-0 rounded-2xl border border-blue-100 bg-blue-50 p-3 sm:p-4 flex flex-col items-center justify-center gap-2 text-center hover:shadow-sm transition-shadow">
           <span className="w-10 h-10 rounded-full bg-white flex items-center justify-center"><ShoppingCart size={21} className="text-blue-600"/></span>
           <span className="text-xs sm:text-sm font-semibold text-slate-800 leading-tight">Posso comprar?</span>
@@ -2358,71 +2398,6 @@ const carregandoLimite = carregando
           <span className="text-xs sm:text-sm font-semibold text-slate-800 leading-tight">Minhas metas</span>
         </Link>
       </div>
-
-      {/* Calendário financeiro integrado à Home — resumo permanece à direita. */}
-      {!carregando && (
-      <div className="lg:grid lg:grid-cols-3 lg:gap-6 lg:items-start">
-        <div className="min-w-0 lg:col-span-2">
-          <CalendarioFinanceiroHome
-            receitas={receitas}
-            despesas={despesas}
-            mesVisivel={mesCalendarioHome}
-            onMudarMes={setMesCalendarioHome}
-            horizonte={horizonteCalendario}
-          />
-        </div>
-
-        {/* 4b ─ Resumo do mês — SOMENTE no desktop (hidden lg:block), ao lado do
-            card de movimentações. Reutiliza resumoMes/limiteHoje já calculados;
-            nenhum cálculo novo. No mobile não aparece (Home continua compacta). */}
-        <div className="hidden lg:block card !p-5">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold text-gray-900">Resumo do mês</h2>
-            <span className="text-xs capitalize text-gray-500">{mesCalendarioHome.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</span>
-          </div>
-          <div className="mt-3 space-y-2">
-            <div className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-3 py-2">
-              <span className="flex items-center gap-2 text-sm text-gray-600">
-                <span className="w-8 h-8 rounded-full bg-green-500/10 flex items-center justify-center flex-shrink-0">
-                  <TrendingUp size={16} className="text-green-600" />
-                </span>
-                Receitas
-              </span>
-              <span className="text-base font-bold text-green-600 whitespace-nowrap">{valorResumoHome(receitaResumoHome)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-3 py-2">
-              <span className="flex items-center gap-2 text-sm text-gray-600">
-                <span className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0">
-                  <TrendingDown size={16} className="text-red-500" />
-                </span>
-                Despesas
-              </span>
-              <span className="text-base font-bold text-red-500 whitespace-nowrap">{valorResumoHome(despesaResumoHome)}</span>
-            </div>
-            <div className={`flex items-center justify-between gap-3 rounded-xl px-3 py-2 ${Number(resultadoResumoHome) >= 0 ? 'bg-marca-100' : 'bg-red-50'}`}>
-              <span className="flex items-center gap-2 text-sm text-gray-700 font-medium">
-                <span className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${Number(resultadoResumoHome) >= 0 ? 'bg-marca-100' : 'bg-red-500/10'}`}>
-                  <Wallet size={16} className={Number(resultadoResumoHome) >= 0 ? 'text-marca' : 'text-red-600'} />
-                </span>
-                Resultado previsto
-              </span>
-              <span className={`text-lg font-bold whitespace-nowrap ${Number(resultadoResumoHome) >= 0 ? 'text-marca' : 'text-red-600'}`}>
-                {valorResumoHome(resultadoResumoHome)}
-              </span>
-            </div>
-          </div>
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            <div className="flex items-center justify-between gap-3">
-              <span className="flex items-center gap-2 text-sm text-gray-500">
-                <Sun size={16} className="text-amber-500 flex-shrink-0" /> Gasto diário sugerido
-              </span>
-              <span className="text-base font-bold text-gray-900 whitespace-nowrap">{ehMesAtualHome ? exibirMoeda(Math.max(0, limiteHoje), ocultar) : '—'}</span>
-            </div>
-            <p className="text-xs text-gray-400 mt-1.5">Resumo calculado pelo planejamento existente. O limite diário é mostrado somente para o mês atual; a reserva permanece separada.</p>
-          </div>
-        </div>
-      </div>
-      )}
 
       {/* O "Horizonte Financeiro", o card de Consultoria e o "Resumo do mês"
           foram movidos para a aba Planejamento (/projecao), deixando a Home mais

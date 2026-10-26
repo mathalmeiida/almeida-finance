@@ -11,20 +11,11 @@ import {
 import { exibirMoeda, partesHojeBrasil } from '../lib/utils'
 
 import { useOcultarValores } from '../contexts/OcultarValoresContext'
-
-
-
-// Almeida Finance — Calendário financeiro (visual Dashboard Financeiro).*
-
-// Apenas EXIBE os lançamentos e saldos de src/lib/horizonteFinanceiro.js.*
-
-// Não altera cálculos, recorrências, lançamentos, banco ou orçamento.*
-
+// Almeida Finance — Calendário financeiro (visual Dashboard Financeiro).
+// Apenas EXIBE os lançamentos e saldos de src/lib/horizonteFinanceiro.js.// Não altera cálculos, recorrências, lançamentos, banco ou orçamento.
 const chaveData = (ano, mes, dia) =>
 
   `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
-
-
 
 const inicioMes = () => {
 
@@ -33,13 +24,8 @@ const inicioMes = () => {
   return new Date(hoje.ano, hoje.mes - 1, 1, 12)
 
 }
-
-
-
-// Apenas formata o número exibido nos quadrinhos pequenos do calendário.*
-
-// O saldo real e todos os cálculos permanecem inalterados.*
-
+// Apenas formata o número exibido nos quadrinhos pequenos do calendário.
+// O saldo real e todos os cálculos permanecem inalterados.
 function valorCompacto(valor, ocultar) {
 
   if (ocultar) return '••••'
@@ -66,12 +52,8 @@ function valorCompacto(valor, ocultar) {
 
 }
 
-
-
 export default function CalendarioFinanceiroHome({
-
-  // Mantidos por compatibilidade com chamadas antigas. Fonte única: horizonte.*
-
+// Mantidos por compatibilidade com chamadas antigas. Fonte única: horizonte.
   receitas = [], despesas = [], mesVisivel, onMudarMes, horizonte = [],
 
 }) {
@@ -89,8 +71,6 @@ export default function CalendarioFinanceiroHome({
   const chaveHoje = chaveData(hoje.ano, hoje.mes, hoje.dia)
 
   const [diaSelecionado, setDiaSelecionado] = useState(chaveHoje)
-
-
 
   const periodo = useMemo(() => (Array.isArray(horizonte) ? horizonte : [])
 
@@ -126,8 +106,6 @@ export default function CalendarioFinanceiroHome({
 
   const saldoSelecionado = temSaldo ? Number(registro.saldo) : null
 
-
-
   function mudarMes(delta) {
 
     const novo = new Date(ano, mes - 1 + delta, 1, 12)
@@ -137,8 +115,6 @@ export default function CalendarioFinanceiroHome({
     setDiaSelecionado(chaveData(novo.getFullYear(), novo.getMonth() + 1, 1))
 
   }
-
-
 
   function descricaoEvento(evento) {
 
@@ -154,19 +130,16 @@ export default function CalendarioFinanceiroHome({
 
   }
 
-
-
   const dataSelecionadaTexto = new Date(`${diaSelecionado}T12:00:00`)
 
     .toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
 
   const nomeMes = mesAtual.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 
-
-
   return (
 
-    <section className="min-w-0 overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-950 p-3 text-slate-100 shadow-lg sm:p-5">
+    <section className="af-calendar-fit min-w-0 overflow-hidden rounded-2xl border border-marca bg-slate-950 p-3 text-marca shadow-lg sm:p-5"
+      style={{ backgroundColor: 'color-mix(in srgb, currentColor 17%, #020617)' }}>
 
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
 
@@ -198,13 +171,12 @@ export default function CalendarioFinanceiroHome({
 
       </header>
 
-
-
       <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-5">
 
         <div className="min-w-0 xl:col-span-3">
 
-          <div className="mb-3 flex items-center justify-between rounded-xl border border-slate-700/70 bg-slate-900 px-2 py-2">
+          <div className="af-month-bar mb-3 flex items-center justify-between rounded-xl border border-marca bg-slate-900 px-2 py-2 text-marca"
+              style={{ backgroundColor: 'color-mix(in srgb, currentColor 12%, #111827)' }}>
 
             <button type="button" aria-label="Mês anterior" onClick={() => mudarMes(-1)}
 
@@ -226,8 +198,6 @@ export default function CalendarioFinanceiroHome({
 
           </div>
 
-
-
           <div className="mb-1 grid grid-cols-7 gap-1">
 
             {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(x => (
@@ -238,13 +208,11 @@ export default function CalendarioFinanceiroHome({
 
           </div>
 
-
-
           <div className="grid min-w-0 grid-cols-7 gap-1 sm:gap-1.5">
 
             {dias.map((dia, i) => {
 
-              if (dia == null) return <div key={`vazio-${i}`} className="min-h-[58px] sm:min-h-[76px]" />
+              if (dia == null) return <div key={`vazio-${i}`} className="af-calendar-empty min-h-[38px] sm:min-h-[76px]" />
 
               const chave = chaveData(ano, mes, dia)
 
@@ -264,8 +232,6 @@ export default function CalendarioFinanceiroHome({
 
               const atual = chave === chaveHoje
 
-
-
               return (
 
                 <button key={chave} type="button" aria-pressed={selecionado}
@@ -273,12 +239,13 @@ export default function CalendarioFinanceiroHome({
                   aria-label={`${dia} de ${nomeMes}${saldo == null ? ', sem saldo projetado' : ', saldo projetado disponível'}`}
 
                   onClick={() => setDiaSelecionado(chave)}
+                    style={!selecionado ? { backgroundColor: 'color-mix(in srgb, currentColor 13%, #1e293b)' } : undefined}
 
                   title={saldo != null && !ocultar ? `Saldo projetado: ${exibirMoeda(saldo, false)}` : undefined}
 
-                  className={`flex min-h-[58px] min-w-0 flex-col items-center justify-center gap-1 rounded-lg border px-0.5 py-1.5 transition sm:min-h-[76px] sm:rounded-xl sm:px-1
+                  className={`af-day-cell flex min-h-[38px] min-w-0 flex-col items-center justify-center gap-0 rounded-lg border px-0.5 py-0.5 transition sm:min-h-[76px] sm:gap-1 sm:rounded-xl sm:px-1 sm:py-1.5
 
-                    ${selecionado ? 'border-marca bg-marca-100 ring-2 ring-marca' : 'border-slate-700 bg-slate-800/80 hover:border-marca hover:bg-slate-700'}
+                    ${selecionado ? 'border-marca bg-marca-100 ring-2 ring-marca' : 'border-slate-700 text-marca hover:border-marca'}
 
                     ${atual ? 'ring-1 ring-marca' : ''}`}
 
@@ -310,7 +277,7 @@ export default function CalendarioFinanceiroHome({
 
           </div>
 
-          <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
+          <p className="af-calendar-footnote mt-3 text-[11px] leading-relaxed text-slate-400">
 
             Números: saldo projetado abreviado · Pontos verdes: receitas · Pontos vermelhos: despesas e faturas · Traço: sem projeção ou data passada.
 
@@ -318,9 +285,8 @@ export default function CalendarioFinanceiroHome({
 
         </div>
 
-
-
-        <aside className="min-w-0 rounded-xl border border-slate-700 bg-slate-900/80 p-3 sm:p-4 xl:col-span-2" aria-label="Detalhes do dia selecionado">
+        <aside className="af-day-details min-w-0 rounded-xl border border-marca bg-slate-900/80 p-3 text-marca sm:p-4 xl:col-span-2"
+          style={{ backgroundColor: 'color-mix(in srgb, currentColor 13%, #111827)' }} aria-label="Detalhes do dia selecionado">
 
           <div className="mb-3 flex items-center gap-2 text-marca">
 
@@ -329,8 +295,6 @@ export default function CalendarioFinanceiroHome({
             <h3 className="text-sm font-semibold capitalize text-slate-100">{dataSelecionadaTexto}</h3>
 
           </div>
-
-
 
           <div className={`mb-3 rounded-xl border p-3 ${saldoSelecionado == null
 
@@ -362,8 +326,6 @@ export default function CalendarioFinanceiroHome({
 
           </div>
 
-
-
           <div className="mb-3 grid grid-cols-2 gap-2">
 
             <div className="min-w-0 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-2.5">
@@ -383,8 +345,6 @@ export default function CalendarioFinanceiroHome({
             </div>
 
           </div>
-
-
 
           <div className="mb-2 flex items-center justify-between gap-2">
 
