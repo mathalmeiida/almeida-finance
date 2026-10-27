@@ -2365,8 +2365,57 @@ const carregandoLimite = carregando
         })()}
       </div>
 
-      {/* VR/VA continuam na aba Benefícios, inclusive limite personalizado e gasto rápido.
-          Apenas a apresentação duplicada foi retirada da Home. */}
+      {/* ── Meus Benefícios (VR/VA) — seção COMPACTA na Home ──
+          Mostra o saldo de VR e VA separadamente, usando os dados REAIS do
+          hook useBeneficios (saldoDoBeneficio/proximaRecarga) — sem cálculo
+          paralelo e sem misturar com saldo bancário/cartões. Só aparece quando
+          há pelo menos um benefício VR ou VA cadastrado (nada fictício).
+          Respeita a privacidade (ocultar) e segue a cor do tema (.card/text-marca). */}
+      {!carregando && (() => {
+        const vr = beneficioPorTipo('vr')
+        const va = beneficioPorTipo('va')
+        if (!vr && !va) return null
+        const itens = [
+          { b: vr, rotulo: 'Vale-refeição', sigla: 'VR' },
+          { b: va, rotulo: 'Vale-alimentação', sigla: 'VA' },
+        ].filter(x => x.b)
+        return (
+          <section className="card">
+            <div className="flex items-center justify-between gap-2 min-w-0">
+              <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2 min-w-0">
+                <UtensilsCrossed size={18} className="text-marca flex-shrink-0" />
+                <span className="truncate">Meus Benefícios</span>
+              </h2>
+              <Link to="/beneficios" className="text-sm font-medium text-marca hover:underline flex-shrink-0 inline-flex items-center gap-1">
+                Ver detalhes <ArrowRight size={14} />
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+              {itens.map(({ b, rotulo, sigla }) => {
+                const saldo = saldoDoBeneficio(b.id)
+                const recarga = proximaRecarga(b)
+                return (
+                  <div key={b.id} className="min-w-0 rounded-xl border border-gray-100 bg-gray-50 p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="w-8 h-8 rounded-lg bg-marca-100 text-marca flex items-center justify-center flex-shrink-0 text-xs font-bold">{sigla}</span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{rotulo}</p>
+                        <p className="text-[11px] text-gray-500 truncate">{b.nome}</p>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-xl font-bold text-gray-900 break-words tabular-nums">{exibirMoeda(saldo, ocultar)}</p>
+                    {recarga && (
+                      <p className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-1">
+                        <CalendarClock size={12} className="flex-shrink-0" /> Próxima recarga: {recarga}
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )
+      })()}
 
       {/* O card "Saldo disponível agora" foi movido para a aba Planejamento
           (/projecao), deixando a Home mais compacta. */}
