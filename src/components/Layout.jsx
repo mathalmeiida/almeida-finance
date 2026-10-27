@@ -108,28 +108,63 @@ const navGrupos = [
 
 
 
-// Itens que aparecem no sheet "Mais" (mobile)
+// Menu "Mais" — funcionalidades existentes organizadas em GRUPOS. Todas as
 
-const maisItems = [
+// rotas já existem; nada é inventado. "Parcelamentos" leva à aba Parceladas da
 
-  { to: '/receitas',      label: 'Receitas',       icon: TrendingUp,    corIcone: 'text-green-400'  },
+// página de Despesas (rota /parcelamentos redireciona para /despesas no App).
 
-  { to: '/cartoes',       label: 'Cartões',        icon: CreditCard,    corIcone: 'text-sky-400'    },
+// "Patrimônio" faz parte de Investimentos (mesma rota). Admin só para adminOnly.
 
-  { to: '/beneficios',    label: 'Benefícios',     icon: UtensilsCrossed, corIcone: 'text-emerald-400' },
+const maisGrupos = [
 
-  { to: '/investimentos', label: 'Investimentos',  icon: TrendingUp,    corIcone: 'text-green-400' },
+  { titulo: 'Finanças', itens: [
 
-  { to: '/projecao',      label: 'Projeção',       icon: BarChart2,     corIcone: 'text-violet-400' },
+    { to: '/receitas',      label: 'Receitas',       icon: TrendingUp,      corIcone: 'text-green-400'   },
 
-    { to: '/e-se',          label: 'E se...?',       icon: Sparkles,     corIcone: 'text-violet-400' },
-  { to: '/metas',         label: 'Metas',          icon: Target,        corIcone: 'text-amber-400'  },
+    { to: '/cartoes',       label: 'Cartões',        icon: CreditCard,      corIcone: 'text-sky-400'     },
 
-  { to: '/consultoria',   label: 'Consultoria',    icon: MessagesSquare, corIcone: 'text-cyan-400' },
+    { to: '/parcelamentos', label: 'Parcelamentos',  icon: Receipt,         corIcone: 'text-rose-400'    },
 
-  { to: '/configuracoes', label: 'Configurações',  icon: Settings,      corIcone: 'text-gray-400'   },
+    { to: '/investimentos', label: 'Investimentos e patrimônio', icon: PiggyBank, corIcone: 'text-emerald-400' },
 
-  { to: '/admin',         label: 'Admin',          icon: ShieldCheck,   corIcone: 'text-violet-400', adminOnly: true },
+  ]},
+
+  { titulo: 'Planejamento', itens: [
+
+    { to: '/metas',         label: 'Metas',          icon: Target,          corIcone: 'text-amber-400'   },
+
+    { to: '/projecao',      label: 'Projeção',       icon: BarChart2,       corIcone: 'text-violet-400'  },
+
+    { to: '/posso-comprar', label: 'Simular compra', icon: ShoppingCart,    corIcone: 'text-blue-400'    },
+
+    { to: '/e-se',          label: 'E se...?',       icon: Sparkles,        corIcone: 'text-violet-400'  },
+
+  ]},
+
+  { titulo: 'Benefícios', itens: [
+
+    { to: '/beneficios',    label: 'Vale-refeição e alimentação', icon: UtensilsCrossed, corIcone: 'text-emerald-400' },
+
+  ]},
+
+  { titulo: 'Serviços', itens: [
+
+    { to: '/consultoria',   label: 'Consultoria',    icon: MessagesSquare,  corIcone: 'text-cyan-400'    },
+
+  ]},
+
+  { titulo: 'Preferências', itens: [
+
+    { to: '/configuracoes', label: 'Configurações e aparência', icon: Settings, corIcone: 'text-gray-400' },
+
+  ]},
+
+  { titulo: 'Administração', itens: [
+
+    { to: '/admin',         label: 'Admin',          icon: ShieldCheck,     corIcone: 'text-violet-400', adminOnly: true },
+
+  ]},
 
 ]
 
@@ -141,13 +176,23 @@ const maisItems = [
 
 // JÁ existente. Não há formulário novo nem regra duplicada — é só um atalho.
 
+// Menu "+" — SOMENTE ações de lançamento/movimentação que já existem de fato.
+
+// Cada opção navega para a página real e abre o fluxo/modal existente (via
+
+// ?novo= quando a página suporta). NÃO há "transferência entre contas" nem
+
+// abertura rápida de "movimentação de investimento" no app — por isso não
+
+// aparecem aqui (evita ação fictícia). Investimentos fica acessível pelo "Mais".
+
 const acoesRapidas = [
 
-  { to: '/?novo=gasto',       label: 'Gasto rápido',      desc: 'Registre uma compra em segundos',  icon: Receipt,     cor: 'text-rose-500',   bg: 'bg-rose-50'   },
+  { to: '/?novo=gasto',       label: 'Registrar despesa', desc: 'Registre um gasto em segundos',    icon: Receipt,     cor: 'text-rose-500',   bg: 'bg-rose-50'   },
 
-  { to: '/receitas?novo=1',   label: 'Nova receita',      desc: 'Registre uma entrada',             icon: TrendingUp,  cor: 'text-green-600',  bg: 'bg-green-50'  },
+  { to: '/receitas?novo=1',   label: 'Adicionar receita', desc: 'Registre uma entrada',             icon: TrendingUp,  cor: 'text-green-600',  bg: 'bg-green-50'  },
 
-  { to: '/cartoes',           label: 'Compra no cartão',  desc: 'Registre uma compra no cartão',    icon: CreditCard,  cor: 'text-blue-600',   bg: 'bg-blue-50'   },
+  { to: '/cartoes',           label: 'Nova compra no cartão', desc: 'Lance uma compra no cartão',   icon: CreditCard,  cor: 'text-blue-600',   bg: 'bg-blue-50'   },
 
   { to: '/?novo=reserva',     label: 'Atualizar reserva', desc: 'Informe quanto possui na reserva', icon: PiggyBank,   cor: 'text-violet-600', bg: 'bg-violet-50' },
 
@@ -369,7 +414,17 @@ export default function Layout({ children }) {
 
 
 
-  const itensMais = maisItems.filter(item => !item.adminOnly || ehAdmin)
+  // Grupos do "Mais" com itens filtrados por permissão (adminOnly). Grupos que
+
+  // ficam vazios após o filtro são descartados. Lista achatada p/ cálculos.
+
+  const gruposMais = maisGrupos
+
+    .map(g => ({ ...g, itens: g.itens.filter(item => !item.adminOnly || ehAdmin) }))
+
+    .filter(g => g.itens.length > 0)
+
+  const itensMais = gruposMais.flatMap(g => g.itens)
 
 
 
@@ -793,11 +848,25 @@ export default function Layout({ children }) {
 
             </div>
 
-            <nav className="p-3 space-y-1">
+            <nav className="p-3 pt-1">
 
-              {itensMais.map(item => (
+              {gruposMais.map(grupo => (
 
-                <NavItem key={item.to} item={item} onClick={() => setMaisAberto(false)} />
+                <div key={grupo.titulo}>
+
+                  <SecaoLabel>{grupo.titulo}</SecaoLabel>
+
+                  <div className="space-y-0.5">
+
+                    {grupo.itens.map(item => (
+
+                      <NavItem key={item.to} item={item} onClick={() => setMaisAberto(false)} />
+
+                    ))}
+
+                  </div>
+
+                </div>
 
               ))}
 
@@ -805,11 +874,11 @@ export default function Layout({ children }) {
 
                 onClick={handleSair}
 
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-2.5 mt-2 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
 
               >
 
-                <LogOut size={18} /> <span>Sair</span>
+                <LogOut size={18} /> <span>Sair da conta</span>
 
               </button>
 
