@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Sun, Plus, Pencil,
   CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank, AlertTriangle, MessageCircle, BarChart2,
-  Receipt, ReceiptText, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap, Info, X
+  Receipt, ReceiptText, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap, Info, X, MoreHorizontal
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useReceitas } from '../hooks/useReceitas'
@@ -1633,6 +1633,7 @@ export default function Dashboard() {
   const [modalPlanejamento, setModalPlanejamento] = useState(false) // "Quanto posso gastar?" completo
 
   const [modalNotificacoes, setModalNotificacoes] = useState(false) // central de notificações (sino)
+  const [modalCalendario, setModalCalendario] = useState(false) // calendário financeiro (abre pela linha "Calendário")
   // Antecipação de pagamento a partir do card "Próximos 7 dias".
   const [despesaAntecipar, setDespesaAntecipar] = useState(null)
   const [antecipandoHome, setAntecipandoHome] = useState(false)
@@ -2304,9 +2305,11 @@ const carregandoLimite = carregando
         </div>
       )}
 
-      {/* Home premium: dinheiro unificado e patrimônio independente. */}
-      <div className="af-top-cards grid grid-cols-1 gap-3 lg:grid-cols-5 lg:items-stretch">
-        <div className="min-w-0 lg:col-span-3">
+      {/* ── MEU DINHEIRO ── Saldo + "Quanto posso gastar hoje?" em destaque.
+          Reutiliza o CardGastoHoje (clique abre detalhes/ações: editar saldo,
+          limite e planejamento completo via os modais já existentes). */}
+      <div className="af-top-cards">
+        <div className="min-w-0">
           <CardGastoHoje
             carregando={carregando}
             limiteHoje={limiteHoje}
@@ -2332,37 +2335,47 @@ const carregandoLimite = carregando
             onNaoGasteiHoje={marcarNaoGasteiHoje}
           />
         </div>
-        {(() => {
-          const reservaExibida = reservaModo === 'vinculada' ? reservaVinculada : reservaAtual
-          const pctMeta = metaReserva > 0 ? Math.min(100, Math.max(0, reservaExibida / metaReserva * 100)) : 0
-          const temInvest = (investimentos?.length || 0) > 0 || patrimonioTotal > 0
-          return (
-            <button type="button" onClick={() => navigate('/investimentos')}
-              className="af-patrimonio min-w-0 rounded-2xl bg-marca-grad-dark text-white p-3 sm:p-5 flex flex-col justify-between text-left hover:opacity-95 transition-opacity lg:col-span-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold flex items-center gap-2"><PiggyBank size={19}/> Meu patrimônio</span>
-                <ArrowRight size={17} className="opacity-80" />
-              </div>
-              <div className="mt-2 sm:mt-3">
-                <p className="text-xs text-white/75">Patrimônio investido</p>
-                <p className="text-2xl sm:text-3xl font-extrabold break-words mt-1">
-                  {temInvest ? exibirMoeda(patrimonioTotal, ocultar) : 'Começar a investir'}
-                </p>
-              </div>
-              <div className="mt-2 sm:mt-3 bg-black/15 rounded-xl p-2.5 sm:p-3">
-                <p className="text-xs text-white/80">Reserva de emergência</p>
-                <p className="text-base sm:text-lg font-bold mt-0.5">{exibirMoeda(reservaExibida, ocultar)}</p>
-                <div className="h-1.5 rounded-full bg-black/20 overflow-hidden mt-1.5 sm:mt-2">
-                  <div className="h-full rounded-full bg-white/90" style={{ width: `${pctMeta}%` }} />
-                </div>
-                <p className="text-xs text-white/75 mt-1.5">
-                  {metaReserva > 0 ? `${pctMeta.toFixed(0)}% da meta` : 'Meta não definida'}
-                  {reservaModo === 'vinculada' ? ' · Reserva vinculada' : ''}
-                </p>
-              </div>
-            </button>
-          )
-        })()}
+      </div>
+
+      {/* ── ATALHOS RÁPIDOS ── 4 ícones circulares: Adicionar, Despesas,
+          Simular, Mais. Reutilizam fluxos/rotas reais (gasto rápido via modal
+          existente; rotas /despesas, /posso-comprar, /mais). */}
+      <div className="grid grid-cols-4 gap-2">
+        {[
+          { label: 'Adicionar', Icon: Plus,         onClick: () => (somenteLeitura ? null : setModalGasto(true)), disabled: somenteLeitura },
+          { label: 'Despesas',  Icon: TrendingDown, onClick: () => navigate('/despesas') },
+          { label: 'Simular',   Icon: ShoppingCart, onClick: () => navigate('/posso-comprar') },
+          { label: 'Mais',      Icon: MoreHorizontal, onClick: () => navigate('/mais') },
+        ].map(({ label, Icon, onClick, disabled }) => (
+          <button key={label} type="button" onClick={onClick} disabled={disabled}
+            className="flex flex-col items-center gap-1.5 py-1 disabled:opacity-40 disabled:cursor-not-allowed">
+            <span className="w-12 h-12 rounded-full bg-marca-100 text-marca flex items-center justify-center">
+              <Icon size={20} />
+            </span>
+            <span className="text-[11px] font-medium text-gray-700">{label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── MINHAS FINANÇAS ── linhas compactas clicáveis. Cartões/Investimentos/
+          Benefícios navegam para as páginas reais; Calendário abre o modal com
+          o CalendarioFinanceiroHome (mesmo componente/dados, sem rota nova). */}
+      <div className="card !p-2 divide-y divide-gray-100">
+        {[
+          { label: 'Cartões',       Icon: CreditCard,      onClick: () => navigate('/cartoes') },
+          { label: 'Investimentos', Icon: PiggyBank,       onClick: () => navigate('/investimentos') },
+          { label: 'Benefícios',    Icon: UtensilsCrossed, onClick: () => navigate('/beneficios') },
+          { label: 'Calendário',    Icon: CalendarClock,   onClick: () => setModalCalendario(true) },
+        ].map(({ label, Icon, onClick }) => (
+          <button key={label} type="button" onClick={onClick}
+            className="w-full flex items-center gap-3 px-2.5 py-3 hover:bg-gray-50 transition-colors text-left rounded-lg">
+            <span className="w-9 h-9 rounded-lg bg-marca-100 text-marca flex items-center justify-center flex-shrink-0">
+              <Icon size={18} />
+            </span>
+            <span className="flex-1 text-sm font-medium text-gray-900">{label}</span>
+            <ArrowRight size={16} className="text-gray-400 flex-shrink-0" />
+          </button>
+        ))}
       </div>
 
       {/* ── Meus Benefícios (VR/VA) — seção COMPACTA na Home ──
@@ -2371,139 +2384,32 @@ const carregandoLimite = carregando
           paralelo e sem misturar com saldo bancário/cartões. Só aparece quando
           há pelo menos um benefício VR ou VA cadastrado (nada fictício).
           Respeita a privacidade (ocultar) e segue a cor do tema (.card/text-marca). */}
-      {!carregando && (() => {
-        const vr = beneficioPorTipo('vr')
-        const va = beneficioPorTipo('va')
-        if (!vr && !va) return null
-        const itens = [
-          { b: vr, rotulo: 'Vale-refeição', sigla: 'VR' },
-          { b: va, rotulo: 'Vale-alimentação', sigla: 'VA' },
-        ].filter(x => x.b)
-        return (
-          <section className="card">
-            <div className="flex items-center justify-between gap-2 min-w-0">
-              <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2 min-w-0">
-                <UtensilsCrossed size={18} className="text-marca flex-shrink-0" />
-                <span className="truncate">Meus Benefícios</span>
-              </h2>
-              <Link to="/beneficios" className="text-sm font-medium text-marca hover:underline flex-shrink-0 inline-flex items-center gap-1">
-                Ver detalhes <ArrowRight size={14} />
-              </Link>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-              {itens.map(({ b, rotulo, sigla }) => {
-                const saldo = saldoDoBeneficio(b.id)
-                const recarga = proximaRecarga(b)
-                return (
-                  <div key={b.id} className="min-w-0 rounded-xl border border-gray-100 bg-gray-50 p-3">
-                    <div className="flex items-center gap-2">
-                      <span className="w-8 h-8 rounded-lg bg-marca-100 text-marca flex items-center justify-center flex-shrink-0 text-xs font-bold">{sigla}</span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{rotulo}</p>
-                        <p className="text-[11px] text-gray-500 truncate">{b.nome}</p>
-                      </div>
-                    </div>
-                    <p className="mt-2 text-xl font-bold text-gray-900 break-words tabular-nums">{exibirMoeda(saldo, ocultar)}</p>
-                    {recarga && (
-                      <p className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-1">
-                        <CalendarClock size={12} className="flex-shrink-0" /> Próxima recarga: {recarga}
-                      </p>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-        )
-      })()}
-
-      {/* O card "Saldo disponível agora" foi movido para a aba Planejamento
-          (/projecao), deixando a Home mais compacta. */}
-
-      {/* Calendário financeiro: largura total, com seus próprios detalhes do dia. */}
-      {!carregando && (
-        <CalendarioFinanceiroHome
-          receitas={receitas}
-          despesas={despesas}
-          mesVisivel={mesCalendarioHome}
-          onMudarMes={setMesCalendarioHome}
-          horizonte={horizonteCalendario}
-        />
-      )}
-
-      {/* Próximos 7 dias + Movimentações recentes — lado a lado no desktop,
-          empilhados no mobile. Reutilizam os dados REAIS já derivados
-          (proximos7Dias/totalProximos7 e ultimasTransacoes), sem nova consulta
-          nem alteração de cálculo. */}
-      {!carregando && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          <CardProximos7Dias
-            total={totalProximos7}
-            itens={proximos7Dias}
-            onVerTodos={() => navigate('/despesas')}
-          />
-
-          {/* Movimentações recentes: 3 últimos lançamentos (receitas + despesas
-              já carregadas). Só exibição — nada é recalculado aqui. */}
-          <div className="card">
-            <div className="flex items-center justify-between gap-2 min-w-0">
-              <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2 min-w-0">
-                <ReceiptText size={18} className="text-marca flex-shrink-0" />
-                <span className="truncate">Movimentações recentes</span>
-              </h2>
-              <Link to="/despesas" className="text-sm font-medium text-marca hover:underline flex-shrink-0">Ver todas</Link>
-            </div>
-            {ultimasTransacoes.length === 0 ? (
-              <p className="text-sm text-gray-500 mt-3">Nenhuma movimentação registrada ainda.</p>
-            ) : (
-              <ul className="mt-3 space-y-2">
-                {ultimasTransacoes.map(t => (
-                  <li key={t.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-3 py-2.5">
-                    <div className="min-w-0 flex items-center gap-2.5">
-                      <span className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${t.tipo === 'receita' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                        {t.tipo === 'receita' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{t.descricao}</p>
-                        <p className="text-xs text-gray-500">{t.quando}</p>
-                      </div>
-                    </div>
-                    <span className={`text-sm font-semibold flex-shrink-0 whitespace-nowrap ${t.tipo === 'receita' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {t.tipo === 'receita' ? '+' : '−'} {exibirMoeda(t.valor, ocultar)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Ações principais: navegação sem duplicar Despesas/Planejamento.
-          O registro continua disponível no botão + do menu inferior existente. */}
-      {/* Atalhos: cards neutros (classe .card) que respondem ao tema (claro/
-          escuro). O ícone mantém a cor semântica para diferenciar cada atalho;
-          o rótulo usa text-gray-900 (remapeado no tema preto). Menos poluição
-          visual que os fundos coloridos anteriores. */}
-      <div className="af-home-atalhos grid grid-cols-3 gap-2 sm:gap-3">
-        <Link to="/posso-comprar" className="card !p-3 sm:!p-4 min-w-0 flex flex-col items-center justify-center gap-2 text-center hover:shadow-md transition-shadow">
-          <span className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center"><ShoppingCart size={21} className="text-blue-600"/></span>
-          <span className="text-xs sm:text-sm font-semibold text-gray-900 leading-tight">Posso comprar?</span>
-        </Link>
-        <button type="button" onClick={() => navigate('/e-se')} className="card !p-3 sm:!p-4 min-w-0 flex flex-col items-center justify-center gap-2 text-center hover:shadow-md transition-shadow">
-          <span className="w-10 h-10 rounded-full bg-violet-50 flex items-center justify-center"><BarChart2 size={21} className="text-violet-600"/></span>
-          <span className="text-xs sm:text-sm font-semibold text-gray-900 leading-tight">E se...?</span>
-        </button>
-        <Link to="/metas" className="card !p-3 sm:!p-4 min-w-0 flex flex-col items-center justify-center gap-2 text-center hover:shadow-md transition-shadow">
-          <span className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center"><Target size={21} className="text-emerald-600"/></span>
-          <span className="text-xs sm:text-sm font-semibold text-gray-900 leading-tight">Minhas metas</span>
-        </Link>
-      </div>
+      {/* Home minimalista: patrimônio/benefícios detalhados, calendário inline,
+          "Próximos 7 dias", "Movimentações recentes" e os atalhos de cards
+          foram retirados da visão principal. Nada foi excluído: os dados e
+          componentes seguem acessíveis pelas linhas "Minhas finanças" (ex.:
+          Calendário abre o modal abaixo) e pelas páginas reais (Investimentos,
+          Benefícios, Despesas) e pela página "Mais". */}
 
       {/* O "Horizonte Financeiro", o card de Consultoria e o "Resumo do mês"
           foram movidos para a aba Planejamento (/projecao), deixando a Home mais
           limpa. A consultoria continua acessível pelo atalho "Consultoria".
           O modal do Horizonte (abaixo) é mantido para o sininho de notificações. */}
+
+      {/* Modal: Calendário financeiro (aberto pela linha "Calendário" em
+          "Minhas finanças"). Reutiliza o MESMO componente e os mesmos dados —
+          nenhum cálculo novo, nada removido. */}
+      <Modal aberto={modalCalendario} onFechar={() => setModalCalendario(false)} titulo="Calendário financeiro">
+        {!carregando && (
+          <CalendarioFinanceiroHome
+            receitas={receitas}
+            despesas={despesas}
+            mesVisivel={mesCalendarioHome}
+            onMudarMes={setMesCalendarioHome}
+            horizonte={horizonteCalendario}
+          />
+        )}
+      </Modal>
 
       {/* Modal: planejamento completo "Quanto posso gastar?" — todos os detalhes
           (modos, reserva, renda/compromissos/disponível, ajuste diário, meta,

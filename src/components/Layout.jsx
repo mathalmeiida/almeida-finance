@@ -740,7 +740,7 @@ export default function Layout({ children }) {
 
         <BottomNavItem to="/posso-comprar" label="Simular" icon={ShoppingCart} corIcone="text-blue-400" />
 
-        <BottomNavItem label="Mais" icon={MoreHorizontal} onClick={() => setMaisAberto(true)} ativo={maisAtivo || maisAberto} />
+        <BottomNavItem to="/mais" label="Mais" icon={MoreHorizontal} corIcone="text-gray-400" />
 
       </nav>
 

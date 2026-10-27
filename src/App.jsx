@@ -40,6 +40,8 @@ import PossoComprar from './pages/PossoCComprar'
 
 import Metas from './pages/Metas'
 
+import Mais from './pages/Mais'
+
 import Consultoria from './pages/Consultoria'
 
 import Configuracoes from './pages/Configuracoes'
@@ -423,6 +425,8 @@ function Rotas() {
                 <Route path="/posso-comprar" element={<PossoComprar />} />
 
                 <Route path="/metas" element={<Metas />} />
+
+                <Route path="/mais" element={<Mais />} />
 
                 <Route path="/consultoria" element={<Consultoria />} />
 
