@@ -35,6 +35,16 @@ function FormInvestimento({ inicial, onSalvar, onCancelar, salvando }) {
   })
   const [erroReserva, setErroReserva] = useState('')
   const [avancado, setAvancado] = useState(false)
+  // Modo da reserva (só UI; o dado persistido continua sendo reserva_valor):
+  //  'nao'    → reserva_valor = 0
+  //  'todo'   → reserva_valor = valor_atual (o total compõe a reserva)
+  //  'parte'  → reserva_valor = valor informado no campo
+  const [reservaModo, setReservaModo] = useState(() => {
+    const rv = Number(inicial?.reserva_valor) || 0
+    if (rv <= 0) return 'nao'
+    const va = Number(inicial?.valor_atual) || 0
+    return va > 0 && rv >= va ? 'todo' : 'parte'
+  })
   // Categorias com quantidade/preço (renda variável)
   const usaQtd = ['acoes', 'fii', 'etf', 'fundo'].includes(form.categoria)
 
@@ -43,9 +53,16 @@ function FormInvestimento({ inicial, onSalvar, onCancelar, salvando }) {
     if (!form.nome.trim()) return
     const num = (v) => (v === '' || v == null ? null : Number(v))
     const valorAtual = Number(form.valor_atual) || Number(form.valor_aplicado) || 0
-    const reservaValor = Number(form.reserva_valor) || 0
+    // Deriva reserva_valor a partir do modo escolhido.
+    let reservaValor = 0
+    if (reservaModo === 'todo') reservaValor = valorAtual
+    else if (reservaModo === 'parte') reservaValor = Number(form.reserva_valor) || 0
     // Rejeita (mensagem clara) quando a parte vinculada à reserva passa do saldo
     // atual — mesma regra do CHECK no banco, sem ajuste silencioso.
+    if (reservaValor < 0) {
+      setErroReserva('O valor vinculado à reserva não pode ser negativo.')
+      return
+    }
     if (reservaValor > valorAtual) {
       setErroReserva('O valor vinculado à reserva não pode ser maior que o valor atual do investimento.')
       return
@@ -91,31 +108,49 @@ function FormInvestimento({ inicial, onSalvar, onCancelar, salvando }) {
             onChange={e => setForm(p => ({ ...p, instituicao: e.target.value }))} placeholder="Ex.: Nubank, XP" />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="label">Valor aplicado (R$)</label>
+          <label className="label">Quanto você investiu?</label>
           <InputMoeda valor={form.valor_aplicado} onChangeValor={n => setForm(p => ({ ...p, valor_aplicado: n }))} className="input" />
+          <p className="text-[11px] text-gray-400 mt-1">Valor aplicado: o total que você colocou neste investimento.</p>
         </div>
         <div>
-          <label className="label">Valor atual (R$)</label>
+          <label className="label">Quanto vale hoje?</label>
           <InputMoeda valor={form.valor_atual} onChangeValor={n => setForm(p => ({ ...p, valor_atual: n }))} className="input" />
+          <p className="text-[11px] text-gray-400 mt-1">Valor atual: quanto a posição vale agora (saldo da posição).</p>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label">Data da aplicação</label>
-          <input type="date" className="input" value={form.data_aplicacao}
-            onChange={e => setForm(p => ({ ...p, data_aplicacao: e.target.value }))} />
-        </div>
-        <div>
-          <label className="label">Vincular à reserva (R$) <span className="text-gray-400">(opcional)</span></label>
-          <InputMoeda valor={form.reserva_valor} onChangeValor={n => setForm(p => ({ ...p, reserva_valor: n }))} className="input" />
-        </div>
+      <div>
+        <label className="label">Data da aplicação</label>
+        <input type="date" className="input" value={form.data_aplicacao}
+          onChange={e => setForm(p => ({ ...p, data_aplicacao: e.target.value }))} />
       </div>
-      <p className="text-xs text-gray-400 -mt-1">
-        Informe quanto deste investimento compõe sua reserva de emergência (parte ou total). Não pode exceder o valor atual.
-      </p>
-      {erroReserva && <p className="text-xs text-red-500 -mt-1">{erroReserva}</p>}
+
+      {/* Reserva de emergência: escolha clara (Não / Sim, todo / Sim, parte). */}
+      <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-2">
+        <p className="text-sm font-medium text-gray-800">Este investimento faz parte da sua reserva de emergência?</p>
+        <div className="flex flex-col gap-1.5">
+          {[
+            { v: 'nao',   t: 'Não' },
+            { v: 'todo',  t: 'Sim, todo o valor' },
+            { v: 'parte', t: 'Sim, apenas uma parte' },
+          ].map(op => (
+            <label key={op.v} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="radio" name="reserva_modo" value={op.v} checked={reservaModo === op.v}
+                onChange={() => { setReservaModo(op.v); setErroReserva('') }} className="accent-[rgb(var(--marca))]" />
+              {op.t}
+            </label>
+          ))}
+        </div>
+        {reservaModo === 'parte' && (
+          <div>
+            <label className="label">Valor destinado à reserva (R$)</label>
+            <InputMoeda valor={form.reserva_valor} onChangeValor={n => setForm(p => ({ ...p, reserva_valor: n }))} className="input" />
+            <p className="text-[11px] text-gray-400 mt-1">Não pode exceder o valor atual. Compõe sua reserva sem duplicar o patrimônio.</p>
+          </div>
+        )}
+        {erroReserva && <p className="text-xs text-red-500">{erroReserva}</p>}
+      </div>
 
       {usaQtd && (
         <div className="grid grid-cols-2 gap-3">
@@ -296,10 +331,20 @@ export default function Investimentos() {
       {erro && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">Erro ao carregar: {erro}</p>}
 
       {/* Painel principal (valores reais informados) */}
-      <div className="bg-marca-grad-dark text-white rounded-2xl p-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-white/85">Patrimônio total</p>
+      <div className="bg-marca-grad-dark text-white rounded-2xl p-4 sm:p-5">
+        <p className="text-xs font-medium uppercase tracking-wide text-white/85">Patrimônio total investido</p>
         <p className="text-3xl font-extrabold mt-1 break-words">{exibirMoeda(patrimonioTotal, ocultar)}</p>
-        <p className="text-xs text-white/80 mt-1">Aplicado: {exibirMoeda(totalAplicado, ocultar)} · Não entra no saldo disponível.</p>
+        <div className="grid grid-cols-2 gap-2 mt-3">
+          <div className="bg-black/15 rounded-xl px-3 py-2 min-w-0">
+            <p className="text-[11px] text-white/75">Valor aplicado</p>
+            <p className="text-sm font-bold break-words">{exibirMoeda(totalAplicado, ocultar)}</p>
+          </div>
+          <div className="bg-black/15 rounded-xl px-3 py-2 min-w-0">
+            <p className="text-[11px] text-white/75">Valor atual</p>
+            <p className="text-sm font-bold break-words">{exibirMoeda(patrimonioTotal, ocultar)}</p>
+          </div>
+        </div>
+        <p className="text-[11px] text-white/75 mt-2">Patrimônio separado do saldo disponível — não entra no limite diário.</p>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -344,7 +389,13 @@ export default function Investimentos() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {investimentos.map(i => {
-            const variacao = (Number(i.valor_atual) || 0) - (Number(i.valor_aplicado) || 0)
+            const aplicado = Number(i.valor_aplicado) || 0
+            const atual = Number(i.valor_atual) || 0
+            const variacao = atual - aplicado
+            // Só exibe variação/valorização quando há BASE (valor aplicado > 0);
+            // sem isso, a comparação e o percentual não seriam corretos.
+            const temBaseVariacao = aplicado > 0
+            const pctVariacao = temBaseVariacao ? (variacao / aplicado) * 100 : null
             return (
               <div key={i.id} className="card">
                 <div className="flex items-start justify-between gap-3">
@@ -360,9 +411,15 @@ export default function Investimentos() {
                   )}
                 </div>
                 <p className="text-2xl font-bold text-gray-900 mt-2 break-words">{exibirMoeda(i.valor_atual, ocultar)}</p>
-                <p className={`text-xs mt-0.5 ${variacao >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {variacao >= 0 ? '+' : '−'}{exibirMoeda(Math.abs(variacao), ocultar)} vs. aplicado
-                </p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Aplicado: {exibirMoeda(aplicado, ocultar)}</p>
+                {temBaseVariacao ? (
+                  <p className={`text-xs mt-0.5 ${variacao >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {variacao >= 0 ? '+' : '−'}{exibirMoeda(Math.abs(variacao), ocultar)}
+                    {!ocultar && ` (${variacao >= 0 ? '+' : '−'}${Math.abs(pctVariacao).toFixed(1)}%)`} vs. aplicado
+                  </p>
+                ) : (
+                  <p className="text-xs mt-0.5 text-gray-400">Informe o valor aplicado para ver a valorização.</p>
+                )}
                 {!somenteLeitura && (
                   <div className="grid grid-cols-2 gap-2 mt-3">
                     <button onClick={() => { setErroAcao(''); setMovDe(i) }} className="btn-primary flex items-center justify-center gap-1.5 text-sm py-2"><Plus size={15} /> Movimentar</button>
