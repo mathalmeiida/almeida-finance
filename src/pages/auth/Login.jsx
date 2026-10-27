@@ -46,15 +46,19 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-2">
-      {/* ── Apresentação (desktop) — fundo azul-marinho com gradiente discreto ── */}
-      <aside
-        className="hidden lg:flex flex-col justify-center items-end gap-7 py-10 pl-10 pr-10 xl:pr-16 text-white relative overflow-hidden"
-        style={{ backgroundImage: 'radial-gradient(120% 120% at 100% 0%, rgba(96,141,214,0.25), rgba(96,141,214,0) 55%), linear-gradient(135deg, #0b1f3a 0%, #0a1626 100%)' }}
-      >
+    // Fundo navy ocupando a tela inteira (sem divisória vertical). O conteúdo
+    // fica num ÚNICO container centralizado (max ~1100px) — nada de colunas de
+    // 50vw independentes que criavam o vão central.
+    <div
+      className="min-h-screen text-white overflow-x-hidden flex items-center justify-center"
+      style={{ backgroundImage: 'radial-gradient(120% 120% at 100% 0%, rgba(96,141,214,0.22), rgba(96,141,214,0) 55%), radial-gradient(120% 120% at 0% 100%, rgba(96,141,214,0.16), rgba(96,141,214,0) 55%), linear-gradient(135deg, #0b1f3a 0%, #0a1626 100%)' }}
+    >
+      <div className="w-full max-w-[1100px] mx-auto px-5 sm:px-8 py-10 lg:grid lg:grid-cols-[1.2fr_0.8fr] lg:gap-12 xl:gap-16 lg:items-center">
+      {/* ── Apresentação (desktop) — alinhada à esquerda ── */}
+      <aside className="hidden lg:flex flex-col justify-center gap-7">
         <div className="w-full max-w-md">
-          <LogoMarca imgClassName="w-[150px] h-auto" padding="px-5 py-3.5" />
-          <h1 className="text-3xl font-extrabold mt-7 leading-tight">Suas finanças em um só lugar</h1>
+          <LogoMarca imgClassName="w-[140px] h-auto" padding="px-5 py-3" />
+          <h1 className="text-3xl font-extrabold mt-6 leading-tight">Suas finanças em um só lugar</h1>
           <p className="text-sm text-slate-300 mt-2 max-w-md">
             Organize, planeje e tome decisões melhores com o Almeida Finance.
           </p>
@@ -75,12 +79,9 @@ export default function Login() {
         </ul>
       </aside>
 
-      {/* ── Login (direita no desktop; única coluna no mobile) — fundo navy ── */}
-      <main
-        className="flex items-center justify-center lg:justify-start p-4 lg:pl-10 xl:pl-16 min-h-screen lg:min-h-0 text-white"
-        style={{ backgroundImage: 'radial-gradient(120% 120% at 0% 100%, rgba(96,141,214,0.18), rgba(96,141,214,0) 55%), linear-gradient(135deg, #0a1626 0%, #0b1f3a 100%)' }}
-      >
-        <div className="w-full max-w-sm lg:max-w-md">
+      {/* ── Login (direita no desktop; único bloco no mobile) ── */}
+      <main className="flex items-center justify-center lg:justify-end">
+        <div className="w-full max-w-sm lg:max-w-[420px]">
           {/* Mobile: logo e título compactos acima do formulário (no desktop a
               apresentação aparece na coluna da esquerda). */}
           <div className="flex flex-col items-center text-center mb-6 lg:hidden">
@@ -202,6 +203,7 @@ export default function Login() {
           </ul>
         </div>
       </main>
+      </div>
     </div>
   )
 }

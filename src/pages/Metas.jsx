@@ -4,9 +4,12 @@ import {
   PiggyBank, Eye, Wallet, Home, Plane, Car, GraduationCap, Heart, Smartphone, Gift,
 } from 'lucide-react'
 import { useMetas } from '../hooks/useMetas'
+import { useInvestimentos, labelCategoriaInvestimento } from '../hooks/useInvestimentos'
+import { useMetaInvestimentos } from '../hooks/useMetaInvestimentos'
 import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
 import { formatCurrency, formatDate } from '../lib/utils'
+import { Link2, AlertTriangle } from 'lucide-react'
 
 const CORES_PRESET = ['#059669', '#2563eb', '#7c3aed', '#d97706', '#dc2626', '#0891b2', '#be185d']
 const numero = value => Number(value) || 0
@@ -139,32 +142,149 @@ function FormMovimento({ meta, tipo, onSalvar, onCancelar, carregando }) {
   )
 }
 
-// Painel "Ver detalhes" — leitura (sem histórico persistido de movimentações).
-function DetalheMeta({ meta }) {
-  const atual = numero(meta.valor_atual)
+// Painel "Ver detalhes" — mostra guardado manual, vinculado a investimentos,
+// progresso TOTAL (sem duplicar) e a lista de vínculos com ações.
+function DetalheMeta({ meta, investimentos, inv, onVincular, onEditarVinculo, onDesvincular }) {
+  const manual = numero(meta.valor_atual)
   const desejado = numero(meta.valor_desejado)
-  const pct = progresso(atual, desejado)
-  const faltante = Math.max(0, desejado - atual)
+  const vinculado = inv.totalVinculadoMeta(meta.id)
+  // Progresso total = guardado manual + vinculado a investimentos (recortes do
+  // valor_atual das posições — não duplicam patrimônio nem viram aporte).
+  const totalMeta = manual + vinculado
+  const pct = progresso(totalMeta, desejado)
+  const faltante = Math.max(0, desejado - totalMeta)
   const meses = calcularMesesRestantes(meta.prazo)
   const sugestao = sugestaoMensal(faltante, meses)
   const { Icone, label } = categoriaDaMeta(meta.nome)
+  const vinculos = inv.vinculosDaMeta(meta.id)
+  const mapaInv = new Map((investimentos || []).map(i => [i.id, i]))
+  // Inconsistências nos investimentos usados por esta meta (saldo reduzido depois).
+  const invsDaMeta = vinculos.map(v => mapaInv.get(v.investimento_id)).filter(Boolean)
+  const inconsistentes = inv.inconsistencias(invsDaMeta)
+  const idsInconsistentes = new Set(inconsistentes.map(x => x.investimento.id))
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex items-center gap-3">
         <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{backgroundColor:`${meta.cor || '#059669'}1A`}}><Icone size={22} style={{color:meta.cor || '#059669'}} /></div>
         <div><p className="font-semibold text-gray-900">{meta.nome}</p><p className="text-xs text-gray-500">{label}{meta.prazo ? ` · Prazo: ${formatDate(meta.prazo)}` : ''}</p></div>
       </div>
+
       <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{width:`${pct}%`,backgroundColor:meta.cor || '#059669'}} /></div>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-        <dt className="text-gray-500">Guardado</dt><dd className="text-right font-medium text-gray-900">{formatCurrency(atual)}</dd>
+        <dt className="text-gray-500">Guardado manual</dt><dd className="text-right font-medium text-gray-900">{formatCurrency(manual)}</dd>
+        <dt className="text-gray-500">Vinculado a investimentos</dt><dd className="text-right font-medium text-gray-900">{formatCurrency(vinculado)}</dd>
+        <dt className="text-gray-500">Progresso total</dt><dd className="text-right font-semibold text-gray-900">{formatCurrency(totalMeta)} · {Math.round(pct)}%</dd>
         <dt className="text-gray-500">Objetivo</dt><dd className="text-right font-medium text-gray-900">{formatCurrency(desejado)}</dd>
-        <dt className="text-gray-500">Progresso</dt><dd className="text-right font-medium text-gray-900">{Math.round(pct)}%</dd>
         <dt className="text-gray-500">Falta</dt><dd className="text-right font-medium text-gray-900">{formatCurrency(faltante)}</dd>
-        {meta.prazo && <><dt className="text-gray-500">Prazo</dt><dd className="text-right font-medium text-gray-900">{formatDate(meta.prazo)}</dd></>}
         {sugestao != null && <><dt className="text-gray-500">Sugestão mensal</dt><dd className="text-right font-medium text-marca">{formatCurrency(sugestao)}/mês</dd></>}
       </dl>
-      <p className="text-xs text-gray-400">O histórico detalhado de aportes e retiradas não é armazenado nesta versão.</p>
+
+      {/* Investimentos vinculados */}
+      <div>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5"><Link2 size={15} className="text-marca" /> Investimentos vinculados</h3>
+          {!inv.indisponivel && (
+            <button type="button" onClick={onVincular} className="btn-secondary text-xs inline-flex items-center gap-1 px-2.5 py-1.5"><Plus size={13}/> Vincular</button>
+          )}
+        </div>
+
+        {inv.indisponivel ? (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg p-2.5">A vinculação com investimentos requer a migração do banco (2026-10_metas_investimentos.sql). Aplique-a no Supabase para ativar este recurso.</p>
+        ) : vinculos.length === 0 ? (
+          <p className="text-xs text-gray-500">Nenhum investimento vinculado. Use “Vincular” para destinar parte de um investimento a esta meta (não movimenta dinheiro).</p>
+        ) : (
+          <ul className="space-y-2">
+            {vinculos.map(v => {
+              const i = mapaInv.get(v.investimento_id)
+              const nome = i?.nome || 'Investimento'
+              const cat = i ? labelCategoriaInvestimento(i.categoria) : ''
+              const problema = idsInconsistentes.has(v.investimento_id)
+              return (
+                <li key={v.id} className="flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 p-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 truncate">{nome}</p>
+                    <p className="text-xs text-gray-500">{cat}{i ? ` · Saldo atual ${formatCurrency(numero(i.valor_atual))}` : ' · investimento removido'}</p>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-900 flex-shrink-0">{formatCurrency(numero(v.valor_alocado))}</span>
+                  <button type="button" title="Editar valor" aria-label="Editar valor vinculado" onClick={() => onEditarVinculo(v, i)} disabled={!i} className="touch-target text-gray-500 hover:text-marca rounded-lg disabled:opacity-40"><Pencil size={15}/></button>
+                  <button type="button" title="Desvincular" aria-label="Desvincular investimento" onClick={() => onDesvincular(v)} className="touch-target text-gray-500 hover:text-red-600 rounded-lg"><Trash2 size={15}/></button>
+                  {problema && <AlertTriangle size={15} className="text-amber-600 flex-shrink-0" title="Alocação acima do saldo disponível" />}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+
+        {inconsistentes.length > 0 && (
+          <div className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg p-2.5 flex items-start gap-2">
+            <AlertTriangle size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
+            <span>Um ou mais investimentos tiveram o saldo reduzido abaixo do valor vinculado. Ajuste o valor alocado ou desvincule para corrigir — nada foi alterado automaticamente.</span>
+          </div>
+        )}
+      </div>
+
+      <p className="text-xs text-gray-400">Vincular um investimento apenas destina parte do saldo dele a esta meta. Não é um aporte manual, não movimenta saldo, reserva ou patrimônio.</p>
     </div>
+  )
+}
+
+// Formulário de vínculo (criar ou editar). Mostra o disponível do investimento
+// e bloqueia valores acima dele (a validação forte está no banco via trigger).
+function FormVinculo({ meta, investimentos, inv, vinculoEditar, onSalvar, onCancelar, carregando }) {
+  const jaVinculados = new Set(inv.vinculosDaMeta(meta.id).map(v => v.investimento_id))
+  const editando = !!vinculoEditar
+  const [investimentoId, setInvestimentoId] = useState(vinculoEditar?.investimento_id || '')
+  const [valor, setValor] = useState(vinculoEditar ? numero(vinculoEditar.valor_alocado) : 0)
+
+  // Opções: no modo criar, só investimentos ainda não vinculados a esta meta.
+  const opcoes = (investimentos || []).filter(i => editando ? i.id === investimentoId : !jaVinculados.has(i.id))
+  const invSel = (investimentos || []).find(i => i.id === investimentoId) || null
+  const disponivel = invSel ? inv.disponivelInvestimento(invSel, vinculoEditar?.id || null) : 0
+  const v = numero(valor)
+  const invalido = !investimentoId || v <= 0 || v > disponivel + 0.001
+
+  function enviar(e) {
+    e.preventDefault()
+    if (invalido) return
+    onSalvar({ investimento_id: investimentoId, valor_alocado: v })
+  }
+
+  if (!editando && opcoes.length === 0) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-gray-600">Não há investimentos disponíveis para vincular a esta meta. Cadastre um investimento ou ajuste os vínculos existentes.</p>
+        <button type="button" className="btn-secondary w-full" onClick={onCancelar}>Fechar</button>
+      </div>
+    )
+  }
+
+  return (
+    <form onSubmit={enviar} className="space-y-4">
+      <div>
+        <label className="label">Investimento</label>
+        <select className="input" value={investimentoId} disabled={editando} onChange={e => { setInvestimentoId(e.target.value); setValor(0) }} required>
+          <option value="">Selecione...</option>
+          {opcoes.map(i => <option key={i.id} value={i.id}>{i.nome} — {labelCategoriaInvestimento(i.categoria)}</option>)}
+        </select>
+      </div>
+      {invSel && (
+        <div className="rounded-xl bg-marca-100 p-3 text-sm text-gray-700">
+          Saldo disponível para alocar: <strong className="text-marca">{formatCurrency(disponivel)}</strong>
+          <p className="text-xs text-gray-500 mt-1">Já descontados a reserva e outras metas vinculadas a este investimento.</p>
+        </div>
+      )}
+      <div>
+        <label className="label">Valor a vincular (R$)</label>
+        <InputMoeda valor={valor} onChangeValor={setValor} className="input" autoFocus />
+        {invSel && v > disponivel + 0.001 && <p className="text-xs text-red-600 mt-1">O valor excede o saldo disponível deste investimento.</p>}
+      </div>
+      <p className="text-xs text-gray-500">O vínculo é apenas um recorte informativo do investimento para esta meta. Não movimenta saldo, reserva nem gera aporte.</p>
+      <div className="flex gap-3">
+        <button type="button" className="btn-secondary flex-1" onClick={onCancelar}>Cancelar</button>
+        <button type="submit" disabled={carregando || invalido} className="btn-primary flex-1">{carregando ? 'Salvando...' : (editando ? 'Salvar valor' : 'Vincular')}</button>
+      </div>
+    </form>
   )
 }
 
@@ -179,24 +299,45 @@ function Indicador({ titulo, valor, icone: Icone, cor }) {
 
 export default function Metas() {
   const { metas, carregando, criar, atualizar, remover, ajustarValor } = useMetas()
+  const { investimentos } = useInvestimentos()
+  const inv = useMetaInvestimentos()
   const [modal, setModal] = useState(null)
   const [salvando, setSalvando] = useState(false)
   const [removendo, setRemovendo] = useState(null)
   const [erroAcao, setErroAcao] = useState('')
 
+  // Total da meta = guardado manual + vinculado a investimentos (sem duplicar).
+  const totalDaMeta = (m) => numero(m.valor_atual) + inv.totalVinculadoMeta(m.id)
+
   // ── Totais com dados REAIS do usuário ──
   const totalDesejado = metas.reduce((s, m) => s + numero(m.valor_desejado), 0)
-  const totalAcumulado = metas.reduce((s, m) => s + numero(m.valor_atual), 0)
-  const metasAtivas = metas.filter(m => numero(m.valor_atual) < numero(m.valor_desejado)).length
+  const totalAcumulado = metas.reduce((s, m) => s + totalDaMeta(m), 0)
+  const metasAtivas = metas.filter(m => totalDaMeta(m) < numero(m.valor_desejado)).length
 
   // Metas ativas com sugestão mensal calculável, para a seção de aportes.
   const sugestoes = metas
     .map(m => {
-      const faltante = Math.max(0, numero(m.valor_desejado) - numero(m.valor_atual))
+      const faltante = Math.max(0, numero(m.valor_desejado) - totalDaMeta(m))
       const sugestao = sugestaoMensal(faltante, calcularMesesRestantes(m.prazo))
       return sugestao != null ? { meta: m, faltante, sugestao } : null
     })
     .filter(Boolean)
+
+  async function salvarVinculo(dados) {
+    setSalvando(true); setErroAcao('')
+    try {
+      if (modal?.vinculoEditar) await inv.editarValor(modal.vinculoEditar.id, dados.valor_alocado)
+      else await inv.vincular({ meta_id: modal.meta.id, investimento_id: dados.investimento_id, valor_alocado: dados.valor_alocado })
+      setModal({ tipo: 'detalhes', meta: modal.meta })
+    } catch (e) { setErroAcao(e?.message || 'Não foi possível salvar o vínculo.') }
+    finally { setSalvando(false) }
+  }
+  async function desvincular(v) {
+    if (!window.confirm('Desvincular este investimento da meta? O investimento não é alterado.')) return
+    setErroAcao('')
+    try { await inv.desvincular(v.id) }
+    catch (e) { setErroAcao(e?.message || 'Não foi possível desvincular.') }
+  }
 
   async function salvarMeta(dados) {
     setSalvando(true); setErroAcao('')
@@ -258,7 +399,9 @@ export default function Metas() {
           {/* ── Grade de metas ── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {metas.map(meta => {
-              const atual = numero(meta.valor_atual)
+              const manual = numero(meta.valor_atual)
+              const vinculado = inv.totalVinculadoMeta(meta.id)
+              const atual = manual + vinculado // progresso total (sem duplicar)
               const desejado = numero(meta.valor_desejado)
               const pct = progresso(atual, desejado)
               const faltante = Math.max(0, desejado - atual)
@@ -283,7 +426,11 @@ export default function Metas() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 mt-4">
-                    <div><p className="text-xs text-gray-500">Já guardado</p><p className="font-bold text-base sm:text-xl text-gray-900 break-words">{formatCurrency(atual)}</p></div>
+                    <div>
+                      <p className="text-xs text-gray-500">Já guardado</p>
+                      <p className="font-bold text-base sm:text-xl text-gray-900 break-words">{formatCurrency(atual)}</p>
+                      {vinculado > 0 && <p className="text-[11px] text-gray-500 mt-0.5">{formatCurrency(manual)} manual + {formatCurrency(vinculado)} investido</p>}
+                    </div>
                     <div className="text-right"><p className="text-xs text-gray-500">Objetivo</p><p className="font-bold text-base sm:text-xl text-gray-900 break-words">{formatCurrency(desejado)}</p></div>
                   </div>
 
@@ -305,7 +452,7 @@ export default function Metas() {
                   {/* Ações: Adicionar valor · Retirar · Ver detalhes */}
                   <div className="grid grid-cols-3 gap-2 mt-4">
                     <button type="button" onClick={() => setModal({tipo:'aporte',meta})} disabled={concluida} className="btn-primary flex justify-center items-center gap-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"><Plus size={15}/> <span className="hidden sm:inline">Adicionar</span><span className="sm:hidden">+</span></button>
-                    <button type="button" onClick={() => setModal({tipo:'retirada',meta})} disabled={atual <= 0} className="btn-secondary flex justify-center items-center gap-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"><Minus size={15}/> Retirar</button>
+                    <button type="button" onClick={() => setModal({tipo:'retirada',meta})} disabled={manual <= 0} className="btn-secondary flex justify-center items-center gap-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"><Minus size={15}/> Retirar</button>
                     <button type="button" onClick={() => setModal({tipo:'detalhes',meta})} className="btn-secondary flex justify-center items-center gap-1.5 text-sm"><Eye size={15}/> <span className="hidden sm:inline">Detalhes</span><span className="sm:hidden">Ver</span></button>
                   </div>
                 </section>
@@ -341,7 +488,31 @@ export default function Metas() {
       <Modal aberto={modal?.tipo === 'editar'} onFechar={() => setModal(null)} titulo="Editar meta">{modal?.tipo === 'editar' && <FormMeta meta={modal.meta} onSalvar={salvarMeta} onCancelar={() => setModal(null)} carregando={salvando}/>}</Modal>
       <Modal aberto={modal?.tipo === 'aporte'} onFechar={() => setModal(null)} titulo="Adicionar valor">{modal?.tipo === 'aporte' && <FormMovimento meta={modal.meta} tipo="aporte" onSalvar={salvarMovimento} onCancelar={() => setModal(null)} carregando={salvando}/>}</Modal>
       <Modal aberto={modal?.tipo === 'retirada'} onFechar={() => setModal(null)} titulo="Retirar valor">{modal?.tipo === 'retirada' && <FormMovimento meta={modal.meta} tipo="retirada" onSalvar={salvarMovimento} onCancelar={() => setModal(null)} carregando={salvando}/>}</Modal>
-      <Modal aberto={modal?.tipo === 'detalhes'} onFechar={() => setModal(null)} titulo="Detalhes da meta">{modal?.tipo === 'detalhes' && <DetalheMeta meta={modal.meta} />}</Modal>
+      <Modal aberto={modal?.tipo === 'detalhes'} onFechar={() => setModal(null)} titulo="Detalhes da meta">
+        {modal?.tipo === 'detalhes' && (
+          <DetalheMeta
+            meta={modal.meta}
+            investimentos={investimentos}
+            inv={inv}
+            onVincular={() => setModal({ tipo: 'vincular', meta: modal.meta })}
+            onEditarVinculo={(vinculo) => setModal({ tipo: 'vincular', meta: modal.meta, vinculoEditar: vinculo })}
+            onDesvincular={desvincular}
+          />
+        )}
+      </Modal>
+      <Modal aberto={modal?.tipo === 'vincular'} onFechar={() => setModal({ tipo: 'detalhes', meta: modal?.meta })} titulo={modal?.vinculoEditar ? 'Editar valor vinculado' : 'Vincular investimento'}>
+        {modal?.tipo === 'vincular' && (
+          <FormVinculo
+            meta={modal.meta}
+            investimentos={investimentos}
+            inv={inv}
+            vinculoEditar={modal.vinculoEditar}
+            onSalvar={salvarVinculo}
+            onCancelar={() => setModal({ tipo: 'detalhes', meta: modal.meta })}
+            carregando={salvando}
+          />
+        )}
+      </Modal>
     </div>
   )
 }
