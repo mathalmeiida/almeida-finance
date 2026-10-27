@@ -241,9 +241,9 @@ function UserFooter({ onSair, perfil, usuario }) {
 
       <div className="flex items-center gap-3 px-1 py-2 mb-1">
 
-        <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+        <div className="w-9 h-9 bg-marca-100 rounded-full flex items-center justify-center flex-shrink-0">
 
-          <span className="text-xs font-bold text-blue-700">{iniciais}</span>
+          <span className="text-xs font-bold text-marca">{iniciais}</span>
 
         </div>
 
@@ -341,7 +341,7 @@ function BottomNavItem({ to, label, icon: Icon, onClick, ativo, corIcone }) {
 
   return (
 
-    <button onClick={onClick} className={`${base} ${ativo ? 'text-blue-500' : 'text-gray-400'}`}>
+    <button onClick={onClick} className={`${base} ${ativo ? 'text-marca' : 'text-gray-400'}`}>
 
       <Icon size={21} className={ativo ? '' : (corIcone || '')} />
 
@@ -581,13 +581,13 @@ export default function Layout({ children }) {
 
             to="/configuracoes"
 
-            className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0"
+            className="w-8 h-8 bg-marca-100 rounded-full flex items-center justify-center flex-shrink-0"
 
             aria-label="Minha conta"
 
           >
 
-            <span className="text-xs font-bold text-blue-700">{iniciais}</span>
+            <span className="text-xs font-bold text-marca">{iniciais}</span>
 
           </NavLink>
 
@@ -819,9 +819,9 @@ export default function Layout({ children }) {
 
             <div className="px-5 py-3 border-t border-gray-100 flex items-center gap-2.5">
 
-              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 bg-marca-100 rounded-full flex items-center justify-center flex-shrink-0">
 
-                <span className="text-xs font-bold text-blue-700">{iniciais}</span>
+                <span className="text-xs font-bold text-marca">{iniciais}</span>
 
               </div>
 

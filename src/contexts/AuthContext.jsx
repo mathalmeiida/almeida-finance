@@ -40,26 +40,32 @@ export function AuthProvider({ children }) {
   //   2) perfis.cor_tema → quando a coluna existir, sincroniza entre
   //      dispositivos. Se a coluna NÃO existir, o app funciona só com o
   //      localStorage (não quebra).
-  // Cores válidas: azul (padrão), rosa, verde, roxo.
+  // Cores válidas: roxo (padrão), azul, verde, rosa/vermelho, laranja, preto.
+  // 'vermelho' é aceito como alias de 'rosa' (opção única Rosa/Vermelho) para
+  // robustez; o valor canônico salvo é 'rosa'.
   const CHAVE_COR_TEMA = 'almeida_cor_tema'
-  const CORES_TEMA = ['azul', 'rosa', 'verde', 'roxo', 'preto']
-  const normalizarCor = (c) => (CORES_TEMA.includes(c) ? c : 'azul')
+  const CORES_TEMA = ['roxo', 'azul', 'rosa', 'verde', 'laranja', 'preto']
+  const normalizarCor = (c) => {
+    if (c === 'vermelho') return 'rosa'
+    return CORES_TEMA.includes(c) ? c : 'roxo'
+  }
   const [corTemaLocal, setCorTemaLocal] = useState(() => {
     try { return normalizarCor(localStorage.getItem(CHAVE_COR_TEMA)) }
-    catch { return 'azul' }
+    catch { return 'roxo' }
   })
 
   // Preferência efetiva: perfil do banco tem prioridade quando válido; senão
   // cai no localStorage.
   const corTema = CORES_TEMA.includes(perfil?.cor_tema) ? perfil.cor_tema : corTemaLocal
 
-  // Aplica a classe de tema no <html> (tema-rosa/-verde/-roxo/-preto). Azul =
-  // sem classe (variáveis padrão do :root). Só visual: alterna --marca/--marca-hover.
+  // Aplica a classe de tema no <html> (tema-azul/-verde/-rosa/-laranja/-preto).
+  // ROXO = sem classe (variáveis padrão do :root agora são roxo). Só visual:
+  // alterna --marca/--marca-hover. 'rosa' também cobre o alias vermelho.
   useEffect(() => {
     try {
       const el = document.documentElement
-      el.classList.remove('tema-rosa', 'tema-verde', 'tema-roxo', 'tema-preto')
-      if (corTema !== 'azul') el.classList.add(`tema-${corTema}`)
+      el.classList.remove('tema-azul', 'tema-rosa', 'tema-vermelho', 'tema-verde', 'tema-roxo', 'tema-laranja', 'tema-preto')
+      if (corTema !== 'roxo') el.classList.add(`tema-${corTema}`)
     } catch { /* ambiente sem DOM: ignora */ }
   }, [corTema])
 

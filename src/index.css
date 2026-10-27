@@ -8,13 +8,25 @@
      O padrão é o AZUL (#2855A5 = 40 85 165). A Fase 2 troca para ROSA aplicando
      a classe .tema-rosa no elemento raiz (ver abaixo), por preferência do
      usuário. Apenas identidade visual — não altera cálculos nem dados. */
+  /* PADRÃO = ROXO. Usuários sem preferência salva veem roxo (o fallback de
+     normalizarCor no AuthContext também é 'roxo'). Quem já escolheu outra cor
+     mantém a preferência (perfis.cor_tema / localStorage), aplicada pela classe
+     .tema-* correspondente abaixo. */
   :root {
-    --marca: 40 85 165;        /* #2855A5 azul (padrão) */
+    --marca: 124 58 173;       /* #7C3AAD roxo (padrão) */
+    --marca-hover: 100 46 140; /* roxo mais escuro p/ hover */
+  }
+  /* Azul deixou de ser o padrão; vira uma opção explícita via .tema-azul. */
+  .tema-azul {
+    --marca: 40 85 165;        /* #2855A5 azul */
     --marca-hover: 32 68 132;  /* azul mais escuro p/ hover */
   }
-  .tema-rosa {
-    --marca: 184 63 121;       /* #B83F79 rosa */
-    --marca-hover: 150 48 97;  /* rosa mais escuro p/ hover */
+  /* Rosa/Vermelho: opção única (um vermelho-rosado). A classe .tema-vermelho é
+     um alias da mesma paleta para robustez, mas o valor salvo é 'rosa'. */
+  .tema-rosa,
+  .tema-vermelho {
+    --marca: 184 63 121;       /* #B83F79 rosa/vermelho */
+    --marca-hover: 150 48 97;  /* tom mais escuro p/ hover */
   }
   .tema-verde {
     --marca: 22 128 92;        /* #16805C verde */
@@ -23,6 +35,10 @@
   .tema-roxo {
     --marca: 124 58 173;       /* #7C3AAD roxo */
     --marca-hover: 100 46 140; /* roxo mais escuro p/ hover */
+  }
+  .tema-laranja {
+    --marca: 217 119 6;        /* #D97706 laranja */
+    --marca-hover: 180 98 4;   /* laranja mais escuro p/ hover */
   }
   /* ─── TEMA PRETO = MODO ESCURO COMPLETO ───────────────────────────────────
      Diferente dos outros temas (que só trocam a cor de marca), o preto também

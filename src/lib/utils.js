@@ -12,12 +12,16 @@
 // Opções disponíveis para a cor de destaque do app (botões, menus, ícones
 // ativos). Reutilizadas no onboarding e em Configurações → Aparência. Os hex
 // batem com as variáveis --marca definidas no index.css (.tema-*). Azul=padrão.
+// 6 opções de tema. Roxo é o PADRÃO (primeiro). "Rosa/Vermelho" é uma opção
+// única (valor 'rosa', um vermelho-rosado). Os hex batem com as variáveis
+// --marca definidas no index.css (.tema-*).
 export const CORES_TEMA = [
-  { value: 'azul',  label: 'Azul',  hex: '#2855A5' },
-  { value: 'rosa',  label: 'Rosa',  hex: '#B83F79' },
-  { value: 'verde', label: 'Verde', hex: '#16805C' },
-  { value: 'roxo',  label: 'Roxo',  hex: '#7C3AAD' },
-  { value: 'preto', label: 'Preto', hex: '#1F2937' },
+  { value: 'roxo',    label: 'Roxo',          hex: '#7C3AAD' },
+  { value: 'azul',    label: 'Azul',          hex: '#2855A5' },
+  { value: 'verde',   label: 'Verde',         hex: '#16805C' },
+  { value: 'rosa',    label: 'Rosa/Vermelho', hex: '#B83F79' },
+  { value: 'laranja', label: 'Laranja',       hex: '#D97706' },
+  { value: 'preto',   label: 'Preto',         hex: '#1F2937' },
 ]
 
 export const MASCARA_VALOR = 'R$ ••••'
