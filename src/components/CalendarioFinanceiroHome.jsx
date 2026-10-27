@@ -161,11 +161,13 @@ export default function CalendarioFinanceiroHome({
 
         </div>
 
-        <div className="flex items-center gap-2 text-[11px] text-slate-400">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-400">
 
           <span className="h-2 w-2 rounded-full bg-emerald-400" /> Entradas
 
           <span className="ml-1 h-2 w-2 rounded-full bg-rose-400" /> Saídas
+
+          <span className="ml-1 h-2 w-2 rounded-full bg-sky-400" /> Faturas
 
         </div>
 
@@ -226,7 +228,12 @@ export default function CalendarioFinanceiroHome({
 
               const possuiEntrada = eventosDia.some(ev => ev.tipo === 'entrada')
 
-              const possuiSaida = eventosDia.some(ev => ev.tipo === 'saida')
+              // Fatura de cartão ganha marcador próprio (sky); as demais saídas
+              // (fixas/variáveis/parcelas) seguem como "saída" (rose).
+
+              const possuiFatura = eventosDia.some(ev => ev.categoria === 'cartao')
+
+              const possuiSaida = eventosDia.some(ev => ev.tipo === 'saida' && ev.categoria !== 'cartao')
 
               const selecionado = diaSelecionado === chave
 
@@ -267,6 +274,8 @@ export default function CalendarioFinanceiroHome({
 
                     {possuiSaida && <i aria-label="Despesa" className="h-1.5 w-1.5 rounded-full bg-rose-400" />}
 
+                    {possuiFatura && <i aria-label="Fatura de cartão" className="h-1.5 w-1.5 rounded-full bg-sky-400" />}
+
                   </span>
 
                 </button>
@@ -279,7 +288,7 @@ export default function CalendarioFinanceiroHome({
 
           <p className="af-calendar-footnote mt-3 text-[11px] leading-relaxed text-slate-400">
 
-            Números: saldo projetado abreviado · Pontos verdes: receitas · Pontos vermelhos: despesas e faturas · Traço: sem projeção ou data passada.
+            Números: saldo projetado abreviado · Verde: receitas · Vermelho: despesas (fixas e variáveis) · Azul: faturas de cartão · Traço: sem projeção ou data passada.
 
           </p>
 
@@ -358,23 +367,44 @@ export default function CalendarioFinanceiroHome({
 
             <div className="max-h-[340px] space-y-2 overflow-y-auto pr-0.5">
 
-              {eventos.map((ev, i) => (
+              {eventos.map((ev, i) => {
+
+                // Cor/ícone por categoria para leitura rápida (só visual):
+                //  cartão=sky, receita=verde, despesa fixa/variável/parcela=rose.
+
+                const ehEntrada = ev.tipo === 'entrada'
+
+                const ehCartao = ev.categoria === 'cartao'
+
+                const estilo = ehCartao
+
+                  ? 'bg-sky-400/10 text-sky-300'
+
+                  : ehEntrada
+
+                    ? 'bg-emerald-400/10 text-emerald-300'
+
+                    : 'bg-rose-400/10 text-rose-300'
+
+                const IconeEv = ehCartao ? CreditCard
+
+                  : ehEntrada ? TrendingUp
+
+                  : ev.categoria === 'fixa' ? CalendarClock
+
+                  : ev.categoria === 'parcela' ? CreditCard
+
+                  : ReceiptText
+
+                return (
 
                 <div key={`${ev.tipo}-${ev.categoria}-${i}`} className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-slate-700/60 bg-slate-800/70 p-2.5 text-xs">
 
                   <div className="flex min-w-0 items-center gap-2">
 
-                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${ev.categoria === 'cartao'
+                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${estilo}`}>
 
-                      ? 'bg-sky-400/10 text-sky-300'
-
-                      : ev.tipo === 'entrada'
-
-                        ? 'bg-emerald-400/10 text-emerald-300'
-
-                        : 'bg-rose-400/10 text-rose-300'}`}>
-
-                      {ev.categoria === 'cartao' ? <CreditCard size={15} /> : <ReceiptText size={15} />}
+                      <IconeEv size={15} />
 
                     </span>
 
@@ -396,7 +426,9 @@ export default function CalendarioFinanceiroHome({
 
                 </div>
 
-              ))}
+                )
+
+              })}
 
             </div>
 

@@ -2384,18 +2384,22 @@ const carregandoLimite = carregando
 
       {/* Ações principais: navegação sem duplicar Despesas/Planejamento.
           O registro continua disponível no botão + do menu inferior existente. */}
+      {/* Atalhos: cards neutros (classe .card) que respondem ao tema (claro/
+          escuro). O ícone mantém a cor semântica para diferenciar cada atalho;
+          o rótulo usa text-gray-900 (remapeado no tema preto). Menos poluição
+          visual que os fundos coloridos anteriores. */}
       <div className="af-home-atalhos grid grid-cols-3 gap-2 sm:gap-3">
-        <Link to="/posso-comprar" className="min-w-0 rounded-2xl border border-blue-100 bg-blue-50 p-3 sm:p-4 flex flex-col items-center justify-center gap-2 text-center hover:shadow-sm transition-shadow">
-          <span className="w-10 h-10 rounded-full bg-white flex items-center justify-center"><ShoppingCart size={21} className="text-blue-600"/></span>
-          <span className="text-xs sm:text-sm font-semibold text-slate-800 leading-tight">Posso comprar?</span>
+        <Link to="/posso-comprar" className="card !p-3 sm:!p-4 min-w-0 flex flex-col items-center justify-center gap-2 text-center hover:shadow-md transition-shadow">
+          <span className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center"><ShoppingCart size={21} className="text-blue-600"/></span>
+          <span className="text-xs sm:text-sm font-semibold text-gray-900 leading-tight">Posso comprar?</span>
         </Link>
-        <button type="button" onClick={() => navigate('/e-se')} className="min-w-0 rounded-2xl border border-violet-100 bg-violet-50 p-3 sm:p-4 flex flex-col items-center justify-center gap-2 text-center hover:shadow-sm transition-shadow">
-          <span className="w-10 h-10 rounded-full bg-white flex items-center justify-center"><BarChart2 size={21} className="text-violet-600"/></span>
-          <span className="text-xs sm:text-sm font-semibold text-slate-800 leading-tight">E se...?</span>
+        <button type="button" onClick={() => navigate('/e-se')} className="card !p-3 sm:!p-4 min-w-0 flex flex-col items-center justify-center gap-2 text-center hover:shadow-md transition-shadow">
+          <span className="w-10 h-10 rounded-full bg-violet-50 flex items-center justify-center"><BarChart2 size={21} className="text-violet-600"/></span>
+          <span className="text-xs sm:text-sm font-semibold text-gray-900 leading-tight">E se...?</span>
         </button>
-        <Link to="/metas" className="min-w-0 rounded-2xl border border-emerald-100 bg-emerald-50 p-3 sm:p-4 flex flex-col items-center justify-center gap-2 text-center hover:shadow-sm transition-shadow">
-          <span className="w-10 h-10 rounded-full bg-white flex items-center justify-center"><Target size={21} className="text-emerald-600"/></span>
-          <span className="text-xs sm:text-sm font-semibold text-slate-800 leading-tight">Minhas metas</span>
+        <Link to="/metas" className="card !p-3 sm:!p-4 min-w-0 flex flex-col items-center justify-center gap-2 text-center hover:shadow-md transition-shadow">
+          <span className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center"><Target size={21} className="text-emerald-600"/></span>
+          <span className="text-xs sm:text-sm font-semibold text-gray-900 leading-tight">Minhas metas</span>
         </Link>
       </div>
 
