@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Sun, Plus, Pencil,
   CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank, AlertTriangle, MessageCircle, BarChart2,
-  Receipt, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap, Info, X
+  Receipt, ReceiptText, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap, Info, X
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useReceitas } from '../hooks/useReceitas'
@@ -2380,6 +2380,54 @@ const carregandoLimite = carregando
           onMudarMes={setMesCalendarioHome}
           horizonte={horizonteCalendario}
         />
+      )}
+
+      {/* Próximos 7 dias + Movimentações recentes — lado a lado no desktop,
+          empilhados no mobile. Reutilizam os dados REAIS já derivados
+          (proximos7Dias/totalProximos7 e ultimasTransacoes), sem nova consulta
+          nem alteração de cálculo. */}
+      {!carregando && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <CardProximos7Dias
+            total={totalProximos7}
+            itens={proximos7Dias}
+            onVerTodos={() => navigate('/despesas')}
+          />
+
+          {/* Movimentações recentes: 3 últimos lançamentos (receitas + despesas
+              já carregadas). Só exibição — nada é recalculado aqui. */}
+          <div className="card">
+            <div className="flex items-center justify-between gap-2 min-w-0">
+              <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2 min-w-0">
+                <ReceiptText size={18} className="text-marca flex-shrink-0" />
+                <span className="truncate">Movimentações recentes</span>
+              </h2>
+              <Link to="/despesas" className="text-sm font-medium text-marca hover:underline flex-shrink-0">Ver todas</Link>
+            </div>
+            {ultimasTransacoes.length === 0 ? (
+              <p className="text-sm text-gray-500 mt-3">Nenhuma movimentação registrada ainda.</p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {ultimasTransacoes.map(t => (
+                  <li key={t.id} className="flex items-center justify-between gap-3 bg-gray-50 rounded-xl px-3 py-2.5">
+                    <div className="min-w-0 flex items-center gap-2.5">
+                      <span className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${t.tipo === 'receita' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                        {t.tipo === 'receita' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{t.descricao}</p>
+                        <p className="text-xs text-gray-500">{t.quando}</p>
+                      </div>
+                    </div>
+                    <span className={`text-sm font-semibold flex-shrink-0 whitespace-nowrap ${t.tipo === 'receita' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {t.tipo === 'receita' ? '+' : '−'} {exibirMoeda(t.valor, ocultar)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Ações principais: navegação sem duplicar Despesas/Planejamento.
