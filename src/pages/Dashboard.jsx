@@ -2305,10 +2305,14 @@ const carregandoLimite = carregando
         </div>
       )}
 
+      {/* Grade da Home minimalista: 1 coluna no mobile/tablet; 2 colunas no
+          desktop (dinheiro à esquerda, atalhos + Minhas finanças à direita).
+          Aproveita a largura sem esticar os cards e reduz o espaço vazio. */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-5 lg:items-start">
       {/* ── MEU DINHEIRO ── Saldo + "Quanto posso gastar hoje?" em destaque.
           Reutiliza o CardGastoHoje (clique abre detalhes/ações: editar saldo,
           limite e planejamento completo via os modais já existentes). */}
-      <div className="af-top-cards">
+      <div className="af-top-cards lg:col-span-7 min-w-0">
         <div className="min-w-0">
           <CardGastoHoje
             carregando={carregando}
@@ -2337,10 +2341,12 @@ const carregandoLimite = carregando
         </div>
       </div>
 
+      {/* Coluna direita (desktop): atalhos rápidos + Minhas finanças. */}
+      <div className="lg:col-span-5 min-w-0 flex flex-col gap-3">
       {/* ── ATALHOS RÁPIDOS ── 4 ícones circulares: Adicionar, Despesas,
           Simular, Mais. Reutilizam fluxos/rotas reais (gasto rápido via modal
           existente; rotas /despesas, /posso-comprar, /mais). */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-4 gap-2 card !p-3">
         {[
           { label: 'Adicionar', Icon: Plus,         onClick: () => (somenteLeitura ? null : setModalGasto(true)), disabled: somenteLeitura },
           { label: 'Despesas',  Icon: TrendingDown, onClick: () => navigate('/despesas') },
@@ -2357,10 +2363,10 @@ const carregandoLimite = carregando
         ))}
       </div>
 
-      {/* ── MINHAS FINANÇAS ── linhas compactas clicáveis. Cartões/Investimentos/
-          Benefícios navegam para as páginas reais; Calendário abre o modal com
-          o CalendarioFinanceiroHome (mesmo componente/dados, sem rota nova). */}
-      <div className="card !p-2 divide-y divide-gray-100">
+      {/* ── MINHAS FINANÇAS ── atalhos clicáveis. Grade de 2 colunas no desktop
+          e 1 coluna no celular. Cartões/Investimentos/Benefícios navegam para
+          as páginas reais; Calendário abre o modal (mesmo componente/dados). */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         {[
           { label: 'Cartões',       Icon: CreditCard,      onClick: () => navigate('/cartoes') },
           { label: 'Investimentos', Icon: PiggyBank,       onClick: () => navigate('/investimentos') },
@@ -2368,15 +2374,17 @@ const carregandoLimite = carregando
           { label: 'Calendário',    Icon: CalendarClock,   onClick: () => setModalCalendario(true) },
         ].map(({ label, Icon, onClick }) => (
           <button key={label} type="button" onClick={onClick}
-            className="w-full flex items-center gap-3 px-2.5 py-3 hover:bg-gray-50 transition-colors text-left rounded-lg">
-            <span className="w-9 h-9 rounded-lg bg-marca-100 text-marca flex items-center justify-center flex-shrink-0">
-              <Icon size={18} />
+            className="card !p-3 w-full flex items-center gap-3 hover:shadow-md transition-shadow text-left">
+            <span className="w-10 h-10 rounded-lg bg-marca-100 text-marca flex items-center justify-center flex-shrink-0">
+              <Icon size={19} />
             </span>
             <span className="flex-1 text-sm font-medium text-gray-900">{label}</span>
             <ArrowRight size={16} className="text-gray-400 flex-shrink-0" />
           </button>
         ))}
       </div>
+      </div>{/* fim coluna direita */}
+      </div>{/* fim grade da Home */}
 
       {/* ── Meus Benefícios (VR/VA) — seção COMPACTA na Home ──
           Mostra o saldo de VR e VA separadamente, usando os dados REAIS do
