@@ -688,7 +688,7 @@ export default function Layout({ children }) {
 
             conteúdo era curto. */}
 
-        <main className={`md:flex-1 px-4 pt-1 pb-0 md:px-6 md:py-6 w-full pb-mobilenav md:pb-8 lg:pb-5 ${ehHome ? '' : 'max-w-6xl xl:max-w-7xl 2xl:max-w-[1600px] mx-auto lg:px-8 lg:py-5'}`}>
+        <main className="md:flex-1 px-4 pt-1 pb-0 md:p-8 lg:py-5 max-w-6xl w-full mx-auto pb-mobilenav md:pb-8 lg:pb-5">
 
           {children}
 
