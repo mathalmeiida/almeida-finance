@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Sun, Plus, Pencil,
-  CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank, AlertTriangle, MessageCircle, BarChart2,
+  CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, ChevronDown, PiggyBank, AlertTriangle, MessageCircle, BarChart2,
   Receipt, ReceiptText, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap, Info, X, MoreHorizontal, Sparkles
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
@@ -1621,6 +1621,9 @@ export default function Dashboard() {
 
   const [modalNotificacoes, setModalNotificacoes] = useState(false) // central de notificações (sino)
   const [modalCalendario, setModalCalendario] = useState(false) // calendário financeiro (abre pela linha "Calendário")
+  // Cards móveis: fechados por padrão, cada um expande independentemente.
+  const [cardsMobileAbertos, setCardsMobileAbertos] = useState({})
+  const alternarCardMobile = (chave) => setCardsMobileAbertos(anterior => ({ ...anterior, [chave]: !anterior[chave] }))
   // Antecipação de pagamento a partir do card "Próximos 7 dias".
   const [despesaAntecipar, setDespesaAntecipar] = useState(null)
   const [antecipandoHome, setAntecipandoHome] = useState(false)
@@ -2348,9 +2351,83 @@ const carregandoLimite = carregando
         ))}
       </div>
 
+      {/* Cards recolhíveis APENAS no celular; cada um abre e fecha separadamente. */}
+      <section className="md:hidden space-y-3" aria-label="Minhas finanças">
+        {[
+          { id: 'calendario', titulo: 'Calendário', subtitulo: 'Próximos compromissos', Icone: CalendarClock },
+          { id: 'cartoes', titulo: 'Cartões', subtitulo: 'Faturas, compras e limites', Icone: CreditCard },
+          { id: 'investimentos', titulo: 'Investimentos', subtitulo: 'Seu patrimônio em evolução', Icone: PiggyBank },
+          { id: 'beneficios', titulo: 'Benefícios', subtitulo: 'Saldos de VR e VA', Icone: UtensilsCrossed },
+        ].map(({ id, titulo, subtitulo, Icone }) => {
+          const aberto = !!cardsMobileAbertos[id]
+          return (
+            <div key={id} className="card !p-0 overflow-hidden rounded-2xl">
+              <button type="button" onClick={() => alternarCardMobile(id)}
+                aria-expanded={aberto} aria-controls={`conteudo-mobile-${id}`}
+                className="flex w-full items-center gap-3 p-4 text-left">
+                <span className="w-10 h-10 rounded-xl bg-marca-100 text-marca flex items-center justify-center flex-shrink-0"><Icone size={20}/></span>
+                <span className="flex-1 min-w-0"><strong className="block text-sm text-gray-900">{titulo}</strong><span className="text-xs text-gray-500">{subtitulo}</span></span>
+                <ChevronDown size={18} className={`text-gray-400 transition-transform ${aberto ? 'rotate-180' : ''}`}/>
+              </button>
+              {aberto && (
+                <div id={`conteudo-mobile-${id}`} className="px-4 pb-4 space-y-2">
+                  {id === 'calendario' && (
+                    <>
+                      {proximos7Dias.length ? proximos7Dias.slice(0, 3).map(item => (
+                        <div key={item.id} className="rounded-xl bg-marca-100/40 px-3 py-2.5 flex gap-2 items-center min-w-0">
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.cor}`}/>
+                          <span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-gray-800 truncate">{item.descricao}</span><span className="block text-[11px] text-gray-500">{item.dataVencimento} · {item.tipoLancamento} · {item.quando}</span></span>
+                          <strong className="text-xs text-gray-900 shrink-0">{exibirMoeda(item.valor, ocultar)}</strong>
+                        </div>
+                      )) : <p className="rounded-xl bg-marca-100/40 p-3 text-xs text-gray-500">Nenhum compromisso previsto nos próximos 7 dias.</p>}
+                      <button type="button" onClick={() => navigate('/projecao')} className="text-marca text-xs font-semibold py-2 flex items-center gap-2">Ver projeção completa <ArrowRight size={15}/></button>
+                    </>
+                  )}
+                  {id === 'cartoes' && (
+                    <>
+                      <div className="rounded-xl bg-marca-100/40 p-4 space-y-1">
+                        <span className="block text-xs text-gray-500">{cartoes.length === 1 ? '1 cartão cadastrado' : `${cartoes.length} cartões cadastrados`}</span>
+                        {(() => {
+                          const fatura = proximos7Dias.find(item => item.tipoLancamento === 'Fatura')
+                          return fatura ? <><span className="block text-xs text-gray-500 mt-2">Fatura com vencimento próximo</span><strong className="block text-xl text-gray-900">{exibirMoeda(fatura.valor, ocultar)}</strong><span className="block text-xs text-gray-500">Vence {fatura.dataVencimento}</span></> : <span className="block text-xs text-gray-500 mt-2">Nenhuma fatura identificada nos próximos 7 dias.</span>
+                        })()}
+                      </div>
+                      <button type="button" onClick={() => navigate('/cartoes')} className="text-marca text-xs font-semibold py-2 flex items-center gap-2">Ver cartões e faturas <ArrowRight size={15}/></button>
+                    </>
+                  )}
+                  {id === 'investimentos' && (
+                    <>
+                      <div className="rounded-xl bg-marca-100/40 p-4 space-y-1">
+                        <span className="block text-xs text-gray-500">Patrimônio total cadastrado</span>
+                        <strong className="block text-xl font-bold text-gray-900 break-words">{exibirMoeda(Number(patrimonioTotal) || 0, ocultar)}</strong>
+                        <span className="block text-xs text-gray-500">{investimentos.length} {investimentos.length === 1 ? 'investimento cadastrado' : 'investimentos cadastrados'}</span>
+                      </div>
+                      <button type="button" onClick={() => navigate('/investimentos')} className="text-marca text-xs font-semibold py-2 flex items-center gap-2">Ver detalhes do patrimônio <ArrowRight size={15}/></button>
+                    </>
+                  )}
+                  {id === 'beneficios' && (
+                    <>
+                      {['VR', 'VA'].map(tipo => {
+                        const beneficio = beneficioPorTipo(tipo)
+                        return <div key={tipo} className="rounded-xl bg-marca-100/40 px-3 py-3 flex items-center justify-between gap-2">
+                          <span className="text-xs text-gray-600">{tipo === 'VR' ? 'Vale-refeição (VR)' : 'Vale-alimentação (VA)'}</span>
+                          <strong className="text-sm text-gray-900 break-words text-right">{beneficio ? exibirMoeda(Number(saldoDoBeneficio(beneficio.id)) || 0, ocultar) : 'Não cadastrado'}</strong>
+                        </div>
+                      })}
+                      <button type="button" onClick={() => navigate('/beneficios')} className="text-marca text-xs font-semibold py-2 flex items-center gap-2">Ver benefícios <ArrowRight size={15}/></button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </section>
+
+      {/* Desktop conserva os quatro cards originais sem alterações. */}
       {/* ── MINHAS FINANÇAS ── resumos reais, sem valores demonstrativos.
           O calendário abre a Projeção; os demais cards abrem suas páginas. */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 w-full items-stretch" aria-label="Minhas finanças">
+      <section className="hidden md:grid md:grid-cols-2 xl:grid-cols-4 gap-3 w-full items-stretch" aria-label="Minhas finanças">
         <button type="button" onClick={() => navigate('/cartoes')}
           className="card !p-4 min-w-0 text-left rounded-2xl flex flex-col gap-4 hover:brightness-110 transition-all min-h-[230px]">
           <div className="flex items-center gap-3">
