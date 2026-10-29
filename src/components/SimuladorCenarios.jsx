@@ -6,6 +6,7 @@ import { TrendingUp, TrendingDown, Briefcase, Info, AlertTriangle, Landmark, Wal
 import InputMoeda from './InputMoeda'
 
 import DestaqueValor from './DestaqueValor'
+import CalendarioCenario from './CalendarioCenario'
 
 import { formatCurrency } from '../lib/utils'
 
@@ -16,14 +17,28 @@ import {
 } from '../lib/cenarios'
 
 // ─────────────────────────────────────────────────────────────────────────────
-
 // Simulador "E se...?" — cenários financeiros TEMPORÁRIOS. Usa a receita e a
-
 // despesa mensais REAIS (vindas por props de resumoMes) e a reserva acumulada;
-
 // não grava nada, não altera saldos. Tudo é estimativa.
-
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Visualização ESTIMADA da evolução acumulada: o simulador só conhece totais
+// mensais, sem datas de pagamento. Distribuição uniforme NÃO é fluxo de caixa real.
+function diasEstimadosCenario(resultadoMensal, dataInicio = new Date()) {
+  const inicial = new Date(dataInicio.getFullYear(), dataInicio.getMonth(), 1)
+  const linhas = []
+  for (let m = 0; m < 12; m++) {
+    const ano = inicial.getFullYear()
+    const mes = inicial.getMonth() + m
+    const primeiro = new Date(ano, mes, 1)
+    const ultimo = new Date(ano, mes + 1, 0).getDate()
+    for (let d = 1; d <= ultimo; d++) {
+      const data = `${primeiro.getFullYear()}-${String(primeiro.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+      linhas.push({ data, saldo: (m + d / ultimo) * (Number(resultadoMensal) || 0) })
+    }
+  }
+  return linhas
+}
 
 const CENARIOS = [
 
@@ -40,9 +55,7 @@ const CENARIOS = [
 ]
 
 // Cenários genéricos do modo "Renda profissional" (apenas rótulos; NÃO há
-
 // cálculo específico por cenário — todos usam os mesmos 4 campos locais).
-
 const CENARIOS_PRO = [
 
   'Mais demandas',
@@ -62,11 +75,9 @@ const CENARIOS_PRO = [
 export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0, reservaAtual = 0 }) {
 
   // Modo do simulador: 'pessoal' (como já era) ou 'profissional' (novo).
-
   const [modo, setModo] = useState('pessoal')
 
   // ── Estado do modo profissional (campos locais; não grava nada) ──
-
   const [cenarioPro, setCenarioPro] = useState(CENARIOS_PRO[0])
 
   const [receitaExtraMensal, setReceitaExtraMensal] = useState('')
@@ -82,7 +93,6 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
   const [valor, setValor] = useState('') // delta de renda (aumento/redução/extra)
 
   // Campos do desligamento (todos manuais/opcionais).
-
   const [modalidade, setModalidade] = useState('sem_justa_causa')
 
   const [saqueAniversario, setSaqueAniversario] = useState(false)
@@ -102,64 +112,108 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
   const [descontos, setDescontos] = useState('')
 
   const [rendaTemporaria, setRendaTemporaria] = useState('') // ex.: seguro-desemprego mensal informado
+
   const [calculoAutomatico, setCalculoAutomatico] = useState(true)
+
   const [salarioBruto, setSalarioBruto] = useState('')
+
   const [dataAdmissao, setDataAdmissao] = useState('')
+
   const [dataDesligamento, setDataDesligamento] = useState(new Date().toISOString().slice(0, 10))
+
   const [feriasAjustadas, setFeriasAjustadas] = useState('')
+
   const [avisoIndenizado, setAvisoIndenizado] = useState(true)
+
   const [solicitacoesSeguro, setSolicitacoesSeguro] = useState('3')
+
   const [salarioMedioSeguro, setSalarioMedioSeguro] = useState('')
+
   const [mesesRendaManual, setMesesRendaManual] = useState('5')
+
   const [recursosLiberados, setRecursosLiberados] = useState(true)
 
   const numero = v => Math.max(0, Number(v) || 0)
+
   const admissao = dataAdmissao ? new Date(`${dataAdmissao}T12:00:00`) : null
+
   const desligamento = dataDesligamento ? new Date(`${dataDesligamento}T12:00:00`) : null
+
   const datasValidas = admissao && desligamento && !isNaN(admissao) && !isNaN(desligamento) && desligamento >= admissao
+
   const mesesServico = datasValidas
+
     ? Math.max(0, (desligamento.getFullYear() - admissao.getFullYear()) * 12 + desligamento.getMonth() - admissao.getMonth() - (desligamento.getDate() < admissao.getDate() ? 1 : 0))
+
     : 0
+
   const anosCompletos = Math.floor(mesesServico / 12)
+
   const diasAviso = Math.min(90, 30 + 3 * anosCompletos)
+
   const salarioAuto = numero(salarioBruto)
+
   const saldoSalarioAuto = datasValidas ? salarioAuto / 30 * Math.min(30, desligamento.getDate()) : 0
+
   const avisoAuto = datasValidas && avisoIndenizado && modalidade !== 'pedido_demissao'
+
     ? salarioAuto / 30 * diasAviso * (modalidade === 'acordo' ? 0.5 : 1) : 0
+
   const fimProjetado = datasValidas ? new Date(desligamento.getFullYear(), desligamento.getMonth(), desligamento.getDate() + (avisoIndenizado && modalidade !== 'pedido_demissao' ? diasAviso : 0)) : null
+
   const avos13 = fimProjetado ? Array.from({ length: 12 }, (_, i) => i).filter(m => {
+
     const ano = fimProjetado.getFullYear()
+
     const inicioMes = new Date(ano, m, 1)
+
     const fimMes = new Date(ano, m + 1, 0)
+
     const inicioContagem = admissao > inicioMes ? admissao : inicioMes
+
     const fimContagem = fimProjetado < fimMes ? fimProjetado : fimMes
+
     return fimContagem >= inicioContagem && (Math.floor((fimContagem - inicioContagem) / 86400000) + 1) >= 15
+
   }).length : 0
+
   const decimoAuto = salarioAuto * avos13 / 12
+
   const camposAutoValidos = calculoAutomatico && datasValidas && salarioAuto > 0
+
   const verbasCalculadas = {
+
     saldo: camposAutoValidos ? saldoSalarioAuto : saldoSalario,
+
     ferias: camposAutoValidos ? feriasAjustadas : ferias,
+
     decimo: camposAutoValidos ? decimoAuto : decimo,
+
     aviso: camposAutoValidos ? avisoAuto : aviso,
+
   }
+
   // Tabela do MTE vigente em 2026. Requer confirmação dos requisitos individuais.
   const mediaSeguro = numero(salarioMedioSeguro || salarioBruto)
-  const parcelaSeguro = mediaSeguro <= 0 ? 0 : Math.min(2518.65, Math.max(1621,
-    mediaSeguro <= 2222.17 ? mediaSeguro * 0.8 : mediaSeguro <= 3703.99 ? 1777.74 + (mediaSeguro - 2222.17) * 0.5 : 2518.65))
-  const parcelasSeguro = modalidade !== 'sem_justa_causa' ? 0 :
-    solicitacoesSeguro === '1' ? (mesesServico >= 24 ? 5 : mesesServico >= 12 ? 4 : 0) :
-    solicitacoesSeguro === '2' ? (mesesServico >= 24 ? 5 : mesesServico >= 12 ? 4 : mesesServico >= 9 ? 3 : 0) :
-    mesesServico >= 24 ? 5 : mesesServico >= 12 ? 4 : mesesServico >= 6 ? 3 : 0
-  const seguroEstimado = camposAutoValidos && parcelasSeguro > 0 ? parcelaSeguro : 0
 
+  const parcelaSeguro = mediaSeguro <= 0 ? 0 : Math.min(2518.65, Math.max(1621,
+
+    mediaSeguro <= 2222.17 ? mediaSeguro * 0.8 : mediaSeguro <= 3703.99 ? 1777.74 + (mediaSeguro - 2222.17) * 0.5 : 2518.65))
+
+  const parcelasSeguro = modalidade !== 'sem_justa_causa' ? 0 :
+
+    solicitacoesSeguro === '1' ? (mesesServico >= 24 ? 5 : mesesServico >= 12 ? 4 : 0) :
+
+    solicitacoesSeguro === '2' ? (mesesServico >= 24 ? 5 : mesesServico >= 12 ? 4 : mesesServico >= 9 ? 3 : 0) :
+
+    mesesServico >= 24 ? 5 : mesesServico >= 12 ? 4 : mesesServico >= 6 ? 3 : 0
+
+  const seguroEstimado = camposAutoValidos && parcelasSeguro > 0 ? parcelaSeguro : 0
 
   const ehDesligamento = cenario === 'desligamento'
 
   // deltaRenda do cenário: perda/desligamento zeram a renda; aumento/redução/
-
   // extra aplicam o valor informado com o sinal do cenário.
-
   const valorNum = Number(valor) || 0
 
   const deltaRenda = ehDesligamento
@@ -173,11 +227,9 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
       : (CENARIOS.find(c => c.id === cenario)?.sinal || 1) * valorNum
 
   // Situação ATUAL (base de comparação).
-
   const atual = simularImpactoRenda({ receitaAtual, despesaMensal, reservaAtual, deltaRenda: 0 })
 
   // Cenário SIMULADO.
-
   const sim = simularImpactoRenda({ receitaAtual, despesaMensal, reservaAtual, deltaRenda })
 
   const horizontes = projetarHorizontes({ reservaAtual, saldoMensal: sim.saldoMensal })
@@ -201,7 +253,6 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
         : 'Acompanhe seus gastos e mantenha uma margem financeira para imprevistos.'
 
   // Rescisão (só no desligamento) — valores manuais.
-
   const rescisao = ehDesligamento
 
     ? resumoRescisao({
@@ -219,28 +270,46 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
   // Fluxo de caixa após a demissão: verba rescisória entra uma única vez.
   // O usuário escolhe se já pode contar com a liberação desses recursos.
   const dinheiroRescisao = Math.max(0, Number(rescisao?.dinheiroImediato) || 0)
+
   const rendaMensalTransicao = camposAutoValidos ? seguroEstimado : numero(rendaTemporaria)
+
   const mesesRendaTransicao = camposAutoValidos ? parcelasSeguro : Math.min(60, Math.floor(numero(mesesRendaManual)))
+
   const saldoInicialTransicao = numero(reservaAtual) + (recursosLiberados ? dinheiroRescisao : 0)
+
   const gastoMensalTransicao = numero(despesaMensal)
+
   const projetarSaldoTransicao = (meses) => {
+
     let saldo = saldoInicialTransicao
+
     for (let mes = 1; mes <= meses; mes++) {
+
       const recebe = mes <= mesesRendaTransicao ? rendaMensalTransicao : 0
+
       saldo += recebe - gastoMensalTransicao
+
     }
+
     return saldo
+
   }
+
   const mesesCoberturaTransicao = (() => {
+
     if (gastoMensalTransicao <= 0) return null
+
     for (let mes = 1; mes <= 600; mes++) {
+
       if (projetarSaldoTransicao(mes) < 0) return mes - 1
+
     }
+
     return null
+
   })()
 
   // Elegibilidade do FGTS respeita o saque-aniversário escolhido.
-
   const fgtsBloqueadoAniversario = ehDesligamento && saqueAniversario && Number(fgts) > 0
 
  return (
@@ -360,79 +429,153 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
       )}
 
       {/* Desligamento: dados e cálculo assistido */}
+
       {ehDesligamento && (
+
         <div className="space-y-4 min-w-0">
+
           <div className="rounded-2xl !border-0 bg-transparent p-4 sm:p-5 space-y-4">
+
             <div className="flex items-center gap-2"><Briefcase size={18} className="text-marca"/><h3 className="text-base font-semibold text-inherit">Dados do desligamento</h3></div>
+
             <label className="label">Tipo de desligamento</label>
+
             <div className="grid grid-cols-3 gap-1.5">
+
               {[{id:'sem_justa_causa',nome:'Sem justa causa'}, {id:'pedido_demissao',nome:'Pedido'}, {id:'acordo',nome:'Acordo'}].map(op => (
+
                 <button key={op.id} type="button" onClick={() => setModalidade(op.id)} className={`min-w-0 rounded-xl !border-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-marca px-2.5 py-3 text-xs sm:text-sm font-medium ${modalidade === op.id ? 'bg-marca-100 text-marca shadow-sm' : 'bg-slate-500/10 text-inherit hover:bg-slate-500/20'}`}>{op.nome}</button>
+
               ))}
+
             </div>
+
             <label className="flex items-center gap-2 text-sm text-inherit cursor-pointer">
+
               <input type="checkbox" checked={calculoAutomatico} onChange={e => setCalculoAutomatico(e.target.checked)} /> Calcular verbas pelo contrato
+
             </label>
+
             {calculoAutomatico && (
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
                 <div><label className="label">Salário bruto mensal</label><InputMoeda valor={salarioBruto} onChangeValor={setSalarioBruto} className="input" prefixo={null}/></div>
+
                 <div><label className="label">Data de admissão</label><input className="input w-full" type="date" value={dataAdmissao} onChange={e => setDataAdmissao(e.target.value)}/></div>
+
                 <div><label className="label">Data de desligamento</label><input className="input w-full" type="date" value={dataDesligamento} onChange={e => setDataDesligamento(e.target.value)}/></div>
+
                 <div><label className="label">Férias pendentes + 1/3</label><InputMoeda valor={feriasAjustadas} onChangeValor={setFeriasAjustadas} className="input" prefixo={null}/></div>
+
               </div>
+
             )}
+
             {calculoAutomatico && (
+
               <>
+
                 <label className="flex items-center gap-2 text-xs text-inherit"><input type="checkbox" checked={avisoIndenizado} onChange={e => setAvisoIndenizado(e.target.checked)}/> Aviso indenizado (estimativa)</label>
+
                 {camposAutoValidos ? <p className="text-xs text-inherit">Tempo de serviço: {anosCompletos} anos completos · aviso de referência: {diasAviso} dias · 13º: {avos13}/12. Férias devem ser preenchidas conforme os períodos ainda devidos.</p> : <p className="text-xs text-amber-400">Informe salário e datas válidas para calcular automaticamente. Até lá, as verbas ficam zeradas.</p>}
+
               </>
+
             )}
+
           </div>
+
           <div className="rounded-2xl !border-0 p-4 sm:p-5 space-y-4">
+
             <h3 className="text-base font-semibold text-inherit">Detalhamento das verbas</h3>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
               {[
+
                 ['Saldo de salário', verbasCalculadas.saldo],
+
                 ['Férias + 1/3', verbasCalculadas.ferias],
+
                 ['13º proporcional', verbasCalculadas.decimo],
+
                 ['Aviso-prévio', verbasCalculadas.aviso]
+
               ].map(([rotulo,quantia]) => <div key={rotulo} className="rounded-xl bg-slate-500/10 !border-0 p-3 min-w-0"><p className="text-sm opacity-80">{rotulo}</p><p className="text-lg font-semibold text-inherit break-words">{formatCurrency(Number(quantia)||0)}</p></div>)}
+
             </div>
+
             {!calculoAutomatico && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
               <div><label className="label">Saldo de salário</label><InputMoeda valor={saldoSalario} onChangeValor={setSaldoSalario} className="input" prefixo={null}/></div>
+
               <div><label className="label">Férias + 1/3</label><InputMoeda valor={ferias} onChangeValor={setFerias} className="input" prefixo={null}/></div>
+
               <div><label className="label">13º proporcional</label><InputMoeda valor={decimo} onChangeValor={setDecimo} className="input" prefixo={null}/></div>
+
               <div><label className="label">Aviso-prévio</label><InputMoeda valor={aviso} onChangeValor={setAviso} className="input" prefixo={null}/></div>
+
             </div>}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
               <div><label className="label">Verbas adicionais</label><InputMoeda valor={adicionais} onChangeValor={setAdicionais} className="input" prefixo={null}/></div>
+
               <div><label className="label">Descontos estimados</label><InputMoeda valor={descontos} onChangeValor={setDescontos} className="input" prefixo={null}/></div>
+
             </div>
+
             <p className="text-sm opacity-80">Estimativas brutas. Informe descontos, férias e verbas específicas conforme os documentos trabalhistas.</p>
+
           </div>
+
           <div className="rounded-2xl !border-0 p-4 sm:p-5 space-y-4">
+
             <div className="flex items-center gap-2"><Landmark size={17} className="text-marca"/><h3 className="text-base font-semibold">FGTS</h3></div>
+
             <div><label className="label">Saldo informado no extrato</label><InputMoeda valor={fgts} onChangeValor={setFgts} className="input" prefixo={null}/></div>
+
             <label className="flex items-center gap-2 text-sm text-inherit"><input type="checkbox" checked={saqueAniversario} onChange={e => setSaqueAniversario(e.target.checked)}/> Optei pelo saque-aniversário</label>
+
             <p className="text-sm opacity-80">O saldo disponível e a base de cálculo da multa podem ser diferentes. Confira o valor com o extrato rescisório.</p>
+
           </div>
+
           <div className="rounded-2xl !border-0 p-4 sm:p-5 space-y-4">
+
             <h3 className="text-base font-semibold">Seguro-desemprego e renda durante a transição</h3>
+
             {calculoAutomatico && <>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
                 <div><label className="label">Média dos 3 últimos salários</label><InputMoeda valor={salarioMedioSeguro} onChangeValor={setSalarioMedioSeguro} className="input" prefixo={null}/></div>
+
                 <div><label className="label">Solicitação do seguro</label><select className="input w-full" value={solicitacoesSeguro} onChange={e=>setSolicitacoesSeguro(e.target.value)}><option value="1">Primeira</option><option value="2">Segunda</option><option value="3">Terceira ou posterior</option></select></div>
+
               </div>
+
               <div className="rounded-xl bg-marca-100 !border-0 p-3">
+
                 <p className="text-xs text-marca">Benefício potencial (tabela 2026)</p>
+
                 <p className="text-lg font-bold text-inherit">{parcelasSeguro} parcelas de {formatCurrency(seguroEstimado)}</p>
+
                 <p className="text-xs text-inherit">Total estimado: {formatCurrency(parcelasSeguro * seguroEstimado)}. Sujeito à análise oficial, histórico de salários e demais requisitos.</p>
+
               </div>
+
             </>}
+
             {!calculoAutomatico && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><label className="label">Renda temporária mensal (seguro, trabalhos etc.)</label><InputMoeda valor={rendaTemporaria} onChangeValor={setRendaTemporaria} className="input" prefixo={null}/></div><div><label className="label">Por quantos meses?</label><input type="number" min="0" max="60" step="1" value={mesesRendaManual} onChange={e => setMesesRendaManual(e.target.value)} className="input w-full" /></div></div>}
+
             <p className="text-sm opacity-80">Seguro-desemprego é renda mensal temporária e não integra a rescisão. Uma nova contratação pode suspender parcelas.</p>
+
           </div>
+
         </div>
+
       )}
 
       {/* ── Rescisão estimada (desligamento) ── */}
@@ -490,31 +633,57 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
       )}
 
       {/* Planejamento de caixa após desligamento — não duplica valores mensais. */}
+
       {ehDesligamento && rescisao && (
+
         <div className="rounded-2xl !border-0 p-4 sm:p-5 space-y-5 min-w-0">
+
           <div>
+
             <div className="flex items-center gap-2"><Wallet size={18} className="text-marca"/><h3 className="text-base font-semibold text-inherit">Por quanto tempo o dinheiro dura?</h3></div>
+
             <p className="text-sm opacity-80 mt-1">Projeção de caixa usando suas despesas cadastradas. A rescisão entra apenas uma vez, sem virar renda mensal.</p>
+
           </div>
+
           <label className="flex gap-2 items-start text-xs text-inherit">
+
             <input type="checkbox" className="mt-0.5" checked={recursosLiberados} onChange={e=>setRecursosLiberados(e.target.checked)}/>
+
             Considerar o total potencial da rescisão e FGTS como já disponível no início da projeção
+
           </label>
+
           <div className="grid grid-cols-2 gap-2">
+
             <div className="rounded-xl bg-slate-500/10 !border-0 p-3"><p className="text-sm opacity-80">Dinheiro inicial disponível</p><p className="text-xl font-bold break-words text-inherit">{formatCurrency(saldoInicialTransicao)}</p></div>
+
             <div className="rounded-xl bg-slate-500/10 !border-0 p-3"><p className="text-sm opacity-80">Despesas por mês</p><p className="text-xl font-bold break-words text-inherit">{formatCurrency(gastoMensalTransicao)}</p></div>
+
             <div className="rounded-xl bg-slate-500/10 !border-0 p-3"><p className="text-sm opacity-80">Renda temporária por mês</p><p className="text-xl font-bold break-words text-inherit">{formatCurrency(rendaMensalTransicao)}</p><p className="text-sm opacity-80">Por {mesesRendaTransicao} meses</p></div>
+
             <div className="rounded-xl bg-marca-100 !border-0 p-3"><p className="text-xs text-marca">Tempo de cobertura</p><p className="text-xl font-bold break-words text-inherit">{mesesCoberturaTransicao === null ? 'Não esgota em 50 anos*' : `${mesesCoberturaTransicao} meses completos`}</p></div>
+
           </div>
+
           <p className="text-sm opacity-80">Saldo estimado após cada período, já descontando as despesas mensais:</p>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+
             {[3,6,12].map(mes => {
+
               const saldo = projetarSaldoTransicao(mes)
+
               return <div key={mes} className="rounded-xl !border-0 bg-slate-500/10 p-2.5 min-w-0 text-center"><p className="text-sm opacity-80">{mes} meses</p><p className={`text-base font-bold break-words ${saldo < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(saldo)}</p></div>
+
             })}
+
           </div>
+
           <p className="text-xs text-amber-400">Atenção: o dinheiro pode ser liberado em datas diferentes. A projeção começa após a disponibilidade dos valores marcados e presume despesas constantes, sem juros, inflação, tributos adicionais ou novo emprego. Seguro-desemprego e outras rendas temporárias param após os meses informados. *Limite da projeção: 600 meses.</p>
+
         </div>
+
       )}
 
       {/* ── Comparativo atual × simulado ── */}
@@ -671,6 +840,13 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
       </div>
 
+      <CalendarioCenario
+        titulo="Evolução acumulada — estimativa"
+        descricao="Resultado acumulado estimado, não saldo real da conta"
+        diasAtual={diasEstimadosCenario(atual.saldoMensal)}
+        diasSimulado={diasEstimadosCenario(sim.saldoMensal)}
+      />
+
       <div className="card !border-0 space-y-3" aria-live="polite">
 
         <div className="flex items-center gap-2">
@@ -740,7 +916,6 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
     {modo === 'profissional' && (() => {
 
       // Campos locais → cálculo genérico (sem cálculo específico por cenário).
-
       const receitaExtra = Number(receitaExtraMensal) || 0
 
       const reducaoReceita = Number(reducaoReceitaMensal) || 0
@@ -842,7 +1017,6 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
           {(() => {
 
             // Variação % vs. resultado atual (Não aplicável se atual = 0).
-
             const variacaoPct = resultadoAtual !== 0
 
               ? (diferenca / Math.abs(resultadoAtual)) * 100
@@ -850,11 +1024,8 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
               : null
 
             // Impacto adicional acumulado: SÓ o ganho adicional (diferença),
-
             // descontando o investimento UMA única vez. Não inclui o resultado
-
             // atual nem é o saldo total projetado.
-
             const impacto = [3, 6, 12].map(meses => ({
 
               meses,
@@ -864,9 +1035,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
             }))
 
             // Recuperação do investimento: só faz sentido se a diferença for
-
             // positiva. Caso contrário, não há recuperação no horizonte.
-
             const recupera = investimento > 0 && diferenca > 0
 
               ? Math.ceil(investimento / diferenca)
@@ -882,7 +1051,6 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
             const corDif = sinal === 'pos' ? 'text-emerald-600' : sinal === 'neg' ? 'text-red-600' : 'text-inherit'
 
             // Explicação automática simples e correta.
-
             const explica = sinal === 'pos'
 
               ? `Neste cenário você ganha cerca de ${formatCurrency(diferenca)} a mais por mês. Esse é o ganho adicional (não o seu saldo total).${investimento > 0 ? (recupera ? ` O investimento de ${formatCurrency(investimento)} se recupera em ~${recupera} ${recupera === 1 ? 'mês' : 'meses'}.` : '') : ''}`
@@ -988,6 +1156,13 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
                   </div>
 
                 </div>
+
+                <CalendarioCenario
+                  titulo="Evolução acumulada — estimativa"
+                  descricao="Resultado acumulado estimado, não saldo real da conta"
+                  diasAtual={diasEstimadosCenario(resultadoAtual)}
+                  diasSimulado={diasEstimadosCenario(resultadoSimulado)}
+                />
 
                 {/* Investimento inicial + recuperação */}
 

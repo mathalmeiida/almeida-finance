@@ -20,11 +20,12 @@ import SolicitacaoConsultoria from './components/SolicitacaoConsultoria'
 
 import { useConsultoriaAcessos } from './hooks/useConsultoriaAcessos'
 
-
-
 // Páginas autenticadas
+
 import Dashboard from './pages/Dashboard'
+
 import PaginaCenarios from './pages/PaginaCenarios'
+import MinhaEvolucao from './pages/MinhaEvolucao'
 
 import Receitas from './pages/Receitas'
 
@@ -52,9 +53,8 @@ import Investimentos from './pages/Investimentos'
 
 import Admin from './pages/Admin'
 
-
-
 // Páginas públicas (autenticação)
+
 import Login from './pages/auth/Login'
 
 import Cadastro from './pages/auth/Cadastro'
@@ -65,9 +65,8 @@ import RedefinirSenha from './pages/auth/RedefinirSenha'
 
 import ConfirmarEmail from './pages/auth/ConfirmarEmail'
 
-
-
 // Tela de carregamento enquanto verifica a sessão
+
 function Carregando() {
 
   return (
@@ -88,9 +87,8 @@ function Carregando() {
 
 }
 
-
-
 // Guarda de rota: redireciona para /login se não autenticado
+
 function RotaPrivada({ children }) {
 
   const { autenticado, carregando } = useAuth()
@@ -103,10 +101,10 @@ function RotaPrivada({ children }) {
 
 }
 
-
-
 // Tela exibida quando a conta foi desativada por um administrador.
+
 // O usuário não acessa o app (e a RLS já bloqueia os dados no banco).
+
 function ContaDesativada() {
 
   const { sair } = useAuth()
@@ -145,22 +143,26 @@ function ContaDesativada() {
 
 }
 
-
-
 // Gatilho de "refazer configuração financeira": a tela de Configurações (e o
+
 // card "Complete sua configuração" da Home) gravam esta flag no localStorage e
+
 // redirecionam para a Home; aqui o onboarding é reaberto mesmo que a conta já
+
 // tenha dados (não depende de conta vazia).
+
 const CHAVE_REFAZER = 'almeida_refazer_onboarding'
 
 // Etapa onde o onboarding deve começar quando reaberto pelo card da Home
+
 // (ex.: 'renda', 'despesas', 'reserva'). Vazio = começa do início.
+
 const CHAVE_ETAPA_ONBOARDING = 'almeida_onboarding_etapa'
 
-
-
 // Decide, para o usuário já autenticado, entre: conta desativada, onboarding
+
 // (primeiro acesso OU refazer) ou o app normal.
+
 function AreaAutenticada({ children }) {
 
   const { usuario, perfil, contaDesativada, modoConsultoria } = useAuth()
@@ -168,13 +170,13 @@ function AreaAutenticada({ children }) {
   const { verificando, precisaOnboarding, concluir } = useOnboarding()
 
   // Solicitações de consultoria direcionadas a ESTE usuário (como cliente).
+
   const { pendentesParaMim, autorizar, recusar } = useConsultoriaAcessos()
 
   const [respondendoConsultoria, setRespondendoConsultoria] = useState(false)
 
-
-
   // Responde (autoriza/recusa) a solicitação de consultoria pendente mais recente.
+
   const responderConsultoria = useCallback(async (status) => {
 
     const alvo = pendentesParaMim[0]
@@ -197,10 +199,10 @@ function AreaAutenticada({ children }) {
 
   }, [pendentesParaMim, autorizar, recusar])
 
-
-
   // Flag de "refazer" lida do localStorage (setada em Configurações ou no card
+
   // "Complete sua configuração" da Home).
+
   const [refazer, setRefazer] = useState(() => {
 
     try { return localStorage.getItem(CHAVE_REFAZER) === '1' } catch { return false }
@@ -208,17 +210,19 @@ function AreaAutenticada({ children }) {
   })
 
   // Etapa inicial do onboarding (quando aberto pelo card da Home apontando para
+
   // um item pendente específico). Vazio = começa do início.
+
   const [etapaInicial, setEtapaInicial] = useState(() => {
 
     try { return localStorage.getItem(CHAVE_ETAPA_ONBOARDING) || '' } catch { return '' }
 
   })
 
-
-
   // Reage caso a flag seja alterada em outra aba/fluxo (evento nativo 'storage')
+
   // ou na MESMA aba (evento customizado disparado pelo card da Home).
+
   useEffect(() => {
 
     function sync() {
@@ -247,8 +251,6 @@ function AreaAutenticada({ children }) {
 
   }, [])
 
-
-
   const encerrarOnboarding = useCallback(async () => {
 
     try {
@@ -267,18 +269,20 @@ function AreaAutenticada({ children }) {
 
   }, [concluir])
 
-
-
   // Enquanto o perfil não carrega, não decide nada (evita piscar telas).
+
   if (usuario && perfil == null) return <Carregando />
 
   // Conta desativada tem prioridade sobre qualquer outra tela.
+
   if (contaDesativada) return <ContaDesativada />
 
   // Enquanto verifica o status do onboarding, aguarda (evita piscar o app).
+
   if (verificando) return <Carregando />
 
   // Onboarding: primeiro acesso (precisaOnboarding) OU refazer manual.
+
   if (precisaOnboarding || refazer) {
 
     return <Onboarding aoConcluir={encerrarOnboarding} etapaInicial={etapaInicial} />
@@ -286,8 +290,11 @@ function AreaAutenticada({ children }) {
   }
 
   // Solicitação de consultoria pendente para o cliente: mostra a tela de
+
   // autorização antes do app. Não aplica quando o próprio usuário está no modo
+
   // consultoria (visualizando outra conta) — ali ele é o consultor, não o alvo.
+
   if (!modoConsultoria && pendentesParaMim.length > 0) {
 
     return (
@@ -310,16 +317,18 @@ function AreaAutenticada({ children }) {
 
 }
 
-
-
 // Guarda de rota de administrador. A segurança real está no banco (RLS +
+
 // função e_admin); aqui apenas evitamos exibir a página a quem não é admin,
+
 // inclusive se digitar /admin na URL — nesse caso redireciona para a Início.
+
 function RotaAdmin({ children }) {
 
   const { usuario, perfil, ehAdmin } = useAuth()
 
   // Perfil ainda carregando (usuário autenticado mas perfil não chegou).
+
   if (usuario && perfil == null) return <Carregando />
 
   if (!ehAdmin) return <Navigate to="/" replace />
@@ -328,9 +337,8 @@ function RotaAdmin({ children }) {
 
 }
 
-
-
 // Guarda de rota pública: redireciona para / se já autenticado
+
 function RotaPublica({ children }) {
 
   const { autenticado, carregando } = useAuth()
@@ -342,8 +350,6 @@ function RotaPublica({ children }) {
   return children
 
 }
-
-
 
 function Rotas() {
 
@@ -375,8 +381,6 @@ function Rotas() {
 
       <Route path="/auth/callback" element={<ConfirmarEmail />} />
 
-
-
       {/* Rotas privadas — todas dentro do Layout */}
 
       <Route
@@ -404,7 +408,8 @@ function Rotas() {
               <Routes>
 
                 <Route path="/" element={<Dashboard />} />
-                  <Route path="/e-se" element={<PaginaCenarios />} />
+
+                <Route path="/e-se" element={<PaginaCenarios />} />
 
                 <Route path="/receitas" element={<Receitas />} />
 
@@ -421,6 +426,7 @@ function Rotas() {
                 <Route path="/investimentos" element={<Investimentos />} />
 
                 <Route path="/projecao" element={<Projecao />} />
+                <Route path="/minha-evolucao" element={<MinhaEvolucao />} />
 
                 <Route path="/posso-comprar" element={<PossoComprar />} />
 
@@ -458,22 +464,25 @@ function Rotas() {
 
 }
 
-
-
 export default function App() {
 
-  // Splash de abertura (\~2s no total). O AuthProvider e as rotas ficam montados
+  // Splash de abertura (\\~2s no total). O AuthProvider e as rotas ficam montados
+
   // por baixo, então a sessão carrega durante a splash e, quando ela some, o app
+
   // cai direto em Login ou Home sem piscar.
-  //  - fade-in da logo: \~0,6s (no CSS .animate-splash-logo)
-  //  - permanece visível até \~1,5s
+
+  //  - fade-in da logo: \\~0,6s (no CSS .animate-splash-logo)
+
+  //  - permanece visível até \\~1,5s
+
   //  - fade-out suave de 0,5s (1,5s → 2,0s)
-  //  - remove a splash em \~2,0s
+
+  //  - remove a splash em \\~2,0s
+
   const [mostrarSplash, setMostrarSplash] = useState(true)
 
   const [saindoSplash, setSaindoSplash] = useState(false)
-
-
 
   useEffect(() => {
 
@@ -490,8 +499,6 @@ export default function App() {
     }
 
   }, [])
-
-
 
   return (
 

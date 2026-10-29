@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Sun, Plus, Pencil,
   CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, PiggyBank, AlertTriangle, MessageCircle, BarChart2,
-  Receipt, ReceiptText, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap, Info, X, MoreHorizontal
+  Receipt, ReceiptText, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap, Info, X, MoreHorizontal, Sparkles
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useReceitas } from '../hooks/useReceitas'
@@ -620,6 +620,7 @@ function CardQuantoPossoGastar({
   const [pctLocal, setPctLocal] = useState(reservaPercentual != null ? Number(reservaPercentual) : 20)
   const [erroSalvar, setErroSalvar] = useState(false)
   const [salvo, setSalvo] = useState(false)
+  const [detalhesLimiteAberto, setDetalhesLimiteAberto] = useState(false)
 
   useEffect(() => {
     if (reservaPercentual != null) setPctLocal(Number(reservaPercentual))
@@ -680,7 +681,7 @@ function CardQuantoPossoGastar({
   }
 
   return (
-    <div className="bg-marca-grad rounded-2xl p-5 text-white">
+    <div className="planejamento-modal-conteudo rounded-2xl border border-white/10 bg-[#172339] p-4 sm:p-6 text-white space-y-4">
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
           <Sun size={18} />
@@ -770,32 +771,62 @@ function CardQuantoPossoGastar({
     </div>
   </div>
 )}
-      {/* Valores principais */}
-<div className="grid grid-cols-2 gap-3">
-  <div className="bg-black/15 rounded-xl px-3 py-3">
-    <p className="text-xs text-white/70">
-      Disponível até a próxima receita
-    </p>
-    <p className="text-xl font-bold">
-      {formatCurrency(disponivelMes)}
-    </p>
-  </div>
-
-  <div className="bg-black/15 rounded-xl px-3 py-3">
-    <p className="text-xs text-white/70">
-      {ehManual ? 'Seu limite diário' : 'Você pode gastar por dia'}
-    </p>
-    <p className="text-xl font-bold">
-      {formatCurrency(Math.max(0, limiteExibido))}
-      <span className="text-xs font-normal text-white/70">/dia</span>
-    </p>
-  </div>
-</div>
+      {/* Destaque do limite diário, com saldo disponível separado */}
+      <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+        <div className="sm:col-span-3 rounded-xl bg-marca/20 border border-white/10 px-4 py-4">
+          <p className="text-xs font-medium text-white/75">{ehManual ? 'Seu limite diário (manual)' : 'Limite diário recomendado'}</p>
+          <p className="mt-1 text-3xl sm:text-4xl font-extrabold tabular-nums break-words">
+            {formatCurrency(Math.max(0, limiteExibido))}
+            <span className="text-sm font-normal text-white/65"> /dia</span>
+          </p>
+        </div>
+        <div className="sm:col-span-2 rounded-xl bg-white/5 border border-white/10 px-4 py-4">
+          <p className="text-xs text-white/70">Disponível até a próxima receita</p>
+          <p className="text-xl sm:text-2xl font-bold mt-2 tabular-nums break-words">{formatCurrency(disponivelMes)}</p>
+          <p className="text-xs text-white/60 mt-1">Saldo projetado para este período</p>
+        </div>
+      </div>
+      {/* Explicação recolhível: usa os mesmos resultados do cálculo existente. */}
+      <div className="rounded-xl border border-white/10 bg-black/15 overflow-hidden">
+        <button
+          type="button"
+          aria-expanded={detalhesLimiteAberto}
+          onClick={() => setDetalhesLimiteAberto(v => !v)}
+          className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold text-white hover:bg-white/5"
+        >
+          <span className="flex items-center gap-2"><Info size={16} /> Entenda seu limite diário</span>
+          <span className="text-white/70 text-lg" aria-hidden="true">{detalhesLimiteAberto ? '−' : '+'}</span>
+        </button>
+        {detalhesLimiteAberto && (
+          <div className="border-t border-white/10 px-4 py-3 space-y-2 text-xs sm:text-sm text-white/80">
+            <div className="flex justify-between gap-4"><span>Saldo atual informado</span><strong className="text-white">{exibirMoeda(saldoAtual, ocultar)}</strong></div>
+            <div className="flex justify-between gap-4"><span>Base segura projetada (antes da reserva planejada)</span><strong className="text-white">{exibirMoeda(Math.max(0, Number(saldoSeguroHoje) || 0), ocultar)}</strong></div>
+            <div className="flex justify-between gap-4"><span>Reserva planejada ({pct} % da renda do mês)</span><strong className="text-white">{exibirMoeda(reserva, ocultar)}</strong></div>
+            <div className="flex justify-between gap-4 border-t border-white/10 pt-2"><span>Disponível após reserva planejada</span><strong className="text-white">{exibirMoeda(disponivelMes, ocultar)}</strong></div>
+            <div className="flex justify-between gap-4"><span>Dias considerados até a próxima receita</span><strong className="text-white">{dias}</strong></div>
+            <div className="flex justify-between gap-4"><span>Limite diário automático</span><strong className="text-white">{exibirMoeda(limiteAuto, ocultar)}</strong></div>
+            {ehManual && <p className="text-white/70">Modo manual: seu limite definido é {exibirMoeda(limiteManualNum, ocultar)} por dia, independentemente da recomendação automática.</p>}
+            <div className="border-t border-white/10 pt-2">
+              <p>Reserva já acumulada: <strong className="text-white">{exibirMoeda(reservaAtual, ocultar)}</strong>.</p>
+              <p className="mt-1 text-white/60">A reserva planejada é uma meta sobre a renda do mês; não significa que esse valor já esteja guardado ou tenha sido transferido.</p>
+              <p className="mt-1 text-white/60">A base segura vem da projeção financeira existente. Este resumo não discrimina cada despesa ou fatura; consulte Projeção para verificar os compromissos.</p>
+            </div>
+          </div>
+        )}
+      </div>
       {/* Status */}
       {status && (
         <div className="flex items-center gap-2 mt-3 bg-black/15 rounded-xl px-3 py-2">
           <span>{status.cor}</span>
           <span className="text-sm font-medium">{status.texto}</span>
+        </div>
+      )}
+
+      {ehManual && (
+        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs sm:text-sm text-white/80">
+          <Info size={15} className="inline-block mr-1.5 align-[-3px]" />
+          Seu limite diário foi definido por você e pode ser diferente do cálculo automático.
+          {manualAcimaDoRecomendado && <span className="block mt-1 text-amber-200">O valor manual está acima do recomendado para o período.</span>}
         </div>
       )}
 
@@ -833,13 +864,13 @@ function CardQuantoPossoGastar({
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             onClick={onEditarLimite}
-            className="flex items-center gap-1 text-xs font-medium text-white/90 bg-black/15 hover:bg-black/25 px-2.5 py-1.5 rounded-lg transition-colors"
+            className="flex items-center justify-center gap-2 text-sm font-semibold text-white bg-marca hover:opacity-90 px-4 py-2.5 rounded-xl transition-colors"
           >
-            <Pencil size={12} /> {limiteManualNum > 0 ? 'Ajustar gasto diário' : 'Definir gasto diário'}
+            <Pencil size={14} /> {limiteManualNum > 0 ? 'Ajustar limite' : 'Definir limite'}
           </button>
           <button
             onClick={() => onTrocarModo('auto')}
-            className="flex items-center gap-1 text-xs font-medium text-white/90 bg-black/15 hover:bg-black/25 px-2.5 py-1.5 rounded-lg transition-colors"
+            className="flex items-center justify-center gap-2 text-sm font-medium text-white/80 border border-white/15 bg-white/5 hover:bg-white/10 px-4 py-2.5 rounded-xl transition-colors"
           >
             Voltar para cálculo automático
           </button>
@@ -864,7 +895,7 @@ function CardQuantoPossoGastar({
         const faltaAcumular = temMeta ? Math.max(0, metaReserva - reservaAtual) : 0
         const metaAtingida = temMeta && reservaAtual >= metaReserva
         return (
-          <div className="mt-3 pt-3 border-t border-white/15">
+          <div className="mt-3 pt-4 border-t border-white/15">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-white/80">
                 Reserva de emergência atual: <strong className="text-white">{exibirMoeda(reservaAtual, ocultar)}</strong>
@@ -1270,7 +1301,7 @@ function CardGastoHoje({
     : 'rgba(255,255,255,0.95)'
 
   return (
-    <div className="af-money-card h-full bg-marca-grad-dark rounded-2xl p-3 sm:p-5 lg:shadow-lg lg:shadow-black/5 text-white">
+    <div className="af-money-card h-full bg-marca-grad-dark rounded-2xl p-3 sm:p-4 lg:!py-3 lg:shadow-lg lg:shadow-black/5 text-white">
       {/* Versão MOBILE compacta: mesmos dados e ações, sem cálculos paralelos. */}
       <div className="sm:hidden">
         <div className="flex items-center gap-2 text-xs font-semibold text-white/90 mb-2">
@@ -1308,100 +1339,56 @@ function CardGastoHoje({
         </div>
       </div>
 
-      {/* Compacto: anel do % à esquerda + limite diário em destaque com Editar.
-          Sem o "Resumo do mês" (movido para a aba Planejamento). No desktop
-          (lg) cresce um pouco, mantendo a Home dentro de uma tela. */}
-      <div className="hidden sm:grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1.25fr)] sm:gap-x-4">
-        {/* Anel do % utilizado */}
-        <div className="order-2 shrink-0">
-          <div
-            className="relative w-14 h-14 sm:w-16 sm:h-16 lg:w-[72px] lg:h-[72px] rounded-full flex items-center justify-center"
-            style={{ background: `conic-gradient(${corAnel} ${pctAnel * 3.6}deg, rgba(0,0,0,0.18) 0deg)` }}
-            role="img"
-            aria-label={temLimite ? `${pctLabel}% do limite diário utilizado` : 'Limite diário indisponível'}
-          >
-            <div className="absolute inset-[5px] lg:inset-[6px] rounded-full bg-marca flex flex-col items-center justify-center">
-              <span className="text-sm lg:text-lg font-bold leading-none">{temLimite ? `${pctLabel}%` : '—'}</span>
-              <span className="text-[9px] lg:text-[10px] text-white/70 leading-none mt-0.5">usado</span>
-            </div>
-          </div>
-        </div>
-        {/* Limite diário + Editar */}
-        <div className="order-3 min-w-0">
-          <p className="text-xs sm:text-sm text-white/80 mb-0.5">Limite para gastar hoje</p>
-          <div className="flex min-w-0 items-center gap-1.5 lg:gap-2">
-            <p className="min-w-0 whitespace-nowrap text-[clamp(1.25rem,2.3vw,1.875rem)] font-bold leading-tight tracking-tight tabular-nums">
-              {exibirMoeda(Math.max(0, limiteHoje), ocultar)}
+      {/* Desktop: resumo compacto, sem anel redundante quando o limite é zero.
+          Os valores continuam vindo dos cálculos e props existentes. */}
+      <div className="hidden sm:grid sm:grid-cols-2 items-start gap-3 lg:gap-5">
+        {mostrarSaldo && (
+          <div className="min-w-0 sm:border-r sm:border-white/20 sm:pr-4">
+            <p className="text-xs font-semibold text-white/90 flex items-center gap-2"><Wallet size={15} /> Meu dinheiro</p>
+            <p className="text-xs text-white/75 mt-1">Saldo atual</p>
+            <p className="text-2xl sm:text-3xl font-extrabold tabular-nums leading-tight break-words">
+              {exibirMoeda(saldoAtual, ocultar)}
             </p>
-            {onEditarLimite && (
-              <button
-                onClick={onEditarLimite}
-                aria-label="Editar limite diário"
-                className="inline-flex items-center text-white/80 hover:text-white flex-shrink-0"
-              >
-                <Pencil size={14} className="lg:hidden" />
-                <Pencil size={18} className="hidden lg:block" />
+            {onEditarSaldo && (
+              <button type="button" onClick={onEditarSaldo} className="inline-flex items-center gap-1 mt-1 text-xs text-white/85 hover:text-white">
+                <Pencil size={12} /> Editar saldo
               </button>
             )}
           </div>
-          <p className={`text-xs lg:text-sm mt-0.5 ${orcamentoNegativo && !semBaseFinanceira && !configIncompleta ? 'text-red-100 font-medium' : 'text-white/80'}`}>
-            {semBaseFinanceira
-              ? 'Cadastre sua renda para calcular seu limite diário'
-              : configIncompleta
-                ? 'Finalize sua configuração para ver um cálculo mais preciso.'
-                : estadoOrcamento === 'negativo'
-                  ? `Faltam ${exibirMoeda(Math.abs(disponivelReal), ocultar)} para equilibrar seu orçamento`
-                  : estadoOrcamento === 'equilibrado'
-                    ? 'Seu orçamento está equilibrado'
-                    : estadoOrcamento === 'positivo'
-                      ? `Você tem ${exibirMoeda(disponivelReal, ocultar)} disponíveis até a próxima receita`
-                      : 'Sem comprometer seu planejamento'}
-          </p>
+        )}
+        <div className="min-w-0">
+          <p className="text-xs text-white/80">Limite para gastar hoje</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <p className="text-2xl sm:text-3xl font-bold leading-tight tabular-nums break-words">
+              {exibirMoeda(Math.max(0, limiteHoje), ocultar)}
+            </p>
+            {onEditarLimite && (
+              <button type="button" onClick={onEditarLimite} aria-label="Editar limite diário" className="text-white/85 hover:text-white flex-shrink-0">
+                <Pencil size={15} />
+              </button>
+            )}
+          </div>
+          <button type="button" onClick={onVerCompleto} disabled={!onVerCompleto}
+            className="inline-flex items-start gap-1.5 mt-1 text-xs text-white/90 hover:text-white text-left disabled:cursor-default">
+            {semBaseFinanceira ? (
+              <>Cadastre sua renda para calcular seu limite diário</>
+            ) : configIncompleta ? (
+              <>Finalize sua configuração para melhorar a estimativa</>
+            ) : estadoOrcamento === 'negativo' ? (
+              <><AlertTriangle size={14} className="shrink-0 mt-px text-amber-200" /> Orçamento projetado comprometido. Ver detalhes</>
+            ) : estadoOrcamento === 'equilibrado' ? (
+              <>Sem margem adicional no planejamento. Ver detalhes</>
+            ) : estadoOrcamento === 'positivo' ? (
+              <>Disponível projetado: {exibirMoeda(disponivelReal, ocultar)}. Ver detalhes</>
+            ) : (
+              <>Consultar seu planejamento</>
+            )}
+          </button>
         </div>
-        {/* Saldo atual dentro do card azul */}
-{mostrarSaldo && (
-  <div className="order-1 col-span-2 flex min-w-0 flex-col items-start gap-1 border-b border-white/15 pb-3 sm:col-span-1 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4">
-    <p className="text-xs font-semibold text-white/90 flex items-center gap-2"><Wallet size={17} /> Meu dinheiro</p>
-    <p className="text-xs text-white/75 mt-1">
-      Saldo atual
-    </p>
-    <p className="max-w-full text-2xl sm:text-[clamp(1.25rem,2.2vw,1.875rem)] font-extrabold text-white leading-tight tabular-nums break-words">
-      {exibirMoeda(saldoAtual, ocultar)}
-    </p>
-    {onEditarSaldo && (
-      <button
-        type="button"
-        onClick={onEditarSaldo}
-        className="inline-flex items-center gap-1 text-xs text-white/90 hover:text-white"
-      >
-        <Pencil size={12} />
-        Editar saldo
-      </button>
-    )}
-  </div>
-)}
-
-{/* Status do orçamento (compacto, quando couber) */}
-       {(statusDiario || status) && (
-  <div className="af-daily-status order-4 col-span-2 hidden items-center gap-1.5 rounded-full bg-black/15 px-2.5 py-1 sm:col-span-3 xl:flex xl:w-fit">
-    <span
-      className={`w-2 h-2 rounded-full ${
-        statusDiario?.cor === '🔴'
-          ? 'bg-red-300'
-          : statusDiario?.cor === '🟡'
-          ? 'bg-amber-300'
-          : 'bg-green-300'
-      }`}
-    />
-    <span className="text-xs lg:text-sm font-medium text-white/90">
-      {statusDiario?.texto || status?.texto}
-    </span>
-  </div>
-)}
       </div>
 
       {/* Gasto de hoje × restante */}
-      <div className="grid grid-cols-2 gap-2 lg:gap-3 mt-2.5 lg:mt-3">
+      <div className="grid grid-cols-2 gap-2 lg:gap-3 mt-2 sm:mt-3">
         <div className="bg-black/15 rounded-xl px-3 py-1.5 lg:px-4 lg:py-2 min-w-0">
           <p className="text-xs lg:text-sm text-white/70">Gasto de hoje</p>
           <p className="text-base sm:text-lg lg:text-xl font-bold leading-tight break-words">{exibirMoeda(gastosHoje, ocultar)}</p>
@@ -1437,7 +1424,7 @@ function CardGastoHoje({
           check-in "Não gastei hoje" alinhado à direita. Mesma função de antes
           (onNaoGasteiHoje/jaFezCheckin), só reposicionado para dentro do card. */}
       {(onVerCompleto || mostrarCheckin) && (
-        <div className="mt-2 lg:mt-3 flex items-center justify-between gap-3">
+        <div className="mt-2 flex items-center justify-between gap-3">
           {onVerCompleto ? (
             <button
               onClick={onVerCompleto}
@@ -1846,6 +1833,8 @@ const carregandoLimite = carregando
           valor: Number(d.valor) || 0,
           diffDias,
           quando: rotuloQuando(diffDias),
+          dataVencimento: dt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
+          tipoLancamento: 'Despesa',
           cor: 'bg-red-400',
           // Despesa à vista é antecipável: carrega o registro cru para o modal.
           antecipavel: true,
@@ -1878,6 +1867,8 @@ const carregandoLimite = carregando
           valor: total,
           diffDias,
           quando: rotuloQuando(diffDias),
+          dataVencimento: venc.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
+          tipoLancamento: 'Fatura',
           cor: 'bg-blue-400',
         }
       })
@@ -2171,7 +2162,7 @@ const carregandoLimite = carregando
     // pb extra no MOBILE: garante que o último card ("Seu dia financeiro" com o
     // botão "Registrar gasto de hoje") role totalmente acima da barra inferior
     // fixa (que tem o botão "+" saliente). Zera no desktop (md:pb-0).
-    <div className="af-desktop-fit flex flex-col gap-2 sm:gap-4 lg:gap-2 md:space-y-0 pb-mobilenav md:pb-0 af-mobile-polished">
+    <div className="af-desktop-fit w-full max-w-none min-w-0 flex flex-col gap-2 sm:gap-4 lg:gap-3 md:space-y-0 pb-mobilenav md:pb-0 af-mobile-polished">
       {/* Ajustes visuais apenas no desktop: compacta cards, calendário e atalhos.
           Sem overflow forçado: em monitores baixos o scroll permanece possível. */}
       <style>{`
@@ -2337,18 +2328,18 @@ const carregandoLimite = carregando
         </div>
       </div>
 
-      {/* ── ATALHOS RÁPIDOS ── 4 ícones circulares: Adicionar, Despesas,
-          Simular, Mais. Reutilizam fluxos/rotas reais (gasto rápido via modal
-          existente; rotas /despesas, /posso-comprar, /mais). */}
-      <div className="grid grid-cols-4 gap-2">
+      {/* ── ATALHOS RÁPIDOS ── 5 no celular, 4 no desktop.
+          O atalho Mais fica oculto apenas no desktop, onde já existe menu lateral. */}
+      <div className="grid grid-cols-5 md:grid-cols-4 gap-1 sm:gap-3 lg:gap-5">
         {[
-          { label: 'Adicionar', Icon: Plus,         onClick: () => (somenteLeitura ? null : setModalGasto(true)), disabled: somenteLeitura },
+          { label: 'Gastei agora', Icon: ReceiptText,         onClick: () => (somenteLeitura ? null : setModalGasto(true)), disabled: somenteLeitura },
           { label: 'Despesas',  Icon: TrendingDown, onClick: () => navigate('/despesas') },
           { label: 'Simular',   Icon: ShoppingCart, onClick: () => navigate('/posso-comprar') },
+          { label: 'E se...?',  Icon: Sparkles, onClick: () => navigate('/e-se') },
           { label: 'Mais',      Icon: MoreHorizontal, onClick: () => navigate('/mais') },
         ].map(({ label, Icon, onClick, disabled }) => (
           <button key={label} type="button" onClick={onClick} disabled={disabled}
-            className="flex flex-col items-center gap-1.5 py-1 disabled:opacity-40 disabled:cursor-not-allowed">
+            className={`flex flex-col items-center gap-1.5 py-1 disabled:opacity-40 disabled:cursor-not-allowed ${label === 'Mais' ? 'md:hidden' : ''}`}>
             <span className="w-12 h-12 rounded-full bg-marca-100 text-marca flex items-center justify-center">
               <Icon size={20} />
             </span>
@@ -2357,26 +2348,90 @@ const carregandoLimite = carregando
         ))}
       </div>
 
-      {/* ── MINHAS FINANÇAS ── linhas compactas clicáveis, em coluna única.
-          Cartões/Investimentos/Benefícios navegam para as páginas reais;
-          Calendário abre o modal (mesmo componente/dados, sem rota nova). */}
-      <div className="card !p-2 divide-y divide-gray-100">
-        {[
-          { label: 'Cartões',       Icon: CreditCard,      onClick: () => navigate('/cartoes') },
-          { label: 'Investimentos', Icon: PiggyBank,       onClick: () => navigate('/investimentos') },
-          { label: 'Benefícios',    Icon: UtensilsCrossed, onClick: () => navigate('/beneficios') },
-          { label: 'Calendário',    Icon: CalendarClock,   onClick: () => setModalCalendario(true) },
-        ].map(({ label, Icon, onClick }) => (
-          <button key={label} type="button" onClick={onClick}
-            className="w-full flex items-center gap-3 px-2.5 py-3 hover:bg-gray-50 transition-colors text-left rounded-lg">
-            <span className="w-9 h-9 rounded-lg bg-marca-100 text-marca flex items-center justify-center flex-shrink-0">
-              <Icon size={18} />
-            </span>
-            <span className="flex-1 text-sm font-medium text-gray-900">{label}</span>
-            <ArrowRight size={16} className="text-gray-400 flex-shrink-0" />
-          </button>
-        ))}
-      </div>
+      {/* ── MINHAS FINANÇAS ── resumos reais, sem valores demonstrativos.
+          O calendário abre a Projeção; os demais cards abrem suas páginas. */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 w-full items-stretch" aria-label="Minhas finanças">
+        <button type="button" onClick={() => navigate('/cartoes')}
+          className="card !p-4 min-w-0 text-left rounded-2xl flex flex-col gap-4 hover:brightness-110 transition-all min-h-[230px]">
+          <div className="flex items-center gap-3">
+            <span className="w-10 h-10 rounded-xl bg-marca-100 text-marca flex items-center justify-center"><CreditCard size={20}/></span>
+            <span className="flex-1 min-w-0"><strong className="block text-sm text-gray-900">Cartões</strong><span className="text-xs text-gray-500">Faturas, compras e limites</span></span>
+            <ArrowRight size={17} className="text-gray-400"/>
+          </div>
+          <div className="rounded-xl bg-marca-100/40 p-4 flex-1 flex flex-col justify-center gap-1">
+            <span className="text-xs text-gray-500">{cartoes.length === 1 ? '1 cartão cadastrado' : `${cartoes.length} cartões cadastrados`}</span>
+            {(() => {
+              const faturaProxima = proximos7Dias.find(item => item.tipoLancamento === 'Fatura')
+              return faturaProxima ? (
+                <>
+                  <span className="text-xs text-gray-500 mt-2">Fatura com vencimento próximo</span>
+                  <strong className="text-xl sm:text-2xl font-bold text-gray-900">{exibirMoeda(faturaProxima.valor, ocultar)}</strong>
+                  <span className="text-xs text-gray-500">Vence {faturaProxima.dataVencimento} · Consulte todas as faturas e limites</span>
+                </>
+              ) : (
+                <>
+                  <strong className="text-lg font-semibold text-gray-900">Consultar faturas e limites</strong>
+                  <span className="text-xs text-gray-500">Nenhuma fatura identificada nos próximos 7 dias</span>
+                </>
+              )
+            })()}
+          </div>
+        </button>
+        <button type="button" onClick={() => navigate('/investimentos')}
+          className="card !p-4 min-w-0 text-left rounded-2xl flex flex-col gap-4 hover:brightness-110 transition-all min-h-[230px]">
+          <div className="flex items-center gap-3">
+            <span className="w-10 h-10 rounded-xl bg-marca-100 text-marca flex items-center justify-center"><PiggyBank size={20}/></span>
+            <span className="flex-1 min-w-0"><strong className="block text-sm text-gray-900">Investimentos</strong><span className="text-xs text-gray-500">Seu patrimônio em evolução</span></span>
+            <ArrowRight size={17} className="text-gray-400"/>
+          </div>
+          <div className="rounded-xl bg-marca-100/40 p-4 flex-1 flex flex-col justify-center gap-1">
+            <span className="text-xs text-gray-500">Patrimônio total cadastrado</span>
+            <strong className="text-xl sm:text-2xl font-bold text-gray-900 break-words tabular-nums">{exibirMoeda(Number(patrimonioTotal) || 0, ocultar)}</strong>
+            <span className="text-xs text-gray-500 mt-2">{investimentos.length} {investimentos.length === 1 ? 'investimento cadastrado' : 'investimentos cadastrados'}</span>
+            <span className="text-xs text-marca font-semibold mt-1">Ver detalhes do patrimônio →</span>
+          </div>
+        </button>
+        <button type="button" onClick={() => navigate('/beneficios')}
+          className="card !p-4 min-w-0 text-left rounded-2xl flex flex-col gap-4 hover:brightness-110 transition-all min-h-[230px]">
+          <div className="flex items-center gap-3">
+            <span className="w-10 h-10 rounded-xl bg-marca-100 text-marca flex items-center justify-center"><UtensilsCrossed size={20}/></span>
+            <span className="flex-1 min-w-0"><strong className="block text-sm text-gray-900">Benefícios</strong><span className="text-xs text-gray-500">Saldos de VR e VA</span></span>
+            <ArrowRight size={17} className="text-gray-400"/>
+          </div>
+          <div className="space-y-2 flex-1">
+            {['VR', 'VA'].map(tipo => {
+              const beneficio = beneficioPorTipo(tipo)
+              return (
+                <div key={tipo} className="rounded-xl bg-marca-100/40 px-3 py-3 flex items-center justify-between gap-2">
+                  <span className="text-xs text-gray-600">{tipo === 'VR' ? 'Vale-refeição (VR)' : 'Vale-alimentação (VA)'}</span>
+                  <strong className="text-sm font-semibold text-gray-900 break-words text-right">
+                    {beneficio ? exibirMoeda(Number(saldoDoBeneficio(beneficio.id)) || 0, ocultar) : 'Não cadastrado'}
+                  </strong>
+                </div>
+              )
+            })}
+            {!somenteLeitura && <span className="block mt-2 text-xs font-semibold text-marca">Registrar gasto em benefícios →</span>}
+          </div>
+        </button>
+        <button type="button" onClick={() => navigate('/projecao')}
+          className="card !p-4 min-w-0 text-left rounded-2xl flex flex-col gap-3 hover:brightness-110 transition-all min-h-[230px] border border-marca/30">
+          <div className="flex items-center gap-3">
+            <span className="w-10 h-10 rounded-xl bg-marca-100 text-marca flex items-center justify-center"><CalendarClock size={20}/></span>
+            <span className="flex-1 min-w-0"><strong className="block text-sm text-gray-900">Calendário</strong><span className="text-xs text-gray-500">Próximos compromissos</span></span>
+            <ArrowRight size={17} className="text-gray-400"/>
+          </div>
+          <div className="space-y-2 flex-1">
+            {proximos7Dias.length ? proximos7Dias.slice(0, 3).map(item => (
+              <div key={item.id} className="rounded-xl bg-marca-100/40 px-3 py-2.5 flex gap-2 items-center min-w-0">
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.cor}`}/>
+                <span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-gray-800 truncate">{item.descricao}</span><span className="block text-[11px] text-gray-500">{item.dataVencimento} · {item.tipoLancamento} · {item.quando}</span></span>
+                <strong className="text-xs text-gray-900 shrink-0">{exibirMoeda(item.valor, ocultar)}</strong>
+              </div>
+            )) : <div className="rounded-xl bg-marca-100/40 p-4 text-xs text-gray-500">Nenhuma despesa ou fatura prevista nos próximos 7 dias.</div>}
+          </div>
+          <span className="text-marca text-xs font-semibold flex items-center justify-between">Ver projeção completa <ArrowRight size={15}/></span>
+        </button>
+      </section>
 
       {/* ── Meus Benefícios (VR/VA) — seção COMPACTA na Home ──
           Mostra o saldo de VR e VA separadamente, usando os dados REAIS do
@@ -2396,8 +2451,7 @@ const carregandoLimite = carregando
           limpa. A consultoria continua acessível pelo atalho "Consultoria".
           O modal do Horizonte (abaixo) é mantido para o sininho de notificações. */}
 
-      {/* Modal: Calendário financeiro (aberto pela linha "Calendário" em
-          "Minhas finanças"). Reutiliza o MESMO componente e os mesmos dados —
+      {/* Modal: Calendário financeiro (preservado, mas não aberto pelo card da Home). Reutiliza o MESMO componente e os mesmos dados —
           nenhum cálculo novo, nada removido. */}
       <Modal aberto={modalCalendario} onFechar={() => setModalCalendario(false)} titulo="Calendário financeiro">
         {!carregando && (
@@ -2415,7 +2469,23 @@ const carregandoLimite = carregando
           (modos, reserva, renda/compromissos/disponível, ajuste diário, meta,
           progresso e previsão) ficam aqui, fora da visão principal da Home.
           Reutiliza o MESMO componente/cálculos — nada foi removido. */}
-      <Modal aberto={modalPlanejamento} onFechar={() => setModalPlanejamento(false)} titulo="Planejamento completo">
+      {/* Amplia somente a janela Planejamento, sem alterar outros modais do app. */}
+      <style>{`
+        @media (min-width: 640px) {
+          .max-w-md:has(.planejamento-modal-conteudo),
+          .max-w-lg:has(.planejamento-modal-conteudo),
+          .max-w-xl:has(.planejamento-modal-conteudo),
+          .max-w-sm:has(.planejamento-modal-conteudo),
+          .max-w-2xl:has(.planejamento-modal-conteudo) {
+            width: min(760px, calc(100vw - 32px)) !important;
+            max-width: min(760px, calc(100vw - 32px)) !important;
+          }
+        }
+        @media (max-width: 639px) {
+          .planejamento-modal-conteudo { padding: 14px; }
+        }
+      `}</style>
+      <Modal aberto={modalPlanejamento} onFechar={() => setModalPlanejamento(false)} titulo="Planejamento completo" tamanho="lg">
         <CardQuantoPossoGastar
           carregando={carregandoLimite}
           modo={modoLimite}
