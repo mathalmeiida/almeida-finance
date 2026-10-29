@@ -14,6 +14,7 @@ import {
 
   BarChart2,
   Activity,
+  CalendarDays,
 
   ShoppingCart,
 
@@ -179,6 +180,7 @@ const acoesRapidas = [
   { to: '/cartoes',           label: 'Nova compra no cartão', desc: 'Lance uma compra no cartão',   icon: CreditCard,  cor: 'text-blue-600',   bg: 'bg-blue-50'   },
 
   { to: '/?novo=reserva',     label: 'Atualizar reserva', desc: 'Informe quanto possui na reserva', icon: PiggyBank,   cor: 'text-violet-600', bg: 'bg-violet-50' },
+  { to: '/beneficios',       label: 'Gasto em benefícios', desc: 'Acesse os lançamentos de VR e VA', icon: UtensilsCrossed, cor: 'text-emerald-600', bg: 'bg-emerald-50' },
 
 ]
 
@@ -569,19 +571,15 @@ export default function Layout({ children }) {
 
           )}
 
-          <NavLink
-
-            to="/configuracoes"
-
-            className="w-8 h-8 bg-marca-100 rounded-full flex items-center justify-center flex-shrink-0"
-
-            aria-label="Minha conta"
-
+          <button
+            type="button"
+            onClick={() => setMaisAberto(true)}
+            className="w-9 h-9 bg-marca-100 rounded-full flex items-center justify-center flex-shrink-0"
+            aria-label="Abrir mais ações e minha conta"
+            aria-expanded={maisAberto}
           >
-
             <span className="text-xs font-bold text-marca">{iniciais}</span>
-
-          </NavLink>
+          </button>
 
         </header>
 
@@ -629,46 +627,19 @@ export default function Layout({ children }) {
 
       </div>
 
-      {/* ── Barra de navegação inferior premium (apenas mobile) ── */}
-
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 shadow-[0_-1px_12px_rgba(0,0,0,0.06)] flex items-end justify-around px-1 pb-safe">
-
+      {/* Navegação mobile: cinco destinos, alinhados e sem botão flutuante. */}
+      <nav aria-label="Navegação principal" className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 shadow-[0_-1px_12px_rgba(0,0,0,0.06)] flex items-stretch justify-around px-1 pb-safe">
         <BottomNavItem to="/" label="Início" icon={LayoutDashboard} corIcone="text-blue-400" />
-
-        <BottomNavItem to="/despesas" label="Despesas" icon={TrendingDown} corIcone="text-rose-400" />
-
-        {/* Botão central "+" em destaque (ações rápidas).
-
-            Oculto no modo consultoria (somente leitura): o consultor não cria
-
-            nem edita dados do cliente. */}
-
-        <div className="flex-1 flex justify-center">
-
-          {!somenteLeitura && (
-
-            <button
-
-              onClick={() => setAcoesAberto(true)}
-
-              aria-label="Adicionar"
-
-              className="-mt-5 w-14 h-14 rounded-full bg-marca hover:bg-marca-hover active:scale-95 text-white shadow-lg shadow-black/20 flex items-center justify-center transition-all"
-
-            >
-
-              <Plus size={26} />
-
-            </button>
-
-          )}
-
-        </div>
-
-        <BottomNavItem to="/posso-comprar" label="Simular" icon={ShoppingCart} corIcone="text-blue-400" />
-
-        <BottomNavItem to="/mais" label="Mais" icon={MoreHorizontal} corIcone="text-gray-400" />
-
+        <BottomNavItem to="/projecao" label="Calendário" icon={CalendarDays} corIcone="text-blue-400" />
+        {somenteLeitura ? (
+          <div className="bottom-nav-item text-gray-400" aria-label="Adicionar indisponível no modo somente leitura">
+            <Plus size={21} /><span>Adicionar</span>
+          </div>
+        ) : (
+          <BottomNavItem label="Adicionar" icon={Plus} onClick={() => setAcoesAberto(true)} ativo={acoesAberto} corIcone="text-blue-400" />
+        )}
+        <BottomNavItem to="/minha-evolucao" label="Evolução" icon={Activity} corIcone="text-violet-400" />
+        <BottomNavItem to="/consultoria" label="Consultoria" icon={MessagesSquare} corIcone="text-cyan-400" />
       </nav>
 
       {/* ── Sheet de ações rápidas do "+" (apenas mobile) ── */}
@@ -679,7 +650,7 @@ export default function Layout({ children }) {
 
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setAcoesAberto(false)} />
 
-          <div className="absolute bottom-0 inset-x-0 bg-white rounded-t-2xl shadow-xl pb-safe">
+          <div className="absolute bottom-0 inset-x-0 bg-white rounded-t-2xl shadow-xl pb-safe max-h-[85dvh] overflow-y-auto">
 
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
 
@@ -741,7 +712,7 @@ export default function Layout({ children }) {
 
       )}
 
-      {/* ── Sheet "Mais" (apenas mobile) ── */}
+      {/* "Mais ações" abre pelo avatar no cabeçalho mobile. */}
 
       {maisAberto && (
 
@@ -753,7 +724,7 @@ export default function Layout({ children }) {
 
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
 
-              <h3 className="text-base font-semibold text-gray-900">Mais opções</h3>
+              <h3 className="text-base font-semibold text-gray-900">Mais ações</h3>
 
               <button
 
