@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 
 import {
 
-  CalendarDays, ChevronLeft, ChevronRight, TrendingUp, TrendingDown,
+  CalendarDays, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Plus, MoreVertical, Pencil, Trash2, X,
 
   Wallet, CreditCard, ReceiptText, CalendarClock,
 
@@ -11,8 +11,11 @@ import {
 import { exibirMoeda, partesHojeBrasil } from '../lib/utils'
 
 import { useOcultarValores } from '../contexts/OcultarValoresContext'
+
 // Almeida Finance — Calendário financeiro (visual Dashboard Financeiro).
+
 // Apenas EXIBE os lançamentos e saldos de src/lib/horizonteFinanceiro.js.// Não altera cálculos, recorrências, lançamentos, banco ou orçamento.
+
 const chaveData = (ano, mes, dia) =>
 
   `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
@@ -24,8 +27,11 @@ const inicioMes = () => {
   return new Date(hoje.ano, hoje.mes - 1, 1, 12)
 
 }
+
 // Apenas formata o número exibido nos quadrinhos pequenos do calendário.
+
 // O saldo real e todos os cálculos permanecem inalterados.
+
 function valorCompacto(valor, ocultar) {
 
   if (ocultar) return '••••'
@@ -53,8 +59,11 @@ function valorCompacto(valor, ocultar) {
 }
 
 export default function CalendarioFinanceiroHome({
+
 // Mantidos por compatibilidade com chamadas antigas. Fonte única: horizonte.
+
   receitas = [], despesas = [], mesVisivel, onMudarMes, horizonte = [],
+  onAdicionarMovimentacao, onEditarMovimentacao, onExcluirMovimentacao,
 
 }) {
 
@@ -71,6 +80,8 @@ export default function CalendarioFinanceiroHome({
   const chaveHoje = chaveData(hoje.ano, hoje.mes, hoje.dia)
 
   const [diaSelecionado, setDiaSelecionado] = useState(chaveHoje)
+  const [menuAdicionar, setMenuAdicionar] = useState(false)
+  const [menuEvento, setMenuEvento] = useState(null)
 
   const periodo = useMemo(() => (Array.isArray(horizonte) ? horizonte : [])
 
@@ -113,6 +124,8 @@ export default function CalendarioFinanceiroHome({
     onMudarMes?.(novo)
 
     setDiaSelecionado(chaveData(novo.getFullYear(), novo.getMonth() + 1, 1))
+    setMenuAdicionar(false)
+    setMenuEvento(null)
 
   }
 
@@ -139,6 +152,7 @@ export default function CalendarioFinanceiroHome({
   return (
 
     <section className="af-calendar-fit min-w-0 overflow-hidden rounded-2xl border border-marca bg-slate-950 p-3 text-marca shadow-lg sm:p-5"
+
       style={{ backgroundColor: 'color-mix(in srgb, currentColor 17%, #020617)' }}>
 
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -178,6 +192,7 @@ export default function CalendarioFinanceiroHome({
         <div className="min-w-0 xl:col-span-3">
 
           <div className="af-month-bar mb-3 flex items-center justify-between rounded-xl border border-marca bg-slate-900 px-2 py-2 text-marca"
+
               style={{ backgroundColor: 'color-mix(in srgb, currentColor 12%, #111827)' }}>
 
             <button type="button" aria-label="Mês anterior" onClick={() => mudarMes(-1)}
@@ -229,6 +244,7 @@ export default function CalendarioFinanceiroHome({
               const possuiEntrada = eventosDia.some(ev => ev.tipo === 'entrada')
 
               // Fatura de cartão ganha marcador próprio (sky); as demais saídas
+
               // (fixas/variáveis/parcelas) seguem como "saída" (rose).
 
               const possuiFatura = eventosDia.some(ev => ev.categoria === 'cartao')
@@ -245,7 +261,8 @@ export default function CalendarioFinanceiroHome({
 
                   aria-label={`${dia} de ${nomeMes}${saldo == null ? ', sem saldo projetado' : ', saldo projetado disponível'}`}
 
-                  onClick={() => setDiaSelecionado(chave)}
+                  onClick={() => { setDiaSelecionado(chave); setMenuAdicionar(false); setMenuEvento(null) }}
+
                     style={!selecionado ? { backgroundColor: 'color-mix(in srgb, currentColor 13%, #1e293b)' } : undefined}
 
                   title={saldo != null && !ocultar ? `Saldo projetado: ${exibirMoeda(saldo, false)}` : undefined}
@@ -295,6 +312,7 @@ export default function CalendarioFinanceiroHome({
         </div>
 
         <aside className="af-day-details min-w-0 rounded-xl border border-marca bg-slate-900/80 p-3 text-marca sm:p-4 xl:col-span-2"
+
           style={{ backgroundColor: 'color-mix(in srgb, currentColor 13%, #111827)' }} aria-label="Detalhes do dia selecionado">
 
           <div className="mb-3 flex items-center gap-2 text-marca">
@@ -355,7 +373,30 @@ export default function CalendarioFinanceiroHome({
 
           </div>
 
-          <div className="mb-2 flex items-center justify-between gap-2">
+            {/* Ações usam os formulários da Home; o calendário não cria lançamentos paralelos. */}
+            <div className="mb-3 space-y-2">
+              {typeof onAdicionarMovimentacao === 'function' && (
+                <>
+                  <button type="button" onClick={() => setMenuAdicionar(v => !v)}
+                    aria-expanded={menuAdicionar}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-marca bg-marca-100 px-3 py-2.5 text-sm font-semibold text-marca transition hover:brightness-110">
+                    {menuAdicionar ? <X size={16} /> : <Plus size={16} />}
+                    {menuAdicionar ? 'Fechar opções' : 'Adicionar movimentação'}
+                  </button>
+                  {menuAdicionar && (
+                    <div className="grid grid-cols-1 gap-2 rounded-xl border border-slate-700 bg-slate-800/70 p-2 sm:grid-cols-3">
+                      {[['receita', 'Receita'], ['despesa', 'Despesa'], ['cartao', 'Cartão']].map(([tipo, rotulo]) => (
+                        <button key={tipo} type="button" onClick={() => { onAdicionarMovimentacao({ tipo, data: diaSelecionado }); setMenuAdicionar(false) }}
+                          className="rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-100 hover:border-marca">
+                          {rotulo}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+<div className="mb-2 flex items-center justify-between gap-2">
 
             <h4 className="text-xs font-semibold text-slate-200">Movimentações do dia</h4>
 
@@ -370,6 +411,7 @@ export default function CalendarioFinanceiroHome({
               {eventos.map((ev, i) => {
 
                 // Cor/ícone por categoria para leitura rápida (só visual):
+
                 //  cartão=sky, receita=verde, despesa fixa/variável/parcela=rose.
 
                 const ehEntrada = ev.tipo === 'entrada'
@@ -423,12 +465,34 @@ export default function CalendarioFinanceiroHome({
                     {ev.tipo === 'entrada' ? '+' : '−'} {exibirMoeda(ev.valor, ocultar)}
 
                   </span>
-
+                  {(typeof onEditarMovimentacao === 'function' || typeof onExcluirMovimentacao === 'function') && ev.id != null && (
+                    <div className="relative shrink-0">
+                      <button type="button" aria-label="Opções da movimentação" aria-expanded={menuEvento === `${diaSelecionado}-${i}`}
+                        onClick={() => setMenuEvento(v => v === `${diaSelecionado}-${i}` ? null : `${diaSelecionado}-${i}`)}
+                        className="rounded-lg p-1.5 text-slate-300 hover:bg-slate-700">
+                        <MoreVertical size={17} />
+                      </button>
+                      {menuEvento === `${diaSelecionado}-${i}` && (
+                        <div className="absolute right-0 top-full z-20 min-w-[130px] rounded-lg border border-slate-600 bg-slate-900 p-1 shadow-xl">
+                          {typeof onEditarMovimentacao === 'function' && (
+                            <button type="button" onClick={() => { onEditarMovimentacao(ev); setMenuEvento(null) }}
+                              className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-xs text-slate-100 hover:bg-slate-700">
+                              <Pencil size={13} /> Editar
+                            </button>
+                          )}
+                          {typeof onExcluirMovimentacao === 'function' && (
+                            <button type="button" onClick={() => { setMenuEvento(null); onExcluirMovimentacao(ev) }}
+                              className="flex w-full items-center gap-2 rounded px-2 py-2 text-left text-xs text-rose-300 hover:bg-slate-700">
+                              <Trash2 size={13} /> Excluir
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-
-                )
-
-              })}
+              )
+            })}
 
             </div>
 

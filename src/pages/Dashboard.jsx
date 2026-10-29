@@ -38,12 +38,12 @@ const CHAVE_ETAPA_ONBOARDING = 'almeida_onboarding_etapa'
 // rápido (apenas ordenação visual; não cria, renomeia nem apaga categorias).
 const CATEGORIAS_COMUNS = ['Alimentação', 'Transporte', 'Lazer', 'Mercado', 'Saúde', 'Serviços']
 
-function FormGastoRapido({ onSalvar, onCancelar, carregando, onMaisOpcoes, erro, beneficios = [] }) {
+function FormGastoRapido({ onSalvar, onCancelar, carregando, onMaisOpcoes, erro, beneficios = [], dataInicial }) {
   const { categorias } = useCategorias('despesa')
   const { cartoes } = useCartoes()
   const [form, setForm] = useState({
     descricao: '', valor: '', categoria_id: '', subcategoria_id: '',
-    data: hojeISOBrasil(), forma_pagamento: '', cartao_id: '', beneficio_id: '',
+    data: dataInicial || hojeISOBrasil(), forma_pagamento: '', cartao_id: '', beneficio_id: '',
   })
 
   const formaSelecionada = FORMAS_PAGAMENTO.find(f => f.value === form.forma_pagamento)
@@ -1605,6 +1605,7 @@ export default function Dashboard() {
       setSalvandoGastoBeneficio(false)
     }
   }
+  const [dataGastoCalendario, setDataGastoCalendario] = useState(null)
   const [modalGasto, setModalGasto] = useState(false)
   const [salvandoGasto, setSalvandoGasto] = useState(false)
   const salvamentoGastoEmAndamento = useRef(false)
@@ -1996,6 +1997,26 @@ const carregandoLimite = carregando
     }
   }
 
+  // Lançamento iniciado pelo calendário: reutiliza o fluxo de criação da Home.
+  // Receitas e compras parceladas usam as telas próprias, sem gravação paralela.
+  function adicionarPeloCalendario({ tipo, data }) {
+    if (somenteLeitura) return
+    setModalCalendario(false)
+    if (tipo === 'despesa') {
+      setDataGastoCalendario(data)
+      setErroGasto('')
+      setModalGasto(true)
+      return
+    }
+    if (tipo === 'receita') {
+      navigate(`/receitas?novo=1&data=${encodeURIComponent(data)}`)
+      return
+    }
+    if (tipo === 'cartao') {
+      navigate(`/cartoes?novo=1&data=${encodeURIComponent(data)}`)
+    }
+  }
+
   // Abre o cadastro COMPLETO de despesas (todos os campos avançados já existentes).
   function handleMaisOpcoes() {
     setModalGasto(false)
@@ -2335,7 +2356,7 @@ const carregandoLimite = carregando
           O atalho Mais fica oculto apenas no desktop, onde já existe menu lateral. */}
       <div className="grid grid-cols-5 md:grid-cols-4 gap-1 sm:gap-3 lg:gap-5">
         {[
-          { label: 'Gastei agora', Icon: ReceiptText,         onClick: () => (somenteLeitura ? null : setModalGasto(true)), disabled: somenteLeitura },
+          { label: 'Gastei agora', Icon: ReceiptText,         onClick: () => { if (!somenteLeitura) { setDataGastoCalendario(null); setModalGasto(true) } }, disabled: somenteLeitura },
           { label: 'Despesas',  Icon: TrendingDown, onClick: () => navigate('/despesas') },
           { label: 'Simular',   Icon: ShoppingCart, onClick: () => navigate('/posso-comprar') },
           { label: 'E se...?',  Icon: Sparkles, onClick: () => navigate('/e-se') },
@@ -2538,6 +2559,7 @@ const carregandoLimite = carregando
             mesVisivel={mesCalendarioHome}
             onMudarMes={setMesCalendarioHome}
             horizonte={horizonteCalendario}
+            onAdicionarMovimentacao={somenteLeitura ? undefined : adicionarPeloCalendario}
           />
         )}
       </Modal>
@@ -2675,6 +2697,8 @@ dataReferencia={hojeISO}
       {/* Modal de Gasto rápido */}
       <Modal aberto={modalGasto} onFechar={() => setModalGasto(false)} titulo="Gasto rápido">
         <FormGastoRapido
+          key={dataGastoCalendario || "gasto-rapido"}
+          dataInicial={dataGastoCalendario}
           onSalvar={handleSalvarGasto}
           beneficios={beneficios}
           onCancelar={() => setModalGasto(false)}
