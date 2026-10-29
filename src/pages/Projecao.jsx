@@ -423,7 +423,15 @@ export default function Projecao() {
 
 
 
-  const eventosSelecionados = eventosPorData.get(diaSelecionado) || []
+    // Eventos que o motor financeiro efetivamente considera no saldo do dia.
+  // Mantidos separados dos lançamentos originais para não duplicar totais.
+  const eventosPrevistosDia = Array.isArray(selecionadoProjetado?.eventos)
+    ? selecionadoProjetado.eventos
+    : []
+  const entradasPrevistasDia = Number(selecionadoProjetado?.entradas) || 0
+  const saidasPrevistasDia = Number(selecionadoProjetado?.saidas) || 0
+
+const eventosSelecionados = eventosPorData.get(diaSelecionado) || []
 
 
 
@@ -584,7 +592,7 @@ export default function Projecao() {
 
 
 
-              return <button type="button" key={chave} onClick={() => { setDiaSelecionado(chave); setMenuLancamento(false); setMenuRegistro(null) }} aria-pressed={selecionado}
+              return <button type="button" key={chave} onClick={() => { setDiaSelecionado(chave); setMenuLancamento(false) }} aria-pressed={selecionado}
 
 
 
@@ -674,15 +682,60 @@ export default function Projecao() {
                 </div>}
               </div>}
 
-{eventosSelecionados.length ? <div className="space-y-2 max-h-64 overflow-y-auto">{eventosSelecionados.map(ev => <div key={ev.id} className="flex justify-between items-center gap-2 bg-white/5 border border-white/10 rounded-xl p-2 text-xs"><span className="truncate text-slate-100">{ev.nome}</span><span className={`font-semibold shrink-0 ${ev.tipo === 'receita' ? 'text-green-400' : 'text-red-400'}`}>{ev.tipo === 'receita' ? '+' : '−'} {dinheiro(ev.valor, ocultar)}</span></div>)}</div> : <p className="text-sm opacity-70">Nenhum lançamento original com essa data.</p>}
+<div className="space-y-3">
+              <div>
+                <h4 className="text-xs font-semibold text-white mb-2">Movimentações consideradas na projeção</h4>
+                {selecionadoProjetado ? <>
+                  <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
+                    <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-2 py-2">
+                      <span className="text-slate-300 block">Entradas previstas</span>
+                      <strong className="text-emerald-300">{dinheiro(entradasPrevistasDia, ocultar)}</strong>
+                    </div>
+                    <div className="rounded-lg border border-rose-400/20 bg-rose-400/10 px-2 py-2">
+                      <span className="text-slate-300 block">Saídas previstas</span>
+                      <strong className="text-rose-300">{dinheiro(saidasPrevistasDia, ocultar)}</strong>
+                    </div>
+                  </div>
+                  {eventosPrevistosDia.length ? (
+                    <div className="max-h-64 space-y-2 overflow-y-auto">
+                      {eventosPrevistosDia.map((ev, i) => {
+                        const entrada = ev.tipo === 'entrada'
+                        const categoria = ev.categoria === 'cartao' ? 'Fatura do cartão'
+                          : ev.categoria === 'parcela' ? 'Parcelamento'
+                          : ev.categoria === 'fixa' ? 'Despesa fixa'
+                          : ev.categoria === 'variavel' ? 'Despesa variável'
+                          : entrada ? 'Receita prevista' : 'Despesa prevista'
+                        return <div key={`${diaSelecionado}-${i}`} className="flex min-w-0 items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 p-2 text-xs">
+                          <div className="min-w-0">
+                            <p className="truncate text-slate-100" title={ev.descricao || categoria}>{ev.descricao || categoria}</p>
+                            <p className="text-[11px] text-slate-400">{categoria} · projeção</p>
+                          </div>
+                          <span className={`shrink-0 font-semibold ${entrada ? 'text-emerald-300' : 'text-rose-300'}`}>
+                            {entrada ? '+' : '−'} {dinheiro(ev.valor, ocultar)}
+                          </span>
+                        </div>
+                      })}
+                    </div>
+                  ) : <p className="text-xs text-slate-400">Nenhum evento discriminado pelo motor financeiro nesta data.</p>}
+                </> : <p className="text-xs text-slate-400">Não há projeção diária disponível nesta data. Consulte os lançamentos registrados abaixo.</p>}
+              </div>
+              <div className="border-t border-white/10 pt-3">
+                <h4 className="text-xs font-semibold text-white mb-2">Lançamentos originais cadastrados</h4>
+                {eventosSelecionados.length ? (
+                  <div className="max-h-48 space-y-2 overflow-y-auto">
+                    {eventosSelecionados.map(ev => <div key={ev.id} className="flex justify-between items-center gap-2 bg-white/5 border border-white/10 rounded-xl p-2 text-xs">
+                      <span className="truncate text-slate-100">{ev.nome}</span>
+                      <span className={`font-semibold shrink-0 ${ev.tipo === 'receita' ? 'text-green-400' : 'text-red-400'}`}>
+                        {ev.tipo === 'receita' ? '+' : '−'} {dinheiro(ev.valor, ocultar)}
+                      </span>
+                    </div>)}
+                  </div>
+                ) : <p className="text-xs text-slate-400">Nenhum lançamento original com essa data.</p>}
+              </div>
+            </div>
+            <p className="mt-3 text-xs opacity-70">Os eventos previstos acima já fazem parte do saldo projetado. Lançamentos originais podem aparecer também na projeção; as listas são apenas informativas e não somam valores novamente. Para editar ou excluir, use o cadastro de origem.</p>
 
-
-
-            <p className="mt-3 text-xs opacity-70">Os números do calendário incluem as projeções de receitas, despesas, parcelas e faturas. A lista acima mostra somente os lançamentos originais; consulte o fluxo completo para ver todos os eventos.</p>
-
-
-
-            <button type="button" onClick={() => setVerFluxo(v => !v)} className="w-full mt-3 flex items-center justify-center gap-2 rounded-xl border border-marca bg-marca-100 px-3 py-2.5 text-sm font-semibold text-marca hover:opacity-85"><List size={15}/>{verFluxo ? 'Ocultar fluxo de caixa' : 'Ver fluxo de caixa completo'}</button>
+<button type="button" onClick={() => setVerFluxo(v => !v)} className="w-full mt-3 flex items-center justify-center gap-2 rounded-xl border border-marca bg-marca-100 px-3 py-2.5 text-sm font-semibold text-marca hover:opacity-85"><List size={15}/>{verFluxo ? 'Ocultar fluxo de caixa' : 'Ver fluxo de caixa completo'}</button>
 
 
 
