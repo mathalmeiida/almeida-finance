@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react'
 
 import {
 
-  MessageCircle, CheckCircle2, Loader2, Award, GraduationCap,
+  MessageCircle, CheckCircle2, Loader2, GraduationCap,
 
   BadgeCheck, Wallet, PiggyBank, Target, LineChart, ListChecks,
 
@@ -17,14 +17,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { useConsultoriaInteresses } from '../hooks/useConsultoria'
 
 import { mascararTelefone, somenteDigitosTelefone, telefoneValido } from '../lib/utils'
-
-
-
-// Foto ORIGINAL do aplicativo. Não substituir nem editar este arquivo de imagem.*
-
+// Foto ORIGINAL do aplicativo. Não substituir nem editar este arquivo de imagem.
 const fotoMatheus = '/images/foto%20perfil.png'
-
-
 
 const AJUDAS = [
 
@@ -42,21 +36,15 @@ const AJUDAS = [
 
 ]
 
+const painel = 'rounded-2xl border border-marca/15 bg-white shadow-sm'
 
-
-const painel = 'rounded-2xl border border-white/10 bg-[#1f2735] shadow-sm'
-
-const bloco = 'rounded-xl bg-[#293345] p-4'
-
-
+const bloco = 'rounded-xl bg-marca-100/50 border border-marca/10 p-4'
 
 export default function Consultoria() {
 
   const { usuario, perfil } = useAuth()
 
   const { interesses, criarInteresse } = useConsultoriaInteresses()
-
-
 
   const nomePadrao = perfil?.nome || usuario?.email?.split('@')[0] || ''
 
@@ -74,19 +62,13 @@ export default function Consultoria() {
 
   const formRef = useRef(null)
 
-
-
   const jaRegistrou = registrado || (interesses?.length || 0) > 0
-
-
 
   function irParaConsultoria() {
 
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
   }
-
-
 
   async function handleSubmit(e) {
 
@@ -120,17 +102,15 @@ export default function Consultoria() {
 
   }
 
-
-
   return (
 
-    <div className="w-full max-w-none min-w-0 space-y-5 pb-mobilenav md:pb-4 text-slate-100">
+    <div className="w-full max-w-none min-w-0 space-y-5 pb-mobilenav md:pb-4 text-gray-900">
 
       {/* Apresentação principal — foto original preservada. */}
 
       <section className={`${painel} overflow-hidden`}>
 
-        <div className="grid grid-cols-1 items-start gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.25fr)_minmax(240px,0.85fr)] lg:gap-9 lg:p-9">
+        <div className="grid grid-cols-1 items-start gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.25fr)\_minmax(240px,0.85fr)] lg:gap-9 lg:p-9">
 
           <div className="min-w-0 order-2 lg:order-1">
 
@@ -140,19 +120,19 @@ export default function Consultoria() {
 
             </span>
 
-            <h1 className="mt-4 text-3xl font-extrabold leading-tight tracking-tight text-white sm:text-4xl">
+            <h1 className="mt-4 text-3xl font-extrabold leading-tight tracking-tight text-gray-900 sm:text-4xl">
 
               Conheça Matheus Almeida
 
             </h1>
 
-            <p className="mt-2 text-base text-slate-300">
+            <p className="mt-2 text-base text-gray-600">
 
               Experiência, planejamento e soluções para sua vida financeira.
 
             </p>
 
-            <div className="mt-5 space-y-4 text-sm leading-7 text-slate-200 sm:text-base">
+            <div className="mt-5 space-y-4 text-sm leading-7 text-gray-700 sm:text-base">
 
               <p>
 
@@ -196,7 +176,7 @@ export default function Consultoria() {
 
             {mostrarTrajetoria && (
 
-              <div className="mt-5 space-y-3 border-t border-white/10 pt-4 text-sm leading-7 text-slate-200">
+              <div className="mt-5 space-y-3 border-t border-gray-200 pt-4 text-sm leading-7 text-gray-700">
 
                 <p>Minha trajetória profissional foi construída ao longo de mais de 7 anos no mercado financeiro, trabalhando diretamente com clientes, planejamento financeiro e identificação de soluções para diferentes momentos da vida.</p>
 
@@ -214,8 +194,6 @@ export default function Consultoria() {
 
           </div>
 
-
-
           <div className="order-1 flex min-w-0 flex-col items-center gap-3 lg:order-2">
 
             <div className="w-full max-w-[270px] sm:max-w-[310px] lg:max-w-[340px] mx-auto overflow-hidden rounded-2xl">
@@ -232,15 +210,15 @@ export default function Consultoria() {
 
             </div>
 
-            <div className="flex w-full max-w-[270px] sm:max-w-[310px] lg:max-w-[340px] mx-auto items-center gap-3 rounded-xl bg-[#293c60] px-4 py-3">
+            <div className="flex w-full max-w-[270px] sm:max-w-[310px] lg:max-w-[340px] mx-auto items-center gap-3 rounded-xl bg-marca-100 px-4 py-3">
 
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-marca text-white"><BriefcaseBusiness size={22} /></span>
 
               <div>
 
-                <p className="font-bold text-white">Mais de 7 anos</p>
+                <p className="font-bold text-gray-900">Mais de 7 anos</p>
 
-                <p className="text-sm text-slate-300">de experiência no mercado financeiro</p>
+                <p className="text-sm text-gray-600">de experiência no mercado financeiro</p>
 
               </div>
 
@@ -250,13 +228,9 @@ export default function Consultoria() {
 
         </div>
 
-
-
-        <div className="grid grid-cols-1 gap-3 px-5 pb-5 sm:grid-cols-3 sm:px-7 sm:pb-7 lg:px-9 lg:pb-9">
+        <div className="grid grid-cols-1 gap-3 px-5 pb-5 sm:grid-cols-2 sm:px-7 sm:pb-7 lg:px-9 lg:pb-9">
 
           {[
-
-            { icon: Award, titulo: '7+ anos', subtitulo: 'Experiência no mercado financeiro' },
 
             { icon: GraduationCap, titulo: 'Engenharia de Produção', subtitulo: 'Formação acadêmica' },
 
@@ -270,9 +244,9 @@ export default function Consultoria() {
 
               <div className="min-w-0">
 
-                <p className="font-semibold text-white">{titulo}</p>
+                <p className="font-semibold text-gray-900">{titulo}</p>
 
-                <p className="mt-0.5 text-sm leading-5 text-slate-300">{subtitulo}</p>
+                <p className="mt-0.5 text-sm leading-5 text-gray-600">{subtitulo}</p>
 
               </div>
 
@@ -283,8 +257,6 @@ export default function Consultoria() {
         </div>
 
       </section>
-
-
 
       <section className={`${painel} p-5 sm:p-7`}>
 
@@ -294,9 +266,9 @@ export default function Consultoria() {
 
           <div>
 
-            <h2 className="text-xl font-bold text-white sm:text-2xl">Como posso ajudar</h2>
+            <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">Como posso ajudar</h2>
 
-            <p className="mt-1 text-sm text-slate-300 sm:text-base">Soluções para diferentes momentos da sua vida financeira.</p>
+            <p className="mt-1 text-sm text-gray-600 sm:text-base">Soluções para diferentes momentos da sua vida financeira.</p>
 
           </div>
 
@@ -306,15 +278,15 @@ export default function Consultoria() {
 
           {AJUDAS.map(({ icon: Icon, titulo, descricao }) => (
 
-            <div key={titulo} className="flex min-w-0 items-center gap-3 rounded-xl bg-[#293345] p-4">
+            <div key={titulo} className="flex min-w-0 items-center gap-3 rounded-xl bg-marca-100/50 p-4">
 
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-marca-100 text-marca"><Icon size={23} /></span>
 
               <div className="min-w-0">
 
-                <p className="text-sm font-semibold text-white sm:text-base">{titulo}</p>
+                <p className="text-sm font-semibold text-gray-900 sm:text-base">{titulo}</p>
 
-                <p className="mt-1 text-sm leading-5 text-slate-300">{descricao}</p>
+                <p className="mt-1 text-sm leading-5 text-gray-600">{descricao}</p>
 
               </div>
 
@@ -326,8 +298,6 @@ export default function Consultoria() {
 
       </section>
 
-
-
       <section ref={formRef} className={`${painel} scroll-mt-20 p-5 sm:p-7`}>
 
         <div className="flex items-start gap-3">
@@ -336,17 +306,15 @@ export default function Consultoria() {
 
           <div className="min-w-0">
 
-            <h2 className="text-xl font-bold text-white sm:text-2xl">Consultoria financeira com Matheus Almeida</h2>
+            <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">Consultoria financeira com Matheus Almeida</h2>
 
-            <p className="mt-1 text-sm text-slate-300 sm:text-base">Atendimento voltado à organização e ao planejamento das finanças pessoais.</p>
+            <p className="mt-1 text-sm text-gray-600 sm:text-base">Atendimento voltado à organização e ao planejamento das finanças pessoais.</p>
 
           </div>
 
         </div>
 
-
-
-        <div className="mt-5 grid gap-2 text-sm text-slate-200 sm:grid-cols-3">
+        <div className="mt-5 grid gap-2 text-sm text-gray-700 sm:grid-cols-3">
 
           {['Atendimento individual', 'Orientação prática', 'Foco nos seus objetivos'].map(item => (
 
@@ -355,8 +323,6 @@ export default function Consultoria() {
           ))}
 
         </div>
-
-
 
         {jaRegistrou ? (
 
@@ -368,11 +334,11 @@ export default function Consultoria() {
 
             </button>
 
-            <div className="flex items-start gap-3 rounded-xl border border-emerald-600/40 bg-emerald-950/30 p-4">
+            <div className="flex items-start gap-3 rounded-xl border border-emerald-600/40 bg-emerald-50 p-4">
 
-              <CheckCircle2 size={21} className="mt-0.5 shrink-0 text-emerald-400" />
+              <CheckCircle2 size={21} className="mt-0.5 shrink-0 text-emerald-700" />
 
-              <p className="text-sm text-slate-200"><strong className="text-white">Interesse registrado.</strong> Você será avisado pelo WhatsApp quando houver disponibilidade.</p>
+              <p className="text-sm text-gray-700"><strong className="text-gray-900">Interesse registrado.</strong> Você será avisado pelo WhatsApp quando houver disponibilidade.</p>
 
             </div>
 
@@ -380,13 +346,13 @@ export default function Consultoria() {
 
         ) : (
 
-          <form onSubmit={handleSubmit} className="mt-5 space-y-4 border-t border-white/10 pt-5">
+          <form onSubmit={handleSubmit} className="mt-5 space-y-4 border-t border-gray-200 pt-5">
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
               <div>
 
-                <label className="mb-1 block text-sm font-medium text-slate-200">Nome</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Nome</label>
 
                 <input className="input w-full" value={nome} onChange={e => setNome(e.target.value)} placeholder="Seu nome" required />
 
@@ -394,7 +360,7 @@ export default function Consultoria() {
 
               <div>
 
-                <label className="mb-1 block text-sm font-medium text-slate-200">WhatsApp</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">WhatsApp</label>
 
                 <input className="input w-full" inputMode="numeric" value={mascararTelefone(whatsapp)} onChange={e => setWhatsapp(e.target.value)} placeholder="(11) 99999-9999" required />
 
@@ -402,7 +368,7 @@ export default function Consultoria() {
 
             </div>
 
-            {erro && <p role="alert" className="rounded-xl bg-red-950/30 p-3 text-sm text-red-300">{erro}</p>}
+            {erro && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{erro}</p>}
 
             <button type="submit" disabled={salvando} className="btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-3 font-semibold disabled:opacity-60">
 
