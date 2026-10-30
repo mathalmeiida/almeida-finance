@@ -2732,7 +2732,6 @@ const carregandoLimite = carregando
       <div className="min-w-0">
         <EvolucaoFinanceiraHome projecao={projecao} ocultar={ocultar} />
       </div>
-      {!somenteLeitura && <button type="button" onClick={() => {setDataGastoCalendario(null);setModalGasto(true)}} className="af-dash-action w-full justify-center sm:hidden"><Plus size={16}/> Adicionar lançamento</button>}
 
       </div>
 
