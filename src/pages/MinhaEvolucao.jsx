@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, TrendingUp, TrendingDown, Wallet, PiggyBank, Target, CalendarDays, ChevronDown, ChevronUp, Info, Eye, EyeOff } from 'lucide-react'
+import { TrendingUp, TrendingDown, Wallet, PiggyBank, Target, CalendarDays, ChevronDown, ChevronUp, Info, Eye, EyeOff } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useAuth } from '../contexts/AuthContext'
 import { useOcultarValores } from '../contexts/OcultarValoresContext'
@@ -10,7 +10,7 @@ const n = valor => Number.isFinite(Number(valor)) ? Number(valor) : 0
 
 function CartaoResumo({ titulo, valor, Icone, ocultar, classe = '' }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-marca/15 bg-white p-4 shadow-sm sm:p-5">
+    <div className="min-w-0 rounded-2xl border border-marca/15 bg-white p-4 shadow-sm sm:p-5" style={{ backgroundColor: '#FFFFFF' }}>
       <div className="mb-3 flex items-center gap-2 text-sm text-slate-600">
         <Icone size={17} className="shrink-0 text-marca" />
         <span>{titulo}</span>
@@ -39,12 +39,9 @@ export default function MinhaEvolucao() {
   const maior = Math.max(1, ...meses.map(m => Math.abs(n(m.saldo))))
 
   return (
-    <main className="w-full min-w-0 max-w-none space-y-5 pb-24 text-slate-900">
+    <main className="af-evolucao-clara w-full min-w-0 max-w-none space-y-5 rounded-2xl pb-24 text-slate-900" style={{ backgroundColor: '#F8F7FC', color: '#0F172A', padding: '16px' }}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link to="/" className="mb-3 inline-flex items-center gap-2 text-sm font-medium text-marca hover:underline">
-            <ArrowLeft size={16} /> Voltar para a Home
-          </Link>
           <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Minha evolução financeira</h1>
           <p className="mt-1 text-sm text-slate-500">Entenda seu orçamento e acompanhe o planejamento dos próximos meses.</p>
         </div>
@@ -74,7 +71,7 @@ export default function MinhaEvolucao() {
             <p className="text-xs text-slate-500">A sobra prevista é uma estimativa do mês; não é o mesmo que seu saldo disponível agora. A reserva cadastrada não representa necessariamente uma transferência feita neste mês.</p>
           </section>
 
-          <section className="space-y-4 rounded-2xl border border-marca/15 bg-white p-4 shadow-sm sm:p-6">
+          <section className="space-y-4 rounded-2xl border border-marca/15 bg-white p-4 shadow-sm sm:p-6" style={{ backgroundColor: '#FFFFFF', color: '#0F172A' }}>
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
@@ -93,7 +90,7 @@ export default function MinhaEvolucao() {
                   {meses.slice(0, 6).map((m, i) => {
                     const v = n(m.saldo)
                     return (
-                      <div key={`${m.mes}-${i}`} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <div key={`${m.mes}-${i}`} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3" style={{ backgroundColor: '#F8FAFC' }}>
                         <div className="mb-3 truncate text-xs font-medium text-slate-600">{m.mes || `Mês ${i + 1}`}</div>
                         <div className="flex h-20 items-end">
                           <div
@@ -117,7 +114,7 @@ export default function MinhaEvolucao() {
 
                 <div className="space-y-2">
                   {visiveis.map((m, i) => (
-                    <div key={`${m.mes}-${i}`} className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                    <div key={`${m.mes}-${i}`} className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50" style={{ backgroundColor: '#F8FAFC' }}>
                       <button
                         type="button"
                         onClick={() => setExpandido(expandido === i ? -1 : i)}
