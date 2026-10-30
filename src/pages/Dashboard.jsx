@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Sun, Plus, Pencil,
-  CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, ChevronDown, PiggyBank, AlertTriangle, MessageCircle, BarChart2,
+  CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, ChevronDown, ChevronUp, PiggyBank, AlertTriangle, MessageCircle, BarChart2,
   Receipt, ReceiptText, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap, Info, X, MoreHorizontal, Sparkles
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
@@ -2312,8 +2312,6 @@ const carregandoLimite = carregando
         .af-home-themed .af-dash-action { display: inline-flex; align-items: center; gap: 6px; border-radius: 10px; background: var(--af-home-primary); color: white; font-size: 12px; font-weight: 600; padding: 9px 13px; }
         .af-home-themed .af-dash-ring { width: 64px; height: 64px; border-radius: 50%; padding: 8px; flex-shrink: 0; }
         .af-home-themed .af-dash-ring span { display: flex; width: 100%; height: 100%; border-radius: 50%; justify-content: center; align-items: center; background: white; font-size: 12px; font-weight: 700; color: #0f172a; }
-        .af-home-themed .af-dash-donut { display: flex; align-items: center; justify-content: center; width: 132px; height: 132px; border-radius: 50%; background: conic-gradient(#f43f5e 0 100%); padding: 19px; }
-        .af-home-themed .af-dash-donut span { display: flex; align-items: center; justify-content: center; text-align: center; background: white; border-radius: 50%; height: 100%; width: 100%; font-size: 11px; font-weight: 700; overflow-wrap: anywhere; padding: 5px; }
         .af-home-themed .af-dash-card .text-marca { color: var(--af-home-primary) !important; }
         .af-home-themed .af-dash-card .bg-slate-50 { background-color: var(--af-home-light) !important; }
         .af-home-themed .af-dash-card .text-sky-300 { color: var(--af-home-soft) !important; }
@@ -2361,7 +2359,6 @@ const carregandoLimite = carregando
           .af-home-desktop-compact aside.grid .af-dash-card .mb-3 { margin-bottom: 6px; }
           .af-home-desktop-compact aside.grid .af-dash-card .mt-3 { margin-top: 6px; }
           .af-home-desktop-compact aside.grid .af-dash-card .p-3 { padding: 8px; }
-          .af-home-desktop-compact .af-dash-donut { width: 90px; height: 90px; padding: 14px; }
           .af-home-desktop-compact > div.grid:last-of-type .af-dash-card .mb-4 { margin-bottom: 6px; }
           .af-home-desktop-compact > div.grid:last-of-type .af-dash-card .h-36 { height: 106px; }
           .af-home-desktop-compact > div.grid:last-of-type .af-dash-card .h-28 { height: 82px; }
@@ -2710,7 +2707,21 @@ const carregandoLimite = carregando
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
-        <section className="af-dash-card"><div className="flex items-center justify-between gap-2 mb-4"><h2 className="text-sm font-bold text-slate-900">Despesas e compromissos</h2><button type="button" onClick={() => navigate('/despesas')} className="text-xs text-marca font-semibold">Ver detalhes</button></div><div className="grid grid-cols-2 gap-3"><div className="flex items-center justify-center"><div className="af-dash-donut"><span>{exibirMoeda(compromissosMes, ocultar)}</span></div></div><div className="flex flex-col justify-center gap-3 text-xs"><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"/> Compromissos do mês</div><strong className="text-base text-slate-800 break-words">{exibirMoeda(compromissosMes, ocultar)}</strong><p className="text-slate-500">Valores consolidados pela projeção atual</p></div></div></section>
+        <section className="af-dash-card min-w-0" aria-label="Despesas e compromissos">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h2 className="min-w-0 text-sm font-bold text-slate-900">Despesas e compromissos</h2>
+            <button type="button" onClick={() => navigate('/despesas')} className="shrink-0 text-xs text-marca font-semibold hover:underline">Ver detalhes</button>
+          </div>
+          <div className="rounded-xl bg-rose-50/60 px-4 py-3 min-w-0">
+            <p className="flex items-center gap-2 text-xs font-medium text-slate-600">
+              <TrendingDown size={16} className="shrink-0 text-rose-500" /> Compromissos previstos do mês
+            </p>
+            <p className="mt-2 text-xl sm:text-2xl font-bold text-slate-900 tabular-nums break-words">
+              {exibirMoeda(compromissosMes, ocultar)}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">Total consolidado pela projeção financeira</p>
+          </div>
+        </section>
         <EvolucaoFinanceiraHome projecao={projecao} ocultar={ocultar} />
       </div>
       {!somenteLeitura && <button type="button" onClick={() => {setDataGastoCalendario(null);setModalGasto(true)}} className="af-dash-action w-full justify-center sm:hidden"><Plus size={16}/> Adicionar lançamento</button>}
