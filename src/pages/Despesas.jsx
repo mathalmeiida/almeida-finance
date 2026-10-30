@@ -1220,6 +1220,10 @@ export default function Despesas() {
 
   const [filtro, setFiltro] = useState('Todas')
   const [pagina, setPagina] = useState('visao')
+  const [resumoExpandido, setResumoExpandido] = useState(false)
+  const [lancamentoExpandido, setLancamentoExpandido] = useState(null)
+  const [vencimentosExpandidos, setVencimentosExpandidos] = useState(false)
+  const [planejamentoExpandido, setPlanejamentoExpandido] = useState(false)
   const [ordemDespesas, setOrdemDespesas] = useState('maior')
   const [ordemParceladas, setOrdemParceladas] = useState('maior_saldo')
   const [modalAberto, setModalAberto] = useState(false)
@@ -1565,55 +1569,55 @@ export default function Despesas() {
         </button>
       </div>
 
-      {/* Três cards de resumo. No celular: 2 colunas + "Total do mês" ocupando a
-          linha inteira (evita apertar valores grandes e transbordar). A partir de
-          sm: os três lado a lado. break-words + padding menor no mobile. */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <div className="card min-w-0 !p-4 sm:!p-5 col-span-2 sm:col-span-1">
-          <div className="w-9 h-9 bg-red-50 rounded-xl flex items-center justify-center mb-2">
-            <TrendingDown size={16} className="text-red-500" />
+      {/* Resumo compacto com os mesmos totais calculados pelos hooks existentes. */}
+      <section className="card !p-3 sm:!p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs text-gray-500">Total de despesas no mês</p>
+            <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-0.5 break-words">{formatCurrency(totalGeral)}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{despesas.length} despesas e {parcelasDoMes.length} parcelas neste mês</p>
           </div>
-          <p className="text-xs text-gray-500 mb-0.5">Total do mês</p>
-          <p className="text-lg font-bold text-gray-900 leading-tight break-words">{formatCurrency(totalGeral)}</p>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {despesas.length} à vista
-            {parcelasDoMes.length > 0 ? ` + ${parcelasDoMes.length} parcela${parcelasDoMes.length !== 1 ? 's' : ''}` : ''}
-          </p>
+          <button type="button" onClick={() => setResumoExpandido(v => !v)}
+            aria-expanded={resumoExpandido}
+            className="flex items-center gap-1 text-xs font-semibold text-marca shrink-0">
+            Detalhes {resumoExpandido ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}
+          </button>
         </div>
-        <div className="card min-w-0 !p-4 sm:!p-5">
-          <div className="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center mb-2">
-            <span className="text-sm">📌</span>
+        {resumoExpandido && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 border-t border-gray-100 mt-3 pt-3">
+            <div className="rounded-xl bg-gray-50 p-3">
+              <p className="text-xs text-gray-500">Despesas fixas</p>
+              <p className="text-lg font-bold text-gray-900">{formatCurrency(totalFixas)}</p>
+              {receitaBase > 0 && <p className="text-xs text-gray-500">{pctFixas}% da renda</p>}
+            </div>
+            <div className="rounded-xl bg-gray-50 p-3">
+              <p className="text-xs text-gray-500">Despesas variáveis</p>
+              <p className="text-lg font-bold text-gray-900">{formatCurrency(totalVariaveis)}</p>
+              {receitaBase > 0 && <p className="text-xs text-gray-500">{pctVariaveis}% da renda</p>}
+            </div>
           </div>
-          <p className="text-xs text-gray-500 mb-0.5">Fixas</p>
-          <p className="text-lg font-bold text-blue-700 leading-tight break-words">{formatCurrency(totalFixas)}</p>
-          {receitaBase > 0
-            ? <p className="text-xs text-blue-500 mt-0.5">{pctFixas}% da renda</p>
-            : <p className="text-xs text-gray-400 mt-0.5">—</p>}
-        </div>
-        <div className="card min-w-0 !p-4 sm:!p-5">
-          <div className="w-8 h-8 bg-gray-100 rounded-xl flex items-center justify-center mb-2">
-            <span className="text-sm">🛒</span>
-          </div>
-          <p className="text-xs text-gray-500 mb-0.5">Variáveis</p>
-          <p className="text-lg font-bold text-gray-700 leading-tight break-words">{formatCurrency(totalVariaveis)}</p>
-          {receitaBase > 0
-            ? <p className="text-xs text-gray-500 mt-0.5">{pctVariaveis}% da renda</p>
-            : <p className="text-xs text-gray-400 mt-0.5">—</p>}
-        </div>
-      </div>
+        )}
+      </section>
 
-      {/* Navegação compacta por áreas. Os valores e as operações permanecem nos hooks existentes. */}
-      <nav aria-label="Seções de despesas" className="card !p-2 flex items-center gap-1.5 overflow-x-auto">
-        {[
-          ['visao', 'Visão geral'], ['mes', 'Despesas do mês'],
-          ['futuras', 'Futuras'], ['parceladas', 'Parceladas'], ['analises', 'Análises'],
-        ].map(([id, rotulo]) => (
+      {/* Abas sem duplicar a lista; áreas menos utilizadas ficam no seletor. */}
+      <nav aria-label="Seções de despesas" className="card !p-2 flex items-center gap-2 flex-wrap">
+        {[["visao", "Lançamentos"], ["analises", "Análises"]].map(([id, rotulo]) => (
           <button key={id} type="button" onClick={() => setPagina(id)}
             aria-current={pagina === id ? 'page' : undefined}
-            className={`shrink-0 rounded-xl px-3 sm:px-4 py-2.5 text-sm font-semibold transition-colors ${pagina === id ? 'bg-marca text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}>
-            {rotulo}{id === 'futuras' && despesasFuturas.length ? ` (${despesasFuturas.length})` : ''}
+            className={`rounded-xl px-3 sm:px-4 py-2.5 text-sm font-semibold ${pagina === id ? 'bg-marca text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+            {rotulo}
           </button>
         ))}
+        <label className="ml-auto flex items-center gap-2 text-xs text-gray-500">
+          Mais seções
+          <select className="input !w-auto !py-2 !text-xs" value={['futuras','parceladas','mes'].includes(pagina) ? pagina : ''}
+            onChange={e => { if (e.target.value) setPagina(e.target.value) }} aria-label="Mais seções de despesas">
+            <option value="">Selecionar</option>
+            <option value="futuras">Despesas futuras</option>
+            <option value="parceladas">Parcelamentos</option>
+            <option value="mes">Lista completa</option>
+          </select>
+        </label>
       </nav>
 
       {/* Notificação de classificação automática */}
@@ -1692,7 +1696,7 @@ export default function Despesas() {
             </div>
           ) : (
             <div className="space-y-2">
-              {(pagina === 'visao' ? linhasOrdenadas.slice(0, 5) : linhasOrdenadas).map(linha => {
+              {linhasOrdenadas.map(linha => {
                 if (linha.tipo === 'parcela') {
                   const { parcelamento: p, valor, tipo_despesa } = linha.dados
                 const { label: tipoLabel, classes: tipoClasses } = labelTipoDespesa(tipo_despesa)
@@ -1739,76 +1743,41 @@ export default function Despesas() {
                 const { label: tipoLabel, classes: tipoClasses } = labelTipoDespesa(tipoExibido)
                 const tipoOposto = tipoExibido === 'fixa' ? 'variavel' : 'fixa'
                 const labelOposto = tipoOposto === 'fixa' ? 'Fixa' : 'Variável'
+                const aberto = lancamentoExpandido === linha.chave
                 return (
-                  <div key={d.id}
-                    className="flex items-center justify-between px-3 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors group">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 bg-gray-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                        {d.categorias?.icone
-                          ? <span className="text-base">{d.categorias.icone}</span>
-                          : <TrendingDown size={16} className="text-red-500" />}
+                  <div key={d.id} className="rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors overflow-hidden">
+                    <button type="button" onClick={() => setLancamentoExpandido(aberto ? null : linha.chave)}
+                      aria-expanded={aberto}
+                      className="w-full flex items-center gap-3 px-3 py-3 text-left">
+                      <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center shrink-0">
+                        {d.categorias?.icone ? <span className="text-base">{d.categorias.icone}</span> : <TrendingDown size={16} className="text-red-500"/>}
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{d.descricao}</p>
-                        {d.forma_pagamento && (
-                          <p className="text-xs text-gray-400 mt-0.5">{formaPagamentoLabel(d.forma_pagamento)}</p>
-                        )}
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          <span className="flex items-center gap-1 text-xs text-gray-400">
-                            <Calendar size={11} />{formatDate(d.data)}
-                          </span>
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${tipoClasses}`}>
-                            {tipoLabel}
-                          </span>
-                          {totalGeral > 0 && (
-                            <span className="text-xs text-gray-500" title="Participação desta despesa no total mensal">
-                              {Math.round((Number(d.valor) || 0) / totalGeral * 100)}% do total
-                            </span>
-                          )}
-                          {d.recorrente && (
-                            <span className="flex items-center gap-1 text-xs text-blue-500">
-                              <RefreshCw size={10} />
-                              {/* Sem prazo (frequencia 'mensal' sem recorrencia_meses) → "Ativa há X meses".
-                                  Com prazo ('por_meses') segue como "Recorrente". */}
-                              {(!d.recorrencia_meses && mesesAtiva(d.data) > 0)
-                                ? `Ativa há ${mesesAtiva(d.data)} ${mesesAtiva(d.data) === 1 ? 'mês' : 'meses'}`
-                                : 'Recorrente'}
-                            </span>
-                          )}
-                          {d.pago_em && (
-                            <>
-                              <span className="flex items-center gap-1 text-xs text-green-600">
-                                <CheckCircle2 size={11} />Pago antecipadamente
-                              </span>
-                              <button
-                                onClick={() => handleDesfazerAntecipacao(d.id)}
-                                className="text-xs text-gray-400 hover:text-blue-600 underline"
-                              >
-                                Desfazer
-                              </button>
-                            </>
-                          )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{d.descricao}</p>
+                        <p className="text-xs text-gray-500 truncate">{nomeCategoria || 'Sem categoria'} · {formatDate(d.data)}</p>
+                      </div>
+                      <span className="text-sm font-bold text-red-500 whitespace-nowrap">-{formatCurrency(d.valor)}</span>
+                      {aberto ? <ChevronUp size={16} className="text-gray-400 shrink-0"/> : <ChevronDown size={16} className="text-gray-400 shrink-0"/>}
+                    </button>
+                    {aberto && (
+                      <div className="border-t border-gray-200 px-3 py-3 space-y-3">
+                        <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-600">
+                          <span>Pagamento: {d.forma_pagamento ? formaPagamentoLabel(d.forma_pagamento) : 'Não informado'}</span>
+                          <span className={tipoClasses + ' rounded-full px-2 py-0.5'}>{tipoLabel}</span>
+                          {d.recorrente && <span className="inline-flex items-center gap-1"><RefreshCw size={12}/> Recorrente</span>}
+                          {totalGeral > 0 && <span>{Math.round((Number(d.valor) || 0) / totalGeral * 100)}% do total do mês</span>}
+                          {d.pago_em && <span className="text-green-600">Pago antecipadamente</span>}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" onClick={() => handleEditar(d)} className="flex items-center gap-1.5 text-xs font-semibold text-marca bg-white rounded-lg border border-gray-200 px-3 py-2"><Pencil size={14}/> Editar</button>
+                          <button type="button" onClick={() => handleRemover(d.id)} disabled={removendo === d.id}
+                            className="flex items-center gap-1.5 text-xs font-semibold text-red-600 bg-white rounded-lg border border-gray-200 px-3 py-2">
+                            {removendo === d.id ? <Loader2 size={14} className="animate-spin"/> : <Trash2 size={14}/>} Excluir
+                          </button>
+                          {d.pago_em && <button type="button" onClick={() => handleDesfazerAntecipacao(d.id)} className="text-xs text-marca underline">Desfazer antecipação</button>}
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {nomeCategoria && (
-                        <span className={`hidden sm:inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${corCategoria(nomeCategoria)}`}>
-                          {nomeCategoria}
-                        </span>
-                      )}
-                      <span className="text-sm font-bold text-red-500 ml-1 whitespace-nowrap">-{formatCurrency(d.valor)}</span>
-                      <button onClick={() => handleEditar(d)}
-                        title="Editar despesa" aria-label="Editar despesa"
-                        className="touch-target rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
-                        <Pencil size={15} />
-                      </button>
-                      <button onClick={() => handleRemover(d.id)} disabled={removendo === d.id}
-                        aria-label="Remover despesa"
-                        className="touch-target rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
-                        {removendo === d.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-                      </button>
-                    </div>
+                    )}
                   </div>
                 )
               })}
@@ -1817,11 +1786,6 @@ export default function Despesas() {
         </div>
       )}
 
-            {pagina === 'visao' && linhasOrdenadas.length > 5 && (
-              <button type="button" onClick={() => setPagina('mes')} className="text-sm font-semibold text-marca hover:underline">
-                Ver todas as {linhasOrdenadas.length} despesas do mês →
-              </button>
-            )}
           </div>
           {pagina === 'visao' && (
             <aside className="space-y-4 min-w-0">
@@ -1829,11 +1793,14 @@ export default function Despesas() {
       {/* Só aparece quando há despesas com vencimento futuro ainda não pagas. */}
       {!carregando && (proximosVencimentos.length > 0 || despesasFuturas.length > 0) && (
         <div className="card">
-          <div className="flex items-center gap-2 mb-3">
-            <CalendarClock size={18} className="text-blue-500 flex-shrink-0" />
-            <h2 className="text-base font-semibold text-gray-900">Próximos vencimentos</h2>
-          </div>
-          <div className="space-y-2">
+          <button type="button" onClick={() => setVencimentosExpandidos(v => !v)} aria-expanded={vencimentosExpandidos}
+            className="w-full flex items-center gap-2 text-left">
+            <CalendarClock size={18} className="text-marca flex-shrink-0" />
+            <h2 className="text-sm font-semibold text-gray-900 flex-1">{proximosVencimentos.length > 0 ? `Próximos vencimentos (${proximosVencimentos.length})` : `Despesas futuras (${despesasFuturas.length})`}</h2>
+            {vencimentosExpandidos ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+          </button>
+          {vencimentosExpandidos && (
+          <div className="space-y-2 mt-3">
             {proximosVencimentos.slice(0, 5).map(({ despesa: d, diasFaltam }) => (
               <div key={d.id}
                 className="flex items-center justify-between gap-3 p-3 rounded-xl bg-gray-50">
@@ -1859,7 +1826,6 @@ export default function Despesas() {
                 </div>
               </div>
             ))}
-          </div>
           {despesasFuturas.length > 0 && (
             <div className="mt-3 border-t border-gray-100 pt-3 space-y-2">
               <div className="flex items-center justify-between gap-2">
@@ -1868,7 +1834,7 @@ export default function Despesas() {
                   className="text-xs font-semibold text-marca hover:underline">Ver todos →</button>
               </div>
               {despesasFuturas.slice(0, 2).map(d => (
-                <div key={`preview-${d.id}`} className="flex items-center justify-between gap-2 rounded-lg bg-emerald-50/60 px-3 py-2">
+                <div key={`preview-${d.id}`} className="flex items-center justify-between gap-2 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors px-3 py-3">
                   <div className="min-w-0">
                     <p className="text-xs font-medium text-gray-800 truncate">{d.descricao}</p>
                     <p className="text-xs text-gray-500">{formatDate(d.data)} · Cadastro futuro</p>
@@ -1885,10 +1851,19 @@ export default function Despesas() {
               {pagasAntecipadamente.length} despesa{pagasAntecipadamente.length !== 1 ? 's' : ''} paga{pagasAntecipadamente.length !== 1 ? 's' : ''} antecipadamente neste mês.
             </p>
           )}
+          </div>
+          )}
         </div>
       )}
 
-              <ResumoMetaEconomia competencia={anoMesAtual} onAbrir={() => setPagina('analises')} />
+              <section className="card !p-3">
+                <button type="button" onClick={() => setPlanejamentoExpandido(v => !v)} aria-expanded={planejamentoExpandido}
+                  className="w-full flex items-center gap-2 text-left text-sm font-semibold text-gray-900">
+                  <Target size={16} className="text-marca" /> Planejamento e economia
+                  <span className="ml-auto">{planejamentoExpandido ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}</span>
+                </button>
+                {planejamentoExpandido && <div className="mt-3"><ResumoMetaEconomia competencia={anoMesAtual} onAbrir={() => setPagina('analises')} /></div>}
+              </section>
             </aside>
           )}
         </div>
@@ -1931,7 +1906,7 @@ export default function Despesas() {
           ) : (
             <div className="space-y-2">
               {despesasFuturas.map(d => (
-                <div key={`futura-${d.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                <div key={`futura-${d.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors p-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 shrink-0 rounded-xl bg-blue-50 flex items-center justify-center">
                       {d.categorias?.icone || <CalendarClock size={16} className="text-blue-600" />}

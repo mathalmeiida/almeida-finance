@@ -1,11 +1,13 @@
 // Ajuste visual: superfícies transparentes e texto herdado para acompanhar o tema do aplicativo.
+
 import React, { useState } from 'react'
 
-import { TrendingUp, TrendingDown, Briefcase, Info, AlertTriangle, Landmark, Wallet } from 'lucide-react'
+import { TrendingUp, TrendingDown, Briefcase, Info, AlertTriangle, Landmark, Wallet, ChevronDown, ChevronUp } from 'lucide-react'
 
 import InputMoeda from './InputMoeda'
 
 import DestaqueValor from './DestaqueValor'
+
 import CalendarioCenario from './CalendarioCenario'
 
 import { formatCurrency } from '../lib/utils'
@@ -17,27 +19,47 @@ import {
 } from '../lib/cenarios'
 
 // ─────────────────────────────────────────────────────────────────────────────
+
 // Simulador "E se...?" — cenários financeiros TEMPORÁRIOS. Usa a receita e a
+
 // despesa mensais REAIS (vindas por props de resumoMes) e a reserva acumulada;
+
 // não grava nada, não altera saldos. Tudo é estimativa.
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Visualização ESTIMADA da evolução acumulada: o simulador só conhece totais
+
 // mensais, sem datas de pagamento. Distribuição uniforme NÃO é fluxo de caixa real.
+
 function diasEstimadosCenario(resultadoMensal, dataInicio = new Date()) {
+
   const inicial = new Date(dataInicio.getFullYear(), dataInicio.getMonth(), 1)
+
   const linhas = []
+
   for (let m = 0; m < 12; m++) {
+
     const ano = inicial.getFullYear()
+
     const mes = inicial.getMonth() + m
+
     const primeiro = new Date(ano, mes, 1)
+
     const ultimo = new Date(ano, mes + 1, 0).getDate()
+
     for (let d = 1; d <= ultimo; d++) {
+
       const data = `${primeiro.getFullYear()}-${String(primeiro.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+
       linhas.push({ data, saldo: (m + d / ultimo) * (Number(resultadoMensal) || 0) })
+
     }
+
   }
+
   return linhas
+
 }
 
 const CENARIOS = [
@@ -55,7 +77,9 @@ const CENARIOS = [
 ]
 
 // Cenários genéricos do modo "Renda profissional" (apenas rótulos; NÃO há
+
 // cálculo específico por cenário — todos usam os mesmos 4 campos locais).
+
 const CENARIOS_PRO = [
 
   'Mais demandas',
@@ -75,9 +99,13 @@ const CENARIOS_PRO = [
 export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0, reservaAtual = 0 }) {
 
   // Modo do simulador: 'pessoal' (como já era) ou 'profissional' (novo).
+
   const [modo, setModo] = useState('pessoal')
+  const [mostrarImpactoPessoal, setMostrarImpactoPessoal] = useState(false)
+  const [mostrarImpactoProfissional, setMostrarImpactoProfissional] = useState(false)
 
   // ── Estado do modo profissional (campos locais; não grava nada) ──
+
   const [cenarioPro, setCenarioPro] = useState(CENARIOS_PRO[0])
 
   const [receitaExtraMensal, setReceitaExtraMensal] = useState('')
@@ -93,6 +121,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
   const [valor, setValor] = useState('') // delta de renda (aumento/redução/extra)
 
   // Campos do desligamento (todos manuais/opcionais).
+
   const [modalidade, setModalidade] = useState('sem_justa_causa')
 
   const [saqueAniversario, setSaqueAniversario] = useState(false)
@@ -194,6 +223,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
   }
 
   // Tabela do MTE vigente em 2026. Requer confirmação dos requisitos individuais.
+
   const mediaSeguro = numero(salarioMedioSeguro || salarioBruto)
 
   const parcelaSeguro = mediaSeguro <= 0 ? 0 : Math.min(2518.65, Math.max(1621,
@@ -213,7 +243,9 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
   const ehDesligamento = cenario === 'desligamento'
 
   // deltaRenda do cenário: perda/desligamento zeram a renda; aumento/redução/
+
   // extra aplicam o valor informado com o sinal do cenário.
+
   const valorNum = Number(valor) || 0
 
   const deltaRenda = ehDesligamento
@@ -227,9 +259,11 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
       : (CENARIOS.find(c => c.id === cenario)?.sinal || 1) * valorNum
 
   // Situação ATUAL (base de comparação).
+
   const atual = simularImpactoRenda({ receitaAtual, despesaMensal, reservaAtual, deltaRenda: 0 })
 
   // Cenário SIMULADO.
+
   const sim = simularImpactoRenda({ receitaAtual, despesaMensal, reservaAtual, deltaRenda })
 
   const horizontes = projetarHorizontes({ reservaAtual, saldoMensal: sim.saldoMensal })
@@ -253,6 +287,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
         : 'Acompanhe seus gastos e mantenha uma margem financeira para imprevistos.'
 
   // Rescisão (só no desligamento) — valores manuais.
+
   const rescisao = ehDesligamento
 
     ? resumoRescisao({
@@ -268,7 +303,9 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
     : null
 
   // Fluxo de caixa após a demissão: verba rescisória entra uma única vez.
+
   // O usuário escolhe se já pode contar com a liberação desses recursos.
+
   const dinheiroRescisao = Math.max(0, Number(rescisao?.dinheiroImediato) || 0)
 
   const rendaMensalTransicao = camposAutoValidos ? seguroEstimado : numero(rendaTemporaria)
@@ -310,6 +347,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
   })()
 
   // Elegibilidade do FGTS respeita o saque-aniversário escolhido.
+
   const fgtsBloqueadoAniversario = ehDesligamento && saqueAniversario && Number(fgts) > 0
 
  return (
@@ -336,7 +374,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
           onClick={() => setModo(op.id)}
 
-          className={`p-3.5 rounded-xl !border-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-marca text-sm sm:text-base font-medium transition-all ${
+          className={`px-3 py-2.5 rounded-xl !border-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-marca text-sm sm:text-base font-medium transition-all ${
 
             modo === op.id ? 'bg-marca-100 text-marca shadow-sm' : 'bg-slate-500/10 text-inherit hover:bg-slate-500/20'
 
@@ -374,7 +412,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
             onClick={() => setCenario(c.id)}
 
-            className={`flex items-center gap-2 p-3.5 rounded-xl !border-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-marca text-sm sm:text-base font-medium text-left transition-all ${
+            className={`flex items-center gap-2 px-3 py-2.5 rounded-xl !border-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-marca text-sm sm:text-base font-medium text-left transition-all ${
 
               cenario === c.id
 
@@ -556,7 +594,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
               </div>
 
-              <div className="rounded-xl bg-marca-100 !border-0 p-3">
+              <div className="rounded-xl bg-marca-100 !border-0 p-2.5">
 
                 <p className="text-xs text-marca">Benefício potencial (tabela 2026)</p>
 
@@ -656,13 +694,13 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
           <div className="grid grid-cols-2 gap-2">
 
-            <div className="rounded-xl bg-slate-500/10 !border-0 p-3"><p className="text-sm opacity-80">Dinheiro inicial disponível</p><p className="text-xl font-bold break-words text-inherit">{formatCurrency(saldoInicialTransicao)}</p></div>
+            <div className="rounded-xl bg-slate-500/10 !border-0 p-2.5"><p className="text-sm opacity-80">Dinheiro inicial disponível</p><p className="text-xl font-bold break-words text-inherit">{formatCurrency(saldoInicialTransicao)}</p></div>
 
-            <div className="rounded-xl bg-slate-500/10 !border-0 p-3"><p className="text-sm opacity-80">Despesas por mês</p><p className="text-xl font-bold break-words text-inherit">{formatCurrency(gastoMensalTransicao)}</p></div>
+            <div className="rounded-xl bg-slate-500/10 !border-0 p-2.5"><p className="text-sm opacity-80">Despesas por mês</p><p className="text-xl font-bold break-words text-inherit">{formatCurrency(gastoMensalTransicao)}</p></div>
 
-            <div className="rounded-xl bg-slate-500/10 !border-0 p-3"><p className="text-sm opacity-80">Renda temporária por mês</p><p className="text-xl font-bold break-words text-inherit">{formatCurrency(rendaMensalTransicao)}</p><p className="text-sm opacity-80">Por {mesesRendaTransicao} meses</p></div>
+            <div className="rounded-xl bg-slate-500/10 !border-0 p-2.5"><p className="text-sm opacity-80">Renda temporária por mês</p><p className="text-xl font-bold break-words text-inherit">{formatCurrency(rendaMensalTransicao)}</p><p className="text-sm opacity-80">Por {mesesRendaTransicao} meses</p></div>
 
-            <div className="rounded-xl bg-marca-100 !border-0 p-3"><p className="text-xs text-marca">Tempo de cobertura</p><p className="text-xl font-bold break-words text-inherit">{mesesCoberturaTransicao === null ? 'Não esgota em 50 anos*' : `${mesesCoberturaTransicao} meses completos`}</p></div>
+            <div className="rounded-xl bg-marca-100 !border-0 p-2.5"><p className="text-xs text-marca">Tempo de cobertura</p><p className="text-xl font-bold break-words text-inherit">{mesesCoberturaTransicao === null ? 'Não esgota em 50 anos*' : `${mesesCoberturaTransicao} meses completos`}</p></div>
 
           </div>
 
@@ -698,27 +736,27 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
-          <div className="rounded-xl bg-slate-500/10 !border-0 p-3">
+          <div className="rounded-xl bg-slate-500/10 !border-0 p-2.5">
 
-            <p className="text-sm opacity-80 mb-1">Hoje</p>
+            <p className="text-xs opacity-80 mb-0.5">Hoje</p>
 
             <p className="text-sm opacity-80">Sobra mensal estimada</p>
 
             <p className={`text-lg font-bold ${atual.saldoMensal >= 0 ? 'text-inherit' : 'text-red-600'}`}>{formatCurrency(atual.saldoMensal)}</p>
 
-            <p className="text-sm opacity-80 mt-1">Gasto diário ~ {formatCurrency(atual.gastoDiario)}</p>
+            <p className="text-xs opacity-80 mt-0.5">Gasto diário ~ {formatCurrency(atual.gastoDiario)}</p>
 
           </div>
 
-          <div className="rounded-xl bg-marca-100 !border-0 p-3">
+          <div className="rounded-xl bg-marca-100 !border-0 p-2.5">
 
-            <p className="text-xs text-marca mb-1">No cenário</p>
+            <p className="text-xs text-marca mb-0.5">No cenário</p>
 
             <p className="text-sm opacity-80">Sobra mensal estimada</p>
 
             <p className={`text-lg font-bold ${sim.saldoMensal >= 0 ? 'text-inherit' : 'text-red-600'}`}>{formatCurrency(sim.saldoMensal)}</p>
 
-            <p className="text-sm opacity-80 mt-1">Gasto diário ~ {formatCurrency(sim.gastoDiario)}</p>
+            <p className="text-xs opacity-80 mt-0.5">Gasto diário ~ {formatCurrency(sim.gastoDiario)}</p>
 
           </div>
 
@@ -776,15 +814,15 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
               {/* Diferença mensal estimada */}
 
-              <div className="mt-3 rounded-2xl bg-marca-grad text-white p-4">
+              <div className="mt-3 rounded-xl bg-slate-500/10 p-3 sm:p-4 text-inherit">
 
-                <p className="text-sm font-medium uppercase tracking-wide text-white/85">Diferença mensal estimada</p>
+                <p className="text-xs font-medium uppercase tracking-wide opacity-75">Diferença mensal estimada</p>
 
-                <p className="text-3xl sm:text-4xl font-extrabold mt-1 break-words">
+                <p className="text-2xl sm:text-3xl font-bold mt-1 break-words">
 
                   {diferencaMensal >= 0 ? '+' : '−'}{formatCurrency(Math.abs(diferencaMensal))}
 
-                  <span className="text-sm font-semibold text-white/85 ml-2">
+                  <span className="text-xs font-semibold opacity-75 ml-2">
 
                     {variacaoPct == null ? 'Não aplicável' : `${variacaoPct >= 0 ? '+' : ''}${variacaoPct.toFixed(1).replace('.', ',')}%`}
 
@@ -792,7 +830,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
                 </p>
 
-                <p className="text-xs text-white/85 mt-1">
+                <p className="text-xs opacity-75 mt-1">
 
                   {diferencaMensal > 0 ? 'Cenário positivo — sua sobra mensal aumentaria.'
 
@@ -806,7 +844,12 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
               {/* Impacto adicional acumulado (ganho/perda extra, não o saldo total) */}
 
-              <div className="mt-3">
+              <div className="mt-3 rounded-xl bg-slate-500/10 overflow-hidden">
+                <button type="button" aria-expanded={mostrarImpactoPessoal} onClick={() => setMostrarImpactoPessoal(v => !v)} className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold text-inherit">
+                  <span>Ver impacto futuro (3, 6 e 12 meses)</span>
+                  {mostrarImpactoPessoal ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+                </button>
+                {mostrarImpactoPessoal && <div className="px-4 pb-4">
 
                 <p className="text-sm opacity-80 mb-1.5">Impacto adicional acumulado (só o ganho ou perda extra do cenário)</p>
 
@@ -830,6 +873,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
                 </div>
 
+              </div>}
               </div>
 
             </>
@@ -841,10 +885,15 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
       </div>
 
       <CalendarioCenario
+
         titulo="Evolução acumulada — estimativa"
-        descricao="Resultado acumulado estimado, não saldo real da conta"
+
+        descricao="Valores estimados em R$; resultado acumulado, não saldo real da conta"
+
         diasAtual={diasEstimadosCenario(atual.saldoMensal)}
+
         diasSimulado={diasEstimadosCenario(sim.saldoMensal)}
+
       />
 
       <div className="card !border-0 space-y-3" aria-live="polite">
@@ -916,6 +965,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
     {modo === 'profissional' && (() => {
 
       // Campos locais → cálculo genérico (sem cálculo específico por cenário).
+
       const receitaExtra = Number(receitaExtraMensal) || 0
 
       const reducaoReceita = Number(reducaoReceitaMensal) || 0
@@ -978,7 +1028,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
                   onClick={() => setCenarioPro(c)}
 
-                  className={`flex items-center gap-2 p-3.5 rounded-xl !border-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-marca text-sm sm:text-base font-medium text-left transition-all ${
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl !border-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-marca text-sm sm:text-base font-medium text-left transition-all ${
 
                     cenarioPro === c ? 'bg-marca-100 text-marca shadow-sm' : 'bg-slate-500/10 text-inherit hover:bg-slate-500/20'
 
@@ -1017,6 +1067,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
           {(() => {
 
             // Variação % vs. resultado atual (Não aplicável se atual = 0).
+
             const variacaoPct = resultadoAtual !== 0
 
               ? (diferenca / Math.abs(resultadoAtual)) * 100
@@ -1024,8 +1075,11 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
               : null
 
             // Impacto adicional acumulado: SÓ o ganho adicional (diferença),
+
             // descontando o investimento UMA única vez. Não inclui o resultado
+
             // atual nem é o saldo total projetado.
+
             const impacto = [3, 6, 12].map(meses => ({
 
               meses,
@@ -1035,7 +1089,9 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
             }))
 
             // Recuperação do investimento: só faz sentido se a diferença for
+
             // positiva. Caso contrário, não há recuperação no horizonte.
+
             const recupera = investimento > 0 && diferenca > 0
 
               ? Math.ceil(investimento / diferenca)
@@ -1051,6 +1107,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
             const corDif = sinal === 'pos' ? 'text-emerald-600' : sinal === 'neg' ? 'text-red-600' : 'text-inherit'
 
             // Explicação automática simples e correta.
+
             const explica = sinal === 'pos'
 
               ? `Neste cenário você ganha cerca de ${formatCurrency(diferenca)} a mais por mês. Esse é o ganho adicional (não o seu saldo total).${investimento > 0 ? (recupera ? ` O investimento de ${formatCurrency(investimento)} se recupera em ~${recupera} ${recupera === 1 ? 'mês' : 'meses'}.` : '') : ''}`
@@ -1075,7 +1132,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
-                  <div className="rounded-xl bg-slate-500/10 !border-0 p-3">
+                  <div className="rounded-xl bg-slate-500/10 !border-0 p-2.5">
 
                     <p className="text-sm opacity-80">Resultado atual / mês</p>
 
@@ -1083,7 +1140,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
                   </div>
 
-                  <div className="rounded-xl bg-marca-100 !border-0 p-3">
+                  <div className="rounded-xl bg-marca-100 !border-0 p-2.5">
 
                     <p className="text-xs text-marca">Resultado simulado / mês</p>
 
@@ -1095,21 +1152,21 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
                 {/* Card principal destacado: diferença mensal + variação % */}
 
-                <div className="rounded-2xl bg-marca-grad text-white p-4">
+                <div className="rounded-xl bg-slate-500/10 p-3 sm:p-4 text-inherit">
 
                   <div className="flex items-center gap-2">
 
                     <Icone size={18} className="flex-shrink-0" />
 
-                    <p className="text-sm font-medium uppercase tracking-wide text-white/85">Diferença mensal estimada</p>
+                    <p className="text-xs font-medium uppercase tracking-wide opacity-75">Diferença mensal estimada</p>
 
                   </div>
 
-                  <p className="text-3xl sm:text-4xl font-extrabold mt-1 break-words">
+                  <p className="text-2xl sm:text-3xl font-bold mt-1 break-words">
 
                     {diferenca >= 0 ? '+' : '−'}{formatCurrency(Math.abs(diferenca))}
 
-                    <span className="text-sm font-semibold text-white/85 ml-2">
+                    <span className="text-xs font-semibold opacity-75 ml-2">
 
                       {variacaoPct == null ? 'Não aplicável' : `${variacaoPct >= 0 ? '+' : ''}${variacaoPct.toFixed(1).replace('.', ',')}%`}
 
@@ -1117,7 +1174,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
                   </p>
 
-                  <p className="text-xs text-white/85 mt-1">
+                  <p className="text-xs opacity-75 mt-1">
 
                     {sinal === 'pos' ? 'Cenário positivo — ganho mensal estimado.'
 
@@ -1131,7 +1188,12 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
                 {/* Impacto adicional acumulado (3/6/12 meses) */}
 
-                <div>
+                <div className="rounded-xl bg-slate-500/10 overflow-hidden">
+                    <button type="button" aria-expanded={mostrarImpactoProfissional} onClick={() => setMostrarImpactoProfissional(v => !v)} className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold text-inherit">
+                      <span>Ver impacto futuro (3, 6 e 12 meses)</span>
+                      {mostrarImpactoProfissional ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+                    </button>
+                    {mostrarImpactoProfissional && <div className="px-4 pb-4">
 
                   <p className="text-sm opacity-80 mb-1.5">Impacto adicional acumulado (ganho/perda extra, já descontando o investimento uma vez)</p>
 
@@ -1155,13 +1217,19 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
                   </div>
 
-                </div>
+                </div>}
+                  </div>
 
                 <CalendarioCenario
+
                   titulo="Evolução acumulada — estimativa"
-                  descricao="Resultado acumulado estimado, não saldo real da conta"
+
+                  descricao="Valores estimados em R$; resultado acumulado, não saldo real da conta"
+
                   diasAtual={diasEstimadosCenario(resultadoAtual)}
+
                   diasSimulado={diasEstimadosCenario(resultadoSimulado)}
+
                 />
 
                 {/* Investimento inicial + recuperação */}
