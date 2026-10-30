@@ -1527,15 +1527,19 @@ function EvolucaoFinanceiraHome({ projecao = [], ocultar }) {
     <section className="af-dash-card min-w-0" aria-label="Evolução financeira">
       <button type="button" onClick={() => setAberto(v => !v)}
         aria-expanded={aberto} aria-controls="af-evolucao-home-detalhes"
-        className="flex w-full items-center justify-between gap-3 text-left">
-        <span className="min-w-0">
-          <span className="block text-sm font-bold text-slate-900">Evolução financeira</span>
-          <span className="block mt-1 text-xs text-slate-500">Resultado previsto do mês</span>
-          <span className={`block mt-1 text-lg font-bold break-words ${resultadoAtual == null ? 'text-slate-500' : resultadoAtual < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
-            {resultadoAtual == null ? 'Sem projeção' : exibirMoeda(resultadoAtual, ocultar)}
+        className="flex w-full items-start justify-between gap-3 text-left">
+        <span className="flex min-w-0 items-start gap-3">
+          <span className="af-dash-icon bg-emerald-50 text-emerald-700 rounded-xl mt-0.5"><TrendingUp size={19} /></span>
+          <span className="min-w-0">
+            <span className="block text-sm font-bold text-slate-900">Evolução financeira</span>
+            <span className="block mt-1 text-xs text-slate-500">Resultado previsto do mês</span>
+            <span className={`block mt-1 text-xl font-bold break-words ${resultadoAtual == null ? 'text-slate-500' : resultadoAtual < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
+              {resultadoAtual == null ? 'Sem projeção' : exibirMoeda(resultadoAtual, ocultar)}
+            </span>
+            <span className="block mt-1 text-xs text-slate-500">Receitas menos compromissos previstos</span>
           </span>
         </span>
-        <span className="shrink-0 flex items-center gap-2 text-xs font-semibold text-marca">
+        <span className="shrink-0 flex items-center gap-2 text-xs font-semibold text-marca pt-1">
           {aberto ? 'Fechar' : 'Ver detalhes'}
           {aberto ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </span>
@@ -2724,22 +2728,8 @@ const carregandoLimite = carregando
         </aside>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
-        <section className="af-dash-card min-w-0" aria-label="Despesas e compromissos">
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <h2 className="min-w-0 text-sm font-bold text-slate-900">Despesas e compromissos</h2>
-            <button type="button" onClick={() => navigate('/despesas')} className="shrink-0 text-xs text-marca font-semibold hover:underline">Ver detalhes</button>
-          </div>
-          <div className="rounded-xl bg-rose-50/60 px-4 py-3 min-w-0">
-            <p className="flex items-center gap-2 text-xs font-medium text-slate-600">
-              <TrendingDown size={16} className="shrink-0 text-rose-500" /> Compromissos previstos do mês
-            </p>
-            <p className="mt-2 text-xl sm:text-2xl font-bold text-slate-900 tabular-nums break-words">
-              {exibirMoeda(compromissosMes, ocultar)}
-            </p>
-            <p className="mt-1 text-xs text-slate-500">Total consolidado pela projeção financeira</p>
-          </div>
-        </section>
+      {/* Desktop: evolução ocupa a largura total. Despesas já estão no card superior. */}
+      <div className="min-w-0">
         <EvolucaoFinanceiraHome projecao={projecao} ocultar={ocultar} />
       </div>
       {!somenteLeitura && <button type="button" onClick={() => {setDataGastoCalendario(null);setModalGasto(true)}} className="af-dash-action w-full justify-center sm:hidden"><Plus size={16}/> Adicionar lançamento</button>}
