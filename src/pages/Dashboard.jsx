@@ -1510,6 +1510,89 @@ function CardProximos7Dias({ total, itens, onVerTodos }) {
   )
 }
 
+// Resumo compacto da evolução da Home. Dados já fornecidos por useProjecao.
+function EvolucaoFinanceiraHome({ projecao = [], ocultar }) {
+  const [aberto, setAberto] = useState(false)
+  const [verTodos, setVerTodos] = useState(false)
+  const [mesAberto, setMesAberto] = useState(null)
+  const meses = Array.isArray(projecao) ? projecao.slice(0, 12) : []
+  const atual = meses[0]
+  const numero = valor => Number.isFinite(Number(valor)) ? Number(valor) : 0
+  // Resultado mensal: receitas menos despesas da projeção (não é saldo bancário).
+  const resultado = m => numero(m?.receitas) - numero(m?.despesas)
+  const resultadoAtual = atual ? resultado(atual) : null
+  const itensVisiveis = verTodos ? meses : meses.slice(0, 4)
+
+  return (
+    <section className="af-dash-card min-w-0" aria-label="Evolução financeira">
+      <button type="button" onClick={() => setAberto(v => !v)}
+        aria-expanded={aberto} aria-controls="af-evolucao-home-detalhes"
+        className="flex w-full items-center justify-between gap-3 text-left">
+        <span className="min-w-0">
+          <span className="block text-sm font-bold text-slate-900">Evolução financeira</span>
+          <span className="block mt-1 text-xs text-slate-500">Resultado previsto do mês</span>
+          <span className={`block mt-1 text-lg font-bold break-words ${resultadoAtual == null ? 'text-slate-500' : resultadoAtual < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
+            {resultadoAtual == null ? 'Sem projeção' : exibirMoeda(resultadoAtual, ocultar)}
+          </span>
+        </span>
+        <span className="shrink-0 flex items-center gap-2 text-xs font-semibold text-marca">
+          {aberto ? 'Fechar' : 'Ver detalhes'}
+          {aberto ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </span>
+      </button>
+      {aberto && (
+        <div id="af-evolucao-home-detalhes" className="mt-4 pt-4 border-t border-marca/15 space-y-3">
+          {atual ? (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="min-w-0 rounded-xl bg-emerald-50 p-3">
+                <p className="text-xs text-emerald-800">Receitas previstas</p>
+                <p className="mt-1 font-semibold text-sm text-emerald-800 break-words">{exibirMoeda(numero(atual.receitas), ocultar)}</p>
+              </div>
+              <div className="min-w-0 rounded-xl bg-rose-50 p-3">
+                <p className="text-xs text-rose-700">Despesas previstas</p>
+                <p className="mt-1 font-semibold text-sm text-rose-700 break-words">{exibirMoeda(numero(atual.despesas), ocultar)}</p>
+              </div>
+            </div>
+          ) : <p className="text-sm text-slate-500">Ainda não há dados de projeção.</p>}
+          {itensVisiveis.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-slate-500">Próximos períodos projetados</p>
+              {itensVisiveis.map((m, i) => (
+                <div key={`${m.mes || 'mes'}-${i}`} className="rounded-xl border border-slate-200 overflow-hidden">
+                  <button type="button" onClick={() => setMesAberto(v => v === i ? null : i)}
+                    aria-expanded={mesAberto === i}
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left">
+                    <span className="text-sm text-slate-700 capitalize truncate">{m.mes || `Mês ${i + 1}`}</span>
+                    <span className={`ml-auto text-sm font-semibold break-words ${resultado(m) < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
+                      {exibirMoeda(resultado(m), ocultar)}
+                    </span>
+                    {mesAberto === i ? <ChevronUp size={15} className="shrink-0 text-marca" /> : <ChevronDown size={15} className="shrink-0 text-marca" />}
+                  </button>
+                  {mesAberto === i && (
+                    <div className="px-3 py-3 border-t border-slate-200 bg-slate-50 space-y-2 text-xs">
+                      <div className="flex justify-between gap-2"><span>Receitas previstas</span><strong className="text-emerald-700">{exibirMoeda(numero(m.receitas), ocultar)}</strong></div>
+                      <div className="flex justify-between gap-2"><span>Despesas previstas</span><strong className="text-rose-600">{exibirMoeda(numero(m.despesas), ocultar)}</strong></div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {meses.length > 4 && (
+            <button type="button" onClick={() => setVerTodos(v => !v)} className="w-full py-2 text-xs font-semibold text-marca">
+              {verTodos ? 'Mostrar menos' : `Ver todos os ${meses.length} meses`}
+            </button>
+          )}
+          <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+            <span className="text-[11px] text-slate-500">Estimativas, não histórico realizado.</span>
+            <Link to="/projecao" className="shrink-0 text-xs font-semibold text-marca">Abrir projeção →</Link>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 export default function Dashboard() {
   const [abaMovimentacoes, setAbaMovimentacoes] = useState('transacoes');
   const [paginaAtalhos, setPaginaAtalhos] = useState(0)
@@ -2628,7 +2711,7 @@ const carregandoLimite = carregando
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
         <section className="af-dash-card"><div className="flex items-center justify-between gap-2 mb-4"><h2 className="text-sm font-bold text-slate-900">Despesas e compromissos</h2><button type="button" onClick={() => navigate('/despesas')} className="text-xs text-marca font-semibold">Ver detalhes</button></div><div className="grid grid-cols-2 gap-3"><div className="flex items-center justify-center"><div className="af-dash-donut"><span>{exibirMoeda(compromissosMes, ocultar)}</span></div></div><div className="flex flex-col justify-center gap-3 text-xs"><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"/> Compromissos do mês</div><strong className="text-base text-slate-800 break-words">{exibirMoeda(compromissosMes, ocultar)}</strong><p className="text-slate-500">Valores consolidados pela projeção atual</p></div></div></section>
-        <section className="af-dash-card"><div className="flex justify-between items-center mb-4"><h2 className="text-sm font-bold text-slate-900">Evolução financeira</h2><button type="button" onClick={() => navigate('/projecao')} className="text-xs text-marca font-semibold">12 meses</button></div><div className="flex items-end gap-2 h-36">{(projecao || []).slice(0,12).map((m,i) => { const r = Math.max(0,Number(m.receitas)||0); const d = Math.max(0,Number(m.despesas)||0); const mx = Math.max(1,...(projecao || []).slice(0,12).flatMap(x=>[Number(x.receitas)||0,Number(x.despesas)||0])); return <div key={i} className="min-w-0 flex-1 flex flex-col items-center gap-1"><div className="w-full flex items-end justify-center gap-px h-28"><div title={ocultar ? 'Receitas ocultas' : `Receitas: ${formatCurrency(r)}`} className="w-2/5 rounded-t bg-emerald-500" style={{height:`${Math.max(2,r/mx*100)}%`}}/><div title={ocultar ? 'Despesas ocultas' : `Despesas: ${formatCurrency(d)}`} className="w-2/5 rounded-t bg-rose-400" style={{height:`${Math.max(2,d/mx*100)}%`}}/></div><span className="text-[10px] text-slate-500 truncate max-w-full">{String(m.mes || i+1).slice(0,3)}</span></div>})}</div><div className="mt-3 flex justify-center gap-4 text-xs text-slate-500"><span>🟢 Receitas</span><span>🔴 Despesas</span></div></section>
+        <EvolucaoFinanceiraHome projecao={projecao} ocultar={ocultar} />
       </div>
       {!somenteLeitura && <button type="button" onClick={() => {setDataGastoCalendario(null);setModalGasto(true)}} className="af-dash-action w-full justify-center sm:hidden"><Plus size={16}/> Adicionar lançamento</button>}
 
