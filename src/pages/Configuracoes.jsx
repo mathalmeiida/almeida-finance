@@ -1,641 +1,1190 @@
 import React, { useState, useEffect } from 'react'
+
 import { useNavigate } from 'react-router-dom'
+
 import { User, Mail, AlertTriangle, Loader2, Trash2, LogOut, Sparkles, Eye, EyeOff, Clock, MessageSquarePlus, CheckCircle2, Palette, Check, Moon } from 'lucide-react'
+
 import { useAuth } from '../contexts/AuthContext'
+
 import { useZerarDados } from '../hooks/useZerarDados'
+
 import { useConsultoriaAcessos } from '../hooks/useConsultoriaAcessos'
+
 import { useFeedbacks } from '../hooks/useFeedbacks'
+
 import { supabase } from '../lib/supabase'
+
 import { CORES_TEMA } from '../lib/utils'
+
 import Modal from '../components/Modal'
+
+
 
 // Card de APARÊNCIA: escolha da cor do tema (Azul padrão / Rosa / Verde / Roxo).
 // A preferência é salva no perfil (atualizarCorTema → perfis.cor_tema) e aplicada
 // globalmente pela classe .tema-* no <html> (ver AuthContext + index.css). Só
 // identidade visual — não altera cálculos nem dados.
+// Preferência por usuário. O calendário completo lerá esta mesma chave.
+// Salvar aqui não modifica automaticamente outros componentes.
+export const chaveEstiloCalendario = (id) => `almeida_calendario_estilo_${id || 'anon'}`
+
 function Aparencia() {
   const { corTema, atualizarCorTema, usuario } = useAuth()
   const [salvando, setSalvando] = useState('')
   const [erro, setErro] = useState('')
-
-  // Aparência dinâmica dia/noite (só o fundo do cabeçalho da Home). Preferência
-  // por usuário no localStorage; padrão ATIVADA. Mesma chave lida pelo Dashboard.
   const chaveAparencia = `almeida_aparencia_dinamica_${usuario?.id || 'anon'}`
-  const [aparenciaDinamica, setAparenciaDinamica] = useState(() => {
-    try { return localStorage.getItem(chaveAparencia) !== '0' } catch { return true }
-  })
+  const [aparenciaDinamica, setAparenciaDinamica] = useState(true)
+  const [estiloCalendario, setEstiloCalendario] = useState('claro')
+
+  useEffect(() => {
+    try {
+      setAparenciaDinamica(localStorage.getItem(chaveAparencia) !== '0')
+      const salvo = localStorage.getItem(chaveEstiloCalendario(usuario?.id))
+      setEstiloCalendario(['claro', 'escuro', 'automatico'].includes(salvo) ? salvo : 'claro')
+    } catch {
+      setAparenciaDinamica(true)
+      setEstiloCalendario('claro')
+    }
+  }, [chaveAparencia, usuario?.id])
+
   function alternarAparenciaDinamica() {
     const novo = !aparenciaDinamica
     setAparenciaDinamica(novo)
-    try { localStorage.setItem(chaveAparencia, novo ? '1' : '0') } catch { /* ignora */ }
+    try { localStorage.setItem(chaveAparencia, novo ? '1' : '0') } catch { /* armazenamento indisponível */ }
+  }
+
+  function escolherEstiloCalendario(valor) {
+    setEstiloCalendario(valor)
+    try {
+      localStorage.setItem(chaveEstiloCalendario(usuario?.id), valor)
+      window.dispatchEvent(new CustomEvent('almeida-calendario-estilo', { detail: { estilo: valor } }))
+    } catch { /* armazenamento indisponível */ }
   }
 
   async function escolher(cor) {
     if (cor === corTema || salvando) return
-    setSalvando(cor); setErro('')
-    try {
-      await atualizarCorTema(cor)
-    } catch {
-      setErro('Não foi possível salvar a cor agora. Tente novamente.')
-    } finally {
-      setSalvando('')
-    }
+    setSalvando(cor)
+    setErro('')
+    try { await atualizarCorTema(cor) }
+    catch { setErro('Não foi possível salvar a cor agora. Tente novamente.') }
+    finally { setSalvando('') }
   }
 
+  const escuroNaPrevia = estiloCalendario === 'escuro' ||
+    (estiloCalendario === 'automatico' && window.matchMedia?.('(prefers-color-scheme: dark)').matches)
+  const selecionada = CORES_TEMA.find(c => c.value === corTema)
+  const destaque = selecionada?.hex || '#7C3AED'
+  const celulas = Array.from({ length: 35 }, (_, i) => i < 4 ? null : i - 3)
+
   return (
-    <div className="card">
+    <div className="card space-y-5">
       <div className="flex items-start gap-3">
-        <div className="w-9 h-9 bg-marca-100 rounded-xl flex items-center justify-center flex-shrink-0">
+        <div className="w-9 h-9 bg-marca-100 rounded-xl flex items-center justify-center shrink-0">
           <Palette size={16} className="text-marca" />
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="text-base font-semibold text-gray-900">Aparência</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            Escolha a cor de destaque do app (botões, menus e ícones ativos).
-          </p>
-
-          <div className="grid grid-cols-2 gap-3 mt-3">
+          <p className="text-sm text-gray-500 mt-1">Escolha a cor de destaque do aplicativo.</p>
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-3">
             {CORES_TEMA.map(op => {
               const ativo = corTema === op.value
               return (
-                <button
-                  key={op.value}
-                  type="button"
-                  onClick={() => escolher(op.value)}
-                  disabled={!!salvando}
-                  aria-pressed={ativo}
-                  className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-all ${
-                    ativo ? 'border-gray-900 ring-2 ring-gray-900/10' : 'border-gray-200 hover:border-gray-300'
-                  } disabled:opacity-60`}
-                >
-                  <span
-                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: op.hex }}
-                  >
-                    {salvando === op.value
-                      ? <Loader2 size={15} className="animate-spin text-white" />
-                      : ativo ? <Check size={16} className="text-white" /> : null}
+                <button key={op.value} type="button" onClick={() => escolher(op.value)}
+                  disabled={!!salvando} aria-pressed={ativo}
+                  className={`flex min-w-0 items-center gap-2 rounded-xl border p-2.5 sm:p-3 text-left transition-all disabled:opacity-60 ${ativo ? 'border-marca ring-1 ring-marca' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <span className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                    style={{ backgroundColor: op.hex }}>
+                    {salvando === op.value ? <Loader2 size={15} className="animate-spin text-white" /> : ativo ? <Check size={16} className="text-white" /> : null}
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-sm font-medium text-gray-900">{op.label}</span>
-                    <span className="block text-xs text-gray-400">
-                      {op.value === 'azul' ? 'Padrão' : 'Alternativa'}
-                    </span>
+                    <span className="block text-xs sm:text-sm font-semibold text-gray-900 break-words">{op.label}</span>
+                    <span className="block text-xs text-gray-400">{ativo ? 'Selecionado' : op.value === 'azul' ? 'Padrão' : 'Alternativa'}</span>
                   </span>
                 </button>
               )
             })}
           </div>
-
-          {/* Aparência dinâmica dia/noite (cabeçalho da Home) */}
-          <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between gap-3">
-            <div className="flex items-start gap-2.5 min-w-0">
-              <span className="w-8 h-8 rounded-lg bg-marca-100 flex items-center justify-center flex-shrink-0">
-                <Moon size={15} className="text-marca" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-900">Aparência dinâmica</p>
-                <p className="text-xs text-gray-400">Cabeçalho muda com o horário (dia/noite).</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={aparenciaDinamica}
-              onClick={alternarAparenciaDinamica}
-              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                aparenciaDinamica ? 'bg-marca' : 'bg-gray-300'
-              }`}
-            >
-              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                aparenciaDinamica ? 'translate-x-5' : 'translate-x-0.5'
-              }`} />
-            </button>
-          </div>
-
-          {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
+          {erro && <p role="alert" className="text-xs text-red-600 mt-2">{erro}</p>}
         </div>
+      </div>
+
+      <div className="border-t border-gray-200 pt-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Moon size={17} className="text-marca" />
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900">Aparência dos calendários</h3>
+            <p className="text-xs text-gray-500">Escolha o visual para os calendários financeiros.</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {[
+            { value: 'claro', label: 'Claro', descricao: 'Fundo branco' },
+            { value: 'escuro', label: 'Escuro', descricao: 'Fundo escuro' },
+            { value: 'automatico', label: 'Automático', descricao: 'Segue o dispositivo' },
+          ].map(op => (
+            <button key={op.value} type="button" onClick={() => escolherEstiloCalendario(op.value)}
+              aria-pressed={estiloCalendario === op.value}
+              className={`rounded-xl border p-3 text-left transition-colors ${estiloCalendario === op.value ? 'border-marca bg-marca-100/40' : 'border-gray-200'}`}>
+              <span className="flex items-center justify-between gap-2 text-sm font-semibold text-gray-900">
+                {op.label} {estiloCalendario === op.value && <Check size={15} className="text-marca" />}
+              </span>
+              <span className="block text-xs text-gray-500 mt-0.5">{op.descricao}</span>
+            </button>
+          ))}
+        </div>
+        <div className="rounded-xl border p-3 space-y-2"
+          style={{ background: escuroNaPrevia ? '#171923' : '#FFFFFF', borderColor: escuroNaPrevia ? '#35394A' : '#E5E7EB', color: escuroNaPrevia ? '#F9FAFB' : '#111827' }}>
+          <div className="text-xs font-semibold flex items-center justify-between">
+            <span>Prévia · Outubro 2026</span><Palette size={15} style={{ color: destaque }}/>
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-center text-[10px]">
+            {['D','S','T','Q','Q','S','S'].map((d,i) => <span key={i} style={{ opacity: 0.7 }}>{d}</span>)}
+            {celulas.map((dia,i) => (
+              <span key={i} className="rounded-md py-1.5"
+                style={{ background: dia === 30 ? destaque : escuroNaPrevia ? '#292E40' : '#F1F5F9', color: dia === 30 ? '#FFFFFF' : 'inherit' }}>
+                {dia || ''}
+              </span>
+            ))}
+          </div>
+          <div className="text-[11px] flex flex-wrap gap-3" style={{ opacity: 0.85 }}>
+            <span>🟢 Receitas</span><span>🔴 Despesas</span><span>🔵 Faturas</span>
+          </div>
+        </div>
+        <p className="text-xs text-gray-500">A escolha fica salva neste dispositivo. O calendário existente será conectado a essa preferência na próxima etapa.</p>
+      </div>
+
+      <div className="border-t border-gray-200 pt-4 flex items-center justify-between gap-3">
+        <div className="flex items-start gap-2.5 min-w-0">
+          <span className="w-8 h-8 rounded-lg bg-marca-100 flex items-center justify-center shrink-0"><Moon size={15} className="text-marca" /></span>
+          <div>
+            <p className="text-sm font-medium text-gray-900">Aparência dinâmica</p>
+            <p className="text-xs text-gray-500">Cabeçalho da Home muda conforme o horário.</p>
+          </div>
+        </div>
+        <button type="button" role="switch" aria-label="Aparência dinâmica" aria-checked={aparenciaDinamica}
+          onClick={alternarAparenciaDinamica}
+          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${aparenciaDinamica ? 'bg-marca' : 'bg-gray-300'}`}>
+          <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${aparenciaDinamica ? 'translate-x-5' : 'translate-x-0.5'}`} />
+        </button>
       </div>
     </div>
   )
 }
 
-// Card para o usuário ENVIAR um feedback (sugestão, dúvida ou problema). O
-// envio usa a mesma fonte/hook do painel Admin (useFeedbacks). RLS garante que
-// o registro é criado só em nome do próprio usuário.
+// Card para o usuário ENVIAR um feedback (sugestão, dúvida ou problema).
+// O envio usa a mesma fonte/hook do painel Admin (useFeedbacks).
 function EnviarFeedback() {
+
   const { criar } = useFeedbacks()
+
   const [tipo, setTipo] = useState('sugestao')
+
   const [mensagem, setMensagem] = useState('')
+
   const [enviando, setEnviando] = useState(false)
+
   const [enviado, setEnviado] = useState(false)
+
   const [erro, setErro] = useState('')
 
+
+
   const TIPOS = [
+
     { value: 'sugestao', label: 'Sugestão' },
+
     { value: 'duvida',   label: 'Dúvida' },
+
     { value: 'problema', label: 'Problema' },
+
   ]
 
+
+
   async function handleEnviar(e) {
+
     e.preventDefault()
+
     if (!mensagem.trim() || enviando) return
+
     setEnviando(true); setErro('')
+
     try {
+
       await criar({ tipo, mensagem })
+
       setEnviado(true)
+
       setMensagem('')
+
       setTipo('sugestao')
+
     } catch {
+
       setErro('Não foi possível enviar seu feedback agora. Tente novamente.')
+
     } finally {
+
       setEnviando(false)
+
     }
+
   }
 
+
+
   return (
+
     <div className="card">
+
       <div className="flex items-start gap-3">
+
         <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+
           <MessageSquarePlus size={16} className="text-blue-700" />
+
         </div>
+
         <div className="flex-1 min-w-0">
+
           <h2 className="text-base font-semibold text-gray-900">Enviar feedback</h2>
+
           <p className="text-sm text-gray-500 mt-1">
+
             Tem uma sugestão, dúvida ou encontrou um problema? Conte pra gente.
+
           </p>
 
+
+
           {enviado ? (
+
             <div className="flex items-center gap-2 mt-3">
+
               <CheckCircle2 size={16} className="text-green-500 flex-shrink-0" />
+
               <p className="text-sm text-gray-600">
+
                 <span className="font-medium text-gray-800">Feedback enviado com sucesso!</span>{' '}
+
                 Obrigado! Vamos analisar com carinho.
+
               </p>
+
               <button
+
                 onClick={() => setEnviado(false)}
+
                 className="text-xs font-medium text-blue-600 hover:text-blue-700 ml-auto flex-shrink-0"
+
               >
+
                 Enviar outro
+
               </button>
+
             </div>
+
           ) : (
+
             <form onSubmit={handleEnviar} className="mt-3 space-y-3">
+
               <div className="grid grid-cols-3 gap-2">
+
                 {TIPOS.map(t => (
+
                   <button
+
                     key={t.value}
+
                     type="button"
+
                     onClick={() => setTipo(t.value)}
+
                     className={`py-2 rounded-lg text-sm font-medium border transition-colors ${
+
                       tipo === t.value
+
                         ? 'bg-blue-600 text-white border-blue-600'
+
                         : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+
                     }`}
+
                   >
+
                     {t.label}
+
                   </button>
+
                 ))}
+
               </div>
+
               <textarea
+
                 className="input min-h-[88px] resize-y"
+
                 placeholder="Escreva aqui sua sugestão, dúvida ou problema..."
+
                 value={mensagem}
+
                 onChange={(e) => setMensagem(e.target.value)}
+
                 maxLength={2000}
+
               />
+
               {erro && <p className="text-xs text-red-500">{erro}</p>}
+
               <button
+
                 type="submit"
+
                 disabled={enviando || !mensagem.trim()}
+
                 className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+
               >
+
                 {enviando ? <><Loader2 size={15} className="animate-spin" /> Enviando...</> : 'Enviar feedback'}
+
               </button>
+
             </form>
+
           )}
+
         </div>
+
       </div>
+
     </div>
+
   )
+
 }
+
+
 
 // Card que lista os acessos de consultoria do CLIENTE (consultores autorizados
 // ou com solicitação pendente) e permite revogar/recusar. Só aparece se houver
 // algum vínculo relevante. Busca o nome dos consultores para exibir.
 function AcessosConsultoria() {
+
   const { comoCliente, autorizar, recusar, revogar, carregando } = useConsultoriaAcessos()
+
   const [nomes, setNomes] = useState({}) // consultor_id → nome
+
   const [agindo, setAgindo] = useState(null) // id em processamento
+
+
 
   // Mostra apenas vínculos ativos/relevantes (autorizado ou pendente).
   const relevantes = comoCliente.filter(a => a.status === 'autorizado' || a.status === 'pendente')
 
+
+
   useEffect(() => {
+
     let vivo = true
+
     async function buscarNomes() {
+
       const ids = [...new Set(relevantes.map(a => a.consultor_id))]
+
       if (ids.length === 0) return
+
       const { data } = await supabase.from('perfis').select('id, nome, email').in('id', ids)
+
       if (vivo && data) {
+
         const mapa = {}
+
         for (const p of data) mapa[p.id] = p.nome || p.email || 'Consultor'
+
         setNomes(mapa)
+
       }
+
     }
+
     buscarNomes()
+
     return () => { vivo = false }
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [relevantes.length])
 
+
+
   async function acao(fn, id) {
+
     setAgindo(id)
+
     try { await fn(id) } finally { setAgindo(null) }
+
   }
+
+
 
   if (carregando || relevantes.length === 0) return null
 
+
+
   return (
+
     <div className="card">
+
       <h2 className="text-base font-semibold text-gray-900 mb-1">Acessos de consultoria</h2>
+
       <p className="text-sm text-gray-500 mb-4">
+
         Consultores que podem (ou pediram para) visualizar seus dados financeiros em
+
         modo somente leitura. Você controla o acesso aqui.
+
       </p>
+
       <div className="space-y-3">
+
         {relevantes.map(a => {
+
           const nome = nomes[a.consultor_id] || 'Consultor'
+
           const ocupado = agindo === a.id
+
           return (
+
             <div key={a.id} className="flex items-center justify-between gap-3 border border-gray-200 rounded-xl p-3">
+
               <div className="min-w-0">
+
                 <p className="text-sm font-medium text-gray-900 truncate">{nome}</p>
+
                 {a.status === 'autorizado' ? (
+
                   <span className="inline-flex items-center gap-1 text-xs text-green-700">
+
                     <Eye size={12} /> Acesso autorizado
+
                   </span>
+
                 ) : (
+
                   <span className="inline-flex items-center gap-1 text-xs text-amber-700">
+
                     <Clock size={12} /> Aguardando sua autorização
+
                   </span>
+
                 )}
+
               </div>
+
               {a.status === 'autorizado' ? (
+
                 <button
+
                   onClick={() => acao(revogar, a.id)}
+
                   disabled={ocupado}
+
                   className="btn-secondary flex items-center gap-1.5 !py-1.5 !px-3 text-sm flex-shrink-0"
+
                 >
+
                   {ocupado ? <Loader2 size={14} className="animate-spin" /> : <EyeOff size={14} />}
+
                   Revogar
+
                 </button>
+
               ) : (
+
                 <div className="flex gap-2 flex-shrink-0">
+
                   <button onClick={() => acao(recusar, a.id)} disabled={ocupado}
+
                     className="btn-secondary !py-1.5 !px-3 text-sm">Recusar</button>
+
                   <button onClick={() => acao(autorizar, a.id)} disabled={ocupado}
+
                     className="btn-primary !py-1.5 !px-3 text-sm flex items-center gap-1.5">
+
                     {ocupado ? <Loader2 size={14} className="animate-spin" /> : null} Autorizar
+
                   </button>
+
                 </div>
+
               )}
+
             </div>
+
           )
+
         })}
+
       </div>
+
     </div>
+
   )
+
 }
+
+
 
 // Mesma chave lida em App.jsx (AreaAutenticada) para reabrir o onboarding.
 const CHAVE_REFAZER = 'almeida_refazer_onboarding'
 
+
+
 const PALAVRA_ENCERRAR = 'ENCERRAR'
 
+
+
 export default function Configuracoes() {
+
   const { usuario, perfil, ehAdmin, encerrarMinhaConta } = useAuth()
+
   const { zerarDados } = useZerarDados()
+
   const navigate = useNavigate()
+
+
 
   // Reabre o fluxo de configuração financeira (onboarding). Não apaga dados:
   // é o mesmo fluxo do 1º acesso, útil para revisar/complementar informações.
   function refazerConfiguracao() {
+
     try { localStorage.setItem(CHAVE_REFAZER, '1') } catch { /* ignore */ }
+
     navigate('/') // a Home (AreaAutenticada) detecta a flag e abre o onboarding
+
   }
 
+
+
   const [modalAberto, setModalAberto] = useState(false)
+
   const [zerando, setZerando] = useState(false)
+
   const [erro, setErro] = useState('')
+
   // Confirmação explícita (checkbox) antes de habilitar a exclusão definitiva.
   const [confirmaApagar, setConfirmaApagar] = useState(false)
 
+
+
   // Encerrar conta (desativação da própria conta)
   const [modalEncerrar, setModalEncerrar] = useState(false)
+
   const [textoEncerrar, setTextoEncerrar] = useState('')
+
   const [encerrando, setEncerrando] = useState(false)
+
   const [erroEncerrar, setErroEncerrar] = useState('')
 
+
+
   const nome = perfil?.nome || usuario?.email?.split('@')[0] || 'Usuário'
+
   const encerrarValido = textoEncerrar.trim().toUpperCase() === PALAVRA_ENCERRAR
 
+
+
   function abrirModal() {
+
     setErro('')
+
     setConfirmaApagar(false)
+
     setModalAberto(true)
+
   }
+
+
 
   function abrirModalEncerrar() {
+
     setTextoEncerrar('')
+
     setErroEncerrar('')
+
     setModalEncerrar(true)
+
   }
 
+
+
   async function handleZerar() {
+
     setZerando(true)
+
     setErro('')
+
     try {
+
       await zerarDados()
+
       // Recarrega o app inteiro: todos os hooks releem o banco (agora vazio),
       // o Dashboard aparece zerado e a sessão/login permanece ativa.
       window.location.assign('/')
+
     } catch (err) {
+
       setErro(err.message || 'Erro ao zerar os dados. Tente novamente.')
+
       setZerando(false)
+
     }
+
   }
 
+
+
   async function handleEncerrar() {
+
     if (!encerrarValido) return
+
     setEncerrando(true)
+
     setErroEncerrar('')
+
     try {
+
       await encerrarMinhaConta() // desativa o perfil (ativo=false) + signOut
+
       // Redireciona para o login. Ao tentar entrar de novo, a conta estará
       // desativada e o app mostra a tela "Conta desativada" já existente.
       window.location.assign('/login')
+
     } catch (err) {
+
       // Se um admin tentar encerrar a própria conta, o trigger do banco
       // (impedir_autodesativacao) lança erro e a conta NÃO é encerrada.
       setErroEncerrar(err.message || 'Não foi possível encerrar a conta. Tente novamente.')
+
       setEncerrando(false)
+
     }
+
   }
 
+
+
   return (
+
     <div className="space-y-6 max-w-2xl">
+
       <div>
+
         <h1 className="text-2xl font-bold text-gray-900">Configurações</h1>
+
         <p className="text-sm text-gray-500 mt-1">Minha conta</p>
+
       </div>
+
+
 
       {/* Dados da conta */}
+
       <div className="card">
+
         <h2 className="text-base font-semibold text-gray-900 mb-4">Minha conta</h2>
+
         <div className="space-y-3">
+
           <div className="flex items-center gap-3">
+
             <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+
               <User size={16} className="text-blue-700" />
+
             </div>
+
             <div>
+
               <p className="text-xs text-gray-400">Nome</p>
+
               <p className="text-sm font-medium text-gray-900">{nome}</p>
+
             </div>
+
           </div>
+
           <div className="flex items-center gap-3">
+
             <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+
               <Mail size={16} className="text-blue-700" />
+
             </div>
+
             <div>
+
               <p className="text-xs text-gray-400">E-mail</p>
+
               <p className="text-sm font-medium text-gray-900">{usuario?.email}</p>
+
             </div>
+
           </div>
+
         </div>
+
       </div>
+
+
 
       {/* Acessos de consultoria (autorizar/recusar/revogar) */}
+
       <AcessosConsultoria />
 
+
+
       {/* Aparência (cor de marca: Azul / Rosa / Verde / Roxo / Preto) */}
+
       <Aparencia />
 
+
+
       {/* Ajuda: rever a apresentação inicial (3 telas). NÃO reinicia o
+
           onboarding nem apaga dados — só reexibe as telas explicativas. */}
+
       <div className="card">
+
         <div className="flex items-start gap-3">
+
           <div className="w-9 h-9 bg-marca-100 rounded-xl flex items-center justify-center flex-shrink-0">
+
             <Sparkles size={16} className="text-marca" />
+
           </div>
+
           <div className="flex-1">
+
             <h2 className="text-base font-semibold text-gray-900">Rever apresentação</h2>
+
             <p className="text-sm text-gray-500 mt-1">
+
               Veja novamente as telas de boas-vindas com os diferenciais do app. Não altera
+
               nenhuma configuração nem reinicia o passo a passo financeiro.
+
             </p>
+
             <button
+
               onClick={() => navigate('/apresentacao')}
+
               className="mt-3 inline-flex items-center gap-2 btn-secondary text-sm"
+
             >
+
               <Sparkles size={15} /> Rever apresentação
+
             </button>
+
           </div>
+
         </div>
+
       </div>
+
+
 
       {/* Enviar feedback (sugestão / dúvida / problema) */}
+
       <EnviarFeedback />
 
+
+
       {/* Refazer configuração financeira (reabre o onboarding) */}
+
       <div className="card">
+
         <div className="flex items-start gap-3">
+
           <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+
             <Sparkles size={16} className="text-blue-700" />
+
           </div>
+
           <div className="flex-1">
+
             <h2 className="text-base font-semibold text-gray-900">Atualizar meus dados financeiros</h2>
+
             <p className="text-sm text-gray-500 mt-1">
+
               Revise sua renda, despesas, cartões, benefícios e reserva financeira sem apagar seu histórico.
+
             </p>
+
             <button
+
               onClick={refazerConfiguracao}
+
               className="mt-3 inline-flex items-center gap-2 bg-marca hover:bg-marca-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm"
+
             >
+
               <Sparkles size={15} /> Atualizar informações
+
             </button>
+
             <p className="mt-2 text-xs text-gray-400">Seus dados são preservados.</p>
+
           </div>
+
         </div>
+
       </div>
+
+
 
       {/* Zona de perigo: Zerar meus dados */}
+
       <div className="card border-red-200">
+
         <div className="flex items-start gap-3">
+
           <div className="w-9 h-9 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+
             <AlertTriangle size={16} className="text-red-600" />
+
           </div>
+
           <div className="flex-1">
+
             <h2 className="text-base font-semibold text-gray-900">Apagar dados financeiros</h2>
+
             <p className="text-sm text-gray-500 mt-1">
+
               Exclua seus registros financeiros e recomece a configuração do aplicativo. Sua conta e seu login serão mantidos.
+
             </p>
+
             <button
+
               onClick={abrirModal}
+
               className="mt-3 inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm"
+
             >
+
               <Trash2 size={15} /> Apagar dados financeiros
+
             </button>
+
           </div>
+
         </div>
+
       </div>
+
+
 
       {/* Zona de perigo: Encerrar minha conta — SEPARADA do "Zerar dados".
+
           São ações diferentes: zerar apaga dados e mantém a conta ativa;
+
           encerrar desativa a conta (ativo=false) sem apagar dados. */}
+
       <div className="card border-red-300">
+
         <div className="flex items-start gap-3">
+
           <div className="w-9 h-9 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+
             <LogOut size={16} className="text-red-600" />
+
           </div>
+
           <div className="flex-1">
+
             <h2 className="text-base font-semibold text-gray-900">Encerrar minha conta</h2>
+
             <p className="text-sm text-gray-500 mt-1">
+
               Esta ação <strong>desativa o acesso</strong> à sua conta — não é uma exclusão
+
               definitiva. Você deixa de entrar no Almeida Finance, mas seus dados
+
               <strong> permanecem salvos</strong> e podem ser reativados pelo administrador.
+
             </p>
+
             {ehAdmin ? (
+
               <p className="mt-3 text-xs text-gray-500 bg-gray-100 rounded-lg px-3 py-2">
+
                 Contas de administrador não podem ser encerradas por aqui.
+
               </p>
+
             ) : (
+
               <button
+
                 onClick={abrirModalEncerrar}
+
                 className="mt-3 inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm"
+
               >
+
                 <LogOut size={15} /> Encerrar minha conta
+
               </button>
+
             )}
+
           </div>
+
         </div>
+
       </div>
+
+
 
       {/* Sobre o Almeida Finance — card discreto. Mostra apenas o que existe de
+
           verdade no projeto (nome + descrição). NÃO inventa versão, links de
+
           Política/Termos nem contato de suporte, pois não há configuração real
+
           para esses itens. */}
+
       <div className="card">
+
         <h2 className="text-base font-semibold text-gray-900">Sobre o Almeida Finance</h2>
+
         <p className="text-sm text-gray-500 mt-1">
+
           Seu controle financeiro pessoal: saldo, receitas, despesas, cartões, benefícios,
+
           reserva e projeções em um só lugar.
+
         </p>
+
         <p className="text-xs text-gray-400 mt-3">Almeida Finance</p>
+
       </div>
 
+
+
       {/* Modal de confirmação — Zerar dados */}
+
       <Modal aberto={modalAberto} onFechar={() => !zerando && setModalAberto(false)} titulo="Apagar dados financeiros">
+
         <div className="space-y-4">
+
           <div className="flex items-start gap-2.5 bg-red-50 border border-red-100 rounded-xl p-3">
+
             <AlertTriangle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
+
             <p className="text-sm text-red-700">
+
               Esta ação <strong>exclui permanentemente</strong> seus registros financeiros e não pode ser desfeita.
+
               Sua conta e seu login serão mantidos.
+
             </p>
+
           </div>
+
+
 
           <label className="flex items-start gap-2.5 cursor-pointer select-none">
+
             <input
+
               type="checkbox"
+
               checked={confirmaApagar}
+
               onChange={(e) => setConfirmaApagar(e.target.checked)}
+
               disabled={zerando}
+
               className="w-4 h-4 mt-0.5 flex-shrink-0 accent-red-600"
+
             />
+
             <span className="text-sm text-gray-700">
+
               Entendo que esta exclusão é permanente e desejo apagar meus dados financeiros.
+
             </span>
+
           </label>
 
+
+
           {erro && (
+
             <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{erro}</p>
+
           )}
+
+
 
           <div className="flex flex-col sm:flex-row gap-3 pt-1">
+
             <button
+
               type="button"
+
               onClick={() => setModalAberto(false)}
+
               disabled={zerando}
+
               className="btn-secondary flex-1"
+
             >
+
               Cancelar
+
             </button>
+
             <button
+
               type="button"
+
               onClick={handleZerar}
+
               disabled={zerando || !confirmaApagar}
+
               className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+
             >
+
               {zerando
+
                 ? <><Loader2 size={15} className="animate-spin" /> Apagando...</>
+
                 : 'Apagar dados financeiros'}
+
             </button>
+
           </div>
+
         </div>
+
       </Modal>
+
+
 
       {/* Modal de confirmação — Encerrar conta */}
+
       <Modal aberto={modalEncerrar} onFechar={() => !encerrando && setModalEncerrar(false)} titulo="Encerrar minha conta">
+
         <div className="space-y-4">
+
           <div className="flex items-start gap-2.5 bg-red-50 border border-red-100 rounded-xl p-3">
+
             <AlertTriangle size={18} className="text-red-500 flex-shrink-0 mt-0.5" />
+
             <p className="text-sm text-red-700">
+
               Sua conta será desativada e você perderá o acesso ao Almeida Finance.
+
               Seus dados não serão apagados neste momento.
+
             </p>
+
           </div>
+
+
 
           <div>
+
             <label className="label">
+
               Para confirmar, digite <strong className="text-red-600">{PALAVRA_ENCERRAR}</strong>
+
             </label>
+
             <input
+
               type="text"
+
               value={textoEncerrar}
+
               onChange={e => setTextoEncerrar(e.target.value)}
+
               placeholder={PALAVRA_ENCERRAR}
+
               className="input"
+
               autoFocus
+
               disabled={encerrando}
+
             />
+
           </div>
+
+
 
           {erroEncerrar && (
+
             <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{erroEncerrar}</p>
+
           )}
 
+
+
           <div className="flex gap-3 pt-1">
+
             <button
+
               type="button"
+
               onClick={() => setModalEncerrar(false)}
+
               disabled={encerrando}
+
               className="btn-secondary flex-1"
+
             >
+
               Cancelar
+
             </button>
+
             <button
+
               type="button"
+
               onClick={handleEncerrar}
+
               disabled={!encerrarValido || encerrando}
+
               className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+
             >
+
               {encerrando
+
                 ? <><Loader2 size={15} className="animate-spin" /> Encerrando...</>
+
                 : 'Encerrar minha conta'}
+
             </button>
+
           </div>
+
         </div>
+
       </Modal>
+
     </div>
+
   )
+
 }

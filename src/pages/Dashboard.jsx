@@ -1512,6 +1512,8 @@ function CardProximos7Dias({ total, itens, onVerTodos }) {
 
 export default function Dashboard() {
   const [abaMovimentacoes, setAbaMovimentacoes] = useState('transacoes');
+  const [paginaAtalhos, setPaginaAtalhos] = useState(0)
+  const atalhosMobileRef = useRef(null)
   const { perfil, atualizarPreferenciasLimite, somenteLeitura, usuario, idUsuarioLogado, corTema } = useAuth()
   const { ocultar, alternar } = useOcultarValores()
 
@@ -1621,6 +1623,9 @@ export default function Dashboard() {
   const [modalPlanejamento, setModalPlanejamento] = useState(false) // "Quanto posso gastar?" completo
 
   const [modalNotificacoes, setModalNotificacoes] = useState(false) // central de notificações (sino)
+  const [filtroNotificacoes, setFiltroNotificacoes] = useState('todas')
+  const [notificacoesExpandidas, setNotificacoesExpandidas] = useState({ saldo: true })
+  const [notificacoesLidas, setNotificacoesLidas] = useState({})
   const [modalCalendario, setModalCalendario] = useState(false) // calendário financeiro (abre pela linha "Calendário")
   // Cards móveis: fechados por padrão, cada um expande independentemente.
   const [cardsMobileAbertos, setCardsMobileAbertos] = useState({})
@@ -2148,15 +2153,16 @@ const carregandoLimite = carregando
     const hojeData = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())
     const limite = new Date(hojeData); limite.setDate(limite.getDate() + 30)
     let dataNegativa = null
+    let saldoNaDataNegativa = null
     for (const m of meses) {
       for (const d of m.dias) {
         const dataDia = new Date(m.ano, m.mes - 1, d.dia)
         if (dataDia < hojeData || dataDia > limite) continue
-        if (d.saldo < 0) { dataNegativa = dataDia; break }
+        if (d.saldo < 0) { dataNegativa = dataDia; saldoNaDataNegativa = d.saldo; break }
       }
       if (dataNegativa) break
     }
-    return { saldoAtual, fimDoMes, proximoMes, dataNegativa }
+    return { saldoAtual, fimDoMes, proximoMes, dataNegativa, saldoNaDataNegativa }
   })()
   const fmtDiaMes = (d) =>
     `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -2178,21 +2184,132 @@ const carregandoLimite = carregando
     rosa:  'linear-gradient(135deg, #4a1130 0%, #2c0a1d 100%)', // rosa-escuro
     verde: 'linear-gradient(135deg, #0b3a2a 0%, #07241a 100%)', // verde-escuro
     roxo:  'linear-gradient(135deg, #2e1246 0%, #1d0b2d 100%)', // roxo-escuro
+    laranja: 'linear-gradient(135deg, #743d17 0%, #43230f 100%)',
     preto: 'linear-gradient(135deg, #1f2937 0%, #0b0f17 100%)', // grafite escuro
   }
   const headerBg = HEADER_BG[corTema] || HEADER_BG.preto
+  // Paleta exclusiva da Home. As variáveis CSS atualizam quando corTema muda.
+  const PALETAS_HOME = {
+    azul:  { fundo: '#f2f7ff', claro: '#eaf2ff', borda: '#c9dcff', principal: '#2563eb', escuro: '#0f2342', painel: '#1e3357', suave: '#dbeafe' },
+    rosa:  { fundo: '#fff5f9', claro: '#fff0f6', borda: '#fbc4da', principal: '#c0266c', escuro: '#40152b', painel: '#57213b', suave: '#fce7f3' },
+    verde: { fundo: '#f2fbf7', claro: '#e9f9ef', borda: '#bce8cf', principal: '#15803d', escuro: '#103428', painel: '#20503e', suave: '#dcfce7' },
+    roxo:  { fundo: '#f7f3ff', claro: '#f2edff', borda: '#d7c6ff', principal: '#7c3aed', escuro: '#24143e', painel: '#382453', suave: '#ede9fe' },
+    laranja: { fundo: '#fff8f0', claro: '#fff1df', borda: '#fed7aa', principal: '#ea7600', escuro: '#65330a', painel: '#834519', suave: '#ffedd5' },
+    preto: { fundo: '#f4f5f7', claro: '#edf0f4', borda: '#cbd5e1', principal: '#374151', escuro: '#111827', painel: '#273244', suave: '#e5e7eb' },
+  }
+  const paletaHome = PALETAS_HOME[corTema] || PALETAS_HOME.preto
+  const HEADER_MOBILE = {
+    azul: 'linear-gradient(120deg, #243e63, #203454)',
+    rosa: 'linear-gradient(120deg, #68284a, #54243e)',
+    verde: 'linear-gradient(120deg, #285944, #234738)',
+    roxo: 'linear-gradient(120deg, #44265f, #38204f)',
+    laranja: 'linear-gradient(120deg, #8a4c20, #713e1e)',
+    preto: 'linear-gradient(120deg, #374151, #283241)',
+  }
+  const variaveisHome = {
+    '--af-home-bg': paletaHome.fundo,
+    '--af-home-light': paletaHome.claro,
+    '--af-home-border': paletaHome.borda,
+    '--af-home-primary': paletaHome.principal,
+    '--af-home-dark': paletaHome.escuro,
+    '--af-home-panel': paletaHome.painel,
+    '--af-home-soft': paletaHome.suave,
+    '--af-home-header-mobile': HEADER_MOBILE[corTema] || HEADER_MOBILE.preto,
+  }
 
   return (
     // pb extra no MOBILE: garante que o último card ("Seu dia financeiro" com o
     // botão "Registrar gasto de hoje") role totalmente acima da barra inferior
     // fixa (que tem o botão "+" saliente). Zera no desktop (md:pb-0).
-    <div className="af-desktop-fit w-full max-w-none min-w-0 flex flex-col gap-2 sm:gap-4 lg:gap-3 md:space-y-0 pb-mobilenav md:pb-0 af-mobile-polished">
+    <div className="af-desktop-fit af-home-themed w-full max-w-none min-w-0 flex flex-col gap-2 sm:gap-4 lg:gap-3 md:space-y-0 pb-2 md:pb-0 af-mobile-polished rounded-2xl p-2" style={variaveisHome}>
+      <style>{`
+        .af-home-themed { background: var(--af-home-bg); transition: background-color .2s ease; }
+        .af-home-themed .af-dash-card { background: #fff; border: 1px solid var(--af-home-border); border-radius: 16px; padding: 16px; min-width: 0; box-shadow: 0 2px 12px rgba(15,23,42,.035); }
+        .af-home-themed .af-dash-icon { width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .af-home-themed .af-dash-action { display: inline-flex; align-items: center; gap: 6px; border-radius: 10px; background: var(--af-home-primary); color: white; font-size: 12px; font-weight: 600; padding: 9px 13px; }
+        .af-home-themed .af-dash-ring { width: 64px; height: 64px; border-radius: 50%; padding: 8px; flex-shrink: 0; }
+        .af-home-themed .af-dash-ring span { display: flex; width: 100%; height: 100%; border-radius: 50%; justify-content: center; align-items: center; background: white; font-size: 12px; font-weight: 700; color: #0f172a; }
+        .af-home-themed .af-dash-donut { display: flex; align-items: center; justify-content: center; width: 132px; height: 132px; border-radius: 50%; background: conic-gradient(#f43f5e 0 100%); padding: 19px; }
+        .af-home-themed .af-dash-donut span { display: flex; align-items: center; justify-content: center; text-align: center; background: white; border-radius: 50%; height: 100%; width: 100%; font-size: 11px; font-weight: 700; overflow-wrap: anywhere; padding: 5px; }
+        .af-home-themed .af-dash-card .text-marca { color: var(--af-home-primary) !important; }
+        .af-home-themed .af-dash-card .bg-slate-50 { background-color: var(--af-home-light) !important; }
+        .af-home-themed .af-dash-card .text-sky-300 { color: var(--af-home-soft) !important; }
+        .af-home-themed .af-home-card-brand { background: var(--af-home-dark); }
+        /* Calendário embutido: apenas o fundo temático e o contorno, sem mexer na lógica. */
+        .af-home-themed .af-home-calendar-theme { border-radius: 14px; overflow: hidden; background: var(--af-home-dark); }
+        .af-home-themed .af-home-calendar-theme > * { --af-cor-fundo: var(--af-home-dark); --af-cor-painel: var(--af-home-panel); }
+        @media(max-width: 639px) { .af-dash-card {padding: 13px;} .af-dash-ring{width:58px;height:58px;} }
+      `}</style>
       {/* Ajustes visuais apenas no desktop: compacta cards, calendário e atalhos.
           Sem overflow forçado: em monitores baixos o scroll permanece possível. */}
       <style>{`
+        /* Desktop compacto: evita rolagem desnecessária em monitores usuais.
+           Não altera mobile, cálculos, datas nem visibilidade das informações. */
+        @media (min-width: 1024px) {
+          .af-home-themed.af-desktop-fit { gap: 7px !important; padding: 6px !important; }
+          .af-home-themed .af-home-header { padding-top: 7px !important; padding-bottom: 7px !important; }
+          .af-home-desktop-compact { row-gap: 8px !important; }
+          .af-home-desktop-compact .af-dash-card { padding: 10px 12px; border-radius: 13px; }
+          .af-home-desktop-compact > section:first-child { gap: 8px; }
+          .af-home-desktop-compact > section:first-child .af-dash-card { min-height: 99px; }
+          .af-home-desktop-compact > section:first-child .af-dash-card p.mt-2 { margin-top: 4px; }
+          .af-home-desktop-compact > section:first-child .af-dash-card button.mt-2 { margin-top: 4px; }
+          .af-home-desktop-compact .af-dash-ring { width: 52px; height: 52px; padding: 7px; }
+          .af-home-desktop-compact > div.grid { gap: 8px; }
+          .af-home-desktop-compact section[aria-label="Calendário financeiro"] { padding: 10px 12px !important; }
+          .af-home-desktop-compact section[aria-label="Calendário financeiro"] > .flex:first-child { margin-bottom: 3px; }
+          .af-home-desktop-compact .af-calendar-fit { padding: 7px 10px !important; box-shadow: none; }
+          .af-home-desktop-compact .af-calendar-fit header { margin-bottom: 4px !important; }
+          .af-home-desktop-compact .af-calendar-fit header .h-10 { width: 30px; height: 30px; }
+          .af-home-desktop-compact .af-calendar-fit .af-month-bar { margin-bottom: 3px !important; padding-top: 2px !important; padding-bottom: 2px !important; }
+          .af-home-desktop-compact .af-calendar-fit .af-month-bar button { padding: 4px !important; }
+          .af-home-desktop-compact .af-calendar-fit .af-day-cell,
+          .af-home-desktop-compact .af-calendar-fit .af-calendar-empty { min-height: 31px !important; }
+          .af-home-desktop-compact .af-calendar-fit .af-day-cell { padding-top: 1px !important; padding-bottom: 1px !important; gap: 0 !important; }
+          .af-home-desktop-compact .af-calendar-fit .af-calendar-footnote { margin-top: 3px !important; line-height: 1.2; }
+          .af-home-desktop-compact .af-calendar-fit .af-day-details { padding: 7px !important; }
+          .af-home-desktop-compact .af-calendar-fit .af-day-details > .mb-3 { margin-bottom: 5px !important; }
+          .af-home-desktop-compact .af-calendar-fit .af-day-details .p-3 { padding: 7px !important; }
+          .af-home-desktop-compact .af-calendar-fit .af-day-details .p-2\.5 { padding: 6px !important; }
+          .af-home-desktop-compact .af-calendar-fit .af-day-details .py-4 { padding-top: 8px !important; padding-bottom: 8px !important; }
+          .af-home-desktop-compact section[aria-label="Calendário financeiro"] > button.mt-3 { margin-top: 5px; }
+          .af-home-desktop-compact aside[aria-label="Detalhes do dia selecionado"] { min-height: 0; }
+          .af-home-desktop-compact aside.grid { gap: 8px; }
+          .af-home-desktop-compact aside.grid .af-dash-card .mb-3 { margin-bottom: 6px; }
+          .af-home-desktop-compact aside.grid .af-dash-card .mt-3 { margin-top: 6px; }
+          .af-home-desktop-compact aside.grid .af-dash-card .p-3 { padding: 8px; }
+          .af-home-desktop-compact .af-dash-donut { width: 90px; height: 90px; padding: 14px; }
+          .af-home-desktop-compact > div.grid:last-of-type .af-dash-card .mb-4 { margin-bottom: 6px; }
+          .af-home-desktop-compact > div.grid:last-of-type .af-dash-card .h-36 { height: 106px; }
+          .af-home-desktop-compact > div.grid:last-of-type .af-dash-card .h-28 { height: 82px; }
+          .af-home-desktop-compact > div.grid:last-of-type .af-dash-card .mt-3 { margin-top: 5px; }
+        }
         /* Ajustes exclusivamente mobile. Desktop preservado. */
         @media (max-width: 639px) {
-          .af-mobile-polished { gap: 5px; padding-bottom: max(110px, calc(env(safe-area-inset-bottom) + 95px)); }
+          /* O Layout já reserva espaço da barra fixa; não duplicar esse espaço na Home. */
+          /* A Home termina naturalmente após o carrossel. Sem bloco lilás
+             delimitando o conteúdo e sem padding duplicado da barra fixa.
+             O espaço livre de telas altas fica com o fundo neutro do Layout,
+             sem aparentar um card vazio ou um erro de renderização. */
+          .af-home-themed.af-mobile-polished {
+            background: transparent !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            /* Sem altura mínima: mantém os cards juntos, imediatamente
+               abaixo do cabeçalho, em qualquer altura de celular. */
+            min-height: 0 !important;
+            height: auto !important;
+            justify-content: flex-start !important;
+            align-content: start !important;
+            padding: 0 0 5px !important;
+            margin-bottom: 0 !important;
+            gap: 7px !important;
+          }
+          .af-home-themed.af-mobile-polished > section:last-of-type {
+            margin-bottom: 0 !important;
+          }
+          .af-mobile-polished { gap: 7px; padding-bottom: 8px !important; min-height: 0 !important; }
+          .af-mobile-polished .af-home-header { background-image: var(--af-home-header-mobile) !important; }
           .af-mobile-polished .af-home-header { padding: 6px 10px; min-height: 44px; border-radius: 12px; }
           .af-mobile-polished .af-home-header h1 { font-size: 15px; line-height: 18px; }
           .af-mobile-polished .af-home-header p { font-size: 10px; line-height: 13px; }
@@ -2320,242 +2437,210 @@ const carregandoLimite = carregando
         </div>
       )}
 
-      {/* ── MEU DINHEIRO ── Saldo + "Quanto posso gastar hoje?" em destaque.
-          Reutiliza o CardGastoHoje (clique abre detalhes/ações: editar saldo,
-          limite e planejamento completo via os modais já existentes). */}
-      <div className="af-top-cards">
-        <div className="min-w-0">
-          <CardGastoHoje
-            carregando={carregando}
-            limiteHoje={limiteHoje}
-            saldoAtual={saldoDisponivelAgora}
-            mostrarSaldo={saldoConfigurado}
-            configIncompleta={mostrarComecePorAqui}
-            onEditarSaldo={somenteLeitura ? undefined : () => setModalSaldo(true)}
-            gastosHoje={gastosDeHoje}
-            gastosCartaoHoje={gastosCartaoHoje}
-            disponivelHoje={disponivelHoje}
-            modo={modoLimite}
-            receitaMes={receitaMes}
-            compromissosMes={compromissosMes}
-            limiteManual={limiteManual}
-            hoje={hoje}
-            reservaPercentual={reservaPercentual}
-            saldoConfigurado={saldoConfigurado}
-            previsaoFimMes={previsaoFimMes}
-            onVerCompleto={() => setModalPlanejamento(true)}
-            onEditarLimite={somenteLeitura ? undefined : () => setModalPlanejamento(true)}
-            mostrarCheckin={!somenteLeitura && gastosDeHoje <= 0}
-            jaFezCheckin={jaFezCheckin}
-            onNaoGasteiHoje={marcarNaoGasteiHoje}
-          />
+      {/* HOME COMPACTA MOBILE: apenas apresentação; mantém as fontes de dados reais. */}
+      <section className="md:hidden space-y-2" aria-label="Resumo compacto das finanças">
+        <div className="af-dash-card !p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-slate-500">Saldo disponível</span>
+            <button type="button" onClick={alternar} aria-label={ocultar ? 'Mostrar valores' : 'Ocultar valores'} className="text-slate-500">
+              {ocultar ? <EyeOff size={17}/> : <Eye size={17}/>}
+            </button>
+          </div>
+          <div className="flex items-center justify-between gap-2 mt-1">
+            <strong className="text-2xl text-slate-900 break-all">{carregando ? 'Carregando...' : saldoConfigurado ? exibirMoeda(saldoDisponivelAgora, ocultar) : 'Não configurado'}</strong>
+            {!somenteLeitura && <button type="button" onClick={() => setModalSaldo(true)} className="text-xs text-marca shrink-0"><Pencil size={15}/></button>}
+          </div>
+          <div className="grid grid-cols-2 gap-3 border-t border-slate-100 mt-3 pt-3">
+            <button type="button" onClick={() => navigate('/receitas')} className="min-w-0 text-left">
+              <span className="flex items-center gap-1 text-xs text-slate-500"><TrendingUp size={14} className="text-emerald-500"/> Receitas</span>
+              <strong className="block mt-1 text-sm text-slate-900 break-words">{exibirMoeda(receitaMes, ocultar)}</strong>
+            </button>
+            <button type="button" onClick={() => navigate('/despesas')} className="min-w-0 text-left">
+              <span className="flex items-center gap-1 text-xs text-slate-500"><TrendingDown size={14} className="text-rose-500"/> Compromissos</span>
+              <strong className="block mt-1 text-sm text-slate-900 break-words">{exibirMoeda(compromissosMes, ocultar)}</strong>
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* ── ATALHOS RÁPIDOS ── 5 no celular, 4 no desktop.
-          O atalho Mais fica oculto apenas no desktop, onde já existe menu lateral. */}
-      <div className="grid grid-cols-5 md:grid-cols-4 gap-1 sm:gap-3 lg:gap-5">
-        {[
-          { label: 'Gastei agora', Icon: ReceiptText,         onClick: () => { if (!somenteLeitura) { setDataGastoCalendario(null); setModalGasto(true) } }, disabled: somenteLeitura },
-          { label: 'Despesas',  Icon: TrendingDown, onClick: () => navigate('/despesas') },
-          { label: 'Simular',   Icon: ShoppingCart, onClick: () => navigate('/posso-comprar') },
-          { label: 'E se...?',  Icon: Sparkles, onClick: () => navigate('/e-se') },
-          { label: 'Mais',      Icon: MoreHorizontal, onClick: () => navigate('/mais') },
-        ].map(({ label, Icon, onClick, disabled }) => (
-          <button key={label} type="button" onClick={onClick} disabled={disabled}
-            className={`flex flex-col items-center gap-1.5 py-1 disabled:opacity-40 disabled:cursor-not-allowed ${label === 'Mais' ? 'md:hidden' : ''}`}>
-            <span className="w-12 h-12 rounded-full bg-marca-100 text-marca flex items-center justify-center">
-              <Icon size={20} />
-            </span>
-            <span className="text-[11px] font-medium text-gray-700">{label}</span>
-          </button>
-        ))}
-      </div>
+        <button type="button" onClick={() => setModalPlanejamento(true)} className="af-dash-card !p-4 w-full text-left flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <span className="text-xs text-slate-500">Você pode gastar hoje</span>
+            <strong className="block mt-1 text-xl text-slate-900 break-words">{exibirMoeda(Math.max(0, limiteHoje), ocultar)}</strong>
+            <span className="text-[11px] text-marca">Ver planejamento <ArrowRight size={12} className="inline"/></span>
+          </div>
+          <div className="af-dash-ring" style={{background: `conic-gradient(${gastosDeHoje > limiteHoje ? '#ef4444' : '#10b981'} ${limiteHoje > 0 ? Math.min(100,Math.max(0,gastosDeHoje / limiteHoje * 100)) : 0}%, #e2e8f0 0)`}}>
+            <span>{limiteHoje > 0 ? `${Math.round(Math.min(100,Math.max(0,gastosDeHoje / limiteHoje * 100)))}%` : '—'}</span>
+          </div>
+        </button>
 
-      {/* Cards recolhíveis APENAS no celular; cada um abre e fecha separadamente. */}
-      <section className="md:hidden space-y-3" aria-label="Minhas finanças">
-        {[
-          { id: 'calendario', titulo: 'Calendário', subtitulo: 'Próximos compromissos', Icone: CalendarClock },
-          { id: 'cartoes', titulo: 'Cartões', subtitulo: 'Faturas, compras e limites', Icone: CreditCard },
-          { id: 'investimentos', titulo: 'Investimentos', subtitulo: 'Seu patrimônio em evolução', Icone: PiggyBank },
-          { id: 'beneficios', titulo: 'Benefícios', subtitulo: 'Saldos de VR e VA', Icone: UtensilsCrossed },
-        ].map(({ id, titulo, subtitulo, Icone }) => {
-          const aberto = !!cardsMobileAbertos[id]
-          return (
-            <div key={id} className="card !p-0 overflow-hidden rounded-2xl">
-              <button type="button" onClick={() => alternarCardMobile(id)}
-                aria-expanded={aberto} aria-controls={`conteudo-mobile-${id}`}
-                className="flex w-full items-center gap-3 p-4 text-left">
-                <span className="w-10 h-10 rounded-xl bg-marca-100 text-marca flex items-center justify-center flex-shrink-0"><Icone size={20}/></span>
-                <span className="flex-1 min-w-0"><strong className="block text-sm text-gray-900">{titulo}</strong><span className="text-xs text-gray-500">{subtitulo}</span></span>
-                <ChevronDown size={18} className={`text-gray-400 transition-transform ${aberto ? 'rotate-180' : ''}`}/>
+        <section className="af-dash-card !p-3" aria-label="Calendário financeiro compacto">
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h2 className="font-semibold text-sm text-slate-900">Calendário financeiro</h2>
+            <button type="button" onClick={() => setModalCalendario(true)} className="text-xs text-marca flex items-center gap-1">Ver mês <ArrowRight size={13}/></button>
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {Array.from({length:7},(_,i) => {
+              const referencia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(),12)
+              const inicio = new Date(referencia)
+              inicio.setDate(inicio.getDate() - ((inicio.getDay()+6)%7))
+              const data = new Date(inicio)
+              data.setDate(inicio.getDate()+i)
+              const selecionado = data.toDateString() === referencia.toDateString()
+              return <button key={i} type="button" onClick={() => setModalCalendario(true)} className="flex flex-col items-center gap-1 min-w-0" aria-label={`Abrir calendário em ${data.toLocaleDateString('pt-BR')}`}>
+                <span className="text-[10px] text-slate-500">{['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'][i]}</span>
+                <span className={`w-full py-2 rounded-lg text-xs font-medium text-center ${selecionado ? 'text-white' : 'text-slate-700 bg-slate-100'}`} style={selecionado ? {backgroundColor: 'var(--af-home-primary)'} : undefined}>{data.getDate()}</span>
               </button>
-              {aberto && (
-                <div id={`conteudo-mobile-${id}`} className="px-4 pb-4 space-y-2">
-                  {id === 'calendario' && (
-                    <>
-                      {proximos7Dias.length ? proximos7Dias.slice(0, 3).map(item => (
-                        <div key={item.id} className="rounded-xl bg-marca-100/40 px-3 py-2.5 flex gap-2 items-center min-w-0">
-                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.cor}`}/>
-                          <span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-gray-800 truncate">{item.descricao}</span><span className="block text-[11px] text-gray-500">{item.dataVencimento} · {item.tipoLancamento} · {item.quando}</span></span>
-                          <strong className="text-xs text-gray-900 shrink-0">{exibirMoeda(item.valor, ocultar)}</strong>
-                        </div>
-                      )) : <p className="rounded-xl bg-marca-100/40 p-3 text-xs text-gray-500">Nenhum compromisso previsto nos próximos 7 dias.</p>}
-                      <button type="button" onClick={() => navigate('/projecao')} className="text-marca text-xs font-semibold py-2 flex items-center gap-2">Ver projeção completa <ArrowRight size={15}/></button>
-                    </>
-                  )}
-                  {id === 'cartoes' && (
-                    <>
-                      <div className="rounded-xl bg-marca-100/40 p-4 space-y-1">
-                        <span className="block text-xs text-gray-500">{cartoes.length === 1 ? '1 cartão cadastrado' : `${cartoes.length} cartões cadastrados`}</span>
-                        {(() => {
-                          const fatura = proximos7Dias.find(item => item.tipoLancamento === 'Fatura')
-                          return fatura ? <><span className="block text-xs text-gray-500 mt-2">Fatura com vencimento próximo</span><strong className="block text-xl text-gray-900">{exibirMoeda(fatura.valor, ocultar)}</strong><span className="block text-xs text-gray-500">Vence {fatura.dataVencimento}</span></> : <span className="block text-xs text-gray-500 mt-2">Nenhuma fatura identificada nos próximos 7 dias.</span>
-                        })()}
-                      </div>
-                      <button type="button" onClick={() => navigate('/cartoes')} className="text-marca text-xs font-semibold py-2 flex items-center gap-2">Ver cartões e faturas <ArrowRight size={15}/></button>
-                    </>
-                  )}
-                  {id === 'investimentos' && (
-                    <>
-                      <div className="rounded-xl bg-marca-100/40 p-4 space-y-1">
-                        <span className="block text-xs text-gray-500">Patrimônio total cadastrado</span>
-                        <strong className="block text-xl font-bold text-gray-900 break-words">{exibirMoeda(Number(patrimonioTotal) || 0, ocultar)}</strong>
-                        <span className="block text-xs text-gray-500">{investimentos.length} {investimentos.length === 1 ? 'investimento cadastrado' : 'investimentos cadastrados'}</span>
-                      </div>
-                      <button type="button" onClick={() => navigate('/investimentos')} className="text-marca text-xs font-semibold py-2 flex items-center gap-2">Ver detalhes do patrimônio <ArrowRight size={15}/></button>
-                    </>
-                  )}
-                  {id === 'beneficios' && (
-                    <>
-                      {['VR', 'VA'].map(tipo => {
-                        const beneficio = beneficioPorTipo(tipo)
-                        return <div key={tipo} className="rounded-xl bg-marca-100/40 px-3 py-3 flex items-center justify-between gap-2">
-                          <span className="text-xs text-gray-600">{tipo === 'VR' ? 'Vale-refeição (VR)' : 'Vale-alimentação (VA)'}</span>
-                          <strong className="text-sm text-gray-900 break-words text-right">{beneficio ? exibirMoeda(Number(saldoDoBeneficio(beneficio.id)) || 0, ocultar) : 'Não cadastrado'}</strong>
-                        </div>
-                      })}
-                      <button type="button" onClick={() => navigate('/beneficios')} className="text-marca text-xs font-semibold py-2 flex items-center gap-2">Ver benefícios <ArrowRight size={15}/></button>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </section>
-
-      {/* Desktop conserva os quatro cards originais sem alterações. */}
-      {/* ── MINHAS FINANÇAS ── resumos reais, sem valores demonstrativos.
-          O calendário abre a Projeção; os demais cards abrem suas páginas. */}
-      <section className="hidden md:grid md:grid-cols-2 xl:grid-cols-4 gap-3 w-full items-stretch" aria-label="Minhas finanças">
-        <button type="button" onClick={() => navigate('/cartoes')}
-          className="card !p-4 min-w-0 text-left rounded-2xl flex flex-col gap-4 hover:brightness-110 transition-all min-h-[230px]">
-          <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-xl bg-marca-100 text-marca flex items-center justify-center"><CreditCard size={20}/></span>
-            <span className="flex-1 min-w-0"><strong className="block text-sm text-gray-900">Cartões</strong><span className="text-xs text-gray-500">Faturas, compras e limites</span></span>
-            <ArrowRight size={17} className="text-gray-400"/>
-          </div>
-          <div className="rounded-xl bg-marca-100/40 p-4 flex-1 flex flex-col justify-center gap-1">
-            <span className="text-xs text-gray-500">{cartoes.length === 1 ? '1 cartão cadastrado' : `${cartoes.length} cartões cadastrados`}</span>
-            {(() => {
-              const faturaProxima = proximos7Dias.find(item => item.tipoLancamento === 'Fatura')
-              return faturaProxima ? (
-                <>
-                  <span className="text-xs text-gray-500 mt-2">Fatura com vencimento próximo</span>
-                  <strong className="text-xl sm:text-2xl font-bold text-gray-900">{exibirMoeda(faturaProxima.valor, ocultar)}</strong>
-                  <span className="text-xs text-gray-500">Vence {faturaProxima.dataVencimento} · Consulte todas as faturas e limites</span>
-                </>
-              ) : (
-                <>
-                  <strong className="text-lg font-semibold text-gray-900">Consultar faturas e limites</strong>
-                  <span className="text-xs text-gray-500">Nenhuma fatura identificada nos próximos 7 dias</span>
-                </>
-              )
-            })()}
-          </div>
-        </button>
-        <button type="button" onClick={() => navigate('/investimentos')}
-          className="card !p-4 min-w-0 text-left rounded-2xl flex flex-col gap-4 hover:brightness-110 transition-all min-h-[230px]">
-          <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-xl bg-marca-100 text-marca flex items-center justify-center"><PiggyBank size={20}/></span>
-            <span className="flex-1 min-w-0"><strong className="block text-sm text-gray-900">Investimentos</strong><span className="text-xs text-gray-500">Seu patrimônio em evolução</span></span>
-            <ArrowRight size={17} className="text-gray-400"/>
-          </div>
-          <div className="rounded-xl bg-marca-100/40 p-4 flex-1 flex flex-col justify-center gap-1">
-            <span className="text-xs text-gray-500">Patrimônio total cadastrado</span>
-            <strong className="text-xl sm:text-2xl font-bold text-gray-900 break-words tabular-nums">{exibirMoeda(Number(patrimonioTotal) || 0, ocultar)}</strong>
-            <span className="text-xs text-gray-500 mt-2">{investimentos.length} {investimentos.length === 1 ? 'investimento cadastrado' : 'investimentos cadastrados'}</span>
-            <span className="text-xs text-marca font-semibold mt-1">Ver detalhes do patrimônio →</span>
-          </div>
-        </button>
-        <button type="button" onClick={() => navigate('/beneficios')}
-          className="card !p-4 min-w-0 text-left rounded-2xl flex flex-col gap-4 hover:brightness-110 transition-all min-h-[230px]">
-          <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-xl bg-marca-100 text-marca flex items-center justify-center"><UtensilsCrossed size={20}/></span>
-            <span className="flex-1 min-w-0"><strong className="block text-sm text-gray-900">Benefícios</strong><span className="text-xs text-gray-500">Saldos de VR e VA</span></span>
-            <ArrowRight size={17} className="text-gray-400"/>
-          </div>
-          <div className="space-y-2 flex-1">
-            {['VR', 'VA'].map(tipo => {
-              const beneficio = beneficioPorTipo(tipo)
-              return (
-                <div key={tipo} className="rounded-xl bg-marca-100/40 px-3 py-3 flex items-center justify-between gap-2">
-                  <span className="text-xs text-gray-600">{tipo === 'VR' ? 'Vale-refeição (VR)' : 'Vale-alimentação (VA)'}</span>
-                  <strong className="text-sm font-semibold text-gray-900 break-words text-right">
-                    {beneficio ? exibirMoeda(Number(saldoDoBeneficio(beneficio.id)) || 0, ocultar) : 'Não cadastrado'}
-                  </strong>
-                </div>
-              )
             })}
-            {!somenteLeitura && <span className="block mt-2 text-xs font-semibold text-marca">Registrar gasto em benefícios →</span>}
           </div>
-        </button>
-        <button type="button" onClick={() => navigate('/projecao')}
-          className="card !p-4 min-w-0 text-left rounded-2xl flex flex-col gap-3 hover:brightness-110 transition-all min-h-[230px] border border-marca/30">
-          <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-xl bg-marca-100 text-marca flex items-center justify-center"><CalendarClock size={20}/></span>
-            <span className="flex-1 min-w-0"><strong className="block text-sm text-gray-900">Calendário</strong><span className="text-xs text-gray-500">Próximos compromissos</span></span>
-            <ArrowRight size={17} className="text-gray-400"/>
+          <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3 mt-3">
+            <span className="text-xs text-slate-500">Toque em um dia para ver os lançamentos</span>
+            {!somenteLeitura && <button type="button" onClick={() => {setDataGastoCalendario(null);setModalGasto(true)}} aria-label="Adicionar lançamento" className="text-marca"><Plus size={19}/></button>}
           </div>
-          <div className="space-y-2 flex-1">
-            {proximos7Dias.length ? proximos7Dias.slice(0, 3).map(item => (
-              <div key={item.id} className="rounded-xl bg-marca-100/40 px-3 py-2.5 flex gap-2 items-center min-w-0">
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${item.cor}`}/>
-                <span className="min-w-0 flex-1"><span className="block text-xs font-semibold text-gray-800 truncate">{item.descricao}</span><span className="block text-[11px] text-gray-500">{item.dataVencimento} · {item.tipoLancamento} · {item.quando}</span></span>
-                <strong className="text-xs text-gray-900 shrink-0">{exibirMoeda(item.valor, ocultar)}</strong>
+        </section>
+
+        {/* Ícones deslizantes: quatro por página, sem título. */}
+        <section aria-label="Atalhos financeiros deslizantes" className="af-mobile-shortcuts af-dash-card !p-3">
+          <div
+            ref={atalhosMobileRef}
+            onScroll={(e) => {
+              const el = e.currentTarget
+              const proxima = Math.round(el.scrollLeft / Math.max(1, el.clientWidth))
+              setPaginaAtalhos(Math.min(2, Math.max(0, proxima)))
+            }}
+            className="flex overflow-x-auto snap-x snap-mandatory scroll-smooth overscroll-x-contain"
+            style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}
+          >
+            {[
+              [
+                { label: 'Simular compra', rota: '/posso-comprar', Icone: ShoppingCart },
+                { label: 'E se...?', rota: '/e-se', Icone: Sparkles },
+                { label: 'Calendário', rota: '/projecao', Icone: CalendarClock },
+                { label: 'Minha evolução', rota: '/minha-evolucao', Icone: BarChart2 },
+              ],
+              [
+                { label: 'Cartões', rota: '/cartoes', Icone: CreditCard },
+                { label: 'VR / VA', rota: '/beneficios', Icone: UtensilsCrossed },
+                { label: 'Investimentos', rota: '/investimentos', Icone: TrendingUp },
+                { label: 'Metas', rota: '/metas', Icone: Target },
+              ],
+              [
+                { label: 'Receitas', rota: '/receitas', Icone: TrendingUp },
+                { label: 'Despesas', rota: '/despesas', Icone: ReceiptText },
+                { label: 'Parcelamentos', rota: '/parcelamentos', Icone: CalendarClock },
+                { label: 'Projeção', rota: '/projecao', Icone: BarChart2 },
+              ],
+            ].map((pagina, index) => (
+              <div key={index} className="w-full min-w-full shrink-0 snap-start grid grid-cols-4 gap-1.5">
+                {pagina.map(({ label, rota, Icone }) => (
+                  <button key={rota} type="button" onClick={() => navigate(rota)}
+                    className="min-w-0 flex flex-col items-center gap-1.5 rounded-xl px-0.5 py-1.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-marca"
+                    aria-label={`Abrir ${label}`}>
+                    <span className="w-12 h-12 rounded-xl flex items-center justify-center"
+                      style={{ backgroundColor: 'var(--af-home-soft)', color: 'var(--af-home-primary)' }}>
+                      <Icone size={21} strokeWidth={1.9}/>
+                    </span>
+                    <span className="text-[10px] leading-3 text-center font-medium text-slate-800 break-words">{label}</span>
+                  </button>
+                ))}
               </div>
-            )) : <div className="rounded-xl bg-marca-100/40 p-4 text-xs text-gray-500">Nenhuma despesa ou fatura prevista nos próximos 7 dias.</div>}
+            ))}
           </div>
-          <span className="text-marca text-xs font-semibold flex items-center justify-between">Ver projeção completa <ArrowRight size={15}/></span>
-        </button>
+          <div className="flex justify-center gap-2 mt-2" aria-label="Páginas dos atalhos">
+            {[0, 1, 2].map(i => (
+              <button type="button" key={i} aria-label={`Ir para a página ${i + 1} dos atalhos`}
+                aria-current={paginaAtalhos === i ? 'true' : undefined}
+                onClick={() => {
+                  atalhosMobileRef.current?.scrollTo({ left: i * atalhosMobileRef.current.clientWidth, behavior: 'smooth' })
+                  setPaginaAtalhos(i)
+                }}
+                className="p-1.5">
+                <span className="block h-1.5 rounded-full transition-all" style={{width: paginaAtalhos===i ? 16 : 6,
+                  backgroundColor: paginaAtalhos===i ? 'var(--af-home-primary)' : '#d9d5e5'}} />
+              </button>
+            ))}
+          </div>
+        </section>
       </section>
 
-      {/* ── Meus Benefícios (VR/VA) — seção COMPACTA na Home ──
-          Mostra o saldo de VR e VA separadamente, usando os dados REAIS do
-          hook useBeneficios (saldoDoBeneficio/proximaRecarga) — sem cálculo
-          paralelo e sem misturar com saldo bancário/cartões. Só aparece quando
-          há pelo menos um benefício VR ou VA cadastrado (nada fictício).
-          Respeita a privacidade (ocultar) e segue a cor do tema (.card/text-marca). */}
-      {/* Home minimalista: patrimônio/benefícios detalhados, calendário inline,
-          "Próximos 7 dias", "Movimentações recentes" e os atalhos de cards
-          foram retirados da visão principal. Nada foi excluído: os dados e
-          componentes seguem acessíveis pelas linhas "Minhas finanças" (ex.:
-          Calendário abre o modal abaixo) e pelas páginas reais (Investimentos,
-          Benefícios, Despesas) e pela página "Mais". */}
+      {/* Desktop permanece com o layout completo existente. */}
+      <div className="af-home-desktop-compact hidden md:block space-y-2">
+      {/* HOME 2026 — layout inspirado no mockup, conectado aos dados reais. */}
+      <section className="grid grid-cols-2 xl:grid-cols-4 gap-3" aria-label="Resumo financeiro">
+        <div className="af-dash-card col-span-2 sm:col-span-1">
+          <div className="flex justify-between items-center gap-2"><span className="text-xs font-medium text-slate-500">Saldo atual</span><button type="button" onClick={alternar} aria-label={ocultar ? 'Mostrar valores' : 'Ocultar valores'} className="text-slate-600">{ocultar ? <EyeOff size={17}/> : <Eye size={17}/>}</button></div>
+          <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-2 break-words">{carregando ? 'Carregando...' : saldoConfigurado ? exibirMoeda(saldoDisponivelAgora, ocultar) : 'Não configurado'}</p>
+          {!somenteLeitura && <button type="button" onClick={() => setModalSaldo(true)} className="text-xs text-marca mt-2 inline-flex items-center gap-1"><Pencil size={12}/> Editar saldo</button>}
+        </div>
+        <div className="af-dash-card">
+          <div className="flex justify-between items-center gap-2"><span className="text-xs font-medium text-slate-500">Receitas do mês</span><span className="af-dash-icon bg-emerald-50 text-emerald-600"><TrendingUp size={18}/></span></div>
+          <p className="text-lg sm:text-2xl font-bold text-slate-900 mt-2 break-words">{carregando ? '...' : exibirMoeda(receitaMes, ocultar)}</p>
+          <button type="button" onClick={() => navigate('/receitas')} className="text-xs text-slate-500 mt-2 text-left">Ver receitas <ArrowRight size={12} className="inline"/></button>
+        </div>
+        <div className="af-dash-card">
+          <div className="flex justify-between items-center gap-2"><span className="text-xs font-medium text-slate-500">Despesas do mês</span><span className="af-dash-icon bg-rose-50 text-rose-600"><TrendingDown size={18}/></span></div>
+          <p className="text-lg sm:text-2xl font-bold text-slate-900 mt-2 break-words">{carregando ? '...' : exibirMoeda(compromissosMes, ocultar)}</p>
+          <button type="button" onClick={() => navigate('/despesas')} className="text-xs text-slate-500 mt-2 text-left">Inclui compromissos previstos <ArrowRight size={12} className="inline"/></button>
+        </div>
+        <div className="af-dash-card col-span-2 sm:col-span-1 xl:col-span-1">
+          <div className="flex justify-between items-center gap-2"><span className="text-xs font-medium text-slate-500">Limite diário</span><button type="button" onClick={() => setModalPlanejamento(true)} className="text-marca"><ArrowRight size={17}/></button></div>
+          <div className="flex justify-between items-center gap-2 mt-2"><div className="min-w-0"><p className="text-lg sm:text-2xl font-bold text-slate-900 break-words">{carregando ? '...' : exibirMoeda(Math.max(0, limiteHoje), ocultar)}</p><p className="text-xs text-slate-500 mt-1">Disponível hoje: {exibirMoeda(Math.max(0, disponivelHoje), ocultar)}</p></div><div className="af-dash-ring" style={{background: `conic-gradient(${gastosDeHoje > limiteHoje ? '#ef4444' : '#10b981'} ${limiteHoje > 0 ? Math.min(100, Math.max(0, gastosDeHoje / limiteHoje * 100)) : 0}%, #e2e8f0 0)`}}><span>{limiteHoje > 0 ? `${Math.round(Math.min(100, gastosDeHoje / limiteHoje * 100))}%` : '—'}</span></div></div>
+        </div>
+      </section>
 
-      {/* O "Horizonte Financeiro", o card de Consultoria e o "Resumo do mês"
-          foram movidos para a aba Planejamento (/projecao), deixando a Home mais
-          limpa. A consultoria continua acessível pelo atalho "Consultoria".
-          O modal do Horizonte (abaixo) é mantido para o sininho de notificações. */}
+      {/* Calendário é o conteúdo principal; no desktop recebe coluna ampla. */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 lg:gap-4 items-start">
+        <section className="xl:col-span-2 af-dash-card !p-3 sm:!p-5 min-w-0" aria-label="Calendário financeiro">
+          <div className="flex flex-wrap items-center justify-end gap-2 mb-2">
+            <span className="sr-only">Calendário financeiro</span>
+            {!somenteLeitura && <button type="button" onClick={() => { setDataGastoCalendario(null); setModalGasto(true) }} className="af-dash-action"><Plus size={15}/> Adicionar gasto</button>}
+          </div>
+          {!carregando && !carregandoReceitasCalendario && !carregandoDespesasCalendario ? (
+            <div className="af-home-calendar-theme">
+            <CalendarioFinanceiroHome
+              receitas={receitasCalendario}
+              despesas={despesasCalendario}
+              mesVisivel={mesCalendarioHome}
+              onMudarMes={setMesCalendarioHome}
+              horizonte={horizonteCalendario}
+              onAdicionarMovimentacao={somenteLeitura ? undefined : adicionarPeloCalendario}
+            />
+            </div>
+          ) : <div className="py-12 text-center text-sm text-slate-500">Carregando calendário...</div>}
+          <button type="button" onClick={() => navigate('/projecao')} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-marca">Ver planejamento completo <ArrowRight size={14}/></button>
+        </section>
+        <aside className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3 lg:gap-4 min-w-0">
+          <section className="af-dash-card" aria-label="Meus cartões">
+            <div className="flex justify-between items-center mb-3"><h2 className="text-sm font-bold text-slate-900">Meus cartões</h2><button type="button" onClick={() => navigate('/cartoes')} className="text-xs text-marca font-semibold">Ver todos</button></div>
+            {cartoes.length ? <div className="space-y-2">{cartoes.slice(0, 2).map(c => <button key={c.id} type="button" onClick={() => navigate('/cartoes')} className="af-home-card-brand w-full rounded-xl text-white p-3 text-left flex items-center gap-3"><CreditCard size={22} className="text-sky-300 shrink-0"/><span className="min-w-0"><strong className="block text-sm truncate">{c.nome || 'Cartão'}</strong><span className="block text-xs text-slate-300 truncate">{c.banco || 'Consultar fatura e limite'}</span></span><ArrowRight size={15} className="ml-auto shrink-0"/></button>)}</div> : <p className="text-sm text-slate-500">Nenhum cartão cadastrado.</p>}
+          </section>
+          <section className="af-dash-card" aria-label="Metas e investimentos">
+            <div className="flex justify-between items-center mb-3"><h2 className="text-sm font-bold text-slate-900">Metas financeiras</h2><button type="button" onClick={() => navigate('/metas')} className="text-xs text-marca font-semibold">Ver todas</button></div>
+            <div className="flex items-center gap-3 bg-slate-50 rounded-xl p-3"><span className="af-dash-icon bg-emerald-100 text-emerald-700"><PiggyBank size={18}/></span><span className="min-w-0 flex-1"><span className="block text-xs text-slate-500">Reserva de emergência</span><strong className="block text-sm text-slate-900 break-words">{exibirMoeda(reservaAtual, ocultar)}</strong>{metaReserva > 0 && <span className="block text-xs text-slate-500">Meta: {exibirMoeda(metaReserva, ocultar)}</span>}</span></div>
+            {metaReserva > 0 && <div className="mt-2 h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{width: `${Math.min(100, reservaAtual / metaReserva * 100)}%`}}/></div>}
+            <button type="button" onClick={() => navigate('/investimentos')} className="mt-3 flex w-full items-center justify-between text-xs text-slate-600"><span>Investimentos cadastrados: {investimentos.length}</span><strong className="text-slate-900">{exibirMoeda(patrimonioTotal || 0, ocultar)}</strong></button>
+          </section>
+          <section className="af-dash-card" aria-label="Benefícios">
+            <div className="flex justify-between items-center"><h2 className="text-sm font-bold text-slate-900">VR / VA</h2><button type="button" onClick={() => navigate('/beneficios')} className="text-xs text-marca font-semibold">Ver benefícios</button></div>
+            <div className="grid grid-cols-2 gap-2 mt-3">{['VR','VA'].map(tipo => { const b = beneficioPorTipo(tipo); return <div key={tipo} className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">{tipo}</p><p className="text-sm font-bold text-slate-900 break-words mt-1">{b ? exibirMoeda(saldoDoBeneficio(b.id), ocultar) : '—'}</p></div> })}</div>
+          </section>
+        </aside>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
+        <section className="af-dash-card"><div className="flex items-center justify-between gap-2 mb-4"><h2 className="text-sm font-bold text-slate-900">Despesas e compromissos</h2><button type="button" onClick={() => navigate('/despesas')} className="text-xs text-marca font-semibold">Ver detalhes</button></div><div className="grid grid-cols-2 gap-3"><div className="flex items-center justify-center"><div className="af-dash-donut"><span>{exibirMoeda(compromissosMes, ocultar)}</span></div></div><div className="flex flex-col justify-center gap-3 text-xs"><div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"/> Compromissos do mês</div><strong className="text-base text-slate-800 break-words">{exibirMoeda(compromissosMes, ocultar)}</strong><p className="text-slate-500">Valores consolidados pela projeção atual</p></div></div></section>
+        <section className="af-dash-card"><div className="flex justify-between items-center mb-4"><h2 className="text-sm font-bold text-slate-900">Evolução financeira</h2><button type="button" onClick={() => navigate('/projecao')} className="text-xs text-marca font-semibold">12 meses</button></div><div className="flex items-end gap-2 h-36">{(projecao || []).slice(0,12).map((m,i) => { const r = Math.max(0,Number(m.receitas)||0); const d = Math.max(0,Number(m.despesas)||0); const mx = Math.max(1,...(projecao || []).slice(0,12).flatMap(x=>[Number(x.receitas)||0,Number(x.despesas)||0])); return <div key={i} className="min-w-0 flex-1 flex flex-col items-center gap-1"><div className="w-full flex items-end justify-center gap-px h-28"><div title={ocultar ? 'Receitas ocultas' : `Receitas: ${formatCurrency(r)}`} className="w-2/5 rounded-t bg-emerald-500" style={{height:`${Math.max(2,r/mx*100)}%`}}/><div title={ocultar ? 'Despesas ocultas' : `Despesas: ${formatCurrency(d)}`} className="w-2/5 rounded-t bg-rose-400" style={{height:`${Math.max(2,d/mx*100)}%`}}/></div><span className="text-[10px] text-slate-500 truncate max-w-full">{String(m.mes || i+1).slice(0,3)}</span></div>})}</div><div className="mt-3 flex justify-center gap-4 text-xs text-slate-500"><span>🟢 Receitas</span><span>🔴 Despesas</span></div></section>
+      </div>
+      {!somenteLeitura && <button type="button" onClick={() => {setDataGastoCalendario(null);setModalGasto(true)}} className="af-dash-action w-full justify-center sm:hidden"><Plus size={16}/> Adicionar lançamento</button>}
+
+      </div>
 
       {/* Modal: Calendário financeiro (preservado, mas não aberto pelo card da Home). Reutiliza o MESMO componente e os mesmos dados —
           nenhum cálculo novo, nada removido. */}
       <Modal aberto={modalCalendario} onFechar={() => setModalCalendario(false)} titulo="Calendário financeiro">
         {!carregando && (
           <CalendarioFinanceiroHome
-            receitas={receitas}
-            despesas={despesas}
+            receitas={receitasCalendario}
+            despesas={despesasCalendario}
             mesVisivel={mesCalendarioHome}
             onMudarMes={setMesCalendarioHome}
             horizonte={horizonteCalendario}
@@ -2607,57 +2692,90 @@ const carregandoLimite = carregando
         />
       </Modal>
 
-      {/* Modal: Central de notificações (aberta pelo sino). Lista pendências
-          REAIS já derivadas (configuração incompleta e risco de saldo negativo),
-          sem backend novo. O Horizonte NÃO é mais aberto pelo sino — fica no seu
-          botão original (aba Planejamento). */}
+      {/* Alertas derivados dos dados reais do app. Nada é inventado no painel. */}
       <Modal aberto={modalNotificacoes} onFechar={() => setModalNotificacoes(false)} titulo="Notificações">
         {(() => {
           const itens = []
-          if (mostrarComecePorAqui) {
-            itens.push({
-              id: 'config',
-              cor: 'bg-amber-400',
-              titulo: 'Conclua a configuração inicial',
-              texto: 'Faltam etapas para o app calcular tudo com precisão.',
-            })
-          }
-          if (horizonteResumo?.dataNegativa) {
-            itens.push({
-              id: 'saldo',
-              cor: 'bg-red-500',
-              titulo: 'Risco de saldo negativo',
-              texto: `Seu saldo pode ficar negativo em ${fmtDiaMes(horizonteResumo.dataNegativa)}.`,
-            })
-          }
-          if (itens.length === 0) {
-            return (
-              <div className="text-center py-6">
-                <Bell size={28} className="text-gray-300 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">Nenhuma notificação no momento.</p>
-              </div>
-            )
-          }
+          if (horizonteResumo?.dataNegativa) itens.push({
+            id: 'saldo', tipo: 'risco', titulo: 'Risco de saldo negativo',
+            texto: `Seu saldo pode ficar negativo em ${fmtDiaMes(horizonteResumo.dataNegativa)}.`,
+            data: horizonteResumo.dataNegativa,
+            valor: horizonteResumo.saldoNaDataNegativa,
+          })
+          if (mostrarComecePorAqui) itens.push({
+            id: 'config', tipo: 'configuracao', titulo: 'Conclua sua configuração inicial',
+            texto: 'Existem informações pendentes para completar seu planejamento.',
+          })
+          const exibidos = itens.filter(i => filtroNotificacoes === 'todas' || i.tipo === filtroNotificacoes)
+          const filtros = [
+            { id: 'todas', titulo: 'Todas' },
+            { id: 'risco', titulo: 'Risco' },
+            { id: 'configuracao', titulo: 'Configuração' },
+          ]
           return (
-            <ul className="space-y-2">
-              {itens.map(n => (
-                <li key={n.id} className="flex items-start gap-3 bg-gray-50 rounded-xl px-3 py-2.5">
-                  <span className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${n.cor}`} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900">{n.titulo}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{n.texto}</p>
-                    {n.id === 'saldo' && (
-                      <button
-                        onClick={() => { setModalNotificacoes(false); setModalProjecao(true) }}
-                        className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-marca hover:opacity-80"
-                      >
-                        Ver no Horizonte financeiro <ArrowRight size={13} />
-                      </button>
+            <div className="space-y-3">
+              <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Filtrar notificações">
+                {filtros.map(f => (
+                  <button key={f.id} type="button" onClick={() => setFiltroNotificacoes(f.id)}
+                    aria-pressed={filtroNotificacoes === f.id}
+                    className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${filtroNotificacoes === f.id ? 'bg-marca text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    {f.titulo} ({f.id === 'todas' ? itens.length : itens.filter(i => i.tipo === f.id).length})
+                  </button>
+                ))}
+              </div>
+              {exibidos.length === 0 ? (
+                <div className="text-center py-6">
+                  <Bell size={26} className="text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">Nenhuma notificação nesta categoria.</p>
+                </div>
+              ) : exibidos.map(n => {
+                const aberta = Boolean(notificacoesExpandidas[n.id])
+                const lida = Boolean(notificacoesLidas[n.id])
+                const risco = n.tipo === 'risco'
+                return (
+                  <div key={n.id} className={`rounded-2xl border p-3 sm:p-4 ${risco && !lida ? 'border-red-200 bg-red-50/40' : 'border-gray-200 bg-white'}`}>
+                    <button type="button" onClick={() => setNotificacoesExpandidas(prev => ({...prev, [n.id]: !prev[n.id]}))}
+                      aria-expanded={aberta} className="w-full flex items-start gap-3 text-left">
+                      <span className={`mt-1 w-2.5 h-2.5 rounded-full flex-shrink-0 ${lida ? 'bg-gray-300' : risco ? 'bg-red-500' : 'bg-amber-400'}`} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold text-gray-900">{n.titulo}</span>
+                        <span className="block text-xs text-gray-600 mt-1">{n.texto}</span>
+                      </span>
+                      <ChevronDown size={18} className={`text-gray-500 flex-shrink-0 transition-transform ${aberta ? 'rotate-180' : ''}`} />
+                    </button>
+                    {aberta && (
+                      <div className="mt-3 pt-3 border-t border-gray-200 space-y-3">
+                        {risco && (
+                          <>
+                            {Number.isFinite(Number(n.valor)) && (
+                              <div className="rounded-xl bg-white px-3 py-3">
+                                <p className="text-xs text-gray-500">Saldo projetado em {fmtDiaMes(n.data)}</p>
+                                <p className="font-bold text-lg text-red-600">{formatCurrency(n.valor)}</p>
+                              </div>
+                            )}
+                            <p className="text-xs text-gray-600">Confira as receitas, despesas e faturas previstas no Horizonte financeiro. O alerta é uma projeção, não uma cobrança.</p>
+                            <button type="button" className="w-full sm:w-auto btn-primary px-4 py-2 text-sm inline-flex items-center justify-center gap-2"
+                              onClick={() => { setModalNotificacoes(false); setModalProjecao(true) }}>
+                              Ver no Horizonte financeiro <ArrowRight size={15} />
+                            </button>
+                          </>
+                        )}
+                        {!risco && <button type="button" className="text-marca text-sm font-semibold"
+                          onClick={() => { setModalNotificacoes(false); navigate('/configuracoes') }}>
+                          Ir para Configurações <ArrowRight size={14} className="inline" />
+                        </button>}
+                        <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+                          <input type="checkbox" checked={lida}
+                            onChange={e => setNotificacoesLidas(prev => ({...prev, [n.id]: e.target.checked}))} />
+                          Marcar como lida
+                        </label>
+                      </div>
                     )}
                   </div>
-                </li>
-              ))}
-            </ul>
+                )
+              })}
+              <p className="text-[11px] text-gray-400">Os alertas são calculados a partir de seus dados financeiros disponíveis. Marcar como lida não elimina o risco nem altera lançamentos.</p>
+            </div>
           )
         })()}
       </Modal>

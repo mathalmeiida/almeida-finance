@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 
-import { TrendingUp, TrendingDown, Briefcase, Info, AlertTriangle, Landmark, Wallet, ChevronDown, ChevronUp } from 'lucide-react'
+import { TrendingUp, TrendingDown, Briefcase, Info, AlertTriangle, Landmark, Wallet, ChevronDown, ChevronUp, Receipt, CreditCard, Home, BarChart2 } from 'lucide-react'
 
 import InputMoeda from './InputMoeda'
 
@@ -63,17 +63,13 @@ function diasEstimadosCenario(resultadoMensal, dataInicio = new Date()) {
 }
 
 const CENARIOS = [
-
-  { id: 'aumento',   nome: 'Aumento de renda',   icone: TrendingUp,   sinal: 1 },
-
-  { id: 'reducao',   nome: 'Redução de renda',   icone: TrendingDown, sinal: -1 },
-
-  { id: 'perda',     nome: 'Perda de renda',     icone: TrendingDown, sinal: -1 },
-
-  { id: 'extra',     nome: 'Renda extra',        icone: TrendingUp,   sinal: 1 },
-
-  { id: 'desligamento', nome: 'Desemprego', icone: Briefcase, sinal: -1 },
-
+  { id: 'aumento', nome: 'Aumentar renda', icone: TrendingUp, sinal: 1 },
+  { id: 'despesa', nome: 'Nova despesa', icone: Receipt, sinal: -1 },
+  { id: 'parcela', nome: 'Parcelamento', icone: CreditCard, sinal: -1 },
+  { id: 'financiamento', nome: 'Financiamento', icone: Home, sinal: -1 },
+  { id: 'investimento', nome: 'Investimento', icone: BarChart2, sinal: 0 },
+  { id: 'reducao', nome: 'Reduzir renda', icone: TrendingDown, sinal: -1 },
+  { id: 'desligamento', nome: 'Desemprego / rescisão', icone: Briefcase, sinal: -1 },
 ]
 
 // Cenários genéricos do modo "Renda profissional" (apenas rótulos; NÃO há
@@ -100,7 +96,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
   // Modo do simulador: 'pessoal' (como já era) ou 'profissional' (novo).
 
-  const [modo, setModo] = useState('pessoal')
+  // Interface unificada: cenários pessoais e profissionais na mesma página.
   const [mostrarImpactoPessoal, setMostrarImpactoPessoal] = useState(false)
   const [mostrarImpactoProfissional, setMostrarImpactoProfissional] = useState(false)
 
@@ -256,7 +252,7 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
       ? -receitaAtual + valorNum
 
-      : (CENARIOS.find(c => c.id === cenario)?.sinal || 1) * valorNum
+      : (CENARIOS.find(c => c.id === cenario)?.sinal ?? 1) * valorNum
 
   // Situação ATUAL (base de comparação).
 
@@ -354,53 +350,13 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
   <div className="space-y-6">
 
-    {/* Seletor de MODO: Finanças pessoais × Renda profissional */}
-
-    <div className="grid grid-cols-2 gap-2">
-
-      {[
-
-        { id: 'pessoal', nome: 'Finanças pessoais' },
-
-        { id: 'profissional', nome: 'Renda profissional' },
-
-      ].map(op => (
-
-        <button
-
-          key={op.id}
-
-          type="button"
-
-          onClick={() => setModo(op.id)}
-
-          className={`px-3 py-2.5 rounded-xl !border-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-marca text-sm sm:text-base font-medium transition-all ${
-
-            modo === op.id ? 'bg-marca-100 text-marca shadow-sm' : 'bg-slate-500/10 text-inherit hover:bg-slate-500/20'
-
-          }`}
-
-        >
-
-          {op.nome}
-
-        </button>
-
-      ))}
-
-    </div>
-
-    {modo === 'pessoal' && (
-
-    <>
-
     {/* Seletor de cenário */}
 
     <div>
 
-      <label className="label">Escolha o cenário</label>
+      <label className="label text-sm font-semibold">O que você quer simular?</label>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
 
         {CENARIOS.map(c => (
 
@@ -444,9 +400,13 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
           <label className="label">
 
-            {cenario === 'aumento' ? 'Quanto a renda aumenta por mês? (R$)'
+            {cenario === 'aumento' ? 'Quanto você ganharia a mais por mês? (R$)'
 
-              : cenario === 'reducao' ? 'Quanto a renda reduz por mês? (R$)'
+              : cenario === 'reducao' ? 'Quanto sua renda diminuiria por mês? (R$)'
+              : cenario === 'despesa' ? 'Qual seria a despesa mensal? (R$)'
+              : cenario === 'parcela' ? 'Qual seria a parcela mensal? (R$)'
+              : cenario === 'financiamento' ? 'Qual seria a prestação mensal? (R$)'
+              : cenario === 'investimento' ? 'Qual o valor do investimento pontual? (R$)'
 
               : cenario === 'extra' ? 'Valor da renda extra mensal (R$)'
 
@@ -724,165 +684,44 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
       )}
 
-      {/* ── Comparativo atual × simulado ── */}
-
-      {!ehDesligamento && <><div className="card !border-0">
-
-        <p className="text-xs text-inherit font-medium uppercase tracking-wide mb-2 flex items-center gap-1.5">
-
-          <Wallet size={14} className="text-emerald-600" /> Atual × simulado
-
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-          <div className="rounded-xl bg-slate-500/10 !border-0 p-2.5">
-
-            <p className="text-xs opacity-80 mb-0.5">Hoje</p>
-
-            <p className="text-sm opacity-80">Sobra mensal estimada</p>
-
-            <p className={`text-lg font-bold ${atual.saldoMensal >= 0 ? 'text-inherit' : 'text-red-600'}`}>{formatCurrency(atual.saldoMensal)}</p>
-
-            <p className="text-xs opacity-80 mt-0.5">Gasto diário ~ {formatCurrency(atual.gastoDiario)}</p>
-
+      {/* Comparativo compacto: resultados da mesma simulação original */}
+      {!ehDesligamento && (
+        <div className="card !border-0 space-y-3">
+          <div className="flex items-center gap-2 text-sm font-semibold"><Wallet size={16} className="text-marca" /> Resultado da simulação</div>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+            <div className="rounded-xl bg-slate-500/10 p-3 min-w-0">
+              <p className="text-xs opacity-75">Sobra atual</p>
+              <p className="text-base sm:text-lg font-bold break-words">{formatCurrency(atual.saldoMensal)}</p>
+            </div>
+            <div className="rounded-xl bg-marca-100 p-3 min-w-0">
+              <p className="text-xs text-marca">Sobra simulada</p>
+              <p className="text-base sm:text-lg font-bold break-words">{formatCurrency(sim.saldoMensal)}</p>
+            </div>
+            <div className="col-span-2 lg:col-span-1 rounded-xl bg-slate-500/10 px-3 py-2 flex items-center justify-between gap-2">
+              <span className="text-xs opacity-80">Diferença mensal</span>
+              <strong className={`text-sm sm:text-base ${diferencaMensal > 0 ? 'text-emerald-600' : diferencaMensal < 0 ? 'text-red-600' : ''}`}>
+                {diferencaMensal > 0 ? '+' : diferencaMensal < 0 ? '−' : ''}{formatCurrency(Math.abs(diferencaMensal))}
+              </strong>
+            </div>
           </div>
-
-          <div className="rounded-xl bg-marca-100 !border-0 p-2.5">
-
-            <p className="text-xs text-marca mb-0.5">No cenário</p>
-
-            <p className="text-sm opacity-80">Sobra mensal estimada</p>
-
-            <p className={`text-lg font-bold ${sim.saldoMensal >= 0 ? 'text-inherit' : 'text-red-600'}`}>{formatCurrency(sim.saldoMensal)}</p>
-
-            <p className="text-xs opacity-80 mt-0.5">Gasto diário ~ {formatCurrency(sim.gastoDiario)}</p>
-
+          <p className="text-xs opacity-80">{diferencaMensal > 0 ? 'Seu cenário melhora a sobra mensal.' : diferencaMensal < 0 ? 'Seu cenário reduz a sobra mensal.' : 'Sem alteração mensal neste cenário.'}</p>
+          {sim.deficitMensal > 0 && (
+            <p className="text-xs text-amber-600 flex items-start gap-2"><AlertTriangle size={15} className="shrink-0" /> Déficit estimado: {formatCurrency(sim.deficitMensal)}/mês. Confira sua reserva.</p>
+          )}
+          <div className="rounded-xl bg-slate-500/10 overflow-hidden">
+            <button type="button" aria-expanded={mostrarImpactoPessoal} onClick={() => setMostrarImpactoPessoal(v => !v)} className="w-full flex items-center justify-between gap-2 p-3 text-left text-sm font-semibold">
+              Impacto futuro (3, 6 e 12 meses) {mostrarImpactoPessoal ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+            </button>
+            {mostrarImpactoPessoal && <div className="px-3 pb-3 space-y-2">
+              {[3, 6, 12].map(meses => {
+                const impacto = diferencaMensal * meses - (cenario === 'investimento' ? Math.max(0, valorNum) : 0)
+                return <div key={meses} className="flex items-center justify-between text-sm gap-2"><span>{meses} meses</span><strong className={impacto >= 0 ? 'text-emerald-600' : 'text-red-600'}>{impacto > 0 ? '+' : impacto < 0 ? '−' : ''}{formatCurrency(Math.abs(impacto))}</strong></div>
+              })}
+              <p className="text-xs opacity-70">Diferença acumulada entre os cenários; investimento pontual descontado uma única vez. Não é saldo real em conta.</p>
+            </div>}
           </div>
-
         </div>
-
-        {/* Reserva: por quantos meses sustenta o déficit */}
-
-        {sim.deficitMensal > 0 && (
-
-          <div className="mt-3 flex items-start gap-2 bg-transparent !border-0 rounded-xl px-3 py-2">
-
-            <AlertTriangle size={15} className="text-amber-500 flex-shrink-0 mt-0.5" />
-
-            <p className="text-xs text-amber-400">
-
-              Com déficit de <strong>{formatCurrency(sim.deficitMensal)}/mês</strong>, sua reserva de {formatCurrency(reservaAtual)} sustentaria as contas por cerca de{' '}
-
-              <strong>{sim.mesesReserva != null ? `${sim.mesesReserva.toLocaleString('pt-BR')} ${sim.mesesReserva === 1 ? 'mês' : 'meses'}` : '—'}</strong>.
-
-            </p>
-
-          </div>
-
-        )}
-
-        {/* Diferença mensal estimada (+ variação %) e impacto adicional
-
-            acumulado — mesmo padrão do modo profissional. Reaproveita
-
-            diferencaMensal já calculado. O modo pessoal não tem investimento
-
-            pontual, então investimentoPessoal = 0 (descontado uma única vez). */}
-
-        {(() => {
-
-          const investimentoPessoal = 0
-
-          const variacaoPct = atual.saldoMensal !== 0
-
-            ? (diferencaMensal / Math.abs(atual.saldoMensal)) * 100
-
-            : null
-
-          const impacto = [3, 6, 12].map(meses => ({
-
-            meses,
-
-            valor: diferencaMensal * meses - investimentoPessoal,
-
-          }))
-
-          return (
-
-            <>
-
-              {/* Diferença mensal estimada */}
-
-              <div className="mt-3 rounded-xl bg-slate-500/10 p-3 sm:p-4 text-inherit">
-
-                <p className="text-xs font-medium uppercase tracking-wide opacity-75">Diferença mensal estimada</p>
-
-                <p className="text-2xl sm:text-3xl font-bold mt-1 break-words">
-
-                  {diferencaMensal >= 0 ? '+' : '−'}{formatCurrency(Math.abs(diferencaMensal))}
-
-                  <span className="text-xs font-semibold opacity-75 ml-2">
-
-                    {variacaoPct == null ? 'Não aplicável' : `${variacaoPct >= 0 ? '+' : ''}${variacaoPct.toFixed(1).replace('.', ',')}%`}
-
-                  </span>
-
-                </p>
-
-                <p className="text-xs opacity-75 mt-1">
-
-                  {diferencaMensal > 0 ? 'Cenário positivo — sua sobra mensal aumentaria.'
-
-                    : diferencaMensal < 0 ? 'Cenário negativo — sua sobra mensal diminuiria.'
-
-                    : 'Sem alteração na sua sobra mensal.'}
-
-                </p>
-
-              </div>
-
-              {/* Impacto adicional acumulado (ganho/perda extra, não o saldo total) */}
-
-              <div className="mt-3 rounded-xl bg-slate-500/10 overflow-hidden">
-                <button type="button" aria-expanded={mostrarImpactoPessoal} onClick={() => setMostrarImpactoPessoal(v => !v)} className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold text-inherit">
-                  <span>Ver impacto futuro (3, 6 e 12 meses)</span>
-                  {mostrarImpactoPessoal ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
-                </button>
-                {mostrarImpactoPessoal && <div className="px-4 pb-4">
-
-                <p className="text-sm opacity-80 mb-1.5">Impacto adicional acumulado (só o ganho ou perda extra do cenário)</p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-
-                  {impacto.map(h => (
-
-                    <div key={h.meses} className="rounded-xl bg-slate-500/10 !border-0 p-2.5 text-center">
-
-                      <p className="text-sm opacity-80">{h.meses} meses</p>
-
-                      <p className={`text-base font-bold break-words ${h.valor >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-
-                        {h.valor >= 0 ? '+' : '−'}{formatCurrency(Math.abs(h.valor))}
-
-                      </p>
-
-                    </div>
-
-                  ))}
-
-                </div>
-
-              </div>}
-              </div>
-
-            </>
-
-          )
-
-        })()}
-
-      </div>
+      )}
 
       <CalendarioCenario
 
@@ -896,418 +735,17 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
       />
 
-      <div className="card !border-0 space-y-3" aria-live="polite">
-
-        <div className="flex items-center gap-2">
-
-          <Info size={16} className="text-marca" />
-
-          <strong className="text-sm text-inherit">Análise do seu cenário</strong>
-
-        </div>
-
-        <p className="text-sm text-inherit">
-
-          {diferencaMensal > 0
-
-            ? `Sua sobra mensal estimada cresce ${formatCurrency(diferencaMensal)} em relação à situação atual.`
-
-            : diferencaMensal < 0
-
-              ? `Sua sobra mensal estimada diminui ${formatCurrency(Math.abs(diferencaMensal))} em relação à situação atual.`
-
-              : 'A sobra mensal permanece igual à situação atual com os valores informados.'}
-
-        </p>
-
-        {semRenda && (
-
-          <p className="text-xs text-inherit">
-
-            {sim.deficitMensal > 0
-
-              ? `Sem a renda principal, o déficit estimado é de ${formatCurrency(sim.deficitMensal)} por mês. A reserva inicial considerada é de ${formatCurrency(reservaAtual)}.`
-
-              : 'Com as entradas informadas, não há déficit mensal estimado neste cenário.'}
-
-          </p>
-
-        )}
-
-        <p className="text-sm text-inherit"><strong>Recomendação:</strong> {recomendacao}</p>
-
-        <p className="text-sm opacity-80">
-
-          Projeções usam valores mensais constantes e reserva informada. Não incluem rendimentos, inflação nem verbas rescisórias, salvo se explicitamente incorporadas nos cálculos.
-
-        </p>
-
+      <div className="card !border-0 space-y-2" aria-live="polite">
+        <div className="flex items-center gap-2"><Info size={16} className="text-marca" /><strong className="text-sm">Análise do seu cenário</strong></div>
+        <p className="text-sm">{diferencaMensal > 0 ? 'Sua sobra mensal aumentaria.' : diferencaMensal < 0 ? 'Sua sobra mensal diminuiria.' : 'A sobra mensal permanece igual com os valores informados.'}</p>
+        <p className="text-sm"><strong>Recomendação:</strong> {recomendacao}</p>
+        <details className="rounded-xl bg-slate-500/10 px-3 py-2 text-xs">
+          <summary className="cursor-pointer font-medium">Como funciona essa simulação?</summary>
+          <p className="mt-2 opacity-80">Projeções estimadas com valores mensais constantes e reserva informada, sem rendimentos e inflação. Não alteram os dados salvos.</p>
+          {ehDesligamento && <p className="mt-1 opacity-80">FGTS e rescisão são aproximações e não substituem cálculos oficiais.</p>}
+        </details>
       </div>
-
-      </>}
-
-      <div className="flex items-start gap-2.5 bg-transparent !border-0 rounded-xl p-3">
-
-        <Info size={16} className="text-blue-500 flex-shrink-0 mt-0.5" />
-
-        <p className="text-xs text-sky-400">
-
-          Simulação temporária: não altera seus dados. Multa do FGTS usa o saldo informado como aproximação; a base real pode ser diferente. Valores não são necessariamente liberados juntos nem substituem cálculo rescisório oficial.
-
-        </p>
-
-      </div>
-
-    </>
-
-    )}
-
-    {modo === 'profissional' && (() => {
-
-      // Campos locais → cálculo genérico (sem cálculo específico por cenário).
-
-      const receitaExtra = Number(receitaExtraMensal) || 0
-
-      const reducaoReceita = Number(reducaoReceitaMensal) || 0
-
-      const custoExtra = Number(custoExtraMensal) || 0
-
-      const investimento = Number(investimentoPontual) || 0
-
-      const receitaSimulada = receitaAtual + receitaExtra - reducaoReceita
-
-      const despesaSimulada = despesaMensal + custoExtra
-
-      const resultadoAtual = receitaAtual - despesaMensal
-
-      const resultadoSimulado = receitaSimulada - despesaSimulada
-
-      const diferenca = resultadoSimulado - resultadoAtual
-
-      const projPro = projetarHorizontes({ reservaAtual, saldoMensal: resultadoSimulado })
-
-      const recomendacaoPro = resultadoSimulado < 0
-
-        ? 'O cenário fica no vermelho. Reavalie custos extras e o investimento antes de seguir.'
-
-        : diferenca > 0
-
-          ? 'O cenário melhora seu resultado mensal. Reserve parte do ganho antes de assumir custos fixos.'
-
-          : diferenca < 0
-
-            ? 'O cenário reduz seu resultado mensal. Verifique se o retorno compensa os custos adicionais.'
-
-            : 'O resultado mensal se mantém. Ajuste os valores para comparar possibilidades.'
-
-      const mesesRetorno = (investimento > 0 && diferenca > 0)
-
-        ? Math.ceil(investimento / diferenca)
-
-        : null
-
-      return (
-
-        <div className="space-y-6">
-
-          {/* Cenários genéricos (apenas seleção; mesmo cálculo p/ todos) */}
-
-          <div>
-
-            <label className="label">Escolha o cenário</label>
-
-            <div className="grid grid-cols-2 gap-2">
-
-              {CENARIOS_PRO.map(c => (
-
-                <button
-
-                  key={c}
-
-                  type="button"
-
-                  onClick={() => setCenarioPro(c)}
-
-                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl !border-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-marca text-sm sm:text-base font-medium text-left transition-all ${
-
-                    cenarioPro === c ? 'bg-marca-100 text-marca shadow-sm' : 'bg-slate-500/10 text-inherit hover:bg-slate-500/20'
-
-                  }`}
-
-                >
-
-                  <Briefcase size={16} className="flex-shrink-0" />
-
-                  <span className="min-w-0">{c}</span>
-
-                </button>
-
-              ))}
-
-            </div>
-
-          </div>
-
-          {/* Campos locais */}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-            <div><label className="label">Receita extra mensal (R$)</label><InputMoeda valor={receitaExtraMensal} onChangeValor={setReceitaExtraMensal} className="input" prefixo={null} /></div>
-
-            <div><label className="label">Redução de receita mensal (R$)</label><InputMoeda valor={reducaoReceitaMensal} onChangeValor={setReducaoReceitaMensal} className="input" prefixo={null} /></div>
-
-            <div><label className="label">Custo extra mensal (R$)</label><InputMoeda valor={custoExtraMensal} onChangeValor={setCustoExtraMensal} className="input" prefixo={null} /></div>
-
-            <div><label className="label">Investimento pontual (R$)</label><InputMoeda valor={investimentoPontual} onChangeValor={setInvestimentoPontual} className="input" prefixo={null} /></div>
-
-          </div>
-
-          {/* ── Resultado da sua simulação ── */}
-
-          {(() => {
-
-            // Variação % vs. resultado atual (Não aplicável se atual = 0).
-
-            const variacaoPct = resultadoAtual !== 0
-
-              ? (diferenca / Math.abs(resultadoAtual)) * 100
-
-              : null
-
-            // Impacto adicional acumulado: SÓ o ganho adicional (diferença),
-
-            // descontando o investimento UMA única vez. Não inclui o resultado
-
-            // atual nem é o saldo total projetado.
-
-            const impacto = [3, 6, 12].map(meses => ({
-
-              meses,
-
-              valor: diferenca * meses - investimento,
-
-            }))
-
-            // Recuperação do investimento: só faz sentido se a diferença for
-
-            // positiva. Caso contrário, não há recuperação no horizonte.
-
-            const recupera = investimento > 0 && diferenca > 0
-
-              ? Math.ceil(investimento / diferenca)
-
-              : null
-
-            const semRecuperacao = investimento > 0 && diferenca <= 0
-
-            const sinal = diferenca > 0 ? 'pos' : diferenca < 0 ? 'neg' : 'zero'
-
-            const Icone = sinal === 'pos' ? TrendingUp : sinal === 'neg' ? TrendingDown : Wallet
-
-            const corDif = sinal === 'pos' ? 'text-emerald-600' : sinal === 'neg' ? 'text-red-600' : 'text-inherit'
-
-            // Explicação automática simples e correta.
-
-            const explica = sinal === 'pos'
-
-              ? `Neste cenário você ganha cerca de ${formatCurrency(diferenca)} a mais por mês. Esse é o ganho adicional (não o seu saldo total).${investimento > 0 ? (recupera ? ` O investimento de ${formatCurrency(investimento)} se recupera em ~${recupera} ${recupera === 1 ? 'mês' : 'meses'}.` : '') : ''}`
-
-              : sinal === 'neg'
-
-                ? `Neste cenário seu resultado mensal cai cerca de ${formatCurrency(Math.abs(diferenca))}. Avalie se o retorno compensa os custos adicionais.`
-
-                : 'Com os valores informados, o resultado mensal não muda em relação à situação atual.'
-
-            return (
-
-              <div className="space-y-3">
-
-                <p className="text-xs text-inherit font-medium uppercase tracking-wide flex items-center gap-1.5">
-
-                  <Wallet size={14} className="text-emerald-600" /> Resultado da sua simulação
-
-                </p>
-
-                {/* Dois cards: resultado atual × simulado por mês */}
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-
-                  <div className="rounded-xl bg-slate-500/10 !border-0 p-2.5">
-
-                    <p className="text-sm opacity-80">Resultado atual / mês</p>
-
-                    <p className={`text-lg font-bold break-words ${resultadoAtual >= 0 ? 'text-inherit' : 'text-red-600'}`}>{formatCurrency(resultadoAtual)}</p>
-
-                  </div>
-
-                  <div className="rounded-xl bg-marca-100 !border-0 p-2.5">
-
-                    <p className="text-xs text-marca">Resultado simulado / mês</p>
-
-                    <p className={`text-lg font-bold break-words ${resultadoSimulado >= 0 ? 'text-inherit' : 'text-red-600'}`}>{formatCurrency(resultadoSimulado)}</p>
-
-                  </div>
-
-                </div>
-
-                {/* Card principal destacado: diferença mensal + variação % */}
-
-                <div className="rounded-xl bg-slate-500/10 p-3 sm:p-4 text-inherit">
-
-                  <div className="flex items-center gap-2">
-
-                    <Icone size={18} className="flex-shrink-0" />
-
-                    <p className="text-xs font-medium uppercase tracking-wide opacity-75">Diferença mensal estimada</p>
-
-                  </div>
-
-                  <p className="text-2xl sm:text-3xl font-bold mt-1 break-words">
-
-                    {diferenca >= 0 ? '+' : '−'}{formatCurrency(Math.abs(diferenca))}
-
-                    <span className="text-xs font-semibold opacity-75 ml-2">
-
-                      {variacaoPct == null ? 'Não aplicável' : `${variacaoPct >= 0 ? '+' : ''}${variacaoPct.toFixed(1).replace('.', ',')}%`}
-
-                    </span>
-
-                  </p>
-
-                  <p className="text-xs opacity-75 mt-1">
-
-                    {sinal === 'pos' ? 'Cenário positivo — ganho mensal estimado.'
-
-                      : sinal === 'neg' ? 'Cenário negativo — redução no resultado mensal.'
-
-                      : 'Sem alteração no resultado mensal.'}
-
-                  </p>
-
-                </div>
-
-                {/* Impacto adicional acumulado (3/6/12 meses) */}
-
-                <div className="rounded-xl bg-slate-500/10 overflow-hidden">
-                    <button type="button" aria-expanded={mostrarImpactoProfissional} onClick={() => setMostrarImpactoProfissional(v => !v)} className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold text-inherit">
-                      <span>Ver impacto futuro (3, 6 e 12 meses)</span>
-                      {mostrarImpactoProfissional ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
-                    </button>
-                    {mostrarImpactoProfissional && <div className="px-4 pb-4">
-
-                  <p className="text-sm opacity-80 mb-1.5">Impacto adicional acumulado (ganho/perda extra, já descontando o investimento uma vez)</p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-
-                    {impacto.map(h => (
-
-                      <div key={h.meses} className="rounded-xl bg-slate-500/10 !border-0 p-2.5 text-center">
-
-                        <p className="text-sm opacity-80">{h.meses} meses</p>
-
-                        <p className={`text-base font-bold break-words ${h.valor >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-
-                          {h.valor >= 0 ? '+' : '−'}{formatCurrency(Math.abs(h.valor))}
-
-                        </p>
-
-                      </div>
-
-                    ))}
-
-                  </div>
-
-                </div>}
-                  </div>
-
-                <CalendarioCenario
-
-                  titulo="Evolução acumulada — estimativa"
-
-                  descricao="Valores estimados em R$; resultado acumulado, não saldo real da conta"
-
-                  diasAtual={diasEstimadosCenario(resultadoAtual)}
-
-                  diasSimulado={diasEstimadosCenario(resultadoSimulado)}
-
-                />
-
-                {/* Investimento inicial + recuperação */}
-
-                {investimento > 0 && (
-
-                  <div className="flex items-start gap-2 bg-transparent !border-0 rounded-xl px-3 py-2.5">
-
-                    <Info size={15} className="text-marca flex-shrink-0 mt-0.5" />
-
-                    <p className="text-xs text-inherit">
-
-                      Investimento inicial de <strong>{formatCurrency(investimento)}</strong>.{' '}
-
-                      {recupera
-
-                        ? <>Recuperação estimada em <strong>~{recupera} {recupera === 1 ? 'mês' : 'meses'}</strong> com o ganho mensal.</>
-
-                        : semRecuperacao
-
-                          ? 'Sem recuperação no horizonte calculado, pois não há ganho mensal positivo.'
-
-                          : 'Informe um ganho mensal positivo para estimar a recuperação.'}
-
-                    </p>
-
-                  </div>
-
-                )}
-
-                {/* O que isso significa? */}
-
-                <div className="card !border-0 space-y-2" aria-live="polite">
-
-                  <div className="flex items-center gap-2">
-
-                    <Info size={16} className="text-marca" />
-
-                    <strong className="text-sm text-inherit">O que isso significa?</strong>
-
-                  </div>
-
-                  <p className={`text-sm ${corDif}`}>{explica}</p>
-
-                  <p className="text-sm opacity-80">
-
-                    Estimativas com valores mensais constantes. "Diferença" e "impacto acumulado" são o ganho ADICIONAL do cenário — não o seu saldo total nem faturamento.
-
-                  </p>
-
-                </div>
-
-                <div className="flex items-start gap-2.5 bg-transparent !border-0 rounded-xl p-3">
-
-                  <Info size={16} className="text-blue-500 flex-shrink-0 mt-0.5" />
-
-                  <p className="text-xs text-sky-400">
-
-                    Simulação temporária: não altera seus dados. Estimativas genéricas para apoiar a decisão.
-
-                  </p>
-
-                </div>
-
-              </div>
-
-            )
-
-          })()}
-
-        </div>
-
-      )
-
-    })()}
 
     </div>
-
   )
-
 }
