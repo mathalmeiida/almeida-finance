@@ -14,13 +14,20 @@ import Modal from '../components/Modal'
 
 import InputMoeda from '../components/InputMoeda'
 
-
+// Cores ligadas ao tema global do Almeida Finance (variável CSS --marca).
+// O mesmo tom é usado no gráfico e na legenda.
+const CORES_DISTRIBUICAO = [
+  'rgb(var(--marca))',
+  'color-mix(in srgb, rgb(var(--marca)) 75%, white)',
+  'color-mix(in srgb, rgb(var(--marca)) 65%, black)',
+  'color-mix(in srgb, rgb(var(--marca)) 55%, white)',
+  'color-mix(in srgb, rgb(var(--marca)) 45%, black)',
+  'color-mix(in srgb, rgb(var(--marca)) 35%, white)',
+]
 
 const mesAtual = new Date().getMonth() + 1
 
 const anoAtual = new Date().getFullYear()
-
-
 
 const TIPO_MOV_LABEL = {
 
@@ -30,10 +37,7 @@ const TIPO_MOV_LABEL = {
 
 }
 
-
-
-// ─── Formulário de investimento (cadastrar/editar) ───*
-
+// ─── Formulário de investimento (cadastrar/editar) ───
 function FormInvestimento({ inicial, onSalvar, onCancelar, salvando }) {
 
   const [form, setForm] = useState({
@@ -72,14 +76,10 @@ function FormInvestimento({ inicial, onSalvar, onCancelar, salvando }) {
 
   const [avancado, setAvancado] = useState(false)
 
-  // Modo da reserva (só UI; o dado persistido continua sendo reserva_valor):*
-
-  //  'nao'    → reserva_valor = 0*
-
-  //  'todo'   → reserva_valor = valor_atual (o total compõe a reserva)*
-
-  //  'parte'  → reserva_valor = valor informado no campo*
-
+  // Modo da reserva (só UI; o dado persistido continua sendo reserva_valor):
+  //  'nao'    → reserva_valor = 0
+  //  'todo'   → reserva_valor = valor_atual (o total compõe a reserva)
+  //  'parte'  → reserva_valor = valor informado no campo
   const [reservaModo, setReservaModo] = useState(() => {
 
     const rv = Number(inicial?.reserva_valor) || 0
@@ -92,11 +92,8 @@ function FormInvestimento({ inicial, onSalvar, onCancelar, salvando }) {
 
   })
 
-  // Categorias com quantidade/preço (renda variável)*
-
+  // Categorias com quantidade/preço (renda variável)
   const usaQtd = ['acoes', 'fii', 'etf', 'fundo'].includes(form.categoria)
-
-
 
   function handleSubmit(e) {
 
@@ -108,18 +105,15 @@ function FormInvestimento({ inicial, onSalvar, onCancelar, salvando }) {
 
     const valorAtual = Number(form.valor_atual) || Number(form.valor_aplicado) || 0
 
-    // Deriva reserva_valor a partir do modo escolhido.*
-
+    // Deriva reserva_valor a partir do modo escolhido.
     let reservaValor = 0
 
     if (reservaModo === 'todo') reservaValor = valorAtual
 
     else if (reservaModo === 'parte') reservaValor = Number(form.reserva_valor) || 0
 
-    // Rejeita (mensagem clara) quando a parte vinculada à reserva passa do saldo*
-
-    // atual — mesma regra do CHECK no banco, sem ajuste silencioso.*
-
+    // Rejeita (mensagem clara) quando a parte vinculada à reserva passa do saldo
+    // atual — mesma regra do CHECK no banco, sem ajuste silencioso.
     if (reservaValor < 0) {
 
       setErroReserva('O valor vinculado à reserva não pode ser negativo.')
@@ -171,8 +165,6 @@ function FormInvestimento({ inicial, onSalvar, onCancelar, salvando }) {
     })
 
   }
-
-
 
   return (
 
@@ -252,8 +244,6 @@ function FormInvestimento({ inicial, onSalvar, onCancelar, salvando }) {
 
       </div>
 
-
-
       {/* Reserva de emergência: escolha clara (Não / Sim, todo / Sim, parte). */}
 
       <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-2">
@@ -304,8 +294,6 @@ function FormInvestimento({ inicial, onSalvar, onCancelar, salvando }) {
 
       </div>
 
-
-
       {usaQtd && (
 
         <div className="grid grid-cols-2 gap-3">
@@ -331,8 +319,6 @@ function FormInvestimento({ inicial, onSalvar, onCancelar, salvando }) {
         </div>
 
       )}
-
-
 
       {/* Opções avançadas (expansível) */}
 
@@ -410,8 +396,6 @@ function FormInvestimento({ inicial, onSalvar, onCancelar, salvando }) {
 
       )}
 
-
-
       <div className="flex gap-3 pt-1">
 
         <button type="button" onClick={onCancelar} className="btn-secondary flex-1">Cancelar</button>
@@ -430,10 +414,7 @@ function FormInvestimento({ inicial, onSalvar, onCancelar, salvando }) {
 
 }
 
-
-
-// ─── Formulário de movimentação ───*
-
+// ─── Formulário de movimentação ───
 function FormMovimentacao({ onSalvar, onCancelar, salvando }) {
 
   const [form, setForm] = useState({ tipo: 'aporte', valor: '', data: hojeISO(), descricao: '' })
@@ -520,8 +501,6 @@ function FormMovimentacao({ onSalvar, onCancelar, salvando }) {
 
 }
 
-
-
 function Indicador({ icone: Ic, rotulo, valor, cor = 'text-gray-900', ocultar }) {
 
   return (
@@ -537,8 +516,6 @@ function Indicador({ icone: Ic, rotulo, valor, cor = 'text-gray-900', ocultar })
   )
 
 }
-
-
 
 export default function Investimentos() {
 
@@ -558,8 +535,6 @@ export default function Investimentos() {
 
   } = useInvestimentos()
 
-
-
   const [modal, setModal] = useState(false)
 
   const [editando, setEditando] = useState(null)
@@ -571,9 +546,8 @@ export default function Investimentos() {
   const [salvando, setSalvando] = useState(false)
 
   const [erroAcao, setErroAcao] = useState('')
+
   const [mostrarTodasMovs, setMostrarTodasMovs] = useState(false)
-
-
 
   const dist = distribuicaoPorCategoria()
 
@@ -583,13 +557,16 @@ export default function Investimentos() {
 
   // Usa exclusivamente movimentações já disponíveis no hook, sem estimar histórico.
   const ultimasMovimentacoes = (investimentos || [])
+
     .flatMap(investimento => (movsDeInvestimento(investimento.id) || []).map(m => ({
+
       ...m, nomeInvestimento: investimento.nome, instituicao: investimento.instituicao || ''
+
     })))
+
     .sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')))
+
   const movimentosVisiveis = mostrarTodasMovs ? ultimasMovimentacoes : ultimasMovimentacoes.slice(0, 4)
-
-
 
   async function salvar(dados) {
 
@@ -633,8 +610,6 @@ export default function Investimentos() {
 
   }
 
-
-
   return (
 
     <div className="space-y-5 pb-mobilenav md:pb-0">
@@ -663,80 +638,138 @@ export default function Investimentos() {
 
       </div>
 
-
-
       {erroAcao && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{erroAcao}</p>}
 
       {erro && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">Erro ao carregar: {erro}</p>}
 
-
-
       {/* Resumo patrimonial e painel informativo: nenhuma série histórica é inventada. */}
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+
         <section className="bg-marca-grad-dark text-white rounded-2xl p-5 sm:p-6 min-w-0 shadow-lg">
+
           <div className="flex justify-between gap-3 items-start">
+
             <div>
+
               <p className="text-xs uppercase tracking-wide text-white/80">Meu patrimônio investido</p>
+
               <p className="text-3xl sm:text-4xl font-extrabold mt-2 break-words">{exibirMoeda(patrimonioTotal, ocultar)}</p>
+
             </div>
+
             <span className="rounded-xl bg-white/10 p-3"><PiggyBank size={23}/></span>
+
           </div>
+
           <p className={`text-sm mt-3 font-medium ${patrimonioTotal - totalAplicado >= 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
+
             {totalAplicado > 0 ? <>{patrimonioTotal - totalAplicado >= 0 ? '+' : '−'} {exibirMoeda(Math.abs(patrimonioTotal - totalAplicado), ocultar)} {!ocultar && `(${((patrimonioTotal - totalAplicado) / totalAplicado * 100).toFixed(2)}%)`} em relação ao valor aplicado</> : 'Cadastre o valor aplicado para comparar'}
+
           </p>
+
           <div className="grid grid-cols-2 gap-2 mt-5">
+
             <div className="rounded-xl bg-black/15 p-3 min-w-0"><p className="text-xs text-white/75">Valor aplicado</p><p className="text-lg font-bold mt-1 break-words">{exibirMoeda(totalAplicado, ocultar)}</p></div>
+
             <div className="rounded-xl bg-black/15 p-3 min-w-0"><p className="text-xs text-white/75">Valor atual</p><p className="text-lg font-bold mt-1 break-words">{exibirMoeda(patrimonioTotal, ocultar)}</p></div>
+
             <div className="rounded-xl bg-black/15 p-3 min-w-0"><p className="text-xs text-white/75">Rendimento no mês</p><p className="text-lg font-bold mt-1 break-words">{exibirMoeda(rendMes, ocultar)}</p></div>
+
             <div className="rounded-xl bg-black/15 p-3 min-w-0"><p className="text-xs text-white/75">Aportes no mês</p><p className="text-lg font-bold mt-1 break-words">{exibirMoeda(aportesMes, ocultar)}</p></div>
+
           </div>
+
           <p className="mt-3 text-xs text-white/70">Patrimônio separado do saldo em conta e do limite diário.</p>
+
         </section>
+
         <section className="card min-w-0 !p-5 sm:!p-6 flex flex-col gap-3">
+
           <h2 className="font-semibold text-gray-900 flex items-center gap-2"><History size={19} className="text-marca"/> Evolução do patrimônio</h2>
+
           <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 flex items-start gap-3 px-4 py-4">
+
             <BarChart2 size={21} className="text-marca shrink-0 mt-0.5"/>
+
             <div className="min-w-0">
+
               <p className="text-sm font-semibold text-gray-700">Gráfico histórico ainda indisponível</p>
+
               <p className="text-xs text-gray-500 mt-1">Para mostrar a evolução real, o aplicativo precisa registrar valores da carteira por data. Seus saldos e movimentações atuais permanecem disponíveis.</p>
+
             </div>
+
           </div>
+
         </section>
+
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
         <section className="card min-w-0 !p-5 sm:!p-6">
+
           <h2 className="text-base font-semibold text-gray-900 mb-4">Distribuição da carteira</h2>
+
           {dist.length > 0 && patrimonioTotal > 0 ? (
+
             <div className="flex flex-col sm:flex-row items-center gap-6">
-              <div className="relative w-44 h-44 rounded-full shrink-0" style={{ background: `conic-gradient(${dist.map((d, i) => { const cores = ['#7658dd','#4f8edc','#27a888','#e6a144','#db628e','#7f8caa']; const inicio = dist.slice(0,i).reduce((a, x) => a + Math.max(0,Number(x.pct)||0),0); return `${cores[i % cores.length]} ${inicio}% ${inicio + Math.max(0,Number(d.pct)||0)}%`; }).join(', ')})` }}>
+
+              <div className="relative w-44 h-44 rounded-full shrink-0" style={{ background: `conic-gradient(${dist.map((d, i) => { const cores = CORES_DISTRIBUICAO; const inicio = dist.slice(0,i).reduce((a, x) => a + Math.max(0,Number(x.pct)||0),0); return `${cores[i % cores.length]} ${inicio}% ${inicio + Math.max(0,Number(d.pct)||0)}%`; }).join(', ')})` }}>
+
                 <div className="absolute inset-7 rounded-full bg-[#1f2735] flex flex-col items-center justify-center text-white">
+
                   <strong className="text-base">{exibirMoeda(patrimonioTotal, ocultar)}</strong>
+
                   <span className="text-[11px] text-white/70">Carteira</span>
+
                 </div>
+
               </div>
+
               <div className="flex-1 min-w-0 w-full space-y-3">
+
                 {dist.map((d,i) => <div key={d.categoria} className="flex justify-between gap-3 text-sm items-center">
-                  <div className="flex gap-2 min-w-0 items-center"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{background:['#7658dd','#4f8edc','#27a888','#e6a144','#db628e','#7f8caa'][i%6]}}/><span className="truncate">{labelCategoriaInvestimento(d.categoria)}</span></div>
+
+                  <div className="flex gap-2 min-w-0 items-center"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{background:CORES_DISTRIBUICAO[i % CORES_DISTRIBUICAO.length]}}/><span className="truncate">{labelCategoriaInvestimento(d.categoria)}</span></div>
+
                   <span className="text-gray-500 shrink-0">{ocultar ? '••••' : `${d.pct.toFixed(0)}%`}</span>
+
                 </div>)}
+
               </div>
+
             </div>
+
           ) : <p className="text-sm text-gray-500">Cadastre investimentos para visualizar sua distribuição.</p>}
+
         </section>
+
         <section className="card min-w-0 !p-5 sm:!p-6 space-y-4">
+
           <h2 className="text-base font-semibold text-gray-900">Resumo dos investimentos</h2>
+
           <div className="grid grid-cols-2 gap-3">
+
             <Indicador icone={BarChart2} rotulo="Rendimento acumulado" valor={rendimentoAcumulado} cor="text-green-600" ocultar={ocultar}/>
+
             <Indicador icone={PiggyBank} rotulo="Reserva vinculada" valor={reservaVinculada} cor="text-amber-600" ocultar={ocultar}/>
+
           </div>
+
           <p className="text-xs text-gray-500">A reserva vinculada já está incluída no patrimônio total; ela não é somada novamente.</p>
+
         </section>
+
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 items-start gap-4">
+
         <section className="min-w-0 space-y-3">
+
           <h2 className="text-lg font-bold text-gray-900">Seus investimentos ({investimentos.length})</h2>
+
           {/* Lista de investimentos */}
 
       {carregando ? (
@@ -773,10 +806,8 @@ export default function Investimentos() {
 
             const variacao = atual - aplicado
 
-            // Só exibe variação/valorização quando há BASE (valor aplicado > 0);*
-
-            // sem isso, a comparação e o percentual não seriam corretos.*
-
+            // Só exibe variação/valorização quando há BASE (valor aplicado > 0);
+            // sem isso, a comparação e o percentual não seriam corretos.
             const temBaseVariacao = aplicado > 0
 
             const pctVariacao = temBaseVariacao ? (variacao / aplicado) * 100 : null
@@ -895,37 +926,64 @@ export default function Investimentos() {
 
       )}
 
-
-
         </section>
+
         <section className="card min-w-0 !p-5 sm:!p-6 space-y-3">
+
           <div className="flex items-center justify-between gap-3">
+
             <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2"><History size={18} className="text-marca"/> Últimas movimentações</h2>
+
             {ultimasMovimentacoes.length > 4 && (
+
               <button type="button" className="text-xs font-semibold text-marca hover:underline" onClick={() => setMostrarTodasMovs(v => !v)}>
+
                 {mostrarTodasMovs ? 'Mostrar menos' : 'Ver todas'}
+
               </button>
+
             )}
+
           </div>
+
           {carregando ? (
+
             <p className="text-sm text-gray-500">Carregando movimentações...</p>
+
           ) : movimentosVisiveis.length === 0 ? (
+
             <p className="rounded-xl bg-gray-50 border border-gray-100 p-4 text-sm text-gray-500">Nenhuma movimentação registrada. Ao cadastrar aportes, resgates ou rendimentos, eles aparecerão aqui.</p>
+
           ) : (
+
             <div className="divide-y divide-gray-100">
+
               {movimentosVisiveis.map((m, indice) => (
+
                 <div key={`${m.id || m.investimento_id}-${indice}`} className="flex items-center justify-between gap-3 py-3">
+
                   <div className="min-w-0">
+
                     <p className="text-sm font-medium text-gray-900">{TIPO_MOV_LABEL[m.tipo] || m.tipo || 'Movimentação'}</p>
+
                     <p className="text-xs text-gray-500 truncate">{m.nomeInvestimento}{m.instituicao ? ` · ${m.instituicao}` : ''} · {m.data ? formatDate(m.data) : 'Sem data'}</p>
+
                   </div>
+
                   <strong className="text-sm text-gray-900 shrink-0">{exibirMoeda(m.valor, ocultar)}</strong>
+
                 </div>
+
               ))}
+
             </div>
+
           )}
+
           <p className="text-[11px] text-gray-500">Valores correspondem aos registros de movimentação, não a uma evolução histórica do patrimônio.</p>
+
         </section>
+
       </div>
 
       <Modal aberto={modal} onFechar={() => { setModal(false); setEditando(null) }} titulo={editando ? 'Editar investimento' : 'Novo investimento'}>
@@ -933,8 +991,6 @@ export default function Investimentos() {
         <FormInvestimento inicial={editando} onSalvar={salvar} onCancelar={() => { setModal(false); setEditando(null) }} salvando={salvando} />
 
       </Modal>
-
-
 
       <Modal aberto={!!movDe} onFechar={() => setMovDe(null)} titulo={`Movimentar — ${movDe?.nome || ''}`}>
 
