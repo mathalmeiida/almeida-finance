@@ -27,6 +27,7 @@ export default function MinhaEvolucao() {
   const { perfil } = useAuth()
   const { ocultar, alternar } = useOcultarValores()
   const [verTodos, setVerTodos] = useState(false)
+  const [mostrarTendencia, setMostrarTendencia] = useState(false)
   const [expandido, setExpandido] = useState(-1)
 
   const meses = useMemo(() => (Array.isArray(projecao) ? projecao.slice(0, 12) : []), [projecao])
@@ -36,7 +37,6 @@ export default function MinhaEvolucao() {
   const reserva = n(perfil?.reserva_atual)
   const comDeficit = meses.filter(m => n(m.saldo) < 0).length
   const visiveis = verTodos ? meses : meses.slice(0, 4)
-  const maior = Math.max(1, ...meses.map(m => Math.abs(n(m.saldo))))
 
   return (
     <main className="af-evolucao-clara w-full min-w-0 max-w-none space-y-5 rounded-2xl pb-24 text-slate-900" style={{ backgroundColor: '#F8F7FC', color: '#0F172A', padding: '16px' }}>
@@ -71,82 +71,81 @@ export default function MinhaEvolucao() {
             <p className="text-xs text-slate-500">A sobra prevista é uma estimativa do mês; não é o mesmo que seu saldo disponível agora. A reserva cadastrada não representa necessariamente uma transferência feita neste mês.</p>
           </section>
 
-          <section className="space-y-4 rounded-2xl border border-marca/15 bg-white p-4 shadow-sm sm:p-6" style={{ backgroundColor: '#FFFFFF', color: '#0F172A' }}>
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-                  <CalendarDays size={18} className="text-marca" /> Tendência dos próximos meses
-                </h2>
-                <p className="mt-1 text-xs text-slate-500">Projeção futura do motor financeiro existente, não histórico de gastos.</p>
-              </div>
-              <Link to="/projecao" className="text-sm font-medium text-marca hover:underline">Abrir Projeção</Link>
-            </div>
+          <section className="overflow-hidden rounded-2xl border border-marca/15 bg-white shadow-sm">
+            <button
+              type="button"
+              onClick={() => setMostrarTendencia(v => !v)}
+              aria-expanded={mostrarTendencia}
+              aria-controls="lista-tendencia-financeira"
+              className="flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-marca-100/30 sm:p-5"
+            >
+              <span className="flex min-w-0 items-center gap-3">
+                <CalendarDays size={19} className="shrink-0 text-marca" />
+                <span className="min-w-0">
+                  <span className="block text-base font-semibold text-slate-900">Tendência dos próximos meses</span>
+                  <span className="block text-xs text-slate-500">Previsões financeiras, sem gráficos</span>
+                </span>
+              </span>
+              <span className="flex shrink-0 items-center gap-2">
+                <span className={`text-sm font-semibold ${comDeficit > 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
+                  {meses.length ? `${comDeficit} com déficit` : 'Sem dados'}
+                </span>
+                {mostrarTendencia ? <ChevronUp size={18} className="text-marca" /> : <ChevronDown size={18} className="text-marca" />}
+              </span>
+            </button>
 
-            {meses.length === 0 ? (
-              <p className="text-sm text-slate-500">Ainda não há projeções suficientes para mostrar sua tendência.</p>
-            ) : (
-              <>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6" aria-label="Resumo dos primeiros seis períodos">
-                  {meses.slice(0, 6).map((m, i) => {
-                    const v = n(m.saldo)
-                    return (
-                      <div key={`${m.mes}-${i}`} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3" style={{ backgroundColor: '#F8FAFC' }}>
-                        <div className="mb-3 truncate text-xs font-medium text-slate-600">{m.mes || `Mês ${i + 1}`}</div>
-                        <div className="flex h-20 items-end">
-                          <div
-                            className={`w-full rounded-t-md ${v < 0 ? 'bg-rose-400' : 'bg-marca'}`}
-                            style={{ height: `${Math.max(6, Math.abs(v) / maior * 100)}%` }}
-                          />
-                        </div>
-                        <p className={`mt-2 break-words text-xs font-semibold ${v < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
-                          {exibirMoeda(v, ocultar)}
-                        </p>
-                      </div>
-                    )
-                  })}
+            {mostrarTendencia && (
+              <div id="lista-tendencia-financeira" className="space-y-4 border-t border-slate-200 px-4 py-4 sm:px-5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-slate-500">Projeção futura do planejamento, não histórico de gastos realizados.</p>
+                  <Link to="/projecao" className="text-sm font-medium text-marca hover:underline">Abrir Projeção</Link>
                 </div>
-
-                <p className="text-sm text-slate-600">
-                  {comDeficit > 0
-                    ? `${comDeficit} dos ${meses.length} meses projetados apresentam resultado negativo.`
-                    : 'Nenhum dos meses projetados apresenta resultado negativo com os dados atuais.'}
-                </p>
-
-                <div className="space-y-2">
-                  {visiveis.map((m, i) => (
-                    <div key={`${m.mes}-${i}`} className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50" style={{ backgroundColor: '#F8FAFC' }}>
+                {meses.length === 0 ? (
+                  <p className="text-sm text-slate-500">Ainda não há projeções suficientes para mostrar sua tendência.</p>
+                ) : (
+                  <>
+                    <p className="text-sm text-slate-600">
+                      {comDeficit > 0
+                        ? `${comDeficit} dos ${meses.length} meses projetados apresentam resultado negativo.`
+                        : 'Nenhum dos meses projetados apresenta resultado negativo com os dados atuais.'}
+                    </p>
+                    <div className="space-y-2">
+                      {visiveis.map((m, i) => (
+                        <div key={`${m.mes}-${i}`} className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                          <button
+                            type="button"
+                            onClick={() => setExpandido(expandido === i ? -1 : i)}
+                            aria-expanded={expandido === i}
+                            className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm transition-colors hover:bg-marca-100/50"
+                          >
+                            <span className="min-w-0 truncate capitalize font-medium text-slate-800">{m.mes || `Mês ${i + 1}`}</span>
+                            <span className={`ml-auto font-semibold ${n(m.saldo) < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
+                              {exibirMoeda(n(m.saldo), ocultar)}
+                            </span>
+                            {expandido === i ? <ChevronUp size={16} className="text-slate-500" /> : <ChevronDown size={16} className="text-slate-500" />}
+                          </button>
+                          {expandido === i && (
+                            <div className="space-y-2 border-t border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                              <div className="flex justify-between gap-3"><span>Receitas previstas</span><strong className="text-emerald-700">{exibirMoeda(n(m.receitas), ocultar)}</strong></div>
+                              <div className="flex justify-between gap-3"><span>Despesas e compromissos</span><strong className="text-rose-600">{exibirMoeda(n(m.despesas), ocultar)}</strong></div>
+                              <p className="text-xs text-slate-500">Valores mensais fornecidos pela projeção existente.</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {meses.length > 4 && (
                       <button
                         type="button"
-                        onClick={() => setExpandido(expandido === i ? -1 : i)}
-                        aria-expanded={expandido === i}
-                        className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left text-sm transition-colors hover:bg-marca-100/50"
+                        onClick={() => setVerTodos(v => !v)}
+                        className="w-full rounded-xl border border-marca/20 bg-marca-100/40 py-2.5 text-sm font-medium text-marca transition-colors hover:bg-marca-100"
                       >
-                        <span className="min-w-0 truncate capitalize font-medium text-slate-800">{m.mes || `Mês ${i + 1}`}</span>
-                        <span className={`ml-auto font-semibold ${n(m.saldo) < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>
-                          {exibirMoeda(n(m.saldo), ocultar)}
-                        </span>
-                        {expandido === i ? <ChevronUp size={16} className="text-slate-500" /> : <ChevronDown size={16} className="text-slate-500" />}
+                        {verTodos ? 'Mostrar menos' : `Ver todos os ${meses.length} meses`}
                       </button>
-                      {expandido === i && (
-                        <div className="space-y-2 border-t border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-                          <div className="flex justify-between gap-3"><span>Receitas</span><strong className="text-emerald-700">{exibirMoeda(n(m.receitas), ocultar)}</strong></div>
-                          <div className="flex justify-between gap-3"><span>Despesas e compromissos</span><strong className="text-rose-600">{exibirMoeda(n(m.despesas), ocultar)}</strong></div>
-                          <p className="text-xs text-slate-500">Valores mensais fornecidos pela projeção existente.</p>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {meses.length > 4 && (
-                  <button
-                    type="button"
-                    onClick={() => setVerTodos(v => !v)}
-                    className="w-full rounded-xl border border-marca/20 bg-marca-100/40 py-2.5 text-sm font-medium text-marca transition-colors hover:bg-marca-100"
-                  >
-                    {verTodos ? 'Mostrar menos' : `Ver todos os ${meses.length} meses`}
-                  </button>
+                    )}
+                  </>
                 )}
-              </>
+              </div>
             )}
           </section>
 
