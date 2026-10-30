@@ -2554,24 +2554,42 @@ const carregandoLimite = carregando
         </button>
 
         <section className="af-dash-card !p-3" aria-label="Calendário financeiro compacto">
-          <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="flex items-center justify-between gap-2 mb-2">
             <h2 className="font-semibold text-sm text-slate-900">Calendário financeiro</h2>
             <button type="button" onClick={() => setModalCalendario(true)} className="text-xs text-marca flex items-center gap-1">Ver mês <ArrowRight size={13}/></button>
           </div>
-          <div className="grid grid-cols-7 gap-1">
-            {Array.from({length:7},(_,i) => {
-              const referencia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(),12)
-              const inicio = new Date(referencia)
-              inicio.setDate(inicio.getDate() - ((inicio.getDay()+6)%7))
-              const data = new Date(inicio)
-              data.setDate(inicio.getDate()+i)
-              const selecionado = data.toDateString() === referencia.toDateString()
-              return <button key={i} type="button" onClick={() => setModalCalendario(true)} className="flex flex-col items-center gap-1 min-w-0" aria-label={`Abrir calendário em ${data.toLocaleDateString('pt-BR')}`}>
-                <span className="text-[10px] text-slate-500">{['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'][i]}</span>
-                <span className={`w-full py-2 rounded-lg text-xs font-medium text-center ${selecionado ? 'text-white' : 'text-slate-700 bg-slate-100'}`} style={selecionado ? {backgroundColor: 'var(--af-home-primary)'} : undefined}>{data.getDate()}</span>
-              </button>
-            })}
-          </div>
+          {(() => {
+            // Apenas a visualização mobile: semana atual + próxima semana.
+            // Não interfere no calendário completo ou nas projeções.
+            const referencia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 12)
+            const inicio = new Date(referencia)
+            inicio.setDate(referencia.getDate() - ((referencia.getDay() + 6) % 7))
+            const fim = new Date(inicio)
+            fim.setDate(inicio.getDate() + 13)
+            const abreviar = data => data.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' }).replace('.', '')
+            return <>
+              <div className="flex items-center justify-between gap-2 mb-2 text-xs text-slate-500">
+                <span>{abreviar(inicio)} – {abreviar(fim)}</span>
+                <span>14 dias</span>
+              </div>
+              <div className="grid grid-cols-7 gap-1 mb-1">
+                {['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(dia => (
+                  <span key={dia} className="text-center text-[10px] text-slate-500">{dia}</span>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-1.5">
+                {Array.from({length:14},(_,i) => {
+                  const data = new Date(inicio)
+                  data.setDate(inicio.getDate() + i)
+                  const selecionado = data.toDateString() === referencia.toDateString()
+                  return <button key={i} type="button" onClick={() => setModalCalendario(true)}
+                    className={`flex min-w-0 h-[49px] items-center justify-center rounded-lg text-xs font-medium ${selecionado ? 'text-white' : 'text-slate-700 bg-slate-100'}`}
+                    style={selecionado ? {backgroundColor:'var(--af-home-primary)'} : undefined}
+                    aria-label={`Abrir calendário em ${data.toLocaleDateString('pt-BR')}`}>{data.getDate()}</button>
+                })}
+              </div>
+            </>
+          })()}
           <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3 mt-3">
             <span className="text-xs text-slate-500">Toque em um dia para ver os lançamentos</span>
             {!somenteLeitura && <button type="button" onClick={() => {setDataGastoCalendario(null);setModalGasto(true)}} aria-label="Adicionar lançamento" className="text-marca"><Plus size={19}/></button>}
@@ -2594,8 +2612,8 @@ const carregandoLimite = carregando
               [
                 { label: 'Simular compra', rota: '/posso-comprar', Icone: ShoppingCart },
                 { label: 'E se...?', rota: '/e-se', Icone: Sparkles },
-                { label: 'Calendário', rota: '/projecao', Icone: CalendarClock },
-                { label: 'Minha evolução', rota: '/minha-evolucao', Icone: BarChart2 },
+                { label: 'Investimentos', rota: '/investimentos', Icone: TrendingUp },
+                { label: 'Metas', rota: '/metas', Icone: Target },
               ],
               [
                 { label: 'Cartões', rota: '/cartoes', Icone: CreditCard },
