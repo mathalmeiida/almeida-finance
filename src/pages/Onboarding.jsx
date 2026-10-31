@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react'
 import {
   Wallet, TrendingUp, TrendingDown, ShieldCheck, Sparkles,
   CheckCircle2, ArrowRight, ArrowLeft, Plus, Trash2, Loader2, UtensilsCrossed,
-  CreditCard, ShoppingBag, Pencil, Landmark, BarChart2, Target, ShoppingCart, MessagesSquare,
+  CreditCard, ShoppingBag, Pencil, Landmark, BarChart2, Target, ShoppingCart, MessagesSquare, PiggyBank,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
@@ -69,12 +69,13 @@ const labelFrequenciaReceita = (freq) => {
 
 const INTRO = 0
 const SALDO = 1
-const RENDA = 2
-const DESPESAS = 3
-const CARTOES = 4
-const BENEFICIOS = 5
-const RESERVA = 6
-const FINAL = 7
+const INVESTIMENTOS = 2
+const RENDA = 3
+const DESPESAS = 4
+const CARTOES = 5
+const BENEFICIOS = 6
+const RESERVA = 7
+const FINAL = 8
 
 // A barra de progresso cobre apenas as 4 etapas de configuração (saldo, renda,
 // despesas, reserva) — "X de 4", igual ao card da Home.
@@ -91,19 +92,17 @@ const CHAVE_PARA_ETAPA = {
 
 // Barra de progresso enxuta (apenas as 4 etapas de configuração).
 function Progresso({ etapa }) {
-  const indiceConfig = ETAPAS_CONFIG.indexOf(etapa)
-  return (
-    <div className="flex items-center gap-1.5 mb-6">
-      {ETAPAS_CONFIG.map((_, i) => (
-        <div
-          key={i}
-          className={`h-1.5 flex-1 rounded-full transition-colors ${
-            indiceConfig >= 0 && i <= indiceConfig ? 'bg-blue-600' : 'bg-gray-200'
-          }`}
-        />
-      ))}
+  const etapas = [SALDO, INVESTIMENTOS, RENDA, DESPESAS, CARTOES, BENEFICIOS, RESERVA]
+  const indice = etapas.indexOf(etapa)
+  return <div className="mb-6">
+    <div className="flex items-center justify-between text-xs mb-2">
+      <span className="font-semibold text-violet-700">Seu planejamento</span>
+      <span className="text-gray-500">{indice + 1} de {etapas.length}</span>
     </div>
-  )
+    <div className="flex gap-1.5">{etapas.map((n, i) =>
+      <div key={n} className={`h-1.5 flex-1 rounded-full ${i <= indice ? 'bg-violet-600' : 'bg-gray-200'}`} />
+    )}</div>
+  </div>
 }
 
 // Cabeçalho padrão de cada etapa (ícone + título + subtítulo).
@@ -190,6 +189,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   // (edição). Para quem nunca informou (saldo_base = null, inclusive após
   // "zerar dados"), inicia VAZIO — o campo mostra apenas o placeholder R$ 0,00
   // e nada é gravado sem o usuário informar.
+  const [temInvestimentos, setTemInvestimentos] = useState(null)
   const [saldo, setSaldo] = useState(() =>
     perfil?.saldo_base != null ? Number(perfil.saldo_base) : '')
 
@@ -907,23 +907,23 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="card">
+    <div className="min-h-screen bg-gradient-to-b from-violet-50 via-gray-50 to-white flex items-start sm:items-center justify-center px-3 py-5 sm:p-8 pb-24 sm:pb-8">
+      <div className="w-full max-w-lg min-w-0">
+        <div className="card w-full min-w-0 overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-xl p-4 sm:p-7">
           {/* A barra de progresso só aparece nas etapas de configuração. */}
-          {ETAPAS_CONFIG.includes(etapa) && <Progresso etapa={etapa} />}
+          {etapa > INTRO && etapa < FINAL && <Progresso etapa={etapa} />}
 
           {/* ─── INTRO ─── */}
           {etapa === INTRO && (
             <div className="text-center py-4">
-              <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Sparkles size={30} className="text-blue-600" />
+              <div className="w-16 h-16 bg-violet-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Sparkles size={30} className="text-violet-600" />
               </div>
               <h1 className="text-xl font-bold text-gray-900 mb-2">
-                Vamos configurar seu Almeida Finance
+                Sua vida financeira, mais organizada
               </h1>
               <p className="text-sm text-gray-500 mb-5">
-                Leva poucos minutos. Essas informações serão usadas para calcular seu
+                Vamos personalizar seu aplicativo. As informações serão usadas para calcular seu
                 orçamento, gasto diário, projeções e ajudar nas suas decisões financeiras.
               </p>
 
@@ -972,10 +972,10 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
             <div className="py-2">
               <CabecalhoEtapa
                 icone={Wallet} cor="text-blue-600" bg="bg-blue-50"
-                titulo="Quanto você tem disponível hoje?"
-                subtitulo="É o dinheiro que você tem disponível agora. Esse valor será o ponto de partida das suas projeções."
+                titulo="Qual é o saldo disponível nas suas contas?"
+                subtitulo="Some o dinheiro nas contas e carteiras digitais. Não inclua investimentos, reserva aplicada ou limite de crédito."
               />
-              <label className="label">Saldo atual (R$)</label>
+              <label className="label">Saldo disponível em conta (R$)</label>
               <InputMoeda
                 valor={saldo} onChangeValor={setSaldo}
                 className="input text-2xl font-bold text-center py-3" prefixo={null} autoFocus
@@ -989,6 +989,27 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
               </div>
             </div>
           )}
+
+          {/* Investimentos são registrados no módulo existente, sem criar dados falsos. */}
+          {etapa === INVESTIMENTOS && <div className="py-2">
+            <CabecalhoEtapa icone={PiggyBank} cor="text-violet-600" bg="bg-violet-50"
+              titulo="Você já tem dinheiro investido?"
+              subtitulo="Seus investimentos ficam separados do saldo disponível para gastar." />
+            <div className="grid grid-cols-2 gap-3">
+              {[true,false].map(op => <button type="button" key={String(op)}
+                onClick={() => setTemInvestimentos(op)}
+                className={`rounded-2xl border p-4 text-sm font-semibold ${temInvestimentos === op ? 'border-violet-600 bg-violet-50 text-violet-700' : 'border-gray-200 text-gray-700'}`}>
+                <PiggyBank className="mx-auto mb-2" size={23}/>{op ? 'Sim, tenho' : 'Ainda não'}</button>)}
+            </div>
+            {temInvestimentos && <p className="text-sm mt-4 rounded-xl bg-violet-50 p-4 text-violet-800">
+              Após concluir, cadastre seus investimentos no módulo <strong>Investimentos</strong>.
+              Inclua sua reserva se ela estiver aplicada, sem duplicar no saldo em conta.</p>}
+            <p className="text-xs text-gray-500 mt-3">Esta resposta é informativa: nenhum investimento é gravado nesta etapa.</p>
+            <div className="flex gap-2 mt-6">
+              <button type="button" onClick={voltar} className="btn-secondary px-4"><ArrowLeft size={16}/></button>
+              <button type="button" onClick={avancar} className="btn-primary flex-1 flex items-center justify-center gap-2">Continuar <ArrowRight size={16}/></button>
+            </div>
+          </div>}
 
           {/* ─── ETAPA 2 — Renda ─── */}
           {etapa === RENDA && (
