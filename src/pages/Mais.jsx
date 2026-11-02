@@ -19,7 +19,7 @@ const GRUPOS = [
     itens: [
       { to: '/despesas',      label: 'Movimentações',    icon: TrendingDown,    cor: 'text-rose-400' },
       { to: '/cartoes',       label: 'Cartões',          icon: CreditCard,      cor: 'text-sky-400' },
-      { to: '/',              label: 'Calendário',       icon: CalendarClock,   cor: 'text-blue-400' },
+      { to: '/',              label: 'Calendário',       icon: CalendarClock,   cor: 'text-marca' },
       { to: '/beneficios',    label: 'Benefícios VR/VA', icon: UtensilsCrossed, cor: 'text-emerald-400' },
       { to: '/investimentos', label: 'Investimentos',    icon: PiggyBank,       cor: 'text-emerald-400' },
       { to: '/despesas',      label: 'Parcelamentos',    icon: CreditCard,      cor: 'text-amber-400' },
@@ -31,7 +31,7 @@ const GRUPOS = [
       { to: '/metas',         label: 'Metas',                 icon: Target,       cor: 'text-amber-400' },
       { to: '/projecao',      label: 'Projeção financeira',   icon: BarChart2,    cor: 'text-violet-400' },
       { to: '/projecao',      label: 'Horizonte diário',      icon: LineChart,    cor: 'text-violet-400' },
-      { to: '/posso-comprar', label: 'Posso comprar?',        icon: ShoppingCart, cor: 'text-blue-400' },
+      { to: '/posso-comprar', label: 'Posso comprar?',        icon: ShoppingCart, cor: 'text-marca' },
       { to: '/e-se',          label: 'E se...?',              icon: Sparkles,     cor: 'text-violet-400' },
       { to: '/e-se',          label: 'Financiamento e consórcio', icon: Landmark, cor: 'text-cyan-400' },
     ],

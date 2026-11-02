@@ -1712,7 +1712,24 @@ export default function Dashboard() {
   const [modalNotificacoes, setModalNotificacoes] = useState(false) // central de notificações (sino)
   const [filtroNotificacoes, setFiltroNotificacoes] = useState('todas')
   const [notificacoesExpandidas, setNotificacoesExpandidas] = useState({ saldo: true })
-  const [notificacoesLidas, setNotificacoesLidas] = useState({})
+  // "Lidas" persistidas em localStorage por usuário — sobrevive ao reload sem precisar de tabela no banco.
+  const [notificacoesLidas, setNotificacoesLidas] = useState(() => {
+    try {
+      const chave = `almeida_notif_lidas_${usuario?.id || 'anon'}`
+      const salvas = localStorage.getItem(chave)
+      return salvas ? JSON.parse(salvas) : {}
+    } catch { return {} }
+  })
+  function marcarLida(id, lida) {
+    setNotificacoesLidas(prev => {
+      const novo = { ...prev, [id]: lida }
+      try {
+        const chave = `almeida_notif_lidas_${usuario?.id || 'anon'}`
+        localStorage.setItem(chave, JSON.stringify(novo))
+      } catch {}
+      return novo
+    })
+  }
   const [modalCalendario, setModalCalendario] = useState(false) // calendário financeiro (abre pela linha "Calendário")
   // Cards móveis: fechados por padrão, cada um expande independentemente.
   const [cardsMobileAbertos, setCardsMobileAbertos] = useState({})
@@ -2377,6 +2394,62 @@ const carregandoLimite = carregando
           .af-home-desktop-compact > div.grid:last-of-type .af-dash-card .h-36 { height: 106px; }
           .af-home-desktop-compact > div.grid:last-of-type .af-dash-card .h-28 { height: 82px; }
           .af-home-desktop-compact > div.grid:last-of-type .af-dash-card .mt-3 { margin-top: 5px; }
+
+          /* ─── CALENDÁRIO AMPLIADO: preenche a altura restante do viewport ─────
+             Calcula: 100dvh − sidebar header (~60px) − indicadores (~100px)
+             − gaps e paddings (~60px) = ~calc(100dvh - 220px) como mínimo.
+             O calendário cresce até preencher o espaço sem forçar scroll. */
+          .af-home-desktop-compact section[aria-label="Calendário financeiro"] {
+            min-height: calc(100dvh - 220px) !important;
+            display: flex !important;
+            flex-direction: column !important;
+          }
+          /* O wrapper do CalendarioFinanceiroHome cresce para ocupar o espaço */
+          .af-home-desktop-compact section[aria-label="Calendário financeiro"] > div.af-home-calendar-theme {
+            flex: 1 1 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            min-height: 0 !important;
+          }
+          /* O componente CalendarioFinanceiroHome (af-calendar-fit) ocupa a altura disponível */
+          .af-home-desktop-compact .af-home-calendar-theme > section.af-calendar-fit,
+          .af-home-desktop-compact .af-home-calendar-theme > section {
+            flex: 1 1 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            height: 100% !important;
+          }
+          /* Grid de dias distribui equanimemente as linhas */
+          .af-home-desktop-compact .af-calendar-fit > div.grid.grid-cols-7:last-of-type {
+            flex: 1 1 0 !important;
+            grid-auto-rows: 1fr !important;
+          }
+          /* Células crescem proporcionalmente */
+          .af-home-desktop-compact .af-calendar-fit .af-day-cell,
+          .af-home-desktop-compact .af-calendar-fit .af-calendar-empty {
+            min-height: 0 !important;
+            height: 100% !important;
+          }
+          /* Painel de detalhes acompanha altura do calendário */
+          .af-home-desktop-compact .af-calendar-fit aside[aria-label="Detalhes do dia selecionado"] {
+            min-height: 0 !important;
+            flex: 1 1 0 !important;
+          }
+          /* Grid interno (calendário + detalhes) usa altura total */
+          .af-home-desktop-compact .af-calendar-fit > div.grid.xl\\:grid-cols-5 {
+            flex: 1 1 0 !important;
+            min-height: 0 !important;
+            align-items: stretch !important;
+          }
+          .af-home-desktop-compact .af-calendar-fit > div.grid.xl\\:grid-cols-5 > div:first-child {
+            display: flex !important;
+            flex-direction: column !important;
+          }
+          .af-home-desktop-compact .af-calendar-fit > div.grid.xl\\:grid-cols-5 > div:first-child > div.grid.grid-cols-7:last-of-type {
+            flex: 1 1 0 !important;
+            grid-auto-rows: 1fr !important;
+          }
+          /* ─────────────────────────────────────────────────────────────────── */
         }
         /* Ajustes exclusivamente mobile. Desktop preservado. */
         @media (max-width: 639px) {
@@ -2885,32 +2958,60 @@ const carregandoLimite = carregando
             id: 'config', tipo: 'configuracao', titulo: 'Conclua sua configuração inicial',
             texto: 'Existem informações pendentes para completar seu planejamento.',
           })
-          const exibidos = itens.filter(i => filtroNotificacoes === 'todas' || i.tipo === filtroNotificacoes)
-          const filtros = [
+          // Aba ativa: 'pendentes' ou 'historico' (codificado no filtroNotificacoes).
+          const aba = filtroNotificacoes.startsWith('hist') ? 'historico' : 'pendentes'
+          const catFiltro = aba === 'historico'
+            ? filtroNotificacoes.replace('hist:', '') || 'todas'
+            : filtroNotificacoes
+          const pendentes = itens.filter(i => !notificacoesLidas[i.id])
+          const historico  = itens.filter(i =>  notificacoesLidas[i.id])
+          const fonte    = aba === 'historico' ? historico : pendentes
+          const exibidos = catFiltro === 'todas' ? fonte : fonte.filter(i => i.tipo === catFiltro)
+          const cats = [
             { id: 'todas', titulo: 'Todas' },
             { id: 'risco', titulo: 'Risco' },
             { id: 'configuracao', titulo: 'Configuração' },
           ]
           return (
             <div className="space-y-3">
-              <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Filtrar notificações">
-                {filtros.map(f => (
-                  <button key={f.id} type="button" onClick={() => setFiltroNotificacoes(f.id)}
-                    aria-pressed={filtroNotificacoes === f.id}
-                    className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${filtroNotificacoes === f.id ? 'bg-marca text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                    {f.titulo} ({f.id === 'todas' ? itens.length : itens.filter(i => i.tipo === f.id).length})
+              {/* Abas Pendentes / Histórico */}
+              <div className="flex gap-0 border-b border-gray-200">
+                {[
+                  { id: 'pendentes', titulo: `Pendentes (${pendentes.length})` },
+                  { id: 'historico', titulo: `Histórico (${historico.length})` },
+                ].map(a => (
+                  <button key={a.id} type="button"
+                    onClick={() => setFiltroNotificacoes(a.id === 'historico' ? 'hist:todas' : 'todas')}
+                    className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${aba === a.id ? 'border-marca text-marca' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+                    {a.titulo}
                   </button>
                 ))}
+              </div>
+              {/* Filtros de categoria dentro da aba */}
+              <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Filtrar por categoria">
+                {cats.map(f => {
+                  const fid = aba === 'historico' ? `hist:${f.id}` : f.id
+                  const ativo = filtroNotificacoes === fid || (filtroNotificacoes === 'hist:todas' && fid === 'hist:todas')
+                  return (
+                    <button key={fid} type="button" onClick={() => setFiltroNotificacoes(fid)}
+                      aria-pressed={ativo}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${ativo ? 'bg-marca text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                      {f.titulo}
+                    </button>
+                  )
+                })}
               </div>
               {exibidos.length === 0 ? (
                 <div className="text-center py-6">
                   <Bell size={26} className="text-gray-300 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500">Nenhuma notificação nesta categoria.</p>
+                  <p className="text-sm text-gray-500">
+                    {aba === 'historico' ? 'Nenhuma notificação no histórico.' : 'Nenhuma notificação pendente.'}
+                  </p>
                 </div>
               ) : exibidos.map(n => {
                 const aberta = Boolean(notificacoesExpandidas[n.id])
-                const lida = Boolean(notificacoesLidas[n.id])
-                const risco = n.tipo === 'risco'
+                const lida   = Boolean(notificacoesLidas[n.id])
+                const risco  = n.tipo === 'risco'
                 return (
                   <div key={n.id} className={`rounded-2xl border p-3 sm:p-4 ${risco && !lida ? 'border-red-200 bg-red-50/40' : 'border-gray-200 bg-white'}`}>
                     <button type="button" onClick={() => setNotificacoesExpandidas(prev => ({...prev, [n.id]: !prev[n.id]}))}
@@ -2943,17 +3044,18 @@ const carregandoLimite = carregando
                           onClick={() => { setModalNotificacoes(false); navigate('/configuracoes') }}>
                           Ir para Configurações <ArrowRight size={14} className="inline" />
                         </button>}
+                        {/* Marcar como lida: atualiza imediatamente e persiste em localStorage por usuário */}
                         <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
                           <input type="checkbox" checked={lida}
-                            onChange={e => setNotificacoesLidas(prev => ({...prev, [n.id]: e.target.checked}))} />
-                          Marcar como lida
+                            onChange={e => marcarLida(n.id, e.target.checked)} />
+                          {lida ? 'Mover de volta para Pendentes' : 'Marcar como lida (mover para Histórico)'}
                         </label>
                       </div>
                     )}
                   </div>
                 )
               })}
-              <p className="text-[11px] text-gray-400">Os alertas são calculados a partir de seus dados financeiros disponíveis. Marcar como lida não elimina o risco nem altera lançamentos.</p>
+              <p className="text-[11px] text-gray-400">Alertas calculados a partir dos seus dados. "Marcar como lida" move para o Histórico e não altera lançamentos. Persistido neste dispositivo.</p>
             </div>
           )
         })()}

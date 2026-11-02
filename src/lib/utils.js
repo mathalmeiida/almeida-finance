@@ -13,16 +13,11 @@
 // ativos). Reutilizadas no onboarding e em Configurações → Aparência. Os hex
 // batem com as variáveis --marca definidas no index.css (.tema-*). Azul=padrão.
 // Opções de tema. Vinho é o PADRÃO (primeiro). "Rosa/Vermelho" é uma opção
-// única (valor 'rosa'). 'automatico' segue a preferência do sistema operacional.
+// Modos de aparência (a cor de marca é sempre vinho/bordô — só o modo muda).
 export const CORES_TEMA = [
-  { value: 'vinho',     label: 'Vinho',          hex: '#781932' },
-  { value: 'roxo',      label: 'Roxo',           hex: '#7C3AAD' },
-  { value: 'azul',      label: 'Azul',           hex: '#2855A5' },
-  { value: 'verde',     label: 'Verde',          hex: '#16805C' },
-  { value: 'rosa',      label: 'Rosa/Vermelho',  hex: '#B83F79' },
-  { value: 'laranja',   label: 'Laranja',        hex: '#D97706' },
-  { value: 'preto',     label: 'Escuro',         hex: '#1F2937' },
-  { value: 'automatico', label: 'Automático',    hex: '#781932', auto: true },
+  { value: 'claro',      label: 'Claro',      hex: '#F8F3F2', auto: false },
+  { value: 'escuro',     label: 'Escuro',     hex: '#140B10', auto: false },
+  { value: 'automatico', label: 'Automático', hex: '#801D39', auto: true  },
 ]
 
 export const MASCARA_VALOR = 'R$ ••••'

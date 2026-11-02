@@ -84,26 +84,31 @@ function Aparencia() {
         </div>
         <div className="flex-1 min-w-0">
           <h2 className="text-base font-semibold text-gray-900">Aparência</h2>
-          <p className="text-sm text-gray-500 mt-1">Escolha a cor de destaque do aplicativo.</p>
-          <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-3">
+          <p className="text-sm text-gray-500 mt-1">Identidade Almeida Finance — Vinho Premium. Escolha o modo de exibição.</p>
+          {/* Swatch da cor de marca (vinho) — apenas informativo */}
+          <div className="flex items-center gap-2 mt-3 mb-3">
+            <span className="w-8 h-8 rounded-full shrink-0" style={{ background: 'linear-gradient(135deg,#801D39,#420D1D)' }} aria-hidden="true" />
+            <span className="text-sm font-medium text-gray-900">Vinho Premium <span className="text-xs text-gray-400 font-normal ml-1">Identidade fixa</span></span>
+          </div>
+          {/* Seletor de modo: Claro / Escuro / Automático */}
+          <div className="grid grid-cols-3 gap-2 mt-1">
             {CORES_TEMA.map(op => {
               const ativo = corTema === op.value
+              const icone = op.value === 'escuro' ? '🌙' : op.auto ? '⚙️' : '☀️'
               return (
                 <button key={op.value} type="button" onClick={() => escolher(op.value)}
                   disabled={!!salvando} aria-pressed={ativo}
-                  className={`flex min-w-0 items-center gap-2 rounded-xl border p-2.5 sm:p-3 text-left transition-all disabled:opacity-60 ${ativo ? 'border-marca ring-1 ring-marca' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <span className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                    style={{ backgroundColor: op.hex }}>
-                    {salvando === op.value ? <Loader2 size={15} className="animate-spin text-white" /> : ativo ? <Check size={16} className="text-white" /> : null}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-xs sm:text-sm font-semibold text-gray-900 break-words">{op.label}</span>
-                    <span className="block text-xs text-gray-400">{ativo ? 'Selecionado' : op.value === 'vinho' ? 'Padrão' : op.auto ? 'Segue o sistema' : 'Alternativa'}</span>
-                  </span>
+                  className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-all disabled:opacity-60 ${ativo ? 'border-marca ring-1 ring-marca bg-marca-100/30' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <span className="text-xl">{salvando === op.value ? '…' : icone}</span>
+                  <span className="text-xs font-semibold text-gray-900">{op.label}</span>
+                  {ativo && <Check size={12} className="text-marca" />}
                 </button>
               )
             })}
           </div>
+          <p className="text-xs text-gray-400 mt-2">
+            {corTema === 'automatico' ? 'Segue a preferência do seu dispositivo.' : corTema === 'escuro' ? 'Fundo escuro em todas as telas.' : 'Fundo claro em todas as telas.'}
+          </p>
           {erro && <p role="alert" className="text-xs text-red-600 mt-2">{erro}</p>}
         </div>
       </div>
@@ -239,9 +244,9 @@ function EnviarFeedback() {
 
       <div className="flex items-start gap-3">
 
-        <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+        <div className="w-9 h-9 bg-marca-100 rounded-xl flex items-center justify-center flex-shrink-0">
 
-          <MessageSquarePlus size={16} className="text-blue-700" />
+          <MessageSquarePlus size={16} className="text-marca" />
 
         </div>
 
@@ -275,7 +280,7 @@ function EnviarFeedback() {
 
                 onClick={() => setEnviado(false)}
 
-                className="text-xs font-medium text-blue-600 hover:text-blue-700 ml-auto flex-shrink-0"
+                className="text-xs font-medium text-marca hover:text-marca-hover ml-auto flex-shrink-0"
 
               >
 
@@ -305,7 +310,7 @@ function EnviarFeedback() {
 
                       tipo === t.value
 
-                        ? 'bg-blue-600 text-white border-blue-600'
+                        ? 'bg-marca text-white border-marca'
 
                         : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
 
@@ -699,9 +704,9 @@ export default function Configuracoes() {
 
           <div className="flex items-center gap-3">
 
-            <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <div className="w-9 h-9 bg-marca-100 rounded-xl flex items-center justify-center flex-shrink-0">
 
-              <User size={16} className="text-blue-700" />
+              <User size={16} className="text-marca" />
 
             </div>
 

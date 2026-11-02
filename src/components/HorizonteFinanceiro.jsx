@@ -30,7 +30,7 @@ function ColunaMes({ mes }) {
       {/* Cabeçalho do mês (destaca o mês atual em azul) */}
       <div
         className={`px-3 py-2 text-sm font-semibold uppercase tracking-wide text-center ${
-          mes.ehMesAtual ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-600'
+          mes.ehMesAtual ? 'bg-marca text-white' : 'bg-gray-50 text-gray-600'
         }`}
       >
         {mes.label}

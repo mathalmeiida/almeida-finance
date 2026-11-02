@@ -34,7 +34,7 @@ import MenusMobileAlmeidaFinance from './MenusMobileAlmeidaFinance'
 // adminOnly só aparecem quando ehAdmin (filtrado na renderização).
 const navGrupos = [
   { titulo: 'Principal', itens: [
-    { to: '/',              label: 'Início',         icon: LayoutDashboard, corIcone: 'text-blue-400'   },
+    { to: '/',              label: 'Início',         icon: LayoutDashboard, corIcone: 'text-marca'       },
   ]},
   { titulo: 'Finanças', itens: [
     { to: '/receitas',      label: 'Receitas',       icon: TrendingUp,    corIcone: 'text-green-400'    },
@@ -46,7 +46,7 @@ const navGrupos = [
     { to: '/minha-evolucao', label: 'Minha evolução', icon: Activity, corIcone: 'text-violet-400' },
   ]},
   { titulo: 'Planejamento', itens: [
-    { to: '/posso-comprar', label: 'Simular compra', icon: ShoppingCart,  corIcone: 'text-blue-400'     },
+    { to: '/posso-comprar', label: 'Simular compra', icon: ShoppingCart,  corIcone: 'text-marca'        },
     { to: '/e-se',          label: 'E se...?',       icon: Sparkles,     corIcone: 'text-violet-400' },
     { to: '/metas',         label: 'Metas',          icon: Target,        corIcone: 'text-amber-400'    },
     { to: '/consultoria',   label: 'Consultoria',    icon: MessagesSquare, corIcone: 'text-cyan-400' },
@@ -205,7 +205,7 @@ export default function Layout({ children }) {
           {!recolhida && (
             <>
               <LogoMarca imgClassName="h-16 w-auto" padding="px-5 py-4" />
-              <p className="text-[13px] text-gray-600 mt-2.5">Controle financeiro</p>
+              <p className="text-[13px] text-gray-500 mt-2.5">Seu dinheiro, organizado.</p>
             </>
           )}
           {recolhida && (
@@ -262,7 +262,7 @@ export default function Layout({ children }) {
             Fica fixo no topo de todas as telas internas enquanto o consultor
             visualiza os dados de um cliente (somente leitura). */}
         {modoConsultoria && (
-          <div className="sticky top-0 z-40 bg-blue-600 text-white px-4 py-2 flex items-center justify-between gap-3 pt-safe">
+          <div className="sticky top-0 z-40 bg-marca text-white px-4 py-2 flex items-center justify-between gap-3 pt-safe">
             <span className="flex items-center gap-2 text-sm font-medium min-w-0">
               <Eye size={16} className="flex-shrink-0" />
               <span className="truncate">
@@ -325,7 +325,7 @@ export default function Layout({ children }) {
       </div>
       {/* Navegação mobile: cinco destinos, alinhados e sem botão flutuante. */}
       <nav aria-label="Navegação principal" className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 shadow-[0_-1px_12px_rgba(0,0,0,0.06)] flex items-stretch justify-around px-1 pb-safe">
-        <BottomNavItem to="/" label="Início" icon={LayoutDashboard} corIcone="text-blue-400" />
+        <BottomNavItem to="/" label="Início" icon={LayoutDashboard} corIcone="text-marca" />
         <BottomNavItem to="/consultoria" label="Consultoria" icon={MessagesSquare} corIcone="text-marca" />
         {somenteLeitura ? (
           <div className="bottom-nav-item text-gray-400" aria-label="Adicionar indisponível no modo somente leitura">

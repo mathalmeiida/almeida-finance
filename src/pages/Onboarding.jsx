@@ -1052,11 +1052,11 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                     <li key={r.id || i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                       <span className="text-sm text-gray-800 truncate min-w-0">
                         {r.descricao}
-                        <span className="text-xs text-blue-500 ml-1">• {labelFrequenciaReceita(r.frequencia)}</span>
+                        <span className="text-xs text-marca ml-1">• {labelFrequenciaReceita(r.frequencia)}</span>
                       </span>
                       <span className="flex items-center gap-2 flex-shrink-0">
                         <span className="text-sm font-semibold text-green-600">{formatCurrency(r.valor)}</span>
-                        <button onClick={() => editarReceitaLocal(i)} className="text-gray-400 hover:text-blue-500" title="Editar">
+                        <button onClick={() => editarReceitaLocal(i)} className="text-gray-400 hover:text-marca" title="Editar">
                           <Pencil size={15} />
                         </button>
                         <button onClick={() => removerReceitaLocal(i)} className="text-gray-400 hover:text-red-500" title="Remover">
@@ -1177,7 +1177,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                       <span className="flex items-center gap-2 flex-shrink-0">
                         <span className="text-sm font-semibold text-red-500">{formatCurrency(d.valor)}</span>
                         <button type="button" onClick={() => editarDespesaLocal(i)}
-                          disabled={salvando} className="text-gray-400 hover:text-blue-500" title="Editar despesa" aria-label={`Editar ${d.descricao}`}>
+                          disabled={salvando} className="text-gray-400 hover:text-marca" title="Editar despesa" aria-label={`Editar ${d.descricao}`}>
                           <Pencil size={15} />
                         </button>
                         <button type="button" onClick={() => removerDespesaLocal(i)}
@@ -1293,7 +1293,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
           {etapa === CARTOES && (
             <div className="py-2">
               <CabecalhoEtapa
-                icone={CreditCard} cor="text-blue-600" bg="bg-blue-50"
+                icone={CreditCard} cor="text-marca" bg="bg-marca-100"
                 titulo="Você usa cartão de crédito?"
                 subtitulo="Cadastre seus cartões para acompanhar faturas e lançar compras. É opcional — você poderá adicionar depois em Cartões."
               />
@@ -1304,13 +1304,13 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                   {cartoes.map((c) => (
                     <li key={c.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                       <span className="text-sm text-gray-800 truncate min-w-0 flex items-center gap-2">
-                        <CreditCard size={15} className="text-blue-500 flex-shrink-0" />
+                        <CreditCard size={15} className="text-marca flex-shrink-0" />
                         {c.nome}{c.banco ? ` • ${c.banco}` : ''}
                       </span>
                       <span className="flex items-center gap-2 flex-shrink-0">
                         <span className="text-sm font-semibold text-gray-700">{formatCurrency(c.limite_total)}</span>
                         <button type="button" disabled={salvando} onClick={() => editarCartao(c)}
-                          title="Editar cartão" aria-label={`Editar ${c.nome}`} className="text-gray-400 hover:text-blue-500">
+                          title="Editar cartão" aria-label={`Editar ${c.nome}`} className="text-gray-400 hover:text-marca">
                           <Pencil size={15} />
                         </button>
                         <button type="button" disabled={salvando} onClick={() => excluirCartao(c)}
@@ -1328,9 +1328,9 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                   de Cartões (fonte única, sem dupla contagem). Evitamos duplicar
                   esses formulários aqui; o atalho leva ao fluxo pronto. */}
               {cartoes.length > 0 && (
-                <div className="flex items-start gap-2.5 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 mb-3">
-                  <CreditCard size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-blue-800">
+                <div className="flex items-start gap-2.5 bg-marca-100 border border-marca/20 rounded-xl px-3 py-2.5 mb-3">
+                  <CreditCard size={16} className="text-marca flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-marca">
                     Cartão cadastrado! Depois, em <strong>Cartões</strong>, você pode informar o
                     <strong> total da fatura</strong> do mês ou lançar <strong>compras individuais</strong>
                     {' '}(à vista ou parceladas). As duas formas entram no orçamento sem contar em dobro.
@@ -1415,7 +1415,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                       <span className="flex items-center gap-2 flex-shrink-0">
                         <span className="text-sm font-semibold text-gray-700">{formatCurrency(saldoDoBeneficio(b.id))}</span>
                         <button type="button" disabled={salvando} onClick={() => editarBeneficio(b)}
-                          title="Editar benefício" aria-label={`Editar ${b.nome}`} className="text-gray-400 hover:text-blue-500">
+                          title="Editar benefício" aria-label={`Editar ${b.nome}`} className="text-gray-400 hover:text-marca">
                           <Pencil size={15} />
                         </button>
                         <button type="button" disabled={salvando} onClick={() => excluirBeneficio(b)}
@@ -1526,7 +1526,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                     <button key={opt}
                       onClick={() => { setModoCustom(false); setReservaPct(opt) }}
                       className={`relative py-3 rounded-lg text-sm font-semibold border transition-colors ${
-                        ativo ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                        ativo ? 'bg-marca text-white border-marca' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
                       }`}>
                       {opt}%
                       {opt === 20 && (
@@ -1540,7 +1540,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                 <button
                   onClick={() => setModoCustom(true)}
                   className={`py-3 rounded-lg text-sm font-semibold border transition-colors ${
-                    modoCustom ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                    modoCustom ? 'bg-marca text-white border-marca' : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
                   }`}>
                   Outro
                 </button>

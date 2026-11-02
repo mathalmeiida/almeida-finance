@@ -4,9 +4,9 @@ import logoAlmeida from '../assets/Logo Corporativo Almeida Finance.png'
 // ─── Logo Almeida Finance sobre área de destaque na cor da marca ──────────────
 // O logo ORIGINAL é branco; no tema claro ele some sobre fundo claro. Este
 // componente coloca o logo (sem alterar o arquivo/desenho) sobre um painel
-// arredondado na COR DA MARCA (bg-marca → azul #2855A5 ou rosa #B83F79,
-// conforme a preferência do usuário, via a variável --marca). Assim o logo
-// branco fica sempre legível e acompanha o tema automaticamente.
+// arredondado na COR DA MARCA (bg-marca → vinho/bordô por padrão, alterado
+// pela preferência do usuário via a variável --marca). Assim o logo branco
+// fica sempre legível e acompanha o tema automaticamente.
 //
 // Reutilizável em: sidebar, header mobile, splash, login, cadastro e demais
 // telas de autenticação. Só visual — não toca em dados/cálculos.

@@ -273,7 +273,7 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
                     Valor por parcela: <strong>{formatCurrency(parcelaBase)}/mês</strong>
                   </p>
                   {temAjusteParcela && (
-                    <p className="text-xs text-blue-600 mt-0.5">
+                    <p className="text-xs text-marca mt-0.5">
                       Última parcela: <strong>{formatCurrency(parcelaUltima)}</strong> (ajuste de centavos)
                     </p>
                   )}
@@ -285,7 +285,7 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
               {cartoes.length === 0 ? (
                 <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-500">
                   Você ainda não possui cartões cadastrados.
-                  <Link to="/cartoes" className="block mt-2 text-blue-600 font-medium hover:underline">
+                  <Link to="/cartoes" className="block mt-2 text-marca font-medium hover:underline">
                     + Cadastrar cartão
                   </Link>
                 </div>
@@ -1810,7 +1810,7 @@ export default function Despesas() {
                     <span className="flex items-center gap-1 text-xs text-gray-400">
                       <Calendar size={11} />{formatDate(d.data)}
                     </span>
-                    <span className="text-xs font-medium text-blue-500">
+                    <span className="text-xs font-medium text-marca">
                       {diasFaltam === 1 ? 'Vence amanhã' : `Faltam ${diasFaltam} dias`}
                     </span>
                   </div>
@@ -1888,7 +1888,7 @@ export default function Despesas() {
       {true && (
         <section className="card" aria-label="Próximas despesas cadastradas">
           <div className="flex items-center gap-2 mb-2">
-            <CalendarClock size={18} className="text-blue-600 flex-shrink-0" />
+            <CalendarClock size={18} className="text-marca flex-shrink-0" />
             <h2 className="text-base font-semibold text-gray-900">
               Próximas despesas <span className="text-sm font-normal text-gray-400">({despesasFuturas.length})</span>
             </h2>
@@ -1908,15 +1908,15 @@ export default function Despesas() {
               {despesasFuturas.map(d => (
                 <div key={`futura-${d.id}`} className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors p-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 shrink-0 rounded-xl bg-blue-50 flex items-center justify-center">
-                      {d.categorias?.icone || <CalendarClock size={16} className="text-blue-600" />}
+                    <div className="w-9 h-9 shrink-0 rounded-xl bg-marca-100 flex items-center justify-center">
+                      {d.categorias?.icone || <CalendarClock size={16} className="text-marca" />}
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-gray-900 break-words">{d.descricao}</p>
                       <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mt-1">
                         <span><Calendar size={11} className="inline mr-1" />{formatDate(d.data)}</span>
-                        <span className="rounded-full bg-blue-50 text-blue-700 px-2 py-0.5">Vence em {new Date(`${d.data}T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</span>
-                        {d.recorrente && <span className="text-blue-600 flex items-center gap-1"><RefreshCw size={11} />Recorrente</span>}
+                        <span className="rounded-full bg-marca-100 text-marca px-2 py-0.5">Vence em {new Date(`${d.data}T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</span>
+                        {d.recorrente && <span className="text-marca flex items-center gap-1"><RefreshCw size={11} />Recorrente</span>}
                         {d.categorias?.nome && <span>{d.categorias.nome}</span>}
                       </div>
                     </div>
@@ -1925,7 +1925,7 @@ export default function Despesas() {
                     <strong className="text-sm text-red-500 whitespace-nowrap">-{formatCurrency(d.valor)}</strong>
                     <button type="button" onClick={() => handleEditar(d)}
                       title="Editar despesa futura" aria-label={`Editar ${d.descricao}`}
-                      className="touch-target rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50">
+                      className="touch-target rounded-lg text-gray-500 hover:text-marca hover:bg-marca-100">
                       <Pencil size={16} />
                     </button>
                     <button type="button" onClick={() => handleRemover(d.id)} disabled={removendo === d.id}

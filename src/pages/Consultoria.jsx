@@ -21,10 +21,11 @@ import { mascararTelefone, somenteDigitosTelefone, telefoneValido } from '../lib
 const fotoMatheus = '/images/foto%20perfil.png'
 
 const AJUDAS = [
-  { icon: Wallet,       titulo: 'Organização e controle',         descricao: 'Receitas, despesas, cartões e saldo no mesmo lugar.' },
+
+  { icon: Wallet,       titulo: 'Organização financeira',         descricao: 'Receitas, despesas, cartões e saldo no mesmo lugar.' },
   { icon: LineChart,    titulo: 'Planejamento e metas',           descricao: 'Estratégias para objetivos de curto, médio e longo prazo.' },
-  { icon: PiggyBank,    titulo: 'Reserva e investimentos',        descricao: 'Construa segurança financeira e faça seu dinheiro trabalhar.' },
-  { icon: ListChecks,   titulo: 'Análise e diagnóstico',          descricao: 'Visão clara das finanças com orientações práticas.' },
+  { icon: PiggyBank,    titulo: 'Simulação de decisões',          descricao: 'Simule cenários antes de tomar decisões financeiras.' },
+  { icon: ListChecks,   titulo: 'Acompanhamento personalizado',   descricao: 'Orientações práticas para a sua realidade financeira.' },
 ]
 
 const painel = 'rounded-2xl border border-marca/15 bg-white shadow-sm'
@@ -101,8 +102,9 @@ export default function Consultoria() {
 
       <section className={`${painel} overflow-hidden`}>
 
-        <div className="grid grid-cols-1 items-start gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.25fr)\_minmax(240px,0.85fr)] lg:gap-9 lg:p-9">
+        <div className="grid grid-cols-1 items-start gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.2fr)_minmax(220px,0.8fr)] lg:gap-8 lg:p-8">
 
+          {/* Coluna de texto — esquerda no desktop, baixo no mobile */}
           <div className="min-w-0 order-2 lg:order-1">
 
             <span className="inline-flex items-center gap-2 rounded-full bg-marca-100 px-3 py-1.5 text-sm font-semibold text-marca">
@@ -111,41 +113,19 @@ export default function Consultoria() {
 
             </span>
 
-            <h1 className="mt-4 text-3xl font-extrabold leading-tight tracking-tight text-gray-900 sm:text-4xl">
+            <h1 className="mt-4 text-2xl font-extrabold leading-tight tracking-tight text-gray-900 sm:text-3xl">
 
-              Conheça Matheus Almeida
+              Matheus Almeida
 
             </h1>
 
-            <p className="mt-2 text-base text-gray-600">
+            <p className="mt-3 text-sm leading-6 text-gray-600 sm:text-base">
 
-              Experiência, planejamento e soluções para sua vida financeira.
+              Engenheiro de Produção com certificações ANBIMA (CPA e C-Pro R) e mais de 7 anos
+              de experiência no mercado financeiro. Criador do Almeida Finance para tornar o
+              controle financeiro mais simples e acessível.
 
             </p>
-
-            <div className="mt-5 space-y-4 text-sm leading-7 text-gray-700 sm:text-base">
-
-              <p>
-
-                Sou Engenheiro de Produção e atuo há mais de 7 anos no mercado financeiro,
-
-                com experiência no relacionamento com clientes e na identificação de soluções
-
-                para diferentes momentos da vida.
-
-              </p>
-
-              <p>
-
-                Possuo certificações profissionais da ANBIMA, incluindo CPA e C-Pro R.
-
-                Criei o Almeida Finance para ajudar você a organizar seu dinheiro, controlar
-
-                os gastos e planejar seus objetivos de forma mais clara e acessível.
-
-              </p>
-
-            </div>
 
             <button
 
@@ -155,29 +135,25 @@ export default function Consultoria() {
 
               aria-expanded={mostrarTrajetoria}
 
-              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-marca-100 px-4 py-2.5 text-sm font-semibold text-marca transition-opacity hover:opacity-85"
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-marca-100 px-4 py-2 text-sm font-semibold text-marca transition-opacity hover:opacity-85"
 
             >
 
               Conheça minha trajetória
 
-              {mostrarTrajetoria ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+              {mostrarTrajetoria ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
 
             </button>
 
             {mostrarTrajetoria && (
 
-              <div className="mt-5 space-y-3 border-t border-gray-200 pt-4 text-sm leading-7 text-gray-700">
+              <div className="mt-4 space-y-3 border-t border-gray-200 pt-4 text-sm leading-6 text-gray-700">
 
-                <p>Minha trajetória profissional foi construída ao longo de mais de 7 anos no mercado financeiro, trabalhando diretamente com clientes, planejamento financeiro e identificação de soluções para diferentes momentos da vida.</p>
+                <p>Ao longo de mais de 7 anos no mercado financeiro trabalhei diretamente com clientes, planejamento financeiro e identificação de soluções para diferentes momentos da vida.</p>
 
-                <p>Sou Engenheiro de Produção e possuo certificações profissionais da ANBIMA, incluindo CPA e C-Pro R, voltadas à qualificação de profissionais que atuam no mercado financeiro e no relacionamento com clientes.</p>
+                <p>Percebi que muitas pessoas têm boa renda, mas encontram dificuldades para organizar o dinheiro e transformar objetivos em um plano claro. Foi a partir dessa necessidade que nasceu o Almeida Finance.</p>
 
-                <p>Ao longo dessa experiência, percebi que muitas pessoas têm uma boa renda, mas ainda encontram dificuldades para organizar o dinheiro, controlar os gastos e transformar seus objetivos em um planejamento financeiro claro.</p>
-
-                <p>Foi a partir dessa necessidade que nasceu o Almeida Finance: uma ferramenta criada para tornar o controle financeiro mais simples, visual e acessível.</p>
-
-                <p>Além do aplicativo, quero ajudar de forma mais próxima quem busca organizar melhor sua vida financeira e tomar decisões mais conscientes com o próprio dinheiro.</p>
+                <p>Além do aplicativo, ofereço consultoria pessoal para quem busca organizar melhor as finanças e tomar decisões mais conscientes.</p>
 
               </div>
 
@@ -185,15 +161,16 @@ export default function Consultoria() {
 
           </div>
 
-          <div className="order-1 flex min-w-0 flex-col items-center gap-3 lg:order-2">
+          {/* Foto — direita no desktop, topo no mobile */}
+          <div className="order-1 flex min-w-0 flex-col items-center lg:order-2">
 
-            <div className="w-full max-w-[270px] sm:max-w-[310px] lg:max-w-[340px] mx-auto overflow-hidden rounded-2xl">
+            <div className="w-full max-w-[260px] sm:max-w-[300px] lg:max-w-[320px] mx-auto overflow-hidden rounded-2xl">
 
               <img
 
                 src={fotoMatheus}
 
-                alt="Foto profissional original de Matheus Almeida"
+                alt="Foto profissional de Matheus Almeida"
 
                 className="block w-full h-auto object-contain"
 
@@ -201,43 +178,32 @@ export default function Consultoria() {
 
             </div>
 
-            <div className="flex w-full max-w-[270px] sm:max-w-[310px] lg:max-w-[340px] mx-auto items-center gap-3 rounded-xl bg-marca-100 px-4 py-3">
-
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-marca text-white"><BriefcaseBusiness size={22} /></span>
-
-              <div>
-
-                <p className="font-bold text-gray-900">Mais de 7 anos</p>
-
-                <p className="text-sm text-gray-600">de experiência no mercado financeiro</p>
-
-              </div>
-
-            </div>
-
           </div>
 
         </div>
 
-        <div className="grid grid-cols-1 gap-3 px-5 pb-5 sm:grid-cols-2 sm:px-7 sm:pb-7 lg:px-9 lg:pb-9">
+        {/* Três cards compactos: Experiência, Formação, Certificações */}
+        <div className="grid grid-cols-1 gap-3 px-5 pb-5 sm:grid-cols-3 sm:px-7 sm:pb-7 lg:px-8 lg:pb-8">
 
           {[
 
-            { icon: GraduationCap, titulo: 'Engenharia de Produção', subtitulo: 'Formação acadêmica' },
+            { icon: BriefcaseBusiness, titulo: 'Experiência',     subtitulo: '+7 anos no mercado financeiro' },
 
-            { icon: BadgeCheck, titulo: 'ANBIMA', subtitulo: 'Certificações CPA e C-Pro R' },
+            { icon: GraduationCap,    titulo: 'Formação',         subtitulo: 'Engenharia de Produção' },
+
+            { icon: BadgeCheck,       titulo: 'Certificações',    subtitulo: 'ANBIMA — CPA e C-Pro R' },
 
           ].map(({ icon: Icon, titulo, subtitulo }) => (
 
             <div key={titulo} className={`${bloco} flex min-w-0 items-center gap-3`}>
 
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-marca-100 text-marca"><Icon size={22} /></span>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-marca-100 text-marca"><Icon size={20} /></span>
 
               <div className="min-w-0">
 
-                <p className="font-semibold text-gray-900">{titulo}</p>
+                <p className="text-sm font-semibold text-gray-900">{titulo}</p>
 
-                <p className="mt-0.5 text-sm leading-5 text-gray-600">{subtitulo}</p>
+                <p className="mt-0.5 text-xs leading-5 text-gray-600">{subtitulo}</p>
 
               </div>
 

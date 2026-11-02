@@ -828,7 +828,7 @@ const [modalFatura, setModalFatura] = useState(false)
                   {m.ehAtual ? 'Fatura atual' : textoPrevisto(m)}
                 </p>
 
-              <p className="text-xs text-blue-400 mt-1">
+              <p className="text-xs text-marca mt-1">
 
                 Vencimento previsto: {m.dataPagamento}
 

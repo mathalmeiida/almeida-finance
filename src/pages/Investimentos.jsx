@@ -547,7 +547,8 @@ export default function Investimentos() {
 
   const [erroAcao, setErroAcao] = useState('')
 
-  const [mostrarTodasMovs, setMostrarTodasMovs] = useState(false)
+  // "Últimas movimentações" recolhida por padrão (item 9).
+  const [movsAberta, setMovsAberta] = useState(false)
 
   const dist = distribuicaoPorCategoria()
 
@@ -566,7 +567,7 @@ export default function Investimentos() {
 
     .sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')))
 
-  const movimentosVisiveis = mostrarTodasMovs ? ultimasMovimentacoes : ultimasMovimentacoes.slice(0, 4)
+  const movimentosVisiveis = movsAberta ? ultimasMovimentacoes : ultimasMovimentacoes.slice(0, 4)
 
   async function salvar(dados) {
 
@@ -642,126 +643,92 @@ export default function Investimentos() {
 
       {erro && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">Erro ao carregar: {erro}</p>}
 
-      {/* Resumo patrimonial e painel informativo: nenhuma série histórica é inventada. */}
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-
-        <section className="bg-marca-grad-dark text-white rounded-2xl p-5 sm:p-6 min-w-0 shadow-lg">
-
-          <div className="flex justify-between gap-3 items-start">
-
-            <div>
-
-              <p className="text-xs uppercase tracking-wide text-white/80">Meu patrimônio investido</p>
-
-              <p className="text-3xl sm:text-4xl font-extrabold mt-2 break-words">{exibirMoeda(patrimonioTotal, ocultar)}</p>
-
-            </div>
-
-            <span className="rounded-xl bg-white/10 p-3"><PiggyBank size={23}/></span>
-
+      {/* ── Card herói: patrimônio + indicadores integrados (sem repetição) ── */}
+      <section className="bg-marca-grad-dark text-white rounded-2xl p-5 sm:p-6 min-w-0 shadow-lg">
+        <div className="flex justify-between gap-3 items-start">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-white/80">Meu patrimônio investido</p>
+            <p className="text-3xl sm:text-4xl font-extrabold mt-2 break-words">{exibirMoeda(patrimonioTotal, ocultar)}</p>
+            <p className={`text-sm mt-2 font-medium ${patrimonioTotal - totalAplicado >= 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
+              {totalAplicado > 0
+                ? <>{patrimonioTotal - totalAplicado >= 0 ? '+' : '−'} {exibirMoeda(Math.abs(patrimonioTotal - totalAplicado), ocultar)}{!ocultar && ` (${((patrimonioTotal - totalAplicado) / totalAplicado * 100).toFixed(2)}%)`} vs. aplicado</>
+                : 'Cadastre o valor aplicado para comparar'}
+            </p>
           </div>
+          <span className="rounded-xl bg-white/10 p-3"><PiggyBank size={23}/></span>
+        </div>
 
-          <p className={`text-sm mt-3 font-medium ${patrimonioTotal - totalAplicado >= 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
-
-            {totalAplicado > 0 ? <>{patrimonioTotal - totalAplicado >= 0 ? '+' : '−'} {exibirMoeda(Math.abs(patrimonioTotal - totalAplicado), ocultar)} {!ocultar && `(${((patrimonioTotal - totalAplicado) / totalAplicado * 100).toFixed(2)}%)`} em relação ao valor aplicado</> : 'Cadastre o valor aplicado para comparar'}
-
-          </p>
-
-          <div className="grid grid-cols-2 gap-2 mt-5">
-
-            <div className="rounded-xl bg-black/15 p-3 min-w-0"><p className="text-xs text-white/75">Valor aplicado</p><p className="text-lg font-bold mt-1 break-words">{exibirMoeda(totalAplicado, ocultar)}</p></div>
-
-            <div className="rounded-xl bg-black/15 p-3 min-w-0"><p className="text-xs text-white/75">Valor atual</p><p className="text-lg font-bold mt-1 break-words">{exibirMoeda(patrimonioTotal, ocultar)}</p></div>
-
-            <div className="rounded-xl bg-black/15 p-3 min-w-0"><p className="text-xs text-white/75">Rendimento no mês</p><p className="text-lg font-bold mt-1 break-words">{exibirMoeda(rendMes, ocultar)}</p></div>
-
-            <div className="rounded-xl bg-black/15 p-3 min-w-0"><p className="text-xs text-white/75">Aportes no mês</p><p className="text-lg font-bold mt-1 break-words">{exibirMoeda(aportesMes, ocultar)}</p></div>
-
+        {/* 4 indicadores: aplicado, atual, rendimento mês, reserva — sem repetição */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-5">
+          <div className="rounded-xl bg-black/15 p-3 min-w-0"><p className="text-xs text-white/75">Aplicado</p><p className="text-base font-bold mt-1 break-words">{exibirMoeda(totalAplicado, ocultar)}</p></div>
+          <div className="rounded-xl bg-black/15 p-3 min-w-0"><p className="text-xs text-white/75">Valor atual</p><p className="text-base font-bold mt-1 break-words">{exibirMoeda(patrimonioTotal, ocultar)}</p></div>
+          <div className="rounded-xl bg-black/15 p-3 min-w-0">
+            <p className="text-xs text-white/75">Rend. no mês</p>
+            <p className="text-base font-bold mt-1 break-words">{exibirMoeda(rendMes, ocultar)}</p>
+            {/* Nota: rendimento acumulado soma apenas movimentações de tipo 'rendimento/dividendo/juros'.
+                A diferença entre valor_atual e valor_aplicado é o ganho por saldo informado —
+                conceitos distintos. Ambos são corretos. */}
           </div>
+          <div className="rounded-xl bg-black/15 p-3 min-w-0"><p className="text-xs text-white/75">Reserva vinculada</p><p className="text-base font-bold mt-1 break-words">{exibirMoeda(reservaVinculada, ocultar)}</p></div>
+        </div>
+        <p className="mt-3 text-xs text-white/70">Patrimônio separado do saldo em conta. Reserva vinculada já inclusa — não somada novamente.</p>
+      </section>
 
-          <p className="mt-3 text-xs text-white/70">Patrimônio separado do saldo em conta e do limite diário.</p>
-
-        </section>
-
-        <section className="card min-w-0 !p-5 sm:!p-6 flex flex-col gap-3">
-
-          <h2 className="font-semibold text-gray-900 flex items-center gap-2"><History size={19} className="text-marca"/> Evolução do patrimônio</h2>
-
-          <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 flex items-start gap-3 px-4 py-4">
-
-            <BarChart2 size={21} className="text-marca shrink-0 mt-0.5"/>
-
-            <div className="min-w-0">
-
-              <p className="text-sm font-semibold text-gray-700">Gráfico histórico ainda indisponível</p>
-
-              <p className="text-xs text-gray-500 mt-1">Para mostrar a evolução real, o aplicativo precisa registrar valores da carteira por data. Seus saldos e movimentações atuais permanecem disponíveis.</p>
-
-            </div>
-
-          </div>
-
-        </section>
-
-      </div>
-
+      {/* ── Distribuição da carteira + Evolução (somente quando há dados) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-        <section className="card min-w-0 !p-5 sm:!p-6">
-
+        {/* Distribuição: barra quando 1 categoria, rosca quando múltiplas */}
+        <section className="card min-w-0 !p-5">
           <h2 className="text-base font-semibold text-gray-900 mb-4">Distribuição da carteira</h2>
-
-          {dist.length > 0 && patrimonioTotal > 0 ? (
-
-            <div className="flex flex-col sm:flex-row items-center gap-6">
-
-              <div className="relative w-44 h-44 rounded-full shrink-0" style={{ background: `conic-gradient(${dist.map((d, i) => { const cores = CORES_DISTRIBUICAO; const inicio = dist.slice(0,i).reduce((a, x) => a + Math.max(0,Number(x.pct)||0),0); return `${cores[i % cores.length]} ${inicio}% ${inicio + Math.max(0,Number(d.pct)||0)}%`; }).join(', ')})` }}>
-
-                <div className="absolute inset-7 rounded-full bg-[#1f2735] flex flex-col items-center justify-center text-white">
-
-                  <strong className="text-base">{exibirMoeda(patrimonioTotal, ocultar)}</strong>
-
-                  <span className="text-[11px] text-white/70">Carteira</span>
-
-                </div>
-
+          {dist.length === 0 || patrimonioTotal === 0 ? (
+            <p className="text-sm text-gray-500">Cadastre investimentos para visualizar sua distribuição.</p>
+          ) : dist.length === 1 ? (
+            /* Uma categoria → barra horizontal compacta */
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm mb-1">
+                <span className="font-medium text-gray-800">{labelCategoriaInvestimento(dist[0].categoria)}</span>
+                <span className="text-gray-500">{ocultar ? '••••' : '100%'}</span>
               </div>
-
-              <div className="flex-1 min-w-0 w-full space-y-3">
-
-                {dist.map((d,i) => <div key={d.categoria} className="flex justify-between gap-3 text-sm items-center">
-
-                  <div className="flex gap-2 min-w-0 items-center"><span className="w-2.5 h-2.5 rounded-full shrink-0" style={{background:CORES_DISTRIBUICAO[i % CORES_DISTRIBUICAO.length]}}/><span className="truncate">{labelCategoriaInvestimento(d.categoria)}</span></div>
-
-                  <span className="text-gray-500 shrink-0">{ocultar ? '••••' : `${d.pct.toFixed(0)}%`}</span>
-
-                </div>)}
-
+              <div className="h-3 rounded-full bg-gray-100 overflow-hidden">
+                <div className="h-full rounded-full" style={{ width: '100%', background: CORES_DISTRIBUICAO[0] }} />
               </div>
-
+              <p className="text-xs text-gray-400 mt-2">{exibirMoeda(patrimonioTotal, ocultar)} em {labelCategoriaInvestimento(dist[0].categoria)}</p>
             </div>
-
-          ) : <p className="text-sm text-gray-500">Cadastre investimentos para visualizar sua distribuição.</p>}
-
+          ) : (
+            /* Múltiplas categorias → rosca */
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+              <div className="relative w-40 h-40 rounded-full shrink-0" style={{ background: `conic-gradient(${dist.map((d, i) => { const cores = CORES_DISTRIBUICAO; const inicio = dist.slice(0,i).reduce((a, x) => a + Math.max(0,Number(x.pct)||0),0); return `${cores[i % cores.length]} ${inicio}% ${inicio + Math.max(0,Number(d.pct)||0)}%`; }).join(', ')})` }}>
+                <div className="absolute inset-6 rounded-full bg-white flex flex-col items-center justify-center">
+                  <strong className="text-sm text-gray-900">{exibirMoeda(patrimonioTotal, ocultar)}</strong>
+                  <span className="text-[10px] text-gray-500">Carteira</span>
+                </div>
+              </div>
+              <div className="flex-1 min-w-0 w-full space-y-2">
+                {dist.map((d,i) => (
+                  <div key={d.categoria} className="flex justify-between gap-3 text-sm items-center">
+                    <div className="flex gap-2 min-w-0 items-center">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{background:CORES_DISTRIBUICAO[i % CORES_DISTRIBUICAO.length]}}/>
+                      <span className="truncate">{labelCategoriaInvestimento(d.categoria)}</span>
+                    </div>
+                    <span className="text-gray-500 shrink-0">{ocultar ? '••••' : `${d.pct.toFixed(0)}%`}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
 
-        <section className="card min-w-0 !p-5 sm:!p-6 space-y-4">
-
-          <h2 className="text-base font-semibold text-gray-900">Resumo dos investimentos</h2>
-
-          <div className="grid grid-cols-2 gap-3">
-
-            <Indicador icone={BarChart2} rotulo="Rendimento acumulado" valor={rendimentoAcumulado} cor="text-green-600" ocultar={ocultar}/>
-
-            <Indicador icone={PiggyBank} rotulo="Reserva vinculada" valor={reservaVinculada} cor="text-amber-600" ocultar={ocultar}/>
-
-          </div>
-
-          <p className="text-xs text-gray-500">A reserva vinculada já está incluída no patrimônio total; ela não é somada novamente.</p>
-
+        {/* Evolução: só exibe quando há movimentações; caso contrário, card mínimo */}
+        <section className="card min-w-0 !p-5">
+          <h2 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2"><BarChart2 size={18} className="text-marca"/> Evolução do patrimônio</h2>
+          {ultimasMovimentacoes.length > 0 ? (
+            <p className="text-sm text-gray-500">
+              {ultimasMovimentacoes.length} movimentação{ultimasMovimentacoes.length !== 1 ? 'ões' : ''} registrada{ultimasMovimentacoes.length !== 1 ? 's' : ''}.
+              O gráfico histórico estará disponível quando o app armazenar saldos por data.
+            </p>
+          ) : (
+            <p className="text-sm text-gray-500">Registre aportes e rendimentos para acompanhar a evolução.</p>
+          )}
         </section>
-
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 items-start gap-4">

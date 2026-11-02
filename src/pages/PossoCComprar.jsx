@@ -333,11 +333,11 @@ function SimuladorCompra() {
 
     <div className="space-y-4 sm:space-y-5">
 
-      <div className="flex items-start gap-2.5 rounded-xl bg-blue-50 border border-blue-100 px-3 py-3">
+      <div className="flex items-start gap-2.5 rounded-xl bg-marca-100 border border-marca/20 px-3 py-3">
 
-        <Info size={17} className="shrink-0 text-blue-600 mt-0.5" />
+        <Info size={17} className="shrink-0 text-marca mt-0.5" />
 
-        <p className="text-xs text-blue-800">Simulação baseada nos dados financeiros cadastrados. Não realiza pagamentos nem substitui aconselhamento financeiro profissional.</p>
+        <p className="text-xs text-marca">Simulação baseada nos dados financeiros cadastrados. Não realiza pagamentos nem substitui aconselhamento financeiro profissional.</p>
 
       </div>
 
@@ -612,7 +612,7 @@ function SimuladorCompra() {
                 para não misturar os saldos, o calendário bancário não é exibido nesta opção.
               </p>
             )}
-<p className="text-xs text-gray-500 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 flex gap-2"><Info size={16} className="shrink-0 text-blue-600" /> {resultado.nota}</p>
+<p className="text-xs text-gray-500 rounded-lg bg-marca-100 border border-marca/20 px-3 py-2 flex gap-2"><Info size={16} className="shrink-0 text-marca" /> {resultado.nota}</p>
 
           <div className="space-y-2">
 

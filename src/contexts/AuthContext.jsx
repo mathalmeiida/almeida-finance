@@ -40,45 +40,43 @@ export function AuthProvider({ children }) {
   //   2) perfis.cor_tema → quando a coluna existir, sincroniza entre
   //      dispositivos. Se a coluna NÃO existir, o app funciona só com o
   //      localStorage (não quebra).
-  // Cores válidas: vinho (padrão), roxo, azul, verde, rosa/vermelho, laranja, preto, automatico.
-  // 'vermelho' é aceito como alias de 'rosa'. 'roxo' (preferência antiga) é aceito.
+  // Aparência: 3 modos fixos — claro (padrão), escuro, automático.
+  // A cor de marca é sempre vinho. Temas antigos salvos são aceitos como aliases.
   const CHAVE_COR_TEMA = 'almeida_cor_tema'
-  const CORES_TEMA = ['vinho', 'roxo', 'azul', 'rosa', 'verde', 'laranja', 'preto', 'automatico']
+  // Valores válidos do modo de aparência
+  const MODOS_APARENCIA = ['claro', 'escuro', 'automatico']
+  // Valores legados aceitos (mapeados para claro)
   const normalizarCor = (c) => {
-    if (c === 'vermelho') return 'rosa'
-    return CORES_TEMA.includes(c) ? c : 'vinho'
+    if (MODOS_APARENCIA.includes(c)) return c
+    // Qualquer tema de cor antigo (vinho, roxo, azul, etc.) → claro
+    return 'claro'
   }
   const [corTemaLocal, setCorTemaLocal] = useState(() => {
     try { return normalizarCor(localStorage.getItem(CHAVE_COR_TEMA)) }
-    catch { return 'vinho' }
+    catch { return 'claro' }
   })
 
-  // Preferência efetiva: perfil do banco tem prioridade quando válido; senão
-  // cai no localStorage.
-  const corTema = CORES_TEMA.includes(perfil?.cor_tema) ? perfil.cor_tema : corTemaLocal
+  // Preferência efetiva: perfil do banco tem prioridade quando válido; senão localStorage.
+  const corTema = normalizarCor(perfil?.cor_tema ?? corTemaLocal)
 
   // Aplica a classe de tema no <html>.
-  // VINHO = sem classe (variáveis padrão do :root agora são vinho/bordô).
-  // 'automatico' aplica .tema-automatico e escuta prefers-color-scheme para
-  // sincronizar body/card overrides sem recarregar.
+  // 'claro' = sem classe (padrão). 'escuro' = .tema-escuro. 'automatico' = .tema-automatico.
   useEffect(() => {
     try {
       const el = document.documentElement
-      const todas = ['tema-vinho','tema-roxo','tema-azul','tema-rosa','tema-vermelho',
-                     'tema-verde','tema-laranja','tema-preto','tema-automatico']
-      el.classList.remove(...todas)
-      if (corTema === 'automatico') {
-        el.classList.add('tema-automatico')
-      } else if (corTema !== 'vinho') {
-        el.classList.add(`tema-${corTema}`)
-      }
-    } catch { /* ambiente sem DOM */ }
+      el.classList.remove('tema-escuro', 'tema-automatico',
+        // limpeza de classes legadas
+        'tema-vinho','tema-roxo','tema-azul','tema-rosa','tema-vermelho',
+        'tema-verde','tema-laranja','tema-preto')
+      if (corTema === 'escuro')     el.classList.add('tema-escuro')
+      else if (corTema === 'automatico') el.classList.add('tema-automatico')
+      // 'claro' = sem classe adicional
+    } catch { /* sem DOM */ }
   }, [corTema])
 
-  // Quando o perfil chega do banco com uma cor válida, espelha no localStorage
-  // para o próximo boot já aplicar antes do login resolver.
+  // Quando o perfil chega do banco com um modo válido, espelha no localStorage.
   useEffect(() => {
-    if (CORES_TEMA.includes(perfil?.cor_tema)) {
+    if (MODOS_APARENCIA.includes(perfil?.cor_tema)) {
       try { localStorage.setItem(CHAVE_COR_TEMA, perfil.cor_tema) } catch { /* ignora */ }
       setCorTemaLocal(perfil.cor_tema)
     }

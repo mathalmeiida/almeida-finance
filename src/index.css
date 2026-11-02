@@ -8,73 +8,88 @@
      O padrão é o AZUL (#2855A5 = 40 85 165). A Fase 2 troca para ROSA aplicando
      a classe .tema-rosa no elemento raiz (ver abaixo), por preferência do
      usuário. Apenas identidade visual — não altera cálculos nem dados. */
-  /* PADRÃO = VINHO/BORDÔ. Usuários sem preferência salva veem vinho.
-     Quem já escolheu outra cor mantém a preferência via perfis.cor_tema /
-     localStorage, aplicada pela classe .tema-* correspondente abaixo. */
+  /* PADRÃO = VINHO/BORDÔ. Identidade fixa. Três modos: Claro (padrão), Escuro, Automático.
+     --marca / --marca-hover: cor de ação/destaque (preservados para compatibilidade total).
+     Tokens semânticos novos: --bg, --surface, --surface-2, --text-pri, --text-sec, --border-col.
+     Os componentes existentes que usam bg-marca / text-marca continuam funcionando sem mudança. */
   :root {
-    --marca: 120 25 50;        /* #781932 vinho/bordô (padrão) */
-    --marca-hover: 96 18 38;   /* tom mais escuro p/ hover */
+    /* Cor de ação (vinho) — mantida para compatibilidade */
+    --marca: 128 29 57;         /* #801D39 vinho principal */
+    --marca-hover: 66 13 29;    /* #420D1D bordô profundo */
+
+    /* Tokens semânticos — MODO CLARO (padrão) */
+    --bg:         248 243 242;  /* #F8F3F2 fundo claro vinho */
+    --surface:    255 255 255;  /* #FFFFFF cartões */
+    --surface-2:  255 240 243;  /* #FFF0F3 elevação suave */
+    --text-pri:   37 20 27;     /* #25141B texto principal */
+    --text-sec:   100 63 79;    /* #643F4F texto secundário */
+    --border-col: 229 186 196;  /* #E5BAC4 bordas */
+    --accent:     185 85 114;   /* #B95572 destaques */
   }
-  /* Vinho explícito (alias do :root, para quem selecionar "Vinho" */
-  .tema-vinho {
-    --marca: 120 25 50;
-    --marca-hover: 96 18 38;
-  }
-  /* Roxo mantido como opção */
-  .tema-roxo {
-    --marca: 124 58 173;       /* #7C3AAD roxo */
-    --marca-hover: 100 46 140;
-  }
-  /* Azul deixou de ser o padrão; vira uma opção explícita via .tema-azul. */
-  .tema-azul {
-    --marca: 40 85 165;        /* #2855A5 azul */
-    --marca-hover: 32 68 132;
-  }
-  /* Rosa/Vermelho: opção única (um vermelho-rosado). */
-  .tema-rosa,
-  .tema-vermelho {
-    --marca: 184 63 121;       /* #B83F79 rosa/vermelho */
-    --marca-hover: 150 48 97;
-  }
-  .tema-verde {
-    --marca: 22 128 92;        /* #16805C verde */
-    --marca-hover: 17 101 73;
-  }
-  .tema-laranja {
-    --marca: 217 119 6;        /* #D97706 laranja */
-    --marca-hover: 180 98 4;
-  }
-  /* ─── TEMA PRETO = MODO ESCURO MANUAL ─────────────────────────────────────
-     Ativa o esquema escuro completo. A cor de marca é um vinho claro (#C4637A)
-     legível sobre fundo escuro. */
-  .tema-preto {
-    --marca: 196 99 122;        /* #C4637A vinho claro (legível no escuro) */
+
+  /* ─── MODO ESCURO MANUAL ──────────────────────────────────────────────────── */
+  .tema-escuro {
+    --marca: 185 85 114;        /* #B95572 destaque legível no escuro */
     --marca-hover: 220 120 140;
-    --fundo: 16 20 29;          /* #10141D fundo geral */
-    --superficie: 32 38 50;     /* #202632 cards/superfícies */
-    --superficie-2: 42 49 63;   /* #2A313F elevação */
-    --borda: 54 62 78;          /* #363E4E bordas discretas */
-    --texto: 229 231 235;       /* #E5E7EB texto principal */
-    --texto-suave: 156 163 175; /* #9CA3AF texto secundário */
+
+    --bg:          20 11 16;    /* #140B10 fundo escuro vinho */
+    --surface:     33 18 31;    /* #21121F cartões */
+    --surface-2:   43 23 39;    /* #2B1727 elevação */
+    --text-pri:    250 247 248; /* #FAF7F8 texto claro */
+    --text-sec:    212 168 182; /* #D4A8B6 texto secundário */
+    --border-col:  80 40 56;    /* #502838 bordas */
+    --accent:      185 85 114;  /* #B95572 */
     color-scheme: dark;
   }
-  /* ─── MODO AUTOMÁTICO ───────────────────────────────────────────────────────
-     Quando o usuário escolhe "Automático", aplica-se .tema-automatico.
-     No modo claro do sistema → vinho (padrão). No modo escuro do sistema →
-     aplica as mesmas variáveis do tema preto automaticamente. */
+
+  /* ─── MODO AUTOMÁTICO ─────────────────────────────────────────────────────── */
+  /* Modo claro do sistema → usa :root (Claro Vinho). Nada a declarar. */
   @media (prefers-color-scheme: dark) {
     .tema-automatico {
-      --marca: 196 99 122;
+      --marca: 185 85 114;
       --marca-hover: 220 120 140;
-      --fundo: 16 20 29;
-      --superficie: 32 38 50;
-      --superficie-2: 42 49 63;
-      --borda: 54 62 78;
-      --texto: 229 231 235;
-      --texto-suave: 156 163 175;
+      --bg:          20 11 16;
+      --surface:     33 18 31;
+      --surface-2:   43 23 39;
+      --text-pri:    250 247 248;
+      --text-sec:    212 168 182;
+      --border-col:  80 40 56;
+      --accent:      185 85 114;
       color-scheme: dark;
     }
   }
+
+  /* Aliases de compatibilidade: tema-preto aponta para escuro vinho
+     (mantém usuários que tinham 'preto' salvo funcionando corretamente). */
+  .tema-preto {
+    --marca: 185 85 114;
+    --marca-hover: 220 120 140;
+    --fundo: 20 11 16;
+    --superficie: 33 18 31;
+    --superficie-2: 43 23 39;
+    --borda: 80 40 56;
+    --texto: 250 247 248;
+    --texto-suave: 212 168 182;
+    /* novos tokens */
+    --bg:          20 11 16;
+    --surface:     33 18 31;
+    --surface-2:   43 23 39;
+    --text-pri:    250 247 248;
+    --text-sec:    212 168 182;
+    --border-col:  80 40 56;
+    --accent:      185 85 114;
+    color-scheme: dark;
+  }
+
+  /* Aliases para temas antigos (usuários com preferência salva):
+     todos redirecionam para identidade vinho, preservando dados. */
+  .tema-vinho    { --marca: 128 29 57; --marca-hover: 66 13 29; }
+  .tema-roxo     { --marca: 128 29 57; --marca-hover: 66 13 29; }
+  .tema-azul     { --marca: 128 29 57; --marca-hover: 66 13 29; }
+  .tema-verde    { --marca: 128 29 57; --marca-hover: 66 13 29; }
+  .tema-rosa     { --marca: 128 29 57; --marca-hover: 66 13 29; }
+  .tema-vermelho { --marca: 128 29 57; --marca-hover: 66 13 29; }
+  .tema-laranja  { --marca: 128 29 57; --marca-hover: 66 13 29; }
 
   html {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -425,4 +440,40 @@
   .tema-automatico .text-gray-400 { color: rgb(148 163 184) !important; }
   .tema-automatico .border-gray-100, .tema-automatico .border-gray-200, .tema-automatico .border-gray-300 { border-color: rgb(var(--borda)) !important; }
   .tema-automatico .divide-gray-100 > * + *, .tema-automatico .divide-gray-200 > * + * { border-color: rgb(var(--borda)) !important; }
+}
+
+/* ─── MODO ESCURO MANUAL (.tema-escuro) — overrides Tailwind ─────────────────
+   Espelha .tema-preto mas usa as variáveis semânticas novas do Vinho Escuro. */
+.tema-escuro body { background-color: rgb(var(--bg)); color: rgb(var(--text-pri)); }
+.tema-escuro .card { background-color: rgb(var(--surface)); border-color: rgb(var(--border-col)); box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.35); color: rgb(var(--text-pri)); }
+.tema-escuro .card .text-gray-900, .tema-escuro .card .text-gray-800, .tema-escuro .card .text-gray-700 { color: #FAF7F8 !important; }
+.tema-escuro .btn-secondary { background-color: rgb(var(--surface-2)); color: rgb(var(--text-pri)); }
+.tema-escuro .btn-secondary:hover { background-color: rgb(var(--border-col)); }
+.tema-escuro .input { background-color: rgb(var(--surface-2)); border-color: rgb(var(--border-col)); color: rgb(var(--text-pri)); }
+.tema-escuro .input::placeholder { color: rgb(var(--text-sec)); }
+.tema-escuro .label { color: rgb(var(--text-sec)); }
+.tema-escuro .bg-white   { background-color: rgb(var(--surface))   !important; }
+.tema-escuro .bg-gray-50  { background-color: rgb(var(--surface-2)) !important; }
+.tema-escuro .bg-gray-100 { background-color: rgb(var(--surface-2)) !important; }
+.tema-escuro .bg-slate-50 { background-color: rgb(var(--surface-2)) !important; }
+.tema-escuro .bg-gray-200 { background-color: rgb(var(--border-col)) !important; }
+.tema-escuro .hover\:bg-gray-50:hover  { background-color: rgb(var(--surface-2))  !important; }
+.tema-escuro .hover\:bg-gray-100:hover { background-color: rgb(var(--surface-2))  !important; }
+.tema-escuro .hover\:bg-gray-200:hover { background-color: rgb(var(--border-col)) !important; }
+.tema-escuro .text-gray-900 { color: rgb(var(--text-pri)) !important; }
+.tema-escuro .text-gray-800 { color: rgb(var(--text-pri)) !important; }
+.tema-escuro .text-gray-700 { color: #FAF7F8 !important; }
+.tema-escuro .text-gray-600 { color: rgb(var(--text-sec)) !important; }
+.tema-escuro .text-gray-500 { color: rgb(var(--text-sec)) !important; }
+.tema-escuro .text-gray-400 { color: rgb(212 168 182) !important; }
+.tema-escuro .border-gray-100, .tema-escuro .border-gray-200, .tema-escuro .border-gray-300 { border-color: rgb(var(--border-col)) !important; }
+.tema-escuro .divide-gray-100 > * + *, .tema-escuro .divide-gray-200 > * + * { border-color: rgb(var(--border-col)) !important; }
+
+/* Modo automático escuro: reusar mesmas regras */
+@media (prefers-color-scheme: dark) {
+  .tema-automatico body { background-color: rgb(var(--bg)); color: rgb(var(--text-pri)); }
+  .tema-automatico .card { background-color: rgb(var(--surface)); border-color: rgb(var(--border-col)); }
+  .tema-automatico .bg-white   { background-color: rgb(var(--surface))   !important; }
+  .tema-automatico .bg-gray-50  { background-color: rgb(var(--surface-2)) !important; }
+  .tema-automatico .bg-gray-100 { background-color: rgb(var(--surface-2)) !important; }
 }
