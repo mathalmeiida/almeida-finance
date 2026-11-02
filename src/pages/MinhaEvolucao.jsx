@@ -10,7 +10,7 @@ const n = valor => Number.isFinite(Number(valor)) ? Number(valor) : 0
 
 function CartaoResumo({ titulo, valor, Icone, ocultar, classe = '' }) {
   return (
-    <div className="min-w-0 rounded-2xl border border-marca/15 bg-white p-4 shadow-sm sm:p-5" style={{ backgroundColor: '#FFFFFF' }}>
+    <div className="min-w-0 rounded-2xl border border-marca/15 bg-white p-4 shadow-sm sm:p-5">
       <div className="mb-3 flex items-center gap-2 text-sm text-slate-600">
         <Icone size={17} className="shrink-0 text-marca" />
         <span>{titulo}</span>
@@ -39,7 +39,7 @@ export default function MinhaEvolucao() {
   const visiveis = verTodos ? meses : meses.slice(0, 4)
 
   return (
-    <main className="af-evolucao-clara w-full min-w-0 max-w-none space-y-5 rounded-2xl pb-24 text-slate-900" style={{ backgroundColor: '#F8F7FC', color: '#0F172A', padding: '16px' }}>
+    <main className="w-full min-w-0 max-w-none space-y-5 pb-24 text-slate-900">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Minha evolução financeira</h1>

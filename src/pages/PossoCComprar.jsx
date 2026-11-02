@@ -8,7 +8,9 @@ import {
 
   Loader2, RotateCcw, Home, Car, Users, Wallet, CreditCard,
 
-  UtensilsCrossed, ShoppingBag, ArrowRight, Pencil, CalendarDays
+  UtensilsCrossed, ShoppingBag, ArrowRight, Pencil, CalendarDays,
+
+  ChevronDown, ChevronUp
 
 } from 'lucide-react'
 
@@ -162,6 +164,8 @@ function SimuladorCompra() {
   const [erro, setErro] = useState('')
 
   const [mostrarDetalhes, setMostrarDetalhes] = useState(false)
+
+  const [mostrarCalculo, setMostrarCalculo] = useState(false)
 
 
 
@@ -613,6 +617,52 @@ function SimuladorCompra() {
               </p>
             )}
 <p className="text-xs text-gray-500 rounded-lg bg-marca-100 border border-marca/20 px-3 py-2 flex gap-2"><Info size={16} className="shrink-0 text-marca" /> {resultado.nota}</p>
+
+          {/* ── Como calculamos? ── painel expansível com a composição real do cálculo */}
+          <div className="rounded-xl border border-gray-200 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setMostrarCalculo(v => !v)}
+              aria-expanded={mostrarCalculo}
+              className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left bg-gray-50 hover:bg-gray-100 transition-colors"
+            >
+              <span className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                <Calculator size={15} className="text-marca shrink-0" />
+                Como calculamos?
+              </span>
+              {mostrarCalculo ? <ChevronUp size={16} className="text-gray-400 shrink-0" /> : <ChevronDown size={16} className="text-gray-400 shrink-0" />}
+            </button>
+            {mostrarCalculo && (
+              <div className="px-4 pb-4 pt-3 space-y-3 text-xs text-gray-600 border-t border-gray-200 bg-white">
+                <div>
+                  <p className="font-semibold text-gray-800 mb-1">Período de referência</p>
+                  <p>Mês atual: receitas e despesas cadastradas para este mês, incluindo recorrentes projetadas e faturas de cartão com vencimento no período.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-800 mb-1">Receitas consideradas</p>
+                  <p className="font-medium text-emerald-700">{formatCurrency(Number(resumoMes?.receitaTotal) || 0)}</p>
+                  <p>Soma das receitas cadastradas para o mês atual, incluindo recorrentes projetadas. Não inclui receitas de outros meses.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-800 mb-1">Compromissos deduzidos</p>
+                  <p className="font-medium text-red-600">{formatCurrency(descontoAtual)}</p>
+                  <p>Inclui despesas cadastradas, parcelas avulsas e faturas de cartão previstas para o mês. Não soma despesas de cartão duas vezes com faturas.</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-800 mb-1">Fórmula utilizada</p>
+                  <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2 font-mono text-[11px] leading-relaxed">
+                    Sobra prevista = Receitas − Compromissos<br />
+                    Impacto compra = {resultado.parcelas > 1 ? `Valor ÷ ${resultado.parcelas} parcelas × período restante` : 'Valor total à vista'}<br />
+                    Disponível após = Sobra prevista − Impacto compra
+                  </div>
+                </div>
+                {resultado.fonte === 'cartao' && (
+                  <p className="text-amber-700 bg-amber-50 rounded-lg px-3 py-2">Para cartão de crédito, o simulador não conhece fechamento nem vencimento. Os valores são estimativas sem representar a data real da fatura.</p>
+                )}
+                <p className="text-gray-400">Nenhum lançamento é criado durante a simulação.</p>
+              </div>
+            )}
+          </div>
 
           <div className="space-y-2">
 
