@@ -92,15 +92,15 @@ const CHAVE_PARA_ETAPA = {
 
 // Barra de progresso enxuta (apenas as 4 etapas de configuração).
 function Progresso({ etapa }) {
-  const etapas = [SALDO, INVESTIMENTOS, RENDA, DESPESAS, CARTOES, BENEFICIOS, RESERVA]
+  const etapas = [SALDO, RENDA, DESPESAS, CARTOES, BENEFICIOS, RESERVA]
   const indice = etapas.indexOf(etapa)
   return <div className="mb-6">
     <div className="flex items-center justify-between text-xs mb-2">
-      <span className="font-semibold text-violet-700">Seu planejamento</span>
+      <span className="font-semibold text-marca">Seu planejamento</span>
       <span className="text-gray-500">{indice + 1} de {etapas.length}</span>
     </div>
     <div className="flex gap-1.5">{etapas.map((n, i) =>
-      <div key={n} className={`h-1.5 flex-1 rounded-full ${i <= indice ? 'bg-violet-600' : 'bg-gray-200'}`} />
+      <div key={n} className={`h-1.5 flex-1 rounded-full ${i <= indice ? 'bg-marca' : 'bg-gray-200'}`} />
     )}</div>
   </div>
 }
@@ -322,7 +322,8 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
     try {
       // Grava mesmo que seja 0 (o usuário pode realmente estar zerado hoje).
       await atualizarPreferenciasLimite({ saldo_base: valor, saldo_base_data: hojeISO() })
-      avancar()
+      // Pergunta de investimentos já integrada na mesma tela — vai direto para RENDA.
+      setEtapa(RENDA)
     } catch {
       setErro('Não foi possível salvar o saldo. Tente novamente.')
     } finally {
@@ -967,11 +968,11 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
             </div>
           )}
 
-          {/* ─── ETAPA 1 — Saldo atual ─── */}
+          {/* ─── ETAPA 1 — Saldo atual + pergunta de investimentos na mesma tela ─── */}
           {etapa === SALDO && (
             <div className="py-2">
               <CabecalhoEtapa
-                icone={Wallet} cor="text-blue-600" bg="bg-blue-50"
+                icone={Wallet} cor="text-marca" bg="bg-marca-100"
                 titulo="Qual é o saldo disponível nas suas contas?"
                 subtitulo="Some o dinheiro nas contas e carteiras digitais. Não inclua investimentos, reserva aplicada ou limite de crédito."
               />
@@ -980,6 +981,30 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                 valor={saldo} onChangeValor={setSaldo}
                 className="input text-2xl font-bold text-center py-3" prefixo={null} autoFocus
               />
+
+              {/* Pergunta de investimentos integrada — sem tela separada */}
+              <div className="mt-5 rounded-xl border border-gray-200 p-4">
+                <p className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <PiggyBank size={16} className="text-marca" /> Você já tem dinheiro investido?
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  {[true, false].map(op => (
+                    <button type="button" key={String(op)}
+                      onClick={() => setTemInvestimentos(op)}
+                      className={`rounded-2xl border p-3 text-sm font-semibold transition-colors ${temInvestimentos === op ? 'border-marca bg-marca-100 text-marca' : 'border-gray-200 text-gray-700'}`}>
+                      <PiggyBank className="mx-auto mb-1.5" size={20}/>{op ? 'Sim, tenho' : 'Ainda não'}
+                    </button>
+                  ))}
+                </div>
+                {temInvestimentos && (
+                  <p className="text-xs text-gray-600 mt-3 bg-marca-100/40 rounded-lg p-3">
+                    Após concluir, cadastre seus investimentos no módulo <strong>Investimentos</strong>.
+                    Inclua sua reserva se ela estiver aplicada, sem duplicar no saldo em conta.
+                  </p>
+                )}
+                <p className="text-xs text-gray-400 mt-2">Esta resposta é informativa: nenhum investimento é gravado agora.</p>
+              </div>
+
               {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
               <div className="flex gap-2 mt-6">
                 <button onClick={salvarSaldo} disabled={salvando}
@@ -990,18 +1015,19 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
             </div>
           )}
 
-          {/* Investimentos são registrados no módulo existente, sem criar dados falsos. */}
+          {/* INVESTIMENTOS: etapa mantida para compatibilidade com etapaInicial='investimentos',
+              mas nunca exibida no fluxo normal (já está integrada ao SALDO acima). */}
           {etapa === INVESTIMENTOS && <div className="py-2">
-            <CabecalhoEtapa icone={PiggyBank} cor="text-violet-600" bg="bg-violet-50"
+            <CabecalhoEtapa icone={PiggyBank} cor="text-marca" bg="bg-marca-100"
               titulo="Você já tem dinheiro investido?"
               subtitulo="Seus investimentos ficam separados do saldo disponível para gastar." />
             <div className="grid grid-cols-2 gap-3">
               {[true,false].map(op => <button type="button" key={String(op)}
                 onClick={() => setTemInvestimentos(op)}
-                className={`rounded-2xl border p-4 text-sm font-semibold ${temInvestimentos === op ? 'border-violet-600 bg-violet-50 text-violet-700' : 'border-gray-200 text-gray-700'}`}>
+                className={`rounded-2xl border p-4 text-sm font-semibold transition-colors ${temInvestimentos === op ? 'border-marca bg-marca-100 text-marca' : 'border-gray-200 text-gray-700'}`}>
                 <PiggyBank className="mx-auto mb-2" size={23}/>{op ? 'Sim, tenho' : 'Ainda não'}</button>)}
             </div>
-            {temInvestimentos && <p className="text-sm mt-4 rounded-xl bg-violet-50 p-4 text-violet-800">
+            {temInvestimentos && <p className="text-sm mt-4 rounded-xl bg-marca-100/40 p-4 text-gray-700">
               Após concluir, cadastre seus investimentos no módulo <strong>Investimentos</strong>.
               Inclua sua reserva se ela estiver aplicada, sem duplicar no saldo em conta.</p>}
             <p className="text-xs text-gray-500 mt-3">Esta resposta é informativa: nenhum investimento é gravado nesta etapa.</p>

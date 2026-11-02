@@ -363,7 +363,7 @@ function SimuladorCompra() {
 
             <Indicador titulo="Despesas" valor={descontoAtual} cor="text-red-600" />
 
-            <Indicador titulo="Sobra prevista" valor={Number(resumoMes?.sobraPrevista) || 0} cor="text-blue-600" />
+            <Indicador titulo="Sobra prevista" valor={Number(resumoMes?.sobraPrevista) || 0} cor="text-emerald-600" />
 
           </div>
 

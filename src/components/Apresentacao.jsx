@@ -42,7 +42,7 @@ function VisualHome() {
       <div className="grid grid-cols-2 gap-2">
         <MiniCard icone={TrendingUp}      cor="bg-green-100 text-green-600"   rotulo="Receitas"  valor="R$ 6.000" />
         <MiniCard icone={TrendingDown}    cor="bg-red-100 text-red-500"       rotulo="Despesas"  valor="R$ 2.750" />
-        <MiniCard icone={CreditCard}      cor="bg-indigo-100 text-indigo-600" rotulo="Cartões"   valor="R$ 1.200" />
+        <MiniCard icone={CreditCard}      cor="bg-marca-100 text-marca"         rotulo="Cartões"   valor="R$ 1.200" />
         <MiniCard icone={UtensilsCrossed} cor="bg-amber-100 text-amber-600"   rotulo="VR / VA"   valor="R$ 850" />
         <MiniCard icone={PiggyBank}       cor="bg-emerald-100 text-emerald-600" rotulo="Reserva" valor="R$ 5.000" />
         <MiniCard icone={Landmark}        cor="bg-marca-100 text-marca"       rotulo="Financiamentos" valor="imóvel • veículo" />
@@ -81,7 +81,7 @@ function VisualConfigurar() {
       <div className="grid grid-cols-2 gap-2">
         <MiniCard icone={TrendingUp}      cor="bg-green-100 text-green-600"     rotulo="Receitas" />
         <MiniCard icone={TrendingDown}    cor="bg-red-100 text-red-500"         rotulo="Despesas" />
-        <MiniCard icone={CreditCard}      cor="bg-indigo-100 text-indigo-600"   rotulo="Cartões" />
+        <MiniCard icone={CreditCard}      cor="bg-marca-100 text-marca"         rotulo="Cartões" />
         <MiniCard icone={UtensilsCrossed} cor="bg-amber-100 text-amber-600"     rotulo="VR / VA" />
         <MiniCard icone={PiggyBank}       cor="bg-emerald-100 text-emerald-600" rotulo="Reserva" />
         <MiniCard icone={Receipt}         cor="bg-marca-100 text-marca"         rotulo="Planejamento" />
@@ -93,7 +93,7 @@ function VisualConfigurar() {
 const SLIDES = [
   {
     titulo: 'Bem-vindo ao Almeida Finance',
-    texto: 'Seu dinheiro organizado em um só lugar.',
+    texto: 'Seu dinheiro, organizado. Suas decisões, mais conscientes.',
     visual: VisualHome,
   },
   {

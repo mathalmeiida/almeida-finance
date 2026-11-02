@@ -33,7 +33,7 @@ export default function Splash({ saindo = false }) {
       <div className="mt-8 w-44 max-w-[60vw] h-1.5 rounded-full bg-gray-200 overflow-hidden">
         <div className="splash-bar h-full w-2/5 rounded-full bg-marca" />
       </div>
-      <p className="mt-4 text-sm text-gray-500">Preparando suas finanças...</p>
+      <p className="mt-4 text-sm text-gray-500">Seu dinheiro, organizado.</p>
     </div>
   )
 }

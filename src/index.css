@@ -8,56 +8,72 @@
      O padrão é o AZUL (#2855A5 = 40 85 165). A Fase 2 troca para ROSA aplicando
      a classe .tema-rosa no elemento raiz (ver abaixo), por preferência do
      usuário. Apenas identidade visual — não altera cálculos nem dados. */
-  /* PADRÃO = ROXO. Usuários sem preferência salva veem roxo (o fallback de
-     normalizarCor no AuthContext também é 'roxo'). Quem já escolheu outra cor
-     mantém a preferência (perfis.cor_tema / localStorage), aplicada pela classe
-     .tema-* correspondente abaixo. */
+  /* PADRÃO = VINHO/BORDÔ. Usuários sem preferência salva veem vinho.
+     Quem já escolheu outra cor mantém a preferência via perfis.cor_tema /
+     localStorage, aplicada pela classe .tema-* correspondente abaixo. */
   :root {
-    --marca: 124 58 173;       /* #7C3AAD roxo (padrão) */
-    --marca-hover: 100 46 140; /* roxo mais escuro p/ hover */
+    --marca: 120 25 50;        /* #781932 vinho/bordô (padrão) */
+    --marca-hover: 96 18 38;   /* tom mais escuro p/ hover */
+  }
+  /* Vinho explícito (alias do :root, para quem selecionar "Vinho" */
+  .tema-vinho {
+    --marca: 120 25 50;
+    --marca-hover: 96 18 38;
+  }
+  /* Roxo mantido como opção */
+  .tema-roxo {
+    --marca: 124 58 173;       /* #7C3AAD roxo */
+    --marca-hover: 100 46 140;
   }
   /* Azul deixou de ser o padrão; vira uma opção explícita via .tema-azul. */
   .tema-azul {
     --marca: 40 85 165;        /* #2855A5 azul */
-    --marca-hover: 32 68 132;  /* azul mais escuro p/ hover */
+    --marca-hover: 32 68 132;
   }
-  /* Rosa/Vermelho: opção única (um vermelho-rosado). A classe .tema-vermelho é
-     um alias da mesma paleta para robustez, mas o valor salvo é 'rosa'. */
+  /* Rosa/Vermelho: opção única (um vermelho-rosado). */
   .tema-rosa,
   .tema-vermelho {
     --marca: 184 63 121;       /* #B83F79 rosa/vermelho */
-    --marca-hover: 150 48 97;  /* tom mais escuro p/ hover */
+    --marca-hover: 150 48 97;
   }
   .tema-verde {
     --marca: 22 128 92;        /* #16805C verde */
-    --marca-hover: 17 101 73;  /* verde mais escuro p/ hover */
-  }
-  .tema-roxo {
-    --marca: 124 58 173;       /* #7C3AAD roxo */
-    --marca-hover: 100 46 140; /* roxo mais escuro p/ hover */
+    --marca-hover: 17 101 73;
   }
   .tema-laranja {
     --marca: 217 119 6;        /* #D97706 laranja */
-    --marca-hover: 180 98 4;   /* laranja mais escuro p/ hover */
+    --marca-hover: 180 98 4;
   }
-  /* ─── TEMA PRETO = MODO ESCURO COMPLETO ───────────────────────────────────
-     Diferente dos outros temas (que só trocam a cor de marca), o preto também
-     redefine as SUPERFÍCIES e os TEXTOS neutros do app inteiro. Para isso, a
-     cor de marca aqui é CLARA (um azul-aço) — assim botões/ícones/links na cor
-     da marca ficam legíveis sobre o fundo escuro. O fundo e os cards vêm das
-     variáveis --fundo/--superficie, consumidas pelas sobrescritas em
-     "@layer utilities" mais abaixo (escopadas em .tema-preto).
-     Paleta pedida: fundo #10141D, cards #202632, textos claros, bordas discretas. */
+  /* ─── TEMA PRETO = MODO ESCURO MANUAL ─────────────────────────────────────
+     Ativa o esquema escuro completo. A cor de marca é um vinho claro (#C4637A)
+     legível sobre fundo escuro. */
   .tema-preto {
-    --marca: 96 141 214;        /* #608DD6 azul-aço claro (legível no escuro) */
-    --marca-hover: 125 165 226; /* um tom mais claro p/ hover */
+    --marca: 196 99 122;        /* #C4637A vinho claro (legível no escuro) */
+    --marca-hover: 220 120 140;
     --fundo: 16 20 29;          /* #10141D fundo geral */
     --superficie: 32 38 50;     /* #202632 cards/superfícies */
-    --superficie-2: 42 49 63;   /* #2A313F elevação (hover/realces sutis) */
+    --superficie-2: 42 49 63;   /* #2A313F elevação */
     --borda: 54 62 78;          /* #363E4E bordas discretas */
-    --texto: 229 231 235;       /* #E5E7EB texto principal (claro) */
+    --texto: 229 231 235;       /* #E5E7EB texto principal */
     --texto-suave: 156 163 175; /* #9CA3AF texto secundário */
     color-scheme: dark;
+  }
+  /* ─── MODO AUTOMÁTICO ───────────────────────────────────────────────────────
+     Quando o usuário escolhe "Automático", aplica-se .tema-automatico.
+     No modo claro do sistema → vinho (padrão). No modo escuro do sistema →
+     aplica as mesmas variáveis do tema preto automaticamente. */
+  @media (prefers-color-scheme: dark) {
+    .tema-automatico {
+      --marca: 196 99 122;
+      --marca-hover: 220 120 140;
+      --fundo: 16 20 29;
+      --superficie: 32 38 50;
+      --superficie-2: 42 49 63;
+      --borda: 54 62 78;
+      --texto: 229 231 235;
+      --texto-suave: 156 163 175;
+      color-scheme: dark;
+    }
   }
 
   html {
@@ -379,4 +395,34 @@
 .tema-preto .card .text-gray-800,
 .tema-preto .card .text-gray-700 {
   color: #FFFFFF !important;
+}
+
+/* ─── MODO AUTOMÁTICO — overrides quando o sistema preferir escuro ─────────
+   Idênticos ao .tema-preto, mas ativados automaticamente pelo OS.
+   Agrupados em @media para não afetar o modo claro do sistema. */
+@media (prefers-color-scheme: dark) {
+  .tema-automatico body { background-color: rgb(var(--fundo)); color: rgb(var(--texto)); }
+  .tema-automatico .card { background-color: rgb(var(--superficie)); border-color: rgb(var(--borda)); box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.35); color: #E5E7EB; }
+  .tema-automatico .card .text-gray-900, .tema-automatico .card .text-gray-800, .tema-automatico .card .text-gray-700 { color: #FFFFFF !important; }
+  .tema-automatico .btn-secondary { background-color: rgb(var(--superficie-2)); color: rgb(var(--texto)); }
+  .tema-automatico .btn-secondary:hover { background-color: rgb(var(--borda)); }
+  .tema-automatico .input { background-color: rgb(var(--superficie-2)); border-color: rgb(var(--borda)); color: rgb(var(--texto)); }
+  .tema-automatico .input::placeholder { color: rgb(var(--texto-suave)); }
+  .tema-automatico .label { color: rgb(var(--texto-suave)); }
+  .tema-automatico .bg-white { background-color: rgb(var(--superficie)) !important; }
+  .tema-automatico .bg-gray-50  { background-color: rgb(var(--superficie-2)) !important; }
+  .tema-automatico .bg-gray-100 { background-color: rgb(var(--superficie-2)) !important; }
+  .tema-automatico .bg-slate-50 { background-color: rgb(var(--superficie-2)) !important; }
+  .tema-automatico .bg-gray-200 { background-color: rgb(var(--borda)) !important; }
+  .tema-automatico .hover\:bg-gray-50:hover  { background-color: rgb(var(--superficie-2)) !important; }
+  .tema-automatico .hover\:bg-gray-100:hover { background-color: rgb(var(--superficie-2)) !important; }
+  .tema-automatico .hover\:bg-gray-200:hover { background-color: rgb(var(--borda)) !important; }
+  .tema-automatico .text-gray-900 { color: rgb(var(--texto)) !important; }
+  .tema-automatico .text-gray-800 { color: rgb(var(--texto)) !important; }
+  .tema-automatico .text-gray-700 { color: rgb(229 231 235) !important; }
+  .tema-automatico .text-gray-600 { color: rgb(var(--texto-suave)) !important; }
+  .tema-automatico .text-gray-500 { color: rgb(var(--texto-suave)) !important; }
+  .tema-automatico .text-gray-400 { color: rgb(148 163 184) !important; }
+  .tema-automatico .border-gray-100, .tema-automatico .border-gray-200, .tema-automatico .border-gray-300 { border-color: rgb(var(--borda)) !important; }
+  .tema-automatico .divide-gray-100 > * + *, .tema-automatico .divide-gray-200 > * + * { border-color: rgb(var(--borda)) !important; }
 }

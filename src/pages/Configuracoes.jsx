@@ -98,7 +98,7 @@ function Aparencia() {
                   </span>
                   <span className="min-w-0">
                     <span className="block text-xs sm:text-sm font-semibold text-gray-900 break-words">{op.label}</span>
-                    <span className="block text-xs text-gray-400">{ativo ? 'Selecionado' : op.value === 'azul' ? 'Padrão' : 'Alternativa'}</span>
+                    <span className="block text-xs text-gray-400">{ativo ? 'Selecionado' : op.value === 'vinho' ? 'Padrão' : op.auto ? 'Segue o sistema' : 'Alternativa'}</span>
                   </span>
                 </button>
               )

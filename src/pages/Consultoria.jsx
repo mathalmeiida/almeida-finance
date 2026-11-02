@@ -4,9 +4,9 @@ import {
 
   MessageCircle, CheckCircle2, Loader2, GraduationCap,
 
-  BadgeCheck, Wallet, PiggyBank, Target, LineChart, ListChecks,
+  BadgeCheck, Wallet, PiggyBank, LineChart, ListChecks,
 
-  TrendingDown, ChevronDown, ChevronUp, ArrowRight, Sparkles,
+  ChevronDown, ChevronUp, ArrowRight, Sparkles,
 
   BriefcaseBusiness,
 
@@ -21,19 +21,10 @@ import { mascararTelefone, somenteDigitosTelefone, telefoneValido } from '../lib
 const fotoMatheus = '/images/foto%20perfil.png'
 
 const AJUDAS = [
-
-  { icon: Wallet, titulo: 'Organização das finanças pessoais', descricao: 'Organize receitas, despesas e cartões.' },
-
-  { icon: TrendingDown, titulo: 'Controle de gastos', descricao: 'Identifique oportunidades de economia.' },
-
-  { icon: LineChart, titulo: 'Planejamento financeiro', descricao: 'Planeje metas e decisões financeiras.' },
-
-  { icon: PiggyBank, titulo: 'Construção de reserva de emergência', descricao: 'Prepare-se melhor para imprevistos.' },
-
-  { icon: Target, titulo: 'Organização para grandes objetivos', descricao: 'Imóvel, viagem, carro, estudos e mais.' },
-
-  { icon: ListChecks, titulo: 'Análise do orçamento', descricao: 'Tenha uma visão mais clara das suas finanças.' },
-
+  { icon: Wallet,       titulo: 'Organização e controle',         descricao: 'Receitas, despesas, cartões e saldo no mesmo lugar.' },
+  { icon: LineChart,    titulo: 'Planejamento e metas',           descricao: 'Estratégias para objetivos de curto, médio e longo prazo.' },
+  { icon: PiggyBank,    titulo: 'Reserva e investimentos',        descricao: 'Construa segurança financeira e faça seu dinheiro trabalhar.' },
+  { icon: ListChecks,   titulo: 'Análise e diagnóstico',          descricao: 'Visão clara das finanças com orientações práticas.' },
 ]
 
 const painel = 'rounded-2xl border border-marca/15 bg-white shadow-sm'

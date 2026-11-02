@@ -179,7 +179,7 @@ function FormCompra({ cartoes, cartaoIdFixo, onSalvar, onCancelar, carregando, c
         <div className="flex gap-3">
           {['avista', 'parcelada'].map(op => (
             <label key={op} className={`flex-1 flex items-center justify-center p-3 rounded-xl border-2 cursor-pointer text-sm font-medium transition-all ${
-              form.tipo === op ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+              form.tipo === op ? 'border-marca bg-marca-100 text-marca' : 'border-gray-200 text-gray-600 hover:border-gray-300'
             }`}>
               <input type="radio" name="tipo" value={op} checked={form.tipo === op} onChange={handleChange} className="hidden" />
               {op === 'avista' ? 'À vista' : 'Parcelada'}
@@ -195,7 +195,7 @@ function FormCompra({ cartoes, cartaoIdFixo, onSalvar, onCancelar, carregando, c
             {[2,3,4,5,6,7,8,9,10,11,12,18,24].map(n => <option key={n} value={n}>{n}x</option>)}
           </select>
           {valorParcela > 0 && (
-            <p className="text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-2 mt-2">
+            <p className="text-xs text-marca bg-marca-100 rounded-lg px-3 py-2 mt-2">
               {nParc}x de <strong>{formatCurrency(valorParcela)}</strong>
             </p>
           )}
@@ -517,8 +517,8 @@ const [modalFatura, setModalFatura] = useState(false)
           <p className="mt-2 text-xl sm:text-2xl font-bold text-gray-900 break-words">{formatCurrency(totalFaturaAtual)}</p>
         </button>
         <button type="button" onClick={() => setRefData({ ano: proximosMeses[1].ano, mes: proximosMeses[1].mes })}
-          className="rounded-2xl border border-blue-400/30 bg-blue-500/10 p-4 text-left min-w-0 hover:ring-2 hover:ring-blue-300/30 transition-all">
-          <div className="flex items-center gap-2 text-blue-500"><Calendar size={17} /><span className="text-xs font-semibold">Ciclo seguinte</span></div>
+          className="rounded-2xl border border-marca/30 bg-marca-100/50 p-4 text-left min-w-0 hover:ring-2 hover:ring-marca/30 transition-all">
+          <div className="flex items-center gap-2 text-marca"><Calendar size={17} /><span className="text-xs font-semibold">Ciclo seguinte</span></div>
           <p className="mt-1 text-xs text-gray-500">{proximosMeses[1].label} · vencimento configurado: dia {cartao.dia_vencimento}</p>
           <p className="mt-2 text-xl sm:text-2xl font-bold text-gray-900 break-words">{formatCurrency(totalProximaFatura)}</p>
         </button>
@@ -579,7 +579,7 @@ const [modalFatura, setModalFatura] = useState(false)
             {faturaInformada && (
               <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
                 <button onClick={() => setModalFatura(true)}
-                  className="text-xs font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-1">
+                  className="text-xs font-medium text-marca hover:text-marca-hover inline-flex items-center gap-1">
                   <Pencil size={12} /> Editar total
                 </button>
                 <button onClick={handleRemoverFaturaInformada}
@@ -662,7 +662,7 @@ const [modalFatura, setModalFatura] = useState(false)
         <div className="flex items-center justify-between gap-2 mb-3">
           <h2 className="text-base font-semibold text-gray-900">Minhas compras</h2>
           {ehMesAtual && linhas.length > 0 && (
-            <button onClick={() => { setCompraEditando(null); setModalCompra(true) }} className="text-xs font-medium text-blue-600 hover:underline flex-shrink-0">
+            <button onClick={() => { setCompraEditando(null); setModalCompra(true) }} className="text-xs font-medium text-marca hover:underline flex-shrink-0">
               + Nova compra
             </button>
           )}
@@ -689,13 +689,13 @@ const [modalFatura, setModalFatura] = useState(false)
           </div>
         )}
         {carregando ? (
-          <div className="flex items-center justify-center py-12"><Loader2 size={24} className="animate-spin text-blue-500" /></div>
+          <div className="flex items-center justify-center py-12"><Loader2 size={24} className="animate-spin text-marca" /></div>
         ) : linhas.length === 0 ? (
           <div className="card text-center py-12">
             <Receipt size={36} className="text-gray-200 mx-auto mb-3" />
             <p className="text-sm text-gray-500">Nenhuma compra nesta fatura.</p>
             {ehMesAtual && (
-              <button onClick={() => { setCompraEditando(null); setModalCompra(true) }} className="mt-3 text-sm text-blue-600 hover:underline">Lançar primeira compra</button>
+              <button onClick={() => { setCompraEditando(null); setModalCompra(true) }} className="mt-3 text-sm text-marca hover:underline">Lançar primeira compra</button>
             )}
           </div>
         ) : visaoGastos === 'data' ? (
@@ -900,7 +900,7 @@ function CardCartao({ cartao, compras, parcelamentos = [], faturasInformadas = [
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           <button onClick={() => onEditar(cartao)} title="Editar cartão" aria-label="Editar cartão"
-            className="touch-target rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+            className="touch-target rounded-lg text-gray-400 hover:text-marca hover:bg-marca-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
             <Pencil size={15} />
           </button>
           <button onClick={() => onRemover(cartao.id)} disabled={removendo === cartao.id} title="Excluir cartão" aria-label="Excluir cartão"
@@ -1017,12 +1017,12 @@ export default function Cartoes() {
       </div>
       {erro && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{erro}</p>}
       {carregando ? (
-        <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-blue-500" /></div>
+        <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-marca" /></div>
       ) : cartoes.length === 0 ? (
         <div className="card text-center py-12">
           <CreditCard size={36} className="text-gray-200 mx-auto mb-3" />
           <p className="text-sm text-gray-500">Nenhum cartão cadastrado.</p>
-          <button onClick={abrirNovo} className="mt-3 text-sm text-blue-600 hover:underline">Adicionar primeiro cartão</button>
+          <button onClick={abrirNovo} className="mt-3 text-sm text-marca hover:underline">Adicionar primeiro cartão</button>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

@@ -245,7 +245,7 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
               <button type="button"
                 onClick={() => setForm(p => ({ ...p, comoCompra: 'avista' }))}
                 className={`p-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
-                  form.comoCompra === 'avista' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                  form.comoCompra === 'avista' ? 'border-marca bg-marca-100 text-marca' : 'border-gray-200 text-gray-600'
                 }`}>
                 1x
               </button>
@@ -268,8 +268,8 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
                 ))}
               </select>
               {parcelaBase > 0 && (
-                <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 mt-2">
-                  <p className="text-xs text-blue-700">
+                <div className="bg-marca-100 border border-marca rounded-xl px-3 py-2 mt-2">
+                  <p className="text-xs text-marca">
                     Valor por parcela: <strong>{formatCurrency(parcelaBase)}/mês</strong>
                   </p>
                   {temAjusteParcela && (
@@ -338,14 +338,14 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
                 <button type="button"
                   onClick={() => setForm(p => ({ ...p, duracaoMensal: 'sem_fim' }))}
                   className={`p-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
-                    form.duracaoMensal === 'sem_fim' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                    form.duracaoMensal === 'sem_fim' ? 'border-marca bg-marca-100 text-marca' : 'border-gray-200 text-gray-600'
                   }`}>
                   Sem data para terminar
                 </button>
                 <button type="button"
                   onClick={() => setForm(p => ({ ...p, duracaoMensal: 'quantidade' }))}
                   className={`p-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
-                    form.duracaoMensal === 'quantidade' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                    form.duracaoMensal === 'quantidade' ? 'border-marca bg-marca-100 text-marca' : 'border-gray-200 text-gray-600'
                   }`}>
                   Por alguns meses
                 </button>
@@ -384,14 +384,14 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
             <button type="button"
               onClick={() => setTipoManual('fixa')}
               className={`p-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
-                tipoManual === 'fixa' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                tipoManual === 'fixa' ? 'border-marca bg-marca-100 text-marca' : 'border-gray-200 text-gray-600'
               }`}>
               🧱 Fixa
             </button>
             <button type="button"
               onClick={() => setTipoManual('variavel')}
               className={`p-2.5 rounded-xl border-2 text-sm font-medium transition-all ${
-                tipoManual === 'variavel' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                tipoManual === 'variavel' ? 'border-marca bg-marca-100 text-marca' : 'border-gray-200 text-gray-600'
               }`}>
               📊 Variável
             </button>
@@ -408,14 +408,14 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
                 <button type="button"
                   onClick={() => setEscopoTipo('mes')}
                   className={`p-2.5 rounded-xl border-2 text-sm font-medium text-left transition-all ${
-                    escopoTipo === 'mes' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                    escopoTipo === 'mes' ? 'border-marca bg-marca-100 text-marca' : 'border-gray-200 text-gray-600'
                   }`}>
                   Somente este mês
                 </button>
                 <button type="button"
                   onClick={() => setEscopoTipo('proximos')}
                   className={`p-2.5 rounded-xl border-2 text-sm font-medium text-left transition-all ${
-                    escopoTipo === 'proximos' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600'
+                    escopoTipo === 'proximos' ? 'border-marca bg-marca-100 text-marca' : 'border-gray-200 text-gray-600'
                   }`}>
                   Este e os próximos meses
                 </button>
@@ -463,7 +463,7 @@ function NotificacaoClassificacao({ despesa, onAlterar, onFechar }) {
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
         <button onClick={() => onAlterar(despesa.id, tipoOposto)}
-          className="text-xs text-blue-600 hover:underline font-medium">
+          className="text-xs text-marca hover:underline font-medium">
           Alterar para {labelOposto}
         </button>
         <button onClick={onFechar} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
@@ -1107,7 +1107,7 @@ function ResumoInteligenteDespesas({ despesas, parcelasDoMes, tipoNoMes, anoMesA
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 content-center">
           <div className="rounded-xl bg-gray-50 p-3 min-w-0"><p className="text-xs text-gray-500">Fixas</p><p className="text-xl font-bold text-gray-900">{Math.round(pctF)}%</p><p className="text-xs text-gray-500 break-words">{formatCurrency(totalFixas)}</p><div className="h-1.5 bg-gray-200 rounded-full mt-3 overflow-hidden"><div className="h-full bg-marca rounded-full" style={{ width: `${pctF}%` }} /></div></div>
-          <div className="rounded-xl bg-gray-50 p-3 min-w-0"><p className="text-xs text-gray-500">Variáveis</p><p className="text-xl font-bold text-gray-900">{Math.round(pctV)}%</p><p className="text-xs text-gray-500 break-words">{formatCurrency(totalVariaveis)}</p><div className="h-1.5 bg-gray-200 rounded-full mt-3 overflow-hidden"><div className="h-full bg-purple-400 rounded-full" style={{ width: `${pctV}%` }} /></div></div>
+          <div className="rounded-xl bg-gray-50 p-3 min-w-0"><p className="text-xs text-gray-500">Variáveis</p><p className="text-xl font-bold text-gray-900">{Math.round(pctV)}%</p><p className="text-xs text-gray-500 break-words">{formatCurrency(totalVariaveis)}</p><div className="h-1.5 bg-gray-200 rounded-full mt-3 overflow-hidden"><div className="h-full bg-marca-hover rounded-full" style={{ width: `${pctV}%` }} /></div></div>
           <div className="rounded-xl bg-gray-50 p-3 min-w-0"><p className="text-xs text-gray-500">Maior categoria</p><p className="text-sm font-bold text-gray-900 break-words mt-2">{maiorCategoria?.[0] || 'Não identificada'}</p><p className="text-xs text-gray-500 mt-1">{formatCurrency(maiorCategoria?.[1] || 0)}</p></div>
         </div>
       </div>
@@ -1684,13 +1684,13 @@ export default function Despesas() {
 
           {(carregando || carregandoParc) ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 size={24} className="animate-spin text-blue-500" />
+              <Loader2 size={24} className="animate-spin text-marca" />
             </div>
           ) : totalLinhas === 0 ? (
             <div className="text-center py-12">
               <TrendingDown size={36} className="text-gray-200 mx-auto mb-3" />
               <p className="text-sm text-gray-500">Nenhuma despesa nesta categoria.</p>
-              <button onClick={handleAbrirNova} className="mt-3 text-sm text-blue-600 hover:underline">
+              <button onClick={handleAbrirNova} className="mt-3 text-sm text-marca hover:underline">
                 Cadastrar despesa
               </button>
             </div>
@@ -1819,7 +1819,7 @@ export default function Despesas() {
                   <span className="text-sm font-bold text-red-500 whitespace-nowrap">-{formatCurrency(d.valor)}</span>
                   <button
                     onClick={() => setDespesaAntecipar(d)}
-                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                    className="flex items-center gap-1 text-xs font-semibold text-marca bg-marca-100 hover:bg-marca-150 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
                   >
                     <Zap size={13} /> Antecipar
                   </button>
@@ -1983,14 +1983,14 @@ export default function Despesas() {
 
           {carregandoParc ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 size={24} className="animate-spin text-blue-500" />
+              <Loader2 size={24} className="animate-spin text-marca" />
             </div>
           ) : parcAtivos.length === 0 && parcConcluidos.length === 0 ? (
             filtro === 'Parceladas' && (
               <div className="card text-center py-12">
                 <CreditCard size={36} className="text-gray-200 mx-auto mb-3" />
                 <p className="text-sm text-gray-500">Nenhuma compra parcelada cadastrada.</p>
-                <button onClick={handleAbrirNova} className="mt-3 text-sm text-blue-600 hover:underline">
+                <button onClick={handleAbrirNova} className="mt-3 text-sm text-marca hover:underline">
                   Cadastrar parcelamento
                 </button>
               </div>

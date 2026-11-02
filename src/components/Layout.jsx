@@ -23,6 +23,8 @@ import {
   LogOut,
   ArrowLeft,
   Eye,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import LogoMarca from './LogoMarca'
@@ -153,6 +155,18 @@ function BottomNavItem({ to, label, icon: Icon, onClick, ativo, corIcone }) {
 }
 export default function Layout({ children }) {
   const [menuMobile, setMenuMobile] = useState(null)
+  // Sidebar recolhível: persiste no localStorage entre sessões
+  const CHAVE_SIDEBAR = 'almeida_sidebar_recolhida'
+  const [recolhida, setRecolhida] = useState(() => {
+    try { return localStorage.getItem(CHAVE_SIDEBAR) === '1' } catch { return false }
+  })
+  function toggleSidebar() {
+    setRecolhida(v => {
+      const novo = !v
+      try { localStorage.setItem(CHAVE_SIDEBAR, novo ? '1' : '0') } catch {}
+      return novo
+    })
+  }
   const { sair, usuario, perfil, ehAdmin, modoConsultoria, consultoriaAlvo, sairModoConsultoria, somenteLeitura } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -184,35 +198,66 @@ export default function Layout({ children }) {
   }
   return (
     <div className="min-h-screen flex">
-      {/* ── Sidebar desktop (redesenho visual; rotas/permissões inalteradas) ── */}
-      <aside className="hidden md:flex flex-col w-60 bg-white border-r border-gray-200/70 fixed top-0 left-0 h-full z-30">
-        {/* Logo + subtítulo. O logo (branco) fica sobre um painel na cor da
-            marca (azul/rosa) para contraste no tema claro — ver LogoMarca. */}
-        <div className="px-5 pt-6 pb-5 border-b border-gray-100 flex flex-col items-center text-center">
-          <LogoMarca imgClassName="h-16 w-auto" padding="px-5 py-4" />
-          <p className="text-[13px] text-gray-600 mt-2.5">Controle financeiro</p>
+      {/* ── Sidebar desktop recolhível ── */}
+      <aside className={`hidden md:flex flex-col bg-white border-r border-gray-200/70 fixed top-0 left-0 h-full z-30 transition-[width] duration-200 ${recolhida ? 'w-16' : 'w-60'}`}>
+        {/* Cabeçalho da sidebar: logo quando expandida, só ícone quando recolhida */}
+        <div className={`border-b border-gray-100 flex items-center ${recolhida ? 'justify-center px-0 py-4' : 'flex-col items-center text-center px-5 pt-6 pb-5'}`}>
+          {!recolhida && (
+            <>
+              <LogoMarca imgClassName="h-16 w-auto" padding="px-5 py-4" />
+              <p className="text-[13px] text-gray-600 mt-2.5">Controle financeiro</p>
+            </>
+          )}
+          {recolhida && (
+            <LogoMarca imgClassName="h-8 w-auto" padding="px-1 py-1" />
+          )}
         </div>
         {/* Navegação agrupada em seções */}
-        <nav className="flex-1 px-3 py-2 overflow-y-auto">
+        <nav className="flex-1 px-2 py-2 overflow-y-auto overflow-x-hidden">
           {navGrupos.map(grupo => {
             const itens = grupo.itens.filter(i => !i.adminOnly || ehAdmin)
             if (itens.length === 0) return null
             return (
               <div key={grupo.titulo}>
-                <SecaoLabel>{grupo.titulo}</SecaoLabel>
+                {!recolhida && <SecaoLabel>{grupo.titulo}</SecaoLabel>}
                 <div className="space-y-0.5">
                   {itens.map(item => (
-                    <NavItem key={item.to} item={item} />
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.to === '/'}
+                      title={recolhida ? item.label : undefined}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150 ${
+                          recolhida ? 'justify-center' : ''
+                        } ${isActive ? 'bg-marca text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}`
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          <item.icon size={19} className={`flex-shrink-0 ${isActive ? '' : item.corIcone || ''}`} />
+                          {!recolhida && <span className="flex-1 truncate">{item.label}</span>}
+                        </>
+                      )}
+                    </NavLink>
                   ))}
                 </div>
               </div>
             )
           })}
         </nav>
-        <UserFooter onSair={handleSair} perfil={perfil} usuario={usuario} />
+        {!recolhida && <UserFooter onSair={handleSair} perfil={perfil} usuario={usuario} />}
+        {/* Botão toggle recolher/expandir */}
+        <button
+          onClick={toggleSidebar}
+          aria-label={recolhida ? 'Expandir menu' : 'Recolher menu'}
+          className="hidden md:flex items-center justify-center gap-2 px-3 py-3 border-t border-gray-100 text-gray-400 hover:text-marca hover:bg-gray-50 transition-colors text-xs font-medium"
+        >
+          {recolhida ? <PanelLeftOpen size={18} /> : <><PanelLeftClose size={18} /><span>Recolher</span></>}
+        </button>
       </aside>
-      {/* ── Conteúdo principal ── */}
-      <div className="flex-1 md:ml-60 flex flex-col min-h-screen">
+      {/* ── Conteúdo principal (margem esquerda acompanha sidebar) ── */}
+      <div className={`flex-1 flex flex-col min-h-screen transition-[margin] duration-200 ${recolhida ? 'md:ml-16' : 'md:ml-60'}`}>
         {/* ── Banner GLOBAL "Modo Consultoria" ──
             Fica fixo no topo de todas as telas internas enquanto o consultor
             visualiza os dados de um cliente (somente leitura). */}

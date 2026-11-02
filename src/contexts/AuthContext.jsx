@@ -40,33 +40,39 @@ export function AuthProvider({ children }) {
   //   2) perfis.cor_tema → quando a coluna existir, sincroniza entre
   //      dispositivos. Se a coluna NÃO existir, o app funciona só com o
   //      localStorage (não quebra).
-  // Cores válidas: roxo (padrão), azul, verde, rosa/vermelho, laranja, preto.
-  // 'vermelho' é aceito como alias de 'rosa' (opção única Rosa/Vermelho) para
-  // robustez; o valor canônico salvo é 'rosa'.
+  // Cores válidas: vinho (padrão), roxo, azul, verde, rosa/vermelho, laranja, preto, automatico.
+  // 'vermelho' é aceito como alias de 'rosa'. 'roxo' (preferência antiga) é aceito.
   const CHAVE_COR_TEMA = 'almeida_cor_tema'
-  const CORES_TEMA = ['roxo', 'azul', 'rosa', 'verde', 'laranja', 'preto']
+  const CORES_TEMA = ['vinho', 'roxo', 'azul', 'rosa', 'verde', 'laranja', 'preto', 'automatico']
   const normalizarCor = (c) => {
     if (c === 'vermelho') return 'rosa'
-    return CORES_TEMA.includes(c) ? c : 'roxo'
+    return CORES_TEMA.includes(c) ? c : 'vinho'
   }
   const [corTemaLocal, setCorTemaLocal] = useState(() => {
     try { return normalizarCor(localStorage.getItem(CHAVE_COR_TEMA)) }
-    catch { return 'roxo' }
+    catch { return 'vinho' }
   })
 
   // Preferência efetiva: perfil do banco tem prioridade quando válido; senão
   // cai no localStorage.
   const corTema = CORES_TEMA.includes(perfil?.cor_tema) ? perfil.cor_tema : corTemaLocal
 
-  // Aplica a classe de tema no <html> (tema-azul/-verde/-rosa/-laranja/-preto).
-  // ROXO = sem classe (variáveis padrão do :root agora são roxo). Só visual:
-  // alterna --marca/--marca-hover. 'rosa' também cobre o alias vermelho.
+  // Aplica a classe de tema no <html>.
+  // VINHO = sem classe (variáveis padrão do :root agora são vinho/bordô).
+  // 'automatico' aplica .tema-automatico e escuta prefers-color-scheme para
+  // sincronizar body/card overrides sem recarregar.
   useEffect(() => {
     try {
       const el = document.documentElement
-      el.classList.remove('tema-azul', 'tema-rosa', 'tema-vermelho', 'tema-verde', 'tema-roxo', 'tema-laranja', 'tema-preto')
-      if (corTema !== 'roxo') el.classList.add(`tema-${corTema}`)
-    } catch { /* ambiente sem DOM: ignora */ }
+      const todas = ['tema-vinho','tema-roxo','tema-azul','tema-rosa','tema-vermelho',
+                     'tema-verde','tema-laranja','tema-preto','tema-automatico']
+      el.classList.remove(...todas)
+      if (corTema === 'automatico') {
+        el.classList.add('tema-automatico')
+      } else if (corTema !== 'vinho') {
+        el.classList.add(`tema-${corTema}`)
+      }
+    } catch { /* ambiente sem DOM */ }
   }, [corTema])
 
   // Quando o perfil chega do banco com uma cor válida, espelha no localStorage

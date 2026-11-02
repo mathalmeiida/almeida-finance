@@ -2267,14 +2267,16 @@ const carregandoLimite = carregando
   // Enquanto a preferência carrega (corTema indefinido), usa um grafite escuro
   // legível como fallback. Atualiza na hora ao trocar a cor (corTema muda).
   const HEADER_BG = {
+    vinho: 'linear-gradient(135deg, #3d0a18 0%, #250610 100%)', // vinho/bordô escuro
     azul:  'linear-gradient(135deg, #0b1f3a 0%, #0a1626 100%)', // azul-marinho escuro
     rosa:  'linear-gradient(135deg, #4a1130 0%, #2c0a1d 100%)', // rosa-escuro
     verde: 'linear-gradient(135deg, #0b3a2a 0%, #07241a 100%)', // verde-escuro
     roxo:  'linear-gradient(135deg, #2e1246 0%, #1d0b2d 100%)', // roxo-escuro
     laranja: 'linear-gradient(135deg, #743d17 0%, #43230f 100%)',
     preto: 'linear-gradient(135deg, #1f2937 0%, #0b0f17 100%)', // grafite escuro
+    automatico: 'linear-gradient(135deg, #3d0a18 0%, #250610 100%)',
   }
-  const headerBg = HEADER_BG[corTema] || HEADER_BG.preto
+  const headerBg = HEADER_BG[corTema] || HEADER_BG.vinho
   // Paleta exclusiva da Home. As variáveis CSS atualizam quando corTema muda.
   const PALETAS_HOME = {
     azul:  { fundo: '#f2f7ff', claro: '#eaf2ff', borda: '#c9dcff', principal: '#2563eb', escuro: '#0f2342', painel: '#1e3357', suave: '#dbeafe' },
@@ -2283,15 +2285,19 @@ const carregandoLimite = carregando
     roxo:  { fundo: '#f7f3ff', claro: '#f2edff', borda: '#d7c6ff', principal: '#7c3aed', escuro: '#24143e', painel: '#382453', suave: '#ede9fe' },
     laranja: { fundo: '#fff8f0', claro: '#fff1df', borda: '#fed7aa', principal: '#ea7600', escuro: '#65330a', painel: '#834519', suave: '#ffedd5' },
     preto: { fundo: '#f4f5f7', claro: '#edf0f4', borda: '#cbd5e1', principal: '#374151', escuro: '#111827', painel: '#273244', suave: '#e5e7eb' },
+    vinho: { fundo: '#fff5f7', claro: '#ffe9ed', borda: '#f9c0cb', principal: '#781932', escuro: '#3d0a18', painel: '#5a1224', suave: '#ffe0e6' },
+    automatico: { fundo: '#fff5f7', claro: '#ffe9ed', borda: '#f9c0cb', principal: '#781932', escuro: '#3d0a18', painel: '#5a1224', suave: '#ffe0e6' },
   }
-  const paletaHome = PALETAS_HOME[corTema] || PALETAS_HOME.preto
+  const paletaHome = PALETAS_HOME[corTema] || PALETAS_HOME.vinho
   const HEADER_MOBILE = {
+    vinho: 'linear-gradient(120deg, #5a1224, #3d0a18)',
     azul: 'linear-gradient(120deg, #243e63, #203454)',
     rosa: 'linear-gradient(120deg, #68284a, #54243e)',
     verde: 'linear-gradient(120deg, #285944, #234738)',
     roxo: 'linear-gradient(120deg, #44265f, #38204f)',
     laranja: 'linear-gradient(120deg, #8a4c20, #713e1e)',
     preto: 'linear-gradient(120deg, #374151, #283241)',
+    automatico: 'linear-gradient(120deg, #5a1224, #3d0a18)',
   }
   const variaveisHome = {
     '--af-home-bg': paletaHome.fundo,
