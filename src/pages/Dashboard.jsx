@@ -2308,6 +2308,8 @@ const carregandoLimite = carregando
     preto: { fundo: '#f4f5f7', claro: '#edf0f4', borda: '#cbd5e1', principal: '#374151', escuro: '#111827', painel: '#273244', suave: '#e5e7eb' },
     vinho: { fundo: '#fff5f7', claro: '#ffe9ed', borda: '#f9c0cb', principal: '#781932', escuro: '#3d0a18', painel: '#5a1224', suave: '#ffe0e6' },
     automatico: { fundo: '#fff5f7', claro: '#ffe9ed', borda: '#f9c0cb', principal: '#781932', escuro: '#3d0a18', painel: '#5a1224', suave: '#ffe0e6' },
+    // Modo escuro manual: fundo e superfícies escuros vinho
+    escuro: { fundo: '#140B10', claro: '#211218', borda: '#502838', principal: '#B95572', escuro: '#2B171F', painel: '#2B171F', suave: '#F4E5E9' },
   }
   const paletaHome = PALETAS_HOME[corTema] || PALETAS_HOME.vinho
   const HEADER_MOBILE = {
@@ -2339,6 +2341,12 @@ const carregandoLimite = carregando
       <style>{`
         .af-home-themed { background: var(--af-home-bg); transition: background-color .2s ease; }
         .af-home-themed .af-dash-card { background: #fff; border: 1px solid var(--af-home-border); border-radius: 16px; padding: 16px; min-width: 0; box-shadow: 0 2px 12px rgba(15,23,42,.035); }
+        /* Tema escuro: cards usam superfície escura */
+        .tema-escuro .af-home-themed .af-dash-card,
+        .tema-preto .af-home-themed .af-dash-card { background: rgb(var(--surface,33 18 31)) !important; border-color: rgb(var(--border-col,80 40 56)) !important; color: rgb(var(--text-pri,250 247 248)) !important; box-shadow: 0 2px 12px rgba(0,0,0,.35) !important; }
+        @media (prefers-color-scheme: dark) {
+          .tema-automatico .af-home-themed .af-dash-card { background: rgb(var(--surface)) !important; border-color: rgb(var(--border-col)) !important; color: rgb(var(--text-pri)) !important; box-shadow: 0 2px 12px rgba(0,0,0,.35) !important; }
+        }
         .af-home-themed .af-dash-icon { width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .af-home-themed .af-dash-action { display: inline-flex; align-items: center; gap: 6px; border-radius: 10px; background: var(--af-home-primary); color: white; font-size: 12px; font-weight: 600; padding: 9px 13px; }
         .af-home-themed .af-dash-ring { width: 64px; height: 64px; border-radius: 50%; padding: 8px; flex-shrink: 0; }
@@ -2776,7 +2784,6 @@ const carregandoLimite = carregando
       <section className="af-dash-card !p-3 sm:!p-5 min-w-0" aria-label="Calendário financeiro">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <span className="text-sm font-semibold text-slate-900">Calendário financeiro</span>
-          {!somenteLeitura && <button type="button" onClick={() => { setDataGastoCalendario(null); setModalGasto(true) }} className="af-dash-action"><Plus size={15}/> Adicionar gasto</button>}
         </div>
         {!carregando && !carregandoReceitasCalendario && !carregandoDespesasCalendario ? (
           <div className="af-home-calendar-theme">

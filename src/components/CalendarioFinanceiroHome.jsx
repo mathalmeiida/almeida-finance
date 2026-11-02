@@ -24,9 +24,11 @@ function valorCompacto(valor, ocultar) {
   if (absoluto >= 1000000) {
     return `${(n / 1000000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi`
   }
-  if (absoluto >= 1000) {
+  if (absoluto >= 10000) {
+    // Abreviação só a partir de 10 mil — valores como 3.250 ficam legíveis
     return `${(n / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`
   }
+  // Até 9.999: exibe completo (ex.: 3.250, -1.180)
   return n.toLocaleString('pt-BR', { maximumFractionDigits: 0 })
 }
 export default function CalendarioFinanceiroHome({
@@ -68,8 +70,9 @@ export default function CalendarioFinanceiroHome({
   const coresDestaque = {
     azul: '#2563eb', rosa: '#be3676', verde: '#059669',
     roxo: '#7c3aed', laranja: '#ea7600', preto: '#374151',
+    escuro: '#B95572', automatico: '#B95572',
   }
-  const corDestaque = coresDestaque[corTema] || coresDestaque.azul
+  const corDestaque = coresDestaque[corTema] || '#801D39'
   const mesAtual = mesVisivel || inicioMes()
   const ano = mesAtual.getFullYear()
   const mes = mesAtual.getMonth() + 1

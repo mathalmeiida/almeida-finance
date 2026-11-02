@@ -105,6 +105,11 @@
     background-color: rgb(var(--fundo));
     color: rgb(var(--texto));
   }
+  /* Modo escuro manual (vinho escuro). */
+  .tema-escuro body {
+    background-color: rgb(var(--bg));
+    color: rgb(var(--text-pri));
+  }
 
   /* Evita scroll horizontal acidental em telas pequenas (nenhuma página deve
      "vazar" na largura). Não afeta o desktop. */
@@ -477,3 +482,24 @@
   .tema-automatico .bg-gray-50  { background-color: rgb(var(--surface-2)) !important; }
   .tema-automatico .bg-gray-100 { background-color: rgb(var(--surface-2)) !important; }
 }
+
+/* ─── TEMA ESCURO MANUAL — overrides slate/* e complementos ─────────────────
+   O Dashboard usa classes slate-* nas seções internas (calendário, cards).
+   Estes overrides garantem legibilidade no modo escuro vinho. */
+.tema-escuro .text-gray-600 { color: rgb(var(--text-sec)) !important; }
+.tema-escuro .text-gray-500 { color: rgb(var(--text-sec)) !important; }
+.tema-escuro .text-gray-400 { color: rgb(212 168 182) !important; }
+.tema-escuro .border-gray-100, .tema-escuro .border-gray-200, .tema-escuro .border-gray-300 { border-color: rgb(var(--border-col)) !important; }
+.tema-escuro .divide-gray-100 > * + *, .tema-escuro .divide-gray-200 > * + * { border-color: rgb(var(--border-col)) !important; }
+/* Slate (usados no calendário e seções da Home) */
+.tema-escuro .bg-slate-50,
+.tema-escuro .bg-slate-100  { background-color: rgb(var(--surface-2)) !important; }
+.tema-escuro .bg-slate-900  { background-color: rgb(var(--surface))   !important; }
+.tema-escuro .text-slate-900,
+.tema-escuro .text-slate-800 { color: rgb(var(--text-pri)) !important; }
+.tema-escuro .text-slate-600,
+.tema-escuro .text-slate-500,
+.tema-escuro .text-slate-400 { color: rgb(var(--text-sec)) !important; }
+.tema-escuro .border-slate-100,
+.tema-escuro .border-slate-200 { border-color: rgb(var(--border-col)) !important; }
+.tema-escuro .hover\:bg-slate-50:hover { background-color: rgb(var(--surface-2)) !important; }
