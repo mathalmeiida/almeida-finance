@@ -1717,6 +1717,10 @@ export default function Dashboard() {
   // Cards móveis: fechados por padrão, cada um expande independentemente.
   const [cardsMobileAbertos, setCardsMobileAbertos] = useState({})
   const alternarCardMobile = (chave) => setCardsMobileAbertos(anterior => ({ ...anterior, [chave]: !anterior[chave] }))
+  // Seções recolhíveis do desktop (Cartões, Metas, VR/VA, Evolução).
+  // Inicialmente fechadas; o usuário expande ao clicar.
+  const [secoesDesk, setSecoesDesk] = useState({})
+  const toggleSecao = (id) => setSecoesDesk(p => ({ ...p, [id]: !p[id] }))
   // Antecipação de pagamento a partir do card "Próximos 7 dias".
   const [despesaAntecipar, setDespesaAntecipar] = useState(null)
   const [antecipandoHome, setAntecipandoHome] = useState(false)
@@ -2695,15 +2699,14 @@ const carregandoLimite = carregando
         </div>
       </section>
 
-      {/* Calendário é o conteúdo principal; no desktop recebe coluna ampla. */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 lg:gap-4 items-start">
-        <section className="xl:col-span-2 af-dash-card !p-3 sm:!p-5 min-w-0" aria-label="Calendário financeiro">
-          <div className="flex flex-wrap items-center justify-end gap-2 mb-2">
-            <span className="sr-only">Calendário financeiro</span>
-            {!somenteLeitura && <button type="button" onClick={() => { setDataGastoCalendario(null); setModalGasto(true) }} className="af-dash-action"><Plus size={15}/> Adicionar gasto</button>}
-          </div>
-          {!carregando && !carregandoReceitasCalendario && !carregandoDespesasCalendario ? (
-            <div className="af-home-calendar-theme">
+      {/* Calendário — largura total, sem coluna lateral permanente. */}
+      <section className="af-dash-card !p-3 sm:!p-5 min-w-0" aria-label="Calendário financeiro">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <span className="text-sm font-semibold text-slate-900">Calendário financeiro</span>
+          {!somenteLeitura && <button type="button" onClick={() => { setDataGastoCalendario(null); setModalGasto(true) }} className="af-dash-action"><Plus size={15}/> Adicionar gasto</button>}
+        </div>
+        {!carregando && !carregandoReceitasCalendario && !carregandoDespesasCalendario ? (
+          <div className="af-home-calendar-theme">
             <CalendarioFinanceiroHome
               receitas={receitasCalendario}
               despesas={despesasCalendario}
@@ -2712,34 +2715,103 @@ const carregandoLimite = carregando
               horizonte={horizonteCalendario}
               onAdicionarMovimentacao={somenteLeitura ? undefined : adicionarPeloCalendario}
             />
-            </div>
-          ) : <div className="py-12 text-center text-sm text-slate-500">Carregando calendário...</div>}
-          <button type="button" onClick={() => navigate('/projecao')} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-marca">Ver planejamento completo <ArrowRight size={14}/></button>
-        </section>
-        <aside className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3 lg:gap-4 min-w-0">
-          <section className="af-dash-card" aria-label="Meus cartões">
-            <div className="flex justify-between items-center mb-3"><h2 className="text-sm font-bold text-slate-900">Meus cartões</h2><button type="button" onClick={() => navigate('/cartoes')} className="text-xs text-marca font-semibold">Ver todos</button></div>
-            {cartoes.length ? <div className="space-y-2">{cartoes.slice(0, 2).map(c => <button key={c.id} type="button" onClick={() => navigate('/cartoes')} className="af-home-card-brand w-full rounded-xl text-white p-3 text-left flex items-center gap-3"><CreditCard size={22} className="text-sky-300 shrink-0"/><span className="min-w-0"><strong className="block text-sm truncate">{c.nome || 'Cartão'}</strong><span className="block text-xs text-slate-300 truncate">{c.banco || 'Consultar fatura e limite'}</span></span><ArrowRight size={15} className="ml-auto shrink-0"/></button>)}</div> : <p className="text-sm text-slate-500">Nenhum cartão cadastrado.</p>}
-          </section>
-          <section className="af-dash-card" aria-label="Metas e investimentos">
-            <div className="flex justify-between items-center mb-3"><h2 className="text-sm font-bold text-slate-900">Metas financeiras</h2><button type="button" onClick={() => navigate('/metas')} className="text-xs text-marca font-semibold">Ver todas</button></div>
-            <div className="flex items-center gap-3 bg-slate-50 rounded-xl p-3"><span className="af-dash-icon bg-emerald-100 text-emerald-700"><PiggyBank size={18}/></span><span className="min-w-0 flex-1"><span className="block text-xs text-slate-500">Reserva de emergência</span><strong className="block text-sm text-slate-900 break-words">{exibirMoeda(reservaAtual, ocultar)}</strong>{metaReserva > 0 && <span className="block text-xs text-slate-500">Meta: {exibirMoeda(metaReserva, ocultar)}</span>}</span></div>
-            {metaReserva > 0 && <div className="mt-2 h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{width: `${Math.min(100, reservaAtual / metaReserva * 100)}%`}}/></div>}
-            <button type="button" onClick={() => navigate('/investimentos')} className="mt-3 flex w-full items-center justify-between text-xs text-slate-600"><span>Investimentos cadastrados: {investimentos.length}</span><strong className="text-slate-900">{exibirMoeda(patrimonioTotal || 0, ocultar)}</strong></button>
-          </section>
-          <section className="af-dash-card" aria-label="Benefícios">
-            <div className="flex justify-between items-center"><h2 className="text-sm font-bold text-slate-900">VR / VA</h2><button type="button" onClick={() => navigate('/beneficios')} className="text-xs text-marca font-semibold">Ver benefícios</button></div>
-            <div className="grid grid-cols-2 gap-2 mt-3">{['VR','VA'].map(tipo => { const b = beneficioPorTipo(tipo); return <div key={tipo} className="rounded-lg bg-slate-50 p-3"><p className="text-xs text-slate-500">{tipo}</p><p className="text-sm font-bold text-slate-900 break-words mt-1">{b ? exibirMoeda(saldoDoBeneficio(b.id), ocultar) : '—'}</p></div> })}</div>
-          </section>
-        </aside>
-      </div>
+          </div>
+        ) : <div className="py-12 text-center text-sm text-slate-500">Carregando calendário...</div>}
+        <button type="button" onClick={() => navigate('/projecao')} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-marca">Ver planejamento completo <ArrowRight size={14}/></button>
+      </section>
 
-      {/* Desktop: evolução ocupa a largura total. Despesas já estão no card superior. */}
-      <div className="min-w-0">
-        <EvolucaoFinanceiraHome projecao={projecao} ocultar={ocultar} />
-      </div>
+      {/* Seções recolhíveis — visíveis apenas no mobile (ocultas no desktop a partir de md).
+          Todos os dados/cálculos são os mesmos de antes; só o layout mudou. */}
+      <div className="md:hidden space-y-2">
+      {[
+        { id: 'cartoes',  titulo: 'Meus cartões',             nav: '/cartoes',      navLabel: 'Ver cartões' },
+        { id: 'metas',    titulo: 'Metas financeiras',        nav: '/metas',        navLabel: 'Ver metas' },
+        { id: 'vrva',     titulo: 'Benefícios VR / VA',       nav: '/beneficios',   navLabel: 'Ver benefícios' },
+        { id: 'evolucao', titulo: 'Minha evolução financeira', nav: '/projecao',    navLabel: 'Ver projeção' },
+      ].map(({ id, titulo, nav, navLabel }) => {
+        const aberta = Boolean(secoesDesk[id])
+        return (
+          <div key={id} className="af-dash-card !p-0 overflow-hidden">
+            {/* Cabeçalho sempre visível: título + "Ver X" + chevron */}
+            <button type="button" onClick={() => toggleSecao(id)} aria-expanded={aberta}
+              className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left hover:bg-slate-50 transition-colors">
+              <span className="text-sm font-semibold text-slate-900">{titulo}</span>
+              <span className="flex items-center gap-2 shrink-0">
+                <span role="button" tabIndex={0}
+                  onClick={e => { e.stopPropagation(); navigate(nav) }}
+                  onKeyDown={e => e.key === 'Enter' && (e.stopPropagation(), navigate(nav))}
+                  className="text-xs text-marca font-semibold hover:underline cursor-pointer">
+                  {navLabel}
+                </span>
+                {aberta
+                  ? <ChevronUp size={17} className="text-slate-400 shrink-0"/>
+                  : <ChevronDown size={17} className="text-slate-400 shrink-0"/>}
+              </span>
+            </button>
+            {/* Conteúdo expansível — reutiliza exatamente os dados/cálculos existentes */}
+            {aberta && (
+              <div className="px-4 pb-4 border-t border-slate-100">
+                {id === 'cartoes' && (
+                  cartoes.length
+                    ? <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 mt-3">
+                        {cartoes.slice(0, 3).map(c => (
+                          <button key={c.id} type="button" onClick={() => navigate('/cartoes')}
+                            className="af-home-card-brand rounded-xl text-white p-3 text-left flex items-center gap-3">
+                            <CreditCard size={20} className="text-sky-300 shrink-0"/>
+                            <span className="min-w-0">
+                              <strong className="block text-sm truncate">{c.nome || 'Cartão'}</strong>
+                              <span className="block text-xs text-slate-300 truncate">{c.banco || 'Ver fatura e limite'}</span>
+                            </span>
+                            <ArrowRight size={14} className="ml-auto shrink-0"/>
+                          </button>
+                        ))}
+                      </div>
+                    : <p className="text-sm text-slate-500 mt-3">Nenhum cartão cadastrado.</p>
+                )}
+                {id === 'metas' && (
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center gap-3 bg-slate-50 rounded-xl p-3">
+                      <span className="af-dash-icon bg-emerald-100 text-emerald-700"><PiggyBank size={18}/></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs text-slate-500">Reserva de emergência</span>
+                        <strong className="block text-sm text-slate-900 break-words">{exibirMoeda(reservaAtual, ocultar)}</strong>
+                        {metaReserva > 0 && <span className="block text-xs text-slate-500">Meta: {exibirMoeda(metaReserva, ocultar)}</span>}
+                      </span>
+                    </div>
+                    {metaReserva > 0 && <div className="h-2 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{width: `${Math.min(100, reservaAtual / metaReserva * 100)}%`}}/></div>}
+                    <button type="button" onClick={() => navigate('/investimentos')}
+                      className="flex w-full items-center justify-between text-xs text-slate-600 mt-1">
+                      <span>Investimentos: {investimentos.length}</span>
+                      <strong className="text-slate-900">{exibirMoeda(patrimonioTotal || 0, ocultar)}</strong>
+                    </button>
+                  </div>
+                )}
+                {id === 'vrva' && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+                    {['VR','VA'].map(tipo => {
+                      const b = beneficioPorTipo(tipo)
+                      return (
+                        <div key={tipo} className="rounded-lg bg-slate-50 p-3">
+                          <p className="text-xs text-slate-500">{tipo}</p>
+                          <p className="text-sm font-bold text-slate-900 break-words mt-1">{b ? exibirMoeda(saldoDoBeneficio(b.id), ocultar) : '—'}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                {id === 'evolucao' && (
+                  <div className="mt-3">
+                    <EvolucaoFinanceiraHome projecao={projecao} ocultar={ocultar} />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+      </div>{/* fim md:hidden */}
 
-      </div>
+      </div>{/* fim af-home-desktop-compact */}
 
       {/* Modal: Calendário financeiro (preservado, mas não aberto pelo card da Home). Reutiliza o MESMO componente e os mesmos dados —
           nenhum cálculo novo, nada removido. */}
