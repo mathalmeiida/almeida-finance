@@ -477,9 +477,8 @@ function FormMovimentacao({ onSalvar, onCancelar, salvando }) {
 
       <p className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
 
-        As movimentações servem de histórico (aportes, resgates, rendimentos). O saldo da posição é o
-
-        "Valor atual" informado no cadastro — atualize-o para refletir o mercado.
+        Registre aportes, resgates e rendimentos para manter o histórico da posição.
+        Atualize o "Valor atual" no cadastro do investimento para refletir o saldo de mercado.
 
       </p>
 

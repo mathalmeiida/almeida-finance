@@ -41,14 +41,13 @@ export function AuthProvider({ children }) {
   //      dispositivos. Se a coluna NÃO existir, o app funciona só com o
   //      localStorage (não quebra).
   // Aparência: 3 modos fixos — claro (padrão), escuro, automático.
-  // A cor de marca é sempre vinho. Temas antigos salvos são aceitos como aliases.
+  // A cor de marca é sempre vinho. Temas antigos salvos são aceitos como aliases
+  // para 'claro' (preservam experiência sem quebrar).
   const CHAVE_COR_TEMA = 'almeida_cor_tema'
-  // Valores válidos do modo de aparência
   const MODOS_APARENCIA = ['claro', 'escuro', 'automatico']
-  // Valores legados aceitos (mapeados para claro)
+  // Normaliza modo: modos válidos passam; legados (vinho, roxo, etc.) → 'claro'
   const normalizarCor = (c) => {
     if (MODOS_APARENCIA.includes(c)) return c
-    // Qualquer tema de cor antigo (vinho, roxo, azul, etc.) → claro
     return 'claro'
   }
   const [corTemaLocal, setCorTemaLocal] = useState(() => {
@@ -56,8 +55,16 @@ export function AuthProvider({ children }) {
     catch { return 'claro' }
   })
 
-  // Preferência efetiva: perfil do banco tem prioridade quando válido; senão localStorage.
-  const corTema = normalizarCor(perfil?.cor_tema ?? corTemaLocal)
+  // Preferência efetiva:
+  // 1) Se o banco tem um modo válido (claro/escuro/automatico) → usa ele.
+  // 2) Senão → usa localStorage (preserva escolha feita na sessão atual).
+  // 3) Valores legados no banco (vinho, roxo…) → ignora banco, usa localStorage.
+  // Isso evita que um cor_tema legado no banco sobrescreva a preferência atual.
+  const corTema = (() => {
+    const dosBanco = perfil?.cor_tema
+    if (MODOS_APARENCIA.includes(dosBanco)) return dosBanco
+    return corTemaLocal
+  })()
 
   // Aplica a classe de tema no <html>.
   // 'claro' = sem classe (padrão). 'escuro' = .tema-escuro. 'automatico' = .tema-automatico.
@@ -74,12 +81,16 @@ export function AuthProvider({ children }) {
     } catch { /* sem DOM */ }
   }, [corTema])
 
-  // Quando o perfil chega do banco com um modo válido, espelha no localStorage.
+  // Quando o perfil chega do banco com um modo válido, espelha no localStorage
+  // para o próximo boot já aplicar antes do perfil carregar.
   useEffect(() => {
-    if (MODOS_APARENCIA.includes(perfil?.cor_tema)) {
-      try { localStorage.setItem(CHAVE_COR_TEMA, perfil.cor_tema) } catch { /* ignora */ }
-      setCorTemaLocal(perfil.cor_tema)
+    const dosBanco = perfil?.cor_tema
+    if (MODOS_APARENCIA.includes(dosBanco)) {
+      try { localStorage.setItem(CHAVE_COR_TEMA, dosBanco) } catch { /* ignora */ }
+      setCorTemaLocal(dosBanco)
     }
+    // Se o banco tem valor legado, NÃO sobrescreve o localStorage —
+    // mantém a escolha mais recente do usuário.
   }, [perfil?.cor_tema])
 
   useEffect(() => {
