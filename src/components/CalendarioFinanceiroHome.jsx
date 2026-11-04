@@ -68,9 +68,13 @@ export default function CalendarioFinanceiroHome({
   const calendarioEscuro = preferenciaCalendario === 'escuro' ||
     (preferenciaCalendario === 'automatico' && dispositivoEscuro)
   const coresDestaque = {
+    // temas legados (mantidos para compatibilidade)
     azul: '#2563eb', rosa: '#be3676', verde: '#059669',
-    roxo: '#7c3aed', laranja: '#ea7600', preto: '#374151',
-    escuro: '#B95572', automatico: '#B95572',
+    roxo: '#7c3aed', laranja: '#ea7600', preto: '#B95572',
+    // temas atuais (claro/escuro/automatico → sempre vinho)
+    claro:      '#801D39',
+    escuro:     '#B95572',
+    automatico: '#801D39',
   }
   const corDestaque = coresDestaque[corTema] || '#801D39'
   const mesAtual = mesVisivel || inicioMes()
@@ -120,36 +124,42 @@ export default function CalendarioFinanceiroHome({
       className={`af-calendar-fit af-calendar-theme min-w-0 overflow-hidden rounded-2xl border p-3 shadow-sm sm:p-5 ${calendarioEscuro ? 'af-calendar-dark' : 'af-calendar-light'}`}
       style={{ '--af-calendar-accent': corDestaque }}>
       <style>{`
-        .af-calendar-theme { background: #fff; color: #172033; border-color: #e2e8f0; transition: background .2s, color .2s; }
-        .af-calendar-theme.af-calendar-dark { background: #151b2a; color: #f8fafc; border-color: #3c465c; }
+        /* ── MODO CLARO ──────────────────────────────────────────────────────── */
+        .af-calendar-theme { background: #fff; color: #25141B; border-color: #E5BAC4; transition: background .2s, color .2s; }
         .af-calendar-theme .af-calendar-heading { color: inherit !important; }
-        .af-calendar-theme .af-calendar-muted { color: #64748b !important; }
-        .af-calendar-theme.af-calendar-dark .af-calendar-muted { color: #b5c0d2 !important; }
-        .af-calendar-theme .af-month-bar { background: #f8fafc !important; border-color: #e2e8f0 !important; color: #172033 !important; }
-        .af-calendar-theme.af-calendar-dark .af-month-bar { background: #222b3e !important; border-color: #526078 !important; color: #f8fafc !important; }
+        .af-calendar-theme .af-calendar-muted { color: #643F4F !important; }
+        .af-calendar-theme .af-month-bar { background: #FFF0F3 !important; border-color: #E5BAC4 !important; color: #25141B !important; }
         .af-calendar-theme .af-month-bar button, .af-calendar-theme .af-month-bar span { color: inherit !important; }
-        .af-calendar-theme .af-day-cell { background: #f5f7fb !important; border-color: #e2e8f0 !important; color: #172033 !important; }
-        .af-calendar-theme.af-calendar-dark .af-day-cell { background: #293348 !important; border-color: #3d4b63 !important; color: #f8fafc !important; }
+        .af-calendar-theme .af-day-cell { background: #FFF5F7 !important; border-color: #E5BAC4 !important; color: #25141B !important; }
         .af-calendar-theme .af-day-cell:hover { border-color: var(--af-calendar-accent) !important; }
         .af-calendar-theme .af-day-cell[aria-pressed="true"] { background: var(--af-calendar-accent) !important; color: white !important; border-color: var(--af-calendar-accent) !important; --tw-ring-color: var(--af-calendar-accent) !important; }
         .af-calendar-theme .af-day-cell > span:first-child { color: inherit !important; }
-        .af-calendar-theme .af-day-details { background: #f8fafc !important; border-color: #e2e8f0 !important; color: #172033 !important; }
-        .af-calendar-theme.af-calendar-dark .af-day-details { background: #202b3d !important; border-color: #46536a !important; color: #f8fafc !important; }
+        .af-calendar-theme .af-day-details { background: #FFF5F7 !important; border-color: #E5BAC4 !important; color: #25141B !important; }
         .af-calendar-theme .af-calendar-heading, .af-calendar-theme .af-day-details h3, .af-calendar-theme .af-day-details h4 { color: inherit !important; }
-        .af-calendar-theme .af-day-details .text-slate-100, .af-calendar-theme .af-day-details .text-slate-200 { color: #243043 !important; }
-        .af-calendar-theme.af-calendar-dark .af-day-details .text-slate-100, .af-calendar-theme.af-calendar-dark .af-day-details .text-slate-200 { color: #f1f5f9 !important; }
-        .af-calendar-theme .af-day-details .text-slate-300, .af-calendar-theme .af-day-details .text-slate-400 { color: #64748b !important; }
-        .af-calendar-theme.af-calendar-dark .af-day-details .text-slate-300, .af-calendar-theme.af-calendar-dark .af-day-details .text-slate-400 { color: #b5c0d2 !important; }
-        .af-calendar-theme .af-day-details [class*="bg-slate-800"] { background-color: #eff3f9 !important; border-color: #dce3ed !important; }
-        .af-calendar-theme.af-calendar-dark .af-day-details [class*="bg-slate-800"] { background-color: #2c374c !important; border-color: #4c5970 !important; }
-        .af-calendar-theme .af-day-details .border-slate-700 { border-color: #d6deea !important; }
-        .af-calendar-theme.af-calendar-dark .af-day-details .border-slate-700 { border-color: #4c5970 !important; }
+        .af-calendar-theme .af-day-details .text-slate-100, .af-calendar-theme .af-day-details .text-slate-200 { color: #25141B !important; }
+        .af-calendar-theme .af-day-details .text-slate-300, .af-calendar-theme .af-day-details .text-slate-400 { color: #643F4F !important; }
+        .af-calendar-theme .af-day-details [class*="bg-slate-800"] { background-color: #FFF0F3 !important; border-color: #E5BAC4 !important; }
+        .af-calendar-theme .af-day-details .border-slate-700 { border-color: #E5BAC4 !important; }
         .af-calendar-theme .af-day-details .text-emerald-300 { color: #047857 !important; }
-        .af-calendar-theme .af-day-details .text-rose-300 { color: #be123c !important; }
-        .af-calendar-theme.af-calendar-dark .af-day-details .text-emerald-300 { color: #6ee7b7 !important; }
-        .af-calendar-theme.af-calendar-dark .af-day-details .text-rose-300 { color: #fda4af !important; }
+        .af-calendar-theme .af-day-details .text-rose-300   { color: #be123c !important; }
         .af-calendar-theme .af-day-details button.border-marca, .af-calendar-theme .af-day-details .text-marca { color: var(--af-calendar-accent) !important; border-color: var(--af-calendar-accent) !important; }
         .af-calendar-theme .af-day-details .bg-marca-100 { background: color-mix(in srgb, var(--af-calendar-accent) 10%, transparent) !important; }
+
+        /* ── MODO ESCURO — paleta Vinho Premium ──────────────────────────────── */
+        /* Fundo: #140B10 (vinho escuro profundo), cartões: #21121F, bordas: #502838 */
+        .af-calendar-theme.af-calendar-dark { background: #140B10; color: #FAF7F8; border-color: #502838; }
+        .af-calendar-theme.af-calendar-dark .af-calendar-muted { color: #D4A8B6 !important; }
+        .af-calendar-theme.af-calendar-dark .af-month-bar { background: #21121F !important; border-color: #502838 !important; color: #FAF7F8 !important; }
+        .af-calendar-theme.af-calendar-dark .af-day-cell { background: #2B171F !important; border-color: #502838 !important; color: #FAF7F8 !important; }
+        .af-calendar-theme.af-calendar-dark .af-day-details { background: #21121F !important; border-color: #502838 !important; color: #FAF7F8 !important; }
+        .af-calendar-theme.af-calendar-dark .af-day-details .text-slate-100,
+        .af-calendar-theme.af-calendar-dark .af-day-details .text-slate-200 { color: #FAF7F8 !important; }
+        .af-calendar-theme.af-calendar-dark .af-day-details .text-slate-300,
+        .af-calendar-theme.af-calendar-dark .af-day-details .text-slate-400 { color: #D4A8B6 !important; }
+        .af-calendar-theme.af-calendar-dark .af-day-details [class*="bg-slate-800"] { background-color: #2B171F !important; border-color: #502838 !important; }
+        .af-calendar-theme.af-calendar-dark .af-day-details .border-slate-700 { border-color: #502838 !important; }
+        .af-calendar-theme.af-calendar-dark .af-day-details .text-emerald-300 { color: #6ee7b7 !important; }
+        .af-calendar-theme.af-calendar-dark .af-day-details .text-rose-300   { color: #fda4af !important; }
 
         /* Compacto no celular, sem esconder dias, valores ou movimentos. */
         @media (max-width: 639px) {
@@ -166,21 +176,21 @@ export default function CalendarioFinanceiroHome({
         }
         .af-calendar-theme .af-balance-summary {
           padding: 10px 12px !important;
-          border-color: color-mix(in srgb, var(--af-calendar-accent) 22%, #e2e8f0) !important;
+          border-color: color-mix(in srgb, var(--af-calendar-accent) 22%, #E5BAC4) !important;
           background: color-mix(in srgb, var(--af-calendar-accent) 5%, #ffffff) !important;
         }
         .af-calendar-theme.af-calendar-dark .af-balance-summary {
-          background: color-mix(in srgb, var(--af-calendar-accent) 12%, #202b3d) !important;
-          border-color: #4c5970 !important;
+          background: color-mix(in srgb, var(--af-calendar-accent) 12%, #21121F) !important;
+          border-color: #502838 !important;
         }
         .af-calendar-theme .af-balance-summary strong { font-size: 1.125rem !important; line-height: 1.5rem; }
         @media (min-width: 640px) { .af-calendar-theme .af-balance-summary strong { font-size: 1.25rem !important; } }
-        .af-calendar-theme .af-calendar-footnote { color: #64748b !important; }
-        .af-calendar-theme.af-calendar-dark .af-calendar-footnote { color: #b5c0d2 !important; }
+        .af-calendar-theme .af-calendar-footnote { color: #643F4F !important; }
+        .af-calendar-theme.af-calendar-dark .af-calendar-footnote { color: #D4A8B6 !important; }
         .af-calendar-theme .text-emerald-300 { color: #047857 !important; }
-        .af-calendar-theme .text-rose-300 { color: #be123c !important; }
+        .af-calendar-theme .text-rose-300   { color: #be123c !important; }
         .af-calendar-theme.af-calendar-dark .text-emerald-300 { color: #6ee7b7 !important; }
-        .af-calendar-theme.af-calendar-dark .text-rose-300 { color: #fda4af !important; }
+        .af-calendar-theme.af-calendar-dark .text-rose-300   { color: #fda4af !important; }
       `}</style>
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">

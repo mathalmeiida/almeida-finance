@@ -70,10 +70,15 @@ export default function CalendarioCenario({
     return () => media.removeEventListener?.('change', atualizar)
   }, [])
   const escuro = estilo === 'escuro' || (estilo === 'automatico' && prefereEscuro)
-  const cor = ({ azul:'#2563eb', roxo:'#7c3aed', rosa:'#be3676', verde:'#059669', laranja:'#ea7600', preto:'#374151' })[corTema] || '#7c3aed'
-  const texto = escuro ? 'text-slate-100' : 'text-slate-900'
-  const secundario = escuro ? 'text-slate-400' : 'text-slate-500'
-  const painel = escuro ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'
+  // Vinho Premium no modo escuro; cor do tema vigente como destaque.
+  const cor = ({
+    azul: '#2563eb', roxo: '#7c3aed', rosa: '#be3676',
+    verde: '#059669', laranja: '#ea7600', preto: '#B95572',
+    claro: '#801D39', escuro: '#B95572', automatico: '#801D39',
+  })[corTema] || '#801D39'
+  const texto    = escuro ? 'text-[#FAF7F8]' : 'text-[#25141B]'
+  const secundario = escuro ? 'text-[#D4A8B6]' : 'text-[#643F4F]'
+  const painel   = escuro ? 'bg-[#2B171F] border-[#502838]' : 'bg-[#FFF5F7] border-[#E5BAC4]'
 
 
   const mapas = useMemo(() => {
@@ -102,13 +107,13 @@ export default function CalendarioCenario({
     ? mapas.simulado.get(selecionado) - mapas.atual.get(selecionado) : null
 
   return (
-    <section className={`min-w-0 w-full rounded-2xl border p-3 sm:p-5 space-y-4 ${escuro ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'} ${texto}` } aria-label={titulo}>
+    <section className={`min-w-0 w-full rounded-2xl border p-3 sm:p-5 space-y-4 ${escuro ? 'bg-[#140B10] border-[#502838]' : 'bg-white border-[#E5BAC4]'} ${texto}`} aria-label={titulo}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <CalendarDays className="flex-shrink-0" style={{color:cor}} size={20} />
           <div><h3 className="text-base font-semibold">{titulo}</h3><p className={`text-xs ${secundario}`}>Saldo projetado ao final de cada dia</p></div>
         </div>
-        <div className={`flex gap-1 rounded-lg p-1 ${escuro ? 'bg-slate-800' : 'bg-slate-100'}`}>
+        <div className={`flex gap-1 rounded-lg p-1 ${escuro ? 'bg-[#21121F]' : 'bg-slate-100'}`}>
           {[['atual','Atual'],['simulado','Simulado']].map(([id,label]) => (
             <button key={id} type="button" aria-pressed={tipo===id}
               onClick={()=>setTipo(id)}

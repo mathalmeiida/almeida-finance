@@ -72,8 +72,8 @@ function Aparencia() {
 
   const escuroNaPrevia = estiloCalendario === 'escuro' ||
     (estiloCalendario === 'automatico' && window.matchMedia?.('(prefers-color-scheme: dark)').matches)
-  const selecionada = CORES_TEMA.find(c => c.value === corTema)
-  const destaque = selecionada?.hex || '#7C3AED'
+  // Destaque sempre vinho: #801D39 no claro, #B95572 legível no escuro
+  const destaque = escuroNaPrevia ? '#B95572' : '#801D39'
   const celulas = Array.from({ length: 35 }, (_, i) => i < 4 ? null : i - 3)
 
   return (
@@ -138,15 +138,15 @@ function Aparencia() {
           ))}
         </div>
         <div className="rounded-xl border p-3 space-y-2"
-          style={{ background: escuroNaPrevia ? '#171923' : '#FFFFFF', borderColor: escuroNaPrevia ? '#35394A' : '#E5E7EB', color: escuroNaPrevia ? '#F9FAFB' : '#111827' }}>
+          style={{ background: escuroNaPrevia ? '#140B10' : '#FFFFFF', borderColor: escuroNaPrevia ? '#502838' : '#E5BAC4', color: escuroNaPrevia ? '#FAF7F8' : '#25141B' }}>
           <div className="text-xs font-semibold flex items-center justify-between">
-            <span>Prévia · Outubro 2026</span><Palette size={15} style={{ color: destaque }}/>
+            <span>Prévia · Outubro 2026</span><span style={{ color: destaque }}>●</span>
           </div>
           <div className="grid grid-cols-7 gap-1 text-center text-[10px]">
             {['D','S','T','Q','Q','S','S'].map((d,i) => <span key={i} style={{ opacity: 0.7 }}>{d}</span>)}
             {celulas.map((dia,i) => (
               <span key={i} className="rounded-md py-1.5"
-                style={{ background: dia === 30 ? destaque : escuroNaPrevia ? '#292E40' : '#F1F5F9', color: dia === 30 ? '#FFFFFF' : 'inherit' }}>
+                style={{ background: dia === 30 ? destaque : escuroNaPrevia ? '#2B171F' : '#FFF5F7', color: dia === 30 ? '#FFFFFF' : 'inherit' }}>
                 {dia || ''}
               </span>
             ))}
@@ -155,7 +155,7 @@ function Aparencia() {
             <span>🟢 Receitas</span><span>🔴 Despesas</span><span>🔵 Faturas</span>
           </div>
         </div>
-        <p className="text-xs text-gray-500">A escolha fica salva neste dispositivo. O calendário existente será conectado a essa preferência na próxima etapa.</p>
+        <p className="text-xs text-gray-500">A escolha é aplicada imediatamente e fica salva neste dispositivo.</p>
       </div>
 
       <div className="border-t border-gray-200 pt-4 flex items-center justify-between gap-3">
