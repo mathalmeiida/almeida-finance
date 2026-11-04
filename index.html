@@ -4,30 +4,58 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Almeida Finance</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/branding/almeida-finance-logo.png" />
+    <link rel="shortcut icon" type="image/png" href="/branding/almeida-finance-logo.png" />
+
+    <!-- Apple PWA -->
+    <link rel="apple-touch-icon" href="/branding/almeida-finance-logo.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Almeida Finance" />
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#3d0a18" />
+    <meta name="msapplication-TileColor" content="#3d0a18" />
+    <meta name="msapplication-TileImage" content="/branding/almeida-finance-logo.png" />
+
+    <!-- SEO & Open Graph -->
+    <meta name="description" content="Almeida Finance — Organize, Planeje e Invista com controle financeiro pessoal." />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Almeida Finance" />
+    <meta property="og:description" content="Organize • Planeje • Invista — Controle financeiro pessoal." />
+    <meta property="og:image" content="/branding/almeida-finance-logo.png" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Almeida Finance" />
+    <meta name="twitter:description" content="Organize • Planeje • Invista" />
+    <meta name="twitter:image" content="/branding/almeida-finance-logo.png" />
+
     <style>
-      /* Fundo claro IMEDIATO (antes do React/CSS carregar) — evita flash.
-         Mesma cor de fundo do tema claro (#F8FAFC). */
-      html, body { margin: 0; background-color: #f8fafc; }
-      /* Splash estático exibido instantaneamente até o React montar.
-         O React remove este elemento assim que renderiza a própria Splash. */
+      /* Fundo imediato antes do React carregar — evita flash branco */
+      html, body { margin: 0; background-color: #3d0a18; }
       #splash-inicial {
         position: fixed; inset: 0; z-index: 2147483647;
         display: flex; align-items: center; justify-content: center;
-        background-color: #f8fafc;
+        background-color: #3d0a18;
       }
-      #splash-inicial .spin {
-        width: 38px; height: 38px; border-radius: 9999px;
-        border: 3px solid rgba(15,23,42,0.12);
-        border-top-color: #2855a5;
-        animation: splash-spin 0.8s linear infinite;
+      #splash-inicial img {
+        width: 120px; height: 120px;
+        border-radius: 24px;
+        animation: splash-pulse 1.2s ease-in-out infinite alternate;
       }
-      @keyframes splash-spin { to { transform: rotate(360deg); } }
+      @keyframes splash-pulse {
+        from { opacity: 0.85; transform: scale(0.97); }
+        to   { opacity: 1;    transform: scale(1.03); }
+      }
     </style>
   </head>
   <body>
-    <!-- Splash estático: aparece já no primeiro paint, some quando o app monta -->
-    <div id="splash-inicial"><div class="spin"></div></div>
+    <!-- Splash estático: aparece no primeiro paint, some quando o React monta -->
+    <div id="splash-inicial">
+      <img src="/branding/almeida-finance-logo.png" alt="Almeida Finance" />
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

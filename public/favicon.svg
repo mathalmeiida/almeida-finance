@@ -1,12 +1,3 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Fundo preto -->
-  <rect width="64" height="64" rx="12" fill="#000000"/>
-  <g fill="#ffffff">
-    <!-- Faixa inclinada: perna direita do "A", do ápice à base -->
-    <polygon points="33,12 41,12 48,52 40,52" />
-    <!-- Três barras verticais crescentes (gráfico ascendente) -->
-    <rect x="15" y="41" width="5" height="11" />
-    <rect x="22" y="33" width="5" height="19" />
-    <rect x="29" y="23" width="5" height="29" />
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 32 32" width="32" height="32">
+  <image href="/branding/almeida-finance-logo.png" x="0" y="0" width="32" height="32"/>
 </svg>

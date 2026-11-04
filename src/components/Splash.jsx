@@ -1,39 +1,38 @@
 import React, { useEffect } from 'react'
-import LogoMarca from './LogoMarca'
 
 // ─── Splash screen de abertura ────────────────────────────────────────────────
-// Puramente VISUAL: fundo escuro do tema, logo com fade+zoom suave e um
-// indicador de carregamento elegante. Não toca em autenticação nem dados.
-// O App controla o tempo: a logo entra com fade-in, permanece visível e, quando
-// `saindo` vira true, a tela inteira faz fade-out suave antes de ser removida.
+// Puramente VISUAL: logo com fade+zoom suave e barra de carregamento.
+// O App controla o tempo: quando `saindo` vira true, fade-out antes de remover.
 export default function Splash({ saindo = false }) {
-  // Ao montar a splash do React, removemos o splash estático do index.html
-  // (eles compartilham o mesmo fundo escuro, então a troca é imperceptível).
+  // Remove o splash estático do index.html assim que o React monta.
   useEffect(() => {
     const estatico = document.getElementById('splash-inicial')
     if (estatico) estatico.remove()
+    // Restaura o background para branco após o splash (tema claro padrão).
+    document.documentElement.style.backgroundColor = ''
+    document.body.style.backgroundColor = ''
   }, [])
 
   return (
     <div
       className={
-        'fixed inset-0 z-50 flex flex-col items-center justify-center bg-white px-6' +
+        'fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#3d0a18] px-6' +
         (saindo ? ' splash-fade-out' : '')
       }
     >
-      {/* Logo (branco) sobre painel na cor da marca, com fade + zoom suave */}
-      <LogoMarca
-        className="animate-splash-logo"
-        imgClassName="w-44 max-w-[60vw] h-auto"
-        padding="px-8 py-6"
+      {/* Logo oficial com fade + zoom suave */}
+      <img
+        src="/branding/almeida-finance-logo.png"
+        alt="Almeida Finance"
+        className="animate-splash-logo w-44 max-w-[60vw] h-auto rounded-2xl"
       />
-      {/* Barra de carregamento indeterminada (fina, arredondada, animada).
-          Segue a cor da marca (--marca) via .bg-marca; o trilho usa um cinza
-          suave. Movimento reduzido é respeitado no CSS (.splash-bar). */}
-      <div className="mt-8 w-44 max-w-[60vw] h-1.5 rounded-full bg-gray-200 overflow-hidden">
-        <div className="splash-bar h-full w-2/5 rounded-full bg-marca" />
+      {/* Barra de carregamento indeterminada */}
+      <div className="mt-8 w-44 max-w-[60vw] h-1.5 rounded-full bg-white/20 overflow-hidden">
+        <div className="splash-bar h-full w-2/5 rounded-full bg-white/80" />
       </div>
-      <p className="mt-4 text-sm text-gray-500">Seu dinheiro. Suas escolhas. Seu futuro.</p>
+      <p className="mt-4 text-sm text-white/60 tracking-widest uppercase">
+        Organize&nbsp;•&nbsp;Planeje&nbsp;•&nbsp;Investa
+      </p>
     </div>
   )
 }

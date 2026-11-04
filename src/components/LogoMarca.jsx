@@ -1,31 +1,27 @@
 import React from 'react'
-import logoAlmeida from '../assets/Logo Corporativo Almeida Finance.png'
 
-// ─── Logo Almeida Finance sobre área de destaque na cor da marca ──────────────
-// O logo ORIGINAL é branco; no tema claro ele some sobre fundo claro. Este
-// componente coloca o logo (sem alterar o arquivo/desenho) sobre um painel
-// arredondado na COR DA MARCA (bg-marca → vinho/bordô por padrão, alterado
-// pela preferência do usuário via a variável --marca). Assim o logo branco
-// fica sempre legível e acompanha o tema automaticamente.
-//
-// Reutilizável em: sidebar, header mobile, splash, login, cadastro e demais
-// telas de autenticação. Só visual — não toca em dados/cálculos.
+// ─── Logo Almeida Finance ─────────────────────────────────────────────────────
+// Usa o PNG oficial em /branding/almeida-finance-logo.png (public/).
+// O PNG já tem fundo vinho arredondado — não precisa de painel extra.
 //
 // Props:
-//   className   classes extras no painel (ex.: margens)
-//   imgClassName tamanho/ajuste da imagem (padrão enxuto p/ sidebar)
-//   padding     padding do painel (padrão 'p-4')
+//   className     — classes extras no wrapper (ex.: margens)
+//   imgClassName  — tamanho da imagem (padrão para telas de auth)
+//   compact       — quando true, exibe versão menor (só o símbolo AF quadrado)
+//   padding       — ignorado (mantido por compatibilidade com usos antigos)
 export default function LogoMarca({
   className = '',
   imgClassName = 'h-16 w-auto',
-  padding = 'p-4',
+  compact = false,
+  padding = '',   // backward-compat: não usado, PNG já tem espaçamento interno
 }) {
   return (
-    <div className={`inline-flex items-center justify-center rounded-2xl bg-marca shadow-sm ${padding} ${className}`}>
+    <div className={`inline-flex items-center justify-center ${className}`}>
       <img
-        src={logoAlmeida}
+        src="/branding/almeida-finance-logo.png"
         alt="Almeida Finance"
-        className={`object-contain ${imgClassName}`}
+        className={`object-contain rounded-2xl ${compact ? 'h-10 w-10' : imgClassName}`}
+        style={compact ? { minWidth: '40px' } : undefined}
       />
     </div>
   )
