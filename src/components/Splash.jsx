@@ -22,9 +22,9 @@ export default function Splash({ saindo = false }) {
     >
       {/* Logo oficial com fade + zoom suave */}
       <img
-        src="/branding/almeida-finance-logo.png"
+        src="/branding/af-icone.png"
         alt="Almeida Finance"
-        className="animate-splash-logo w-44 max-w-[60vw] h-auto rounded-2xl"
+        className="animate-splash-logo w-44 max-w-[60vw] h-auto"
       />
       {/* Barra de carregamento indeterminada */}
       <div className="mt-8 w-44 max-w-[60vw] h-1.5 rounded-full bg-white/20 overflow-hidden">
