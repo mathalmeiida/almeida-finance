@@ -902,9 +902,9 @@ export default function Investimentos() {
 
             {ultimasMovimentacoes.length > 4 && (
 
-              <button type="button" className="text-xs font-semibold text-marca hover:underline" onClick={() => setMostrarTodasMovs(v => !v)}>
+              <button type="button" className="text-xs font-semibold text-marca hover:underline" onClick={() => setMovsAberta(v => !v)}>
 
-                {mostrarTodasMovs ? 'Mostrar menos' : 'Ver todas'}
+                {movsAberta ? 'Mostrar menos' : 'Ver todas'}
 
               </button>
 
