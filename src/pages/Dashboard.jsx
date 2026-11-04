@@ -2692,7 +2692,7 @@ const carregandoLimite = carregando
         </section>
 
         {/* Ícones deslizantes: quatro por página, sem título. */}
-        <section aria-label="Atalhos financeiros deslizantes" className="af-mobile-shortcuts af-dash-card !p-3">
+        <section aria-label="Atalhos financeiros deslizantes" className="af-mobile-shortcuts af-dash-card !p-3 -mt-3">
           <div
             ref={atalhosMobileRef}
             onScroll={(e) => {
