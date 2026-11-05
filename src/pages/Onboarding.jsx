@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect, useMemo } from 'react'
 import {
   Wallet, TrendingUp, TrendingDown, ShieldCheck, Sparkles,
   CheckCircle2, ArrowRight, ArrowLeft, Plus, Trash2, Loader2, UtensilsCrossed,
-  CreditCard, ShoppingBag, Pencil, Landmark, BarChart2, Target, ShoppingCart, MessagesSquare, PiggyBank,
+  CreditCard, ShoppingBag, Pencil, Landmark, BarChart2, Target, ShoppingCart, MessagesSquare, PiggyBank, Bell,
 } from 'lucide-react'
+import NotificacoesPush from '../components/NotificacoesPush'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useReceitas } from '../hooks/useReceitas'
@@ -75,7 +76,8 @@ const DESPESAS = 4
 const CARTOES = 5
 const BENEFICIOS = 6
 const RESERVA = 7
-const FINAL = 8
+const NOTIFICACOES = 8   // nova etapa: ativar alertas push
+const FINAL = 9
 
 // A barra de progresso cobre apenas as 4 etapas de configuração (saldo, renda,
 // despesas, reserva) — "X de 4", igual ao card da Home.
@@ -1578,6 +1580,17 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                 </button>
                 <p className="text-xs text-gray-400 mt-1">Você poderá configurar sua reserva depois.</p>
               </div>
+            </div>
+          )}
+
+          {/* ─── NOTIFICAÇÕES ─── */}
+          {etapa === NOTIFICACOES && (
+            <div className="py-2">
+              <NotificacoesPush
+                contexto="onboarding"
+                onPular={avancar}
+                onConcluir={avancar}
+              />
             </div>
           )}
 

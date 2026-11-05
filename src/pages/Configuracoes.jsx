@@ -18,6 +18,8 @@ import { CORES_TEMA } from '../lib/utils'
 
 import Modal from '../components/Modal'
 
+import NotificacoesPush from '../components/NotificacoesPush'
+
 
 
 // Card de APARÊNCIA: escolha da cor do tema (Azul padrão / Rosa / Verde / Roxo).
@@ -851,6 +853,12 @@ export default function Configuracoes() {
       </div>
 
 
+
+      {/* Notificações push */}
+
+      <div className="card" style={{ background: '#140B10', border: '1px solid #502838', borderRadius: 16 }}>
+        <NotificacoesPush contexto="configuracoes" />
+      </div>
 
       {/* Zona de perigo: Zerar meus dados */}
 
