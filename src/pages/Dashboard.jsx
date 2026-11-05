@@ -2314,8 +2314,7 @@ const carregandoLimite = carregando
   return (
     <div className="af-home-premium w-full max-w-none min-w-0 flex flex-col gap-0 md:pb-0" style={variaveisHome}>
       <style>{`
-        .af-home-premium { background: #140B10; color: #FAF7F8; min-height: 100%; padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
-        @media (min-width: 768px) { .af-home-premium { padding-bottom: 0; } }
+        .af-home-premium { background: #140B10; color: #FAF7F8; min-height: 100%; }
         .af-hcard { background: #21121F; border: 1px solid #502838; border-radius: 13px; padding: 10px 12px; min-width: 0; }
         .af-hcard-accent { background: linear-gradient(135deg,#2B171F 0%,#21121F 100%); border: 1px solid #6b3050; border-radius: 13px; padding: 10px 12px; min-width: 0; }
         .af-ht2 { color: #D4A8B6; font-size: 11px; }
@@ -2450,7 +2449,7 @@ const carregandoLimite = carregando
                 <div className="flex items-center gap-2"><CalendarDays size={18} className="text-[#C4507A]"/><span className="font-semibold text-white text-sm">Calendário financeiro</span></div>
                 <div className="flex items-center gap-1">
                   <button type="button" onClick={()=>setMesCalendarioHome(new Date(ano,mes-1,1,12))} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#D4A8B6] hover:bg-[#3d1528]"><ChevronLeft size={16}/></button>
-                  <span className="text-xs text-[#D4A8B6] capitalize min-w-[110px] text-center">{nomeMes}</span>
+                  <span className="text-xs text-[#D4A8B6] capitalize truncate max-w-[120px] text-center">{nomeMes}</span>
                   <button type="button" onClick={()=>setMesCalendarioHome(new Date(ano,mes+1,1,12))} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#D4A8B6] hover:bg-[#3d1528]"><ChevronRight size={16}/></button>
                 </div>
               </div>

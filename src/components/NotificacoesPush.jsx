@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import {
-  Bell, BellOff, Smartphone, Monitor, Share,
+  Bell, BellOff, Smartphone, Monitor,
   CheckCircle2, X, ChevronDown, ChevronUp, Info,
 } from 'lucide-react'
 import { usePushNotificacoes } from '../hooks/usePushNotificacoes'
