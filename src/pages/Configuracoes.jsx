@@ -683,8 +683,7 @@ export default function Configuracoes() {
 
 
   return (
-
-    <div className="w-full max-w-5xl space-y-0">
+    <div className="w-full max-w-5xl mx-auto">
 
       {/* Título */}
       <div className="mb-6">
@@ -692,57 +691,35 @@ export default function Configuracoes() {
         <p className="text-sm text-gray-500 mt-1">Minha conta e preferências</p>
       </div>
 
-      {/* Grid principal: 2 colunas no desktop, 1 no mobile */}
+      {/* ── Grid principal: 2 colunas no lg, 1 no mobile ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
 
-        {/* ── Coluna esquerda ── */}
+        {/* Coluna esquerda */}
         <div className="space-y-5">
 
-          {/* Dados da conta */}
+          {/* Minha conta */}
           <div className="card">
-
             <h2 className="text-base font-semibold text-gray-900 mb-4">Minha conta</h2>
-
-        <div className="space-y-3">
-
-          <div className="flex items-center gap-3">
-
-            <div className="w-9 h-9 bg-marca-100 rounded-xl flex items-center justify-center flex-shrink-0">
-
-              <User size={16} className="text-marca" />
-
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-marca-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <User size={16} className="text-marca" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Nome</p>
+                  <p className="text-sm font-medium text-gray-900">{nome}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Mail size={16} className="text-blue-700" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">E-mail</p>
+                  <p className="text-sm font-medium text-gray-900">{usuario?.email}</p>
+                </div>
+              </div>
             </div>
-
-            <div>
-
-              <p className="text-xs text-gray-400">Nome</p>
-
-              <p className="text-sm font-medium text-gray-900">{nome}</p>
-
-            </div>
-
-          </div>
-
-          <div className="flex items-center gap-3">
-
-            <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-
-              <Mail size={16} className="text-blue-700" />
-
-            </div>
-
-            <div>
-
-              <p className="text-xs text-gray-400">E-mail</p>
-
-              <p className="text-sm font-medium text-gray-900">{usuario?.email}</p>
-
-            </div>
-
-          </div>
-
-        </div>
-
           </div>
 
           {/* Aparência */}
@@ -753,9 +730,9 @@ export default function Configuracoes() {
             <NotificacoesPush contexto="configuracoes" />
           </div>
 
-        </div>{/* fim coluna esquerda */}
+        </div>{/* /coluna esquerda */}
 
-        {/* ── Coluna direita ── */}
+        {/* Coluna direita */}
         <div className="space-y-5">
 
           {/* Acessos de consultoria */}
@@ -763,43 +740,21 @@ export default function Configuracoes() {
 
           {/* Rever apresentação */}
           <div className="card">
-
-        <div className="flex items-start gap-3">
-
-          <div className="w-9 h-9 bg-marca-100 rounded-xl flex items-center justify-center flex-shrink-0">
-
-            <Sparkles size={16} className="text-marca" />
-
-          </div>
-
-          <div className="flex-1">
-
-            <h2 className="text-base font-semibold text-gray-900">Rever apresentação</h2>
-
-            <p className="text-sm text-gray-500 mt-1">
-
-              Veja novamente as telas de boas-vindas com os diferenciais do app. Não altera
-
-              nenhuma configuração nem reinicia o passo a passo financeiro.
-
-            </p>
-
-            <button
-
-              onClick={() => navigate('/apresentacao')}
-
-              className="mt-3 inline-flex items-center gap-2 btn-secondary text-sm"
-
-            >
-
-              <Sparkles size={15} /> Rever apresentação
-
-            </button>
-
-          </div>
-
-        </div>
-
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 bg-marca-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Sparkles size={16} className="text-marca" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-base font-semibold text-gray-900">Rever apresentação</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Veja novamente as telas de boas-vindas com os diferenciais do app. Não altera
+                  nenhuma configuração nem reinicia o passo a passo financeiro.
+                </p>
+                <button onClick={() => navigate('/apresentacao')} className="mt-3 inline-flex items-center gap-2 btn-secondary text-sm">
+                  <Sparkles size={15} /> Rever apresentação
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Enviar feedback */}
@@ -807,178 +762,86 @@ export default function Configuracoes() {
 
           {/* Atualizar dados financeiros */}
           <div className="card">
-
-        <div className="flex items-start gap-3">
-
-          <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-
-            <Sparkles size={16} className="text-blue-700" />
-
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Sparkles size={16} className="text-blue-700" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-base font-semibold text-gray-900">Atualizar meus dados financeiros</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Revise sua renda, despesas, cartões, benefícios e reserva financeira sem apagar seu histórico.
+                </p>
+                <button onClick={refazerConfiguracao}
+                  className="mt-3 inline-flex items-center gap-2 bg-marca hover:bg-marca-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm">
+                  <Sparkles size={15} /> Atualizar informações
+                </button>
+                <p className="mt-2 text-xs text-gray-400">Seus dados são preservados.</p>
+              </div>
+            </div>
           </div>
 
-          <div className="flex-1">
+        </div>{/* /coluna direita */}
 
-            <h2 className="text-base font-semibold text-gray-900">Atualizar meus dados financeiros</h2>
+      </div>{/* /grid principal */}
 
-            <p className="text-sm text-gray-500 mt-1">
-
-              Revise sua renda, despesas, cartões, benefícios e reserva financeira sem apagar seu histórico.
-
-            </p>
-
-            <button
-
-              onClick={refazerConfiguracao}
-
-              className="mt-3 inline-flex items-center gap-2 bg-marca hover:bg-marca-hover text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm"
-
-            >
-
-              <Sparkles size={15} /> Atualizar informações
-
-            </button>
-
-            <p className="mt-2 text-xs text-gray-400">Seus dados são preservados.</p>
-
-          </div>
-
-        </div>
-
-          </div>
-
-        </div>{/* fim coluna direita */}
-
-      </div>{/* fim grid */}
-
-      {/* ── Zona de perigo — largura total ── */}
+      {/* ── Zona de perigo ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
 
-      <div className="card border-red-200">
-
-        <div className="flex items-start gap-3">
-
-          <div className="w-9 h-9 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
-
-            <AlertTriangle size={16} className="text-red-600" />
-
-          </div>
-
-          <div className="flex-1">
-
-            <h2 className="text-base font-semibold text-gray-900">Apagar dados financeiros</h2>
-
-            <p className="text-sm text-gray-500 mt-1">
-
-              Exclua seus registros financeiros e recomece a configuração do aplicativo. Sua conta e seu login serão mantidos.
-
-            </p>
-
-            <button
-
-              onClick={abrirModal}
-
-              className="mt-3 inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm"
-
-            >
-
-              <Trash2 size={15} /> Apagar dados financeiros
-
-            </button>
-
-          </div>
-
-        </div>
-
-      </div>
-
-
-
-      {/* Zona de perigo: Encerrar minha conta — SEPARADA do "Zerar dados".
-
-          São ações diferentes: zerar apaga dados e mantém a conta ativa;
-
-          encerrar desativa a conta (ativo=false) sem apagar dados. */}
-
-      <div className="card border-red-300">
-
-        <div className="flex items-start gap-3">
-
-          <div className="w-9 h-9 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
-
-            <LogOut size={16} className="text-red-600" />
-
-          </div>
-
-          <div className="flex-1">
-
-            <h2 className="text-base font-semibold text-gray-900">Encerrar minha conta</h2>
-
-            <p className="text-sm text-gray-500 mt-1">
-
-              Esta ação <strong>desativa o acesso</strong> à sua conta — não é uma exclusão
-
-              definitiva. Você deixa de entrar no Almeida Finance, mas seus dados
-
-              <strong> permanecem salvos</strong> e podem ser reativados pelo administrador.
-
-            </p>
-
-            {ehAdmin ? (
-
-              <p className="mt-3 text-xs text-gray-500 bg-gray-100 rounded-lg px-3 py-2">
-
-                Contas de administrador não podem ser encerradas por aqui.
-
+        <div className="card border-red-200">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <AlertTriangle size={16} className="text-red-600" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-base font-semibold text-gray-900">Apagar dados financeiros</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Exclua seus registros financeiros e recomece a configuração do aplicativo. Sua conta e seu login serão mantidos.
               </p>
-
-            ) : (
-
-              <button
-
-                onClick={abrirModalEncerrar}
-
-                className="mt-3 inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm"
-
-              >
-
-                <LogOut size={15} /> Encerrar minha conta
-
+              <button onClick={abrirModal}
+                className="mt-3 inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm">
+                <Trash2 size={15} /> Apagar dados financeiros
               </button>
-
-            )}
-
+            </div>
           </div>
-
         </div>
 
-      </div>
+        {/* Encerrar minha conta */}
+        <div className="card border-red-300">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <LogOut size={16} className="text-red-600" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-base font-semibold text-gray-900">Encerrar minha conta</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Esta ação <strong>desativa o acesso</strong> à sua conta — não é uma exclusão
+                definitiva. Você deixa de entrar no Almeida Finance, mas seus dados
+                <strong> permanecem salvos</strong> e podem ser reativados pelo administrador.
+              </p>
+              {ehAdmin ? (
+                <p className="mt-3 text-xs text-gray-500 bg-gray-100 rounded-lg px-3 py-2">
+                  Contas de administrador não podem ser encerradas por aqui.
+                </p>
+              ) : (
+                <button onClick={abrirModalEncerrar}
+                  className="mt-3 inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm">
+                  <LogOut size={15} /> Encerrar minha conta
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
 
+      </div>{/* /zona de perigo */}
 
-
-      </div>{/* fim grid perigo */}
-
-      {/* Sobre o Almeida Finance — card discreto. Mostra apenas o que existe de
-
-          verdade no projeto (nome + descrição). NÃO inventa versão, links de
-
-          Política/Termos nem contato de suporte, pois não há configuração real
-
-          para esses itens. */}
-
+      {/* Sobre */}
       <div className="card mt-5">
-
         <h2 className="text-base font-semibold text-gray-900">Sobre o Almeida Finance</h2>
-
         <p className="text-sm text-gray-500 mt-1">
-
           Seu controle financeiro pessoal: saldo, receitas, despesas, cartões, benefícios,
-
           reserva e projeções em um só lugar.
-
         </p>
-
         <p className="text-xs text-gray-400 mt-3">Almeida Finance</p>
-
       </div>
 
 
