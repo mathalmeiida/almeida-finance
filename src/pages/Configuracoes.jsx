@@ -683,7 +683,7 @@ export default function Configuracoes() {
 
 
   return (
-    <div className="w-full max-w-5xl mx-auto">
+    <div className="w-full max-w-none px-0">
 
       {/* Título */}
       <div className="mb-6">

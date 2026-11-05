@@ -2284,22 +2284,34 @@ const carregandoLimite = carregando
     (mostrarComecePorAqui) || Boolean(horizonteResumo?.dataNegativa)
   )
 
-  // Fundo escuro do cabeçalho que ACOMPANHA a cor do tema. Hex estáticos (sem
-  // classes Tailwind dinâmicas), com contraste alto para texto branco (WCAG AA).
-  // Enquanto a preferência carrega (corTema indefinido), usa um grafite escuro
-  // legível como fallback. Atualiza na hora ao trocar a cor (corTema muda).
-  // ── Paleta vinho escuro — identidade visual definitiva ──────────────────────
-  // Todos os temas usam a mesma paleta escura premium.
-  // Os cálculos financeiros e variáveis de dados não mudam.
+  // ── Paleta vinho — adapta ao tema escolhido pelo usuário ──────────────────
+  // Tema Escuro / Automático-escuro → paleta escura vinho premium.
+  // Tema Claro → paleta clara com vinho como destaque (textos escuros, fundo branco).
+  // O cabeçalho (saudação) mantém fundo vinho escuro em todos os temas.
+  const modoEscuro = corTema === 'escuro' ||
+    (corTema === 'automatico' && typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-color-scheme: dark)').matches)
+
   const headerBg = 'linear-gradient(135deg, #5a1224 0%, #3d0a18 50%, #250610 100%)'
-  const paletaHome = {
-    fundo:     '#140B10',   // fundo escuro vinho profundo
-    claro:     '#21121F',   // cards/superfícies
-    borda:     '#502838',   // bordas discretas
-    principal: '#C4507A',   // rosa/vinho — destaque, botões, links
-    escuro:    '#3d0a18',   // fundo header
-    painel:    '#2B171F',   // células calendário
-    suave:     '#3d1528',   // hover/soft bg
+
+  const paletaHome = modoEscuro ? {
+    // Paleta escura — vinho premium
+    fundo:     '#140B10',
+    claro:     '#21121F',
+    borda:     '#502838',
+    principal: '#C4507A',
+    escuro:    '#3d0a18',
+    painel:    '#2B171F',
+    suave:     '#3d1528',
+  } : {
+    // Paleta clara — fundo branco, destaque vinho
+    fundo:     '#F8F3F2',
+    claro:     '#FFFFFF',
+    borda:     '#E5BAC4',
+    principal: '#801D39',
+    escuro:    '#5a1224',
+    painel:    '#FFF5F7',
+    suave:     '#FFF0F3',
   }
   const variaveisHome = {
     '--af-home-bg':      paletaHome.fundo,
@@ -2309,33 +2321,48 @@ const carregandoLimite = carregando
     '--af-home-dark':    paletaHome.escuro,
     '--af-home-panel':   paletaHome.painel,
     '--af-home-soft':    paletaHome.suave,
+    '--af-home-suave':   paletaHome.suave,
   }
 
   return (
     <div className="af-home-premium w-full max-w-none min-w-0 flex flex-col gap-0 md:pb-0" style={variaveisHome}>
       <style>{`
-        .af-home-premium { background: #140B10; color: #FAF7F8; min-height: 100%; }
-        .af-hcard { background: #21121F; border: 1px solid #502838; border-radius: 13px; padding: 10px 12px; min-width: 0; }
-        .af-hcard-accent { background: linear-gradient(135deg,#2B171F 0%,#21121F 100%); border: 1px solid #6b3050; border-radius: 13px; padding: 10px 12px; min-width: 0; }
-        .af-ht2 { color: #D4A8B6; font-size: 11px; }
-        .af-hlink { color: #C4507A; font-size: 11px; font-weight: 600; }
+        .af-home-premium { background: var(--af-home-bg); color: ${modoEscuro ? '#FAF7F8' : '#25141B'}; min-height: 100%; transition: background .2s, color .2s; }
+        /* No tema claro, texto dos cards usa cor escura — sobrescreve text-white hardcoded */
+        .af-home-premium .af-hcard p.text-white, .af-home-premium .af-hcard strong.text-white,
+        .af-home-premium .af-hcard-accent p.text-white, .af-home-premium .af-hcard-accent strong.text-white,
+        .af-home-premium .af-side-section p.text-white, .af-home-premium .af-side-section strong.text-white
+          { color: ${modoEscuro ? '#FAF7F8' : '#25141B'} !important; }
+        /* Texto secundário nos cards */
+        .af-home-premium .af-hcard .text-2xl, .af-home-premium .af-hcard .text-xl,
+        .af-home-premium .af-hcard-accent .text-xl
+          { color: ${modoEscuro ? '#FAF7F8' : '#25141B'} !important; }
+        .af-home-premium .af-hcard .text-white, .af-home-premium .af-hcard-accent .text-white,
+        .af-home-premium .af-side-section .text-white
+          { color: ${modoEscuro ? '#FAF7F8' : '#25141B'} !important; }
+        .af-hcard { background: var(--af-home-light); border: 1px solid var(--af-home-border); border-radius: 13px; padding: 10px 12px; min-width: 0; }
+        .af-hcard-accent { background: ${modoEscuro ? 'linear-gradient(135deg,#2B171F 0%,#21121F 100%)' : 'linear-gradient(135deg,#FFF0F3 0%,#FFFFFF 100%)'}; border: 1px solid ${modoEscuro ? '#6b3050' : '#E5BAC4'}; border-radius: 13px; padding: 10px 12px; min-width: 0; }
+        .af-ht2 { color: ${modoEscuro ? '#D4A8B6' : '#643F4F'}; font-size: 11px; }
+        .af-hlink { color: var(--af-home-primary); font-size: 11px; font-weight: 600; }
         .af-home-header { background: linear-gradient(135deg,#5a1224 0%,#3d0a18 60%,#250610 100%); border-radius: 13px; padding: 11px 13px; margin-bottom: 7px; }
-        .af-cal-home { background: #21121F; border: 1px solid #502838; border-radius: 13px; padding: 10px; overflow: hidden; }
-        .af-cal-home .af-cal-day { background: #2B171F; border: 1px solid #3d1528; border-radius: 8px; min-height: 36px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 3px 1px 2px; cursor: pointer; transition: border-color .15s; }
-        .af-cal-home .af-cal-day:hover { border-color: #C4507A; }
-        .af-cal-home .af-cal-day.hoje { background: #C4507A; border-color: #C4507A; }
+        .af-cal-home { background: var(--af-home-light); border: 1px solid var(--af-home-border); border-radius: 13px; padding: 10px; overflow: hidden; }
+        .af-cal-home .af-cal-day { background: var(--af-home-panel); border: 1px solid var(--af-home-border); border-radius: 8px; min-height: 36px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 3px 1px 2px; cursor: pointer; transition: border-color .15s; }
+        .af-cal-home .af-cal-day:hover { border-color: var(--af-home-primary); }
+        .af-cal-home .af-cal-day.hoje { background: var(--af-home-primary); border-color: var(--af-home-primary); }
+        .af-cal-home .af-cal-day.hoje span { color: #fff !important; }
         .af-cal-home .af-cal-day.outro-mes { opacity: 0.35; }
-        .af-cal-home .af-cal-day.selecionado { border-color: #C4507A; box-shadow: 0 0 0 1px #C4507A; }
+        .af-cal-home .af-cal-day.selecionado { border-color: var(--af-home-primary); box-shadow: 0 0 0 1px var(--af-home-primary); }
         .af-cal-dots { display: flex; gap: 2px; justify-content: center; flex-wrap: wrap; margin-top: 1px; }
         .af-cal-dot { width: 4px; height: 4px; border-radius: 50%; }
-        .af-shortcut-btn { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; padding: 9px 3px; background: #21121F; border: 1px solid #502838; border-radius: 12px; cursor: pointer; transition: border-color .15s, background .15s; }
-        .af-shortcut-btn:hover { border-color: #C4507A; background: #2B171F; }
-        .af-shortcut-icon { width: 44px; height: 44px; border-radius: 11px; background: #3d1528; display: flex; align-items: center; justify-content: center; color: #C4507A; }
-        .af-side-section { background: #21121F; border: 1px solid #502838; border-radius: 13px; padding: 12px 14px; }
-        .af-side-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #3d1528; }
+        .af-shortcut-btn { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; padding: 9px 3px; background: var(--af-home-light); border: 1px solid var(--af-home-border); border-radius: 12px; cursor: pointer; transition: border-color .15s, background .15s; }
+        .af-shortcut-btn:hover { border-color: var(--af-home-primary); background: var(--af-home-panel); }
+        .af-shortcut-icon { width: 44px; height: 44px; border-radius: 11px; background: var(--af-home-suave, var(--af-home-panel)); display: flex; align-items: center; justify-content: center; color: var(--af-home-primary); }
+        .af-shortcut-btn span { color: ${modoEscuro ? '#D4A8B6' : '#643F4F'}; }
+        .af-side-section { background: var(--af-home-light); border: 1px solid var(--af-home-border); border-radius: 13px; padding: 12px 14px; }
+        .af-side-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--af-home-panel); }
         .af-side-item:last-child { border-bottom: none; }
-        .af-progress-bar { height: 5px; border-radius: 3px; background: #3d1528; overflow: hidden; margin-top: 5px; }
-        .af-progress-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg,#C4507A,#e8719a); }
+        .af-progress-bar { height: 5px; border-radius: 3px; background: var(--af-home-panel); overflow: hidden; margin-top: 5px; }
+        .af-progress-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--af-home-primary), #e8719a); }
         @media (max-width: 767px) { .af-cal-home .af-cal-day { min-height: 33px; padding: 2px 1px 1px; } .af-cal-dot { width: 3px; height: 3px; } }
       `}</style>
 
