@@ -611,6 +611,8 @@ function CardQuantoPossoGastar({
   saldoSeguroHoje = 0,
   saldoAtual = 0,
   dataProximaReceita = null,
+  // Tema: passa o modo escuro para adaptar as cores ao tema global do usuário.
+  modoEscuro = false,
 }) {
   const { ocultar } = useOcultarValores()
   const [personalizando, setPersonalizando] = useState(false)
@@ -619,7 +621,6 @@ function CardQuantoPossoGastar({
   // sem esperar o salvamento no banco. Sincroniza quando o perfil carrega/muda.
   const [pctLocal, setPctLocal] = useState(reservaPercentual != null ? Number(reservaPercentual) : 20)
   const [erroSalvar, setErroSalvar] = useState(false)
-  const [salvo, setSalvo] = useState(false)
   const [detalhesLimiteAberto, setDetalhesLimiteAberto] = useState(false)
 
   useEffect(() => {
@@ -628,10 +629,10 @@ function CardQuantoPossoGastar({
 
   // Seleciona um percentual: atualiza a UI imediatamente e tenta persistir
   async function selecionarPct(valor) {
-    setPctLocal(valor)        // recálculo imediato (reserva, disponível, gasto diário)
+    setPctLocal(valor)
     setErroSalvar(false)
     try {
-      await onTrocarReserva(valor)  // persiste no banco
+      await onTrocarReserva(valor)
     } catch {
       setErroSalvar(true)
     }
@@ -657,18 +658,18 @@ function CardQuantoPossoGastar({
   const {
     dias, ehManual, reserva, saldoSeguroAjustado, limiteAuto, limiteManualNum,
     disponivelMes, limiteExibido, status, orcamentoNegativo, manualAcimaDoRecomendado,
- } = derivarResumoGastar({
-  modo,
-  receitaMes,
-  compromissosMes,
-  limiteManual,
-  hoje,
-  pct,
-  saldoConfigurado,
-  previsaoFimMes,
-  saldoSeguroHoje,
-  dataProximaReceita,
-})
+  } = derivarResumoGastar({
+    modo,
+    receitaMes,
+    compromissosMes,
+    limiteManual,
+    hoje,
+    pct,
+    saldoConfigurado,
+    previsaoFimMes,
+    saldoSeguroHoje,
+    dataProximaReceita,
+  })
 
   function aplicarCustom(e) {
     e.preventDefault()
@@ -680,282 +681,394 @@ function CardQuantoPossoGastar({
     }
   }
 
+  // ── Paleta tema-responsiva ────────────────────────────────────────────────
+  // Claro: fundo branco, textos escuros, destaques vinho.
+  // Escuro: fundo vinho escuro, textos claros, destaques rosa-vinho.
+  const p = modoEscuro ? {
+    // Superfícies
+    bg:        '#21121F',        // fundo do card principal
+    panel:     '#2B171F',        // painéis internos
+    panelHov:  '#3d1528',        // hover de painéis
+    border:    '#502838',        // bordas gerais
+    borderSub: 'rgba(80,40,56,0.5)', // bordas sutis
+    // Textos
+    txtPri:    '#FAF7F8',        // texto principal
+    txtSec:    '#D4A8B6',        // texto secundário
+    txtMuted:  'rgba(212,168,182,0.7)', // texto apagado
+    // Destaques
+    accent:    '#C4507A',        // vinho rosa escuro
+    accentBg:  'rgba(196,80,122,0.18)', // fundo do destaque
+    accentBorder: 'rgba(196,80,122,0.35)',
+    // Botões de percentual
+    btnPct:    'rgba(255,255,255,0.08)',
+    btnPctHov: 'rgba(255,255,255,0.14)',
+    btnPctAtv: 'rgba(255,255,255,0.92)',
+    btnPctAtvTxt: '#801D39',
+    // Barra de progresso
+    barBg:     'rgba(0,0,0,0.35)',
+    barFill:   '#C4507A',
+    // Alertas
+    alertWarn: 'rgba(250,204,21,0.12)',
+    alertWarnTxt: '#FDE68A',
+    alertWarnBorder: 'rgba(250,204,21,0.25)',
+    alertErr:  'rgba(239,68,68,0.12)',
+    alertErrTxt: '#FCA5A5',
+    alertErrBorder: 'rgba(239,68,68,0.25)',
+    alertOk:   'rgba(34,197,94,0.12)',
+    alertOkTxt: '#86EFAC',
+    alertOkBorder: 'rgba(34,197,94,0.25)',
+  } : {
+    // Superfícies
+    bg:        '#FFFFFF',
+    panel:     '#F8F3F2',        // vinho claríssimo
+    panelHov:  '#FFF0F3',
+    border:    '#E5BAC4',
+    borderSub: 'rgba(229,186,196,0.6)',
+    // Textos
+    txtPri:    '#25141B',
+    txtSec:    '#643F4F',
+    txtMuted:  'rgba(100,63,79,0.7)',
+    // Destaques
+    accent:    '#801D39',
+    accentBg:  'rgba(128,29,57,0.08)',
+    accentBorder: 'rgba(128,29,57,0.20)',
+    // Botões de percentual
+    btnPct:    'rgba(128,29,57,0.06)',
+    btnPctHov: 'rgba(128,29,57,0.12)',
+    btnPctAtv: '#801D39',
+    btnPctAtvTxt: '#FFFFFF',
+    // Barra de progresso
+    barBg:     'rgba(229,186,196,0.35)',
+    barFill:   '#801D39',
+    // Alertas
+    alertWarn: '#FFFBEB',
+    alertWarnTxt: '#92400E',
+    alertWarnBorder: '#FDE68A',
+    alertErr:  '#FEF2F2',
+    alertErrTxt: '#991B1B',
+    alertErrBorder: '#FECACA',
+    alertOk:   '#F0FDF4',
+    alertOkTxt: '#166534',
+    alertOkBorder: '#BBF7D0',
+  }
+
+  // Helper: linha do demonstrativo financeiro
+  const LinhaDemo = ({ label, valor, destaque, separador, positivo, negativo }) => (
+    <div style={{ borderTop: separador ? `1px solid ${p.borderSub}` : 'none', paddingTop: separador ? 8 : 0 }}
+      className="flex justify-between items-center gap-4">
+      <span style={{ color: destaque ? p.txtPri : p.txtSec, fontWeight: destaque ? 600 : 400 }}
+        className="text-xs sm:text-sm leading-snug">{label}</span>
+      <strong style={{ color: negativo ? (modoEscuro ? '#FCA5A5' : '#991B1B') : positivo ? (modoEscuro ? '#86EFAC' : '#166534') : p.txtPri }}
+        className="text-xs sm:text-sm tabular-nums whitespace-nowrap flex-shrink-0">{valor}</strong>
+    </div>
+  )
+
   return (
-    <div className="planejamento-modal-conteudo rounded-2xl border border-white/10 bg-[#172339] p-4 sm:p-6 text-white space-y-4">
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <div className="flex items-center gap-2">
-          <Sun size={18} />
-          <span className="text-sm font-medium text-white/90">Quanto posso gastar?</span>
+    <div className="planejamento-modal-conteudo rounded-2xl space-y-4 p-4 sm:p-5"
+      style={{ background: p.bg, border: `1px solid ${p.border}` }}>
+
+      {/* ── 1. Cabeçalho: título + alternador Auto/Manual ── */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <Sun size={17} style={{ color: p.accent, flexShrink: 0 }} />
+          <span style={{ color: p.txtPri }} className="text-sm font-semibold">Quanto posso gastar?</span>
         </div>
-        {/* Alternador Automático | Manual */}
-        <div className="flex bg-black/15 rounded-lg p-0.5 text-xs font-medium flex-shrink-0">
-          <button
-            onClick={() => onTrocarModo('auto')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${!ehManual ? 'bg-white/90 text-marca' : 'text-white/80'}`}
-          >
+        {/* Alternador Automático / Manual */}
+        <div className="flex rounded-lg p-0.5 text-xs font-semibold flex-shrink-0"
+          style={{ background: p.panel, border: `1px solid ${p.border}` }}>
+          <button onClick={() => onTrocarModo('auto')} type="button"
+            style={!ehManual ? { background: p.accent, color: '#FFF' } : { color: p.txtSec }}
+            className="px-3 py-1.5 rounded-md transition-colors">
             Automático
           </button>
-          <button
-            onClick={() => onTrocarModo('manual')}
-            className={`px-3 py-1.5 rounded-md transition-colors ${ehManual ? 'bg-white/90 text-marca' : 'text-white/80'}`}
-          >
+          <button onClick={() => onTrocarModo('manual')} type="button"
+            style={ehManual ? { background: p.accent, color: '#FFF' } : { color: p.txtSec }}
+            className="px-3 py-1.5 rounded-md transition-colors">
             Manual
           </button>
         </div>
       </div>
 
-      {/* ── Reserva de emergência (só no modo automático) ── */}
+      {/* ── 2. Reserva de emergência (modo automático) ── */}
       {!ehManual && (
-        <div className="bg-black/15 rounded-xl px-3 py-3 mb-3">
+        <div className="rounded-xl px-4 py-3 space-y-3"
+          style={{ background: p.panel, border: `1px solid ${p.border}` }}>
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-white/90 font-medium">Reserva de emergência — {pct}%</p>
-            <p className="text-sm font-bold">{formatCurrency(reserva)}</p>
+            <p style={{ color: p.txtPri }} className="text-xs font-semibold flex items-center gap-1.5">
+              <PiggyBank size={14} style={{ color: p.accent }} />
+              Reserva planejada — {pct}%
+            </p>
+            <p style={{ color: p.accent }} className="text-sm font-bold tabular-nums">{formatCurrency(reserva)}</p>
           </div>
-          <div className="flex flex-wrap gap-1.5 mt-2">
+          <div className="flex flex-wrap gap-1.5">
             {OPCOES_RESERVA.map(op => (
               <button key={op} type="button" onClick={() => { selecionarPct(op); setPersonalizando(false) }}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  !personalizando && pct === op ? 'bg-white/90 text-marca' : 'bg-black/20 text-white/80 hover:bg-black/30'
-                }`}>
+                style={!personalizando && pct === op
+                  ? { background: p.btnPctAtv, color: p.btnPctAtvTxt }
+                  : { background: p.btnPct, color: p.txtSec }}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">
                 {op}%
               </button>
             ))}
             <button type="button" onClick={() => setPersonalizando(v => !v)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                personalizando || !OPCOES_RESERVA.includes(pct) ? 'bg-white/90 text-marca' : 'bg-black/20 text-white/80 hover:bg-black/30'
-              }`}>
+              style={personalizando || !OPCOES_RESERVA.includes(pct)
+                ? { background: p.btnPctAtv, color: p.btnPctAtvTxt }
+                : { background: p.btnPct, color: p.txtSec }}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">
               Personalizado
             </button>
           </div>
           {personalizando && (
-            <form onSubmit={aplicarCustom} className="flex gap-2 mt-2">
+            <form onSubmit={aplicarCustom} className="flex gap-2">
               <input type="number" min="0" max="100" step="1" value={pctCustom}
                 onChange={e => setPctCustom(e.target.value)}
                 placeholder="Ex: 18" autoFocus
-                className="flex-1 bg-white/90 text-gray-900 rounded-md px-2 py-1 text-sm focus:outline-none" />
-              <button type="submit" className="bg-white/90 text-marca text-xs font-semibold px-3 rounded-md">OK</button>
+                style={{ background: p.bg, color: p.txtPri, border: `1px solid ${p.border}` }}
+                className="flex-1 rounded-lg px-3 py-1.5 text-sm focus:outline-none" />
+              <button type="submit" style={{ background: p.accent, color: '#FFF' }}
+                className="text-xs font-semibold px-3 rounded-lg">OK</button>
             </form>
           )}
-          <p className="text-xs text-white/60 mt-2">Este valor está sendo separado do seu orçamento de gastos.</p>
+          <p style={{ color: p.txtMuted }} className="text-xs">
+            Valor separado do orçamento — não é uma transferência automática.
+          </p>
           {erroSalvar && (
-            <p className="text-xs text-amber-100 mt-1">
-              Não foi possível salvar sua preferência. O cálculo está atualizado, mas pode não permanecer após recarregar.
+            <p style={{ color: p.alertWarnTxt }} className="text-xs">
+              Preferência não salva. O cálculo está correto até recarregar a página.
             </p>
           )}
         </div>
       )}
-{/* Detalhamento do saldo seguro */}
-{!ehManual && (
-  <div className="bg-black/15 rounded-xl px-3 py-3 mb-3 space-y-1.5">
-    <div className="flex justify-between text-sm">
-      <span className="text-white/70">Saldo atual</span>
-      <span className="font-medium">{formatCurrency(saldoAtual)}</span>
-    </div>
 
-    <div className="flex justify-between text-sm">
-      <span className="text-white/70">
-        Valor descontado até a próxima receita
-      </span>
-      <span className="font-medium">
-        − {formatCurrency(Math.max(0, saldoAtual - saldoSeguroAjustado))}
-      </span>
-    </div>
-
-    <div className="flex justify-between items-center text-sm pt-1.5 border-t border-white/15">
-      <span className="font-semibold">
-        Saldo seguro até a próxima receita
-      </span>
-      <span className="font-bold">
-        {formatCurrency(saldoSeguroAjustado)}
-      </span>
-    </div>
-  </div>
-)}
-      {/* Destaque do limite diário, com saldo disponível separado */}
-      <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-        <div className="sm:col-span-3 rounded-xl bg-marca/20 border border-white/10 px-4 py-4">
-          <p className="text-xs font-medium text-white/75">{ehManual ? 'Seu limite diário (manual)' : 'Limite diário recomendado'}</p>
-          <p className="mt-1 text-3xl sm:text-4xl font-extrabold tabular-nums break-words">
-            {formatCurrency(Math.max(0, limiteExibido))}
-            <span className="text-sm font-normal text-white/65"> /dia</span>
+      {/* ── 3. Demonstrativo financeiro ── */}
+      <div className="rounded-xl px-4 py-3 space-y-2"
+        style={{ background: p.panel, border: `1px solid ${p.border}` }}>
+        <p style={{ color: p.txtSec }} className="text-[11px] font-semibold uppercase tracking-wide mb-2">
+          Demonstrativo
+        </p>
+        <LinhaDemo label="Saldo atual" valor={exibirMoeda(saldoAtual, ocultar)} />
+        <LinhaDemo
+          label="Compromissos pendentes até a próxima receita"
+          valor={`− ${exibirMoeda(Math.max(0, saldoAtual - Math.max(0, Number(saldoSeguroHoje) || 0)), ocultar)}`}
+          negativo={saldoAtual > Math.max(0, Number(saldoSeguroHoje) || 0)}
+        />
+        <LinhaDemo
+          label="Reserva planejada"
+          valor={`− ${exibirMoeda(reserva, ocultar)}`}
+          negativo={reserva > 0}
+        />
+        <LinhaDemo
+          label="Saldo seguro disponível"
+          valor={exibirMoeda(saldoSeguroAjustado, ocultar)}
+          destaque separador
+          positivo={saldoSeguroAjustado > 0}
+          negativo={saldoSeguroAjustado <= 0 && saldoConfigurado}
+        />
+        {dataProximaReceita && (
+          <p style={{ color: p.txtMuted }} className="text-xs pt-1">
+            Período: hoje até {new Date(dataProximaReceita + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} — {dias} {dias === 1 ? 'dia' : 'dias'}
           </p>
+        )}
+      </div>
+
+      {/* ── 4. Destaques: limite diário + disponível ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Limite diário */}
+        <div className="rounded-xl px-4 py-4"
+          style={{ background: p.accentBg, border: `1px solid ${p.accentBorder}` }}>
+          <p style={{ color: p.txtSec }} className="text-xs font-medium mb-1">
+            {ehManual ? 'Seu limite diário (manual)' : 'Limite diário recomendado'}
+          </p>
+          <p style={{ color: p.accent }} className="text-3xl sm:text-4xl font-extrabold tabular-nums leading-tight break-words">
+            {exibirMoeda(Math.max(0, limiteExibido), ocultar)}
+            <span style={{ color: p.txtMuted }} className="text-sm font-normal"> /dia</span>
+          </p>
+          {!ehManual && dias > 0 && (
+            <p style={{ color: p.txtMuted }} className="text-xs mt-1">{dias} {dias === 1 ? 'dia' : 'dias'} restantes</p>
+          )}
         </div>
-        <div className="sm:col-span-2 rounded-xl bg-white/5 border border-white/10 px-4 py-4">
-          <p className="text-xs text-white/70">Disponível até a próxima receita</p>
-          <p className="text-xl sm:text-2xl font-bold mt-2 tabular-nums break-words">{formatCurrency(disponivelMes)}</p>
-          <p className="text-xs text-white/60 mt-1">Saldo projetado para este período</p>
+        {/* Disponível no período */}
+        <div className="rounded-xl px-4 py-4"
+          style={{ background: p.panel, border: `1px solid ${p.border}` }}>
+          <p style={{ color: p.txtSec }} className="text-xs font-medium mb-1">Disponível até a próxima receita</p>
+          <p style={{ color: disponivelMes > 0 ? p.txtPri : (modoEscuro ? '#FCA5A5' : '#991B1B') }}
+            className="text-xl sm:text-2xl font-bold tabular-nums leading-tight break-words">
+            {exibirMoeda(disponivelMes, ocultar)}
+          </p>
+          <p style={{ color: p.txtMuted }} className="text-xs mt-1">Saldo seguro após reserva</p>
         </div>
       </div>
-      {/* Explicação recolhível: usa os mesmos resultados do cálculo existente. */}
-      <div className="rounded-xl border border-white/10 bg-black/15 overflow-hidden">
-        <button
-          type="button"
-          aria-expanded={detalhesLimiteAberto}
+
+      {/* ── 5. Explicação recolhível do cálculo ── */}
+      <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${p.border}` }}>
+        <button type="button" aria-expanded={detalhesLimiteAberto}
           onClick={() => setDetalhesLimiteAberto(v => !v)}
-          className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold text-white hover:bg-white/5"
-        >
-          <span className="flex items-center gap-2"><Info size={16} /> Entenda seu limite diário</span>
-          <span className="text-white/70 text-lg" aria-hidden="true">{detalhesLimiteAberto ? '−' : '+'}</span>
+          style={{ background: p.panel, color: p.txtPri }}
+          className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold transition-colors">
+          <span className="flex items-center gap-2">
+            <Info size={15} style={{ color: p.accent }} />
+            Entenda seu limite diário
+          </span>
+          <span style={{ color: p.txtSec }} className="text-base" aria-hidden="true">
+            {detalhesLimiteAberto ? '−' : '+'}
+          </span>
         </button>
         {detalhesLimiteAberto && (
-          <div className="border-t border-white/10 px-4 py-3 space-y-2 text-xs sm:text-sm text-white/80">
-            <div className="flex justify-between gap-4"><span>Saldo atual informado</span><strong className="text-white">{exibirMoeda(saldoAtual, ocultar)}</strong></div>
-            <div className="flex justify-between gap-4"><span>Base segura projetada (antes da reserva planejada)</span><strong className="text-white">{exibirMoeda(Math.max(0, Number(saldoSeguroHoje) || 0), ocultar)}</strong></div>
-            <div className="flex justify-between gap-4"><span>Reserva planejada ({pct} % da renda do mês)</span><strong className="text-white">{exibirMoeda(reserva, ocultar)}</strong></div>
-            <div className="flex justify-between gap-4 border-t border-white/10 pt-2"><span>Disponível após reserva planejada</span><strong className="text-white">{exibirMoeda(disponivelMes, ocultar)}</strong></div>
-            <div className="flex justify-between gap-4"><span>Dias considerados até a próxima receita</span><strong className="text-white">{dias}</strong></div>
-            <div className="flex justify-between gap-4"><span>Limite diário automático</span><strong className="text-white">{exibirMoeda(limiteAuto, ocultar)}</strong></div>
-            {ehManual && <p className="text-white/70">Modo manual: seu limite definido é {exibirMoeda(limiteManualNum, ocultar)} por dia, independentemente da recomendação automática.</p>}
-            <div className="border-t border-white/10 pt-2">
-              <p>Reserva já acumulada: <strong className="text-white">{exibirMoeda(reservaAtual, ocultar)}</strong>.</p>
-              <p className="mt-1 text-white/60">A reserva planejada é uma meta sobre a renda do mês; não significa que esse valor já esteja guardado ou tenha sido transferido.</p>
-              <p className="mt-1 text-white/60">A base segura vem da projeção financeira existente. Este resumo não discrimina cada despesa ou fatura; consulte Projeção para verificar os compromissos.</p>
-            </div>
+          <div className="px-4 py-3 space-y-2" style={{ borderTop: `1px solid ${p.border}`, background: p.bg }}>
+            <LinhaDemo label="Saldo atual informado" valor={exibirMoeda(saldoAtual, ocultar)} />
+            <LinhaDemo
+              label={`Base segura projetada (compromissos descontados)`}
+              valor={exibirMoeda(Math.max(0, Number(saldoSeguroHoje) || 0), ocultar)}
+            />
+            <LinhaDemo
+              label={`Reserva planejada (${pct}% da renda)`}
+              valor={`− ${exibirMoeda(reserva, ocultar)}`}
+            />
+            <LinhaDemo
+              label="Disponível após reserva"
+              valor={exibirMoeda(disponivelMes, ocultar)}
+              destaque separador
+            />
+            <LinhaDemo label="Dias no período" valor={`${dias}`} />
+            <LinhaDemo
+              label="Fórmula: disponível ÷ dias"
+              valor={exibirMoeda(limiteAuto, ocultar)}
+              destaque separador
+            />
+            {ehManual && (
+              <p style={{ color: p.txtSec }} className="text-xs pt-1">
+                Modo manual: seu limite de {exibirMoeda(limiteManualNum, ocultar)}/dia substitui o cálculo automático.
+              </p>
+            )}
+            {dataProximaReceita ? (
+              <p style={{ color: p.txtMuted }} className="text-xs">
+                Próxima receita: {new Date(dataProximaReceita + 'T12:00:00').toLocaleDateString('pt-BR')}
+              </p>
+            ) : (
+              <p style={{ color: p.txtMuted }} className="text-xs">
+                Sem próxima receita cadastrada — usando fim do mês como referência.
+              </p>
+            )}
+            <p style={{ color: p.txtMuted }} className="text-xs pt-1">
+              Reserva já acumulada: <strong style={{ color: p.txtSec }}>{exibirMoeda(reservaAtual, ocultar)}</strong>
+              {' '}— patrimônio separado, não entra no disponível para gastar.
+            </p>
           </div>
         )}
       </div>
-      {/* Status */}
-      {status && (
-        <div className="flex items-center gap-2 mt-3 bg-black/15 rounded-xl px-3 py-2">
-          <span>{status.cor}</span>
-          <span className="text-sm font-medium">{status.texto}</span>
-        </div>
-      )}
 
-      {ehManual && (
-        <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs sm:text-sm text-white/80">
-          <Info size={15} className="inline-block mr-1.5 align-[-3px]" />
-          Seu limite diário foi definido por você e pode ser diferente do cálculo automático.
-          {manualAcimaDoRecomendado && <span className="block mt-1 text-amber-200">O valor manual está acima do recomendado para o período.</span>}
-        </div>
-      )}
+      {/* ── 6. Alertas financeiros ── */}
+      {status && (() => {
+        const ehOk = status.cor === '🟢'
+        const ehAviso = status.cor === '🟡'
+        const alerta = ehOk ? p.alertOk : ehAviso ? p.alertWarn : p.alertErr
+        const alertaTxt = ehOk ? p.alertOkTxt : ehAviso ? p.alertWarnTxt : p.alertErrTxt
+        const alertaBorder = ehOk ? p.alertOkBorder : ehAviso ? p.alertWarnBorder : p.alertErrBorder
+        return (
+          <div className="flex items-center gap-2.5 rounded-xl px-3 py-2.5"
+            style={{ background: alerta, border: `1px solid ${alertaBorder}` }}>
+            <span className="text-base flex-shrink-0">{status.cor}</span>
+            <span style={{ color: alertaTxt }} className="text-sm font-medium">{status.texto}</span>
+          </div>
+        )
+      })()}
 
-      {/* Mensagens contextuais */}
       {orcamentoNegativo && (
-        <p className="text-xs text-white/90 mt-2 bg-black/15 rounded-lg px-3 py-2">
-          Seus compromissos do mês estão acima da renda cadastrada.
-        </p>
-      )}
-
-      {/* Indica claramente que o valor exibido foi definido manualmente */}
-      {ehManual && limiteManualNum > 0 && (
-        <div className="mt-2 flex items-center gap-1.5 text-xs text-white/90">
-          <Pencil size={12} />
-          <span>Valor definido manualmente por você.</span>
-        </div>
-      )}
-
-      {ehManual && !orcamentoNegativo && (
-        <div className="mt-2 bg-black/15 rounded-lg px-3 py-2">
-          <p className="text-xs text-white/90">
-            {dias} dias restantes • Orçamento necessário até o fim do mês:{' '}
-            <strong>{formatCurrency(limiteManualNum * dias)}</strong>
+        <div className="rounded-xl px-3 py-2.5 flex items-start gap-2"
+          style={{ background: p.alertErr, border: `1px solid ${p.alertErrBorder}` }}>
+          <AlertTriangle size={15} style={{ color: p.alertErrTxt, flexShrink: 0, marginTop: 1 }} />
+          <p style={{ color: p.alertErrTxt }} className="text-xs">
+            Os compromissos previstos superam o saldo seguro disponível. Verifique suas despesas e receitas.
           </p>
-          {manualAcimaDoRecomendado && (
-            <p className="text-xs text-amber-100 mt-1">
-              Seu limite diário definido está acima do valor recomendado pelo seu orçamento atual.
-            </p>
-          )}
         </div>
       )}
 
-      {/* Ações do modo manual: ajustar o valor e voltar ao cálculo automático */}
+      {ehManual && manualAcimaDoRecomendado && (
+        <div className="rounded-xl px-3 py-2.5 flex items-start gap-2"
+          style={{ background: p.alertWarn, border: `1px solid ${p.alertWarnBorder}` }}>
+          <AlertTriangle size={15} style={{ color: p.alertWarnTxt, flexShrink: 0, marginTop: 1 }} />
+          <p style={{ color: p.alertWarnTxt }} className="text-xs">
+            Seu limite manual ({exibirMoeda(limiteManualNum, ocultar)}/dia) está acima do recomendado ({exibirMoeda(limiteAuto, ocultar)}/dia).
+          </p>
+        </div>
+      )}
+
+      {/* ── 7. Ações do modo manual ── */}
       {ehManual && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            onClick={onEditarLimite}
-            className="flex items-center justify-center gap-2 text-sm font-semibold text-white bg-marca hover:opacity-90 px-4 py-2.5 rounded-xl transition-colors"
-          >
+        <div className="flex flex-wrap gap-2">
+          <button onClick={onEditarLimite} type="button"
+            style={{ background: p.accent, color: '#FFF' }}
+            className="flex items-center justify-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
             <Pencil size={14} /> {limiteManualNum > 0 ? 'Ajustar limite' : 'Definir limite'}
           </button>
-          <button
-            onClick={() => onTrocarModo('auto')}
-            className="flex items-center justify-center gap-2 text-sm font-medium text-white/80 border border-white/15 bg-white/5 hover:bg-white/10 px-4 py-2.5 rounded-xl transition-colors"
-          >
-            Voltar para cálculo automático
+          <button onClick={() => onTrocarModo('auto')} type="button"
+            style={{ color: p.txtSec, background: p.panel, border: `1px solid ${p.border}` }}
+            className="flex items-center justify-center gap-2 text-sm font-medium px-4 py-2.5 rounded-xl transition-colors">
+            Usar cálculo automático
           </button>
         </div>
       )}
 
-      {/* No modo automático, atalho para ativar o ajuste manual */}
+      {/* No modo automático: botão discreto para ir ao manual */}
       {!ehManual && (
-        <button
-          onClick={() => onTrocarModo('manual')}
-          className="mt-3 flex items-center gap-1 text-xs font-medium text-white/90 bg-black/15 hover:bg-black/25 px-2.5 py-1.5 rounded-lg transition-colors"
-        >
-          <Pencil size={12} /> Ajustar gasto diário
+        <button onClick={() => onTrocarModo('manual')} type="button"
+          style={{ color: p.txtSec, background: p.panel, border: `1px solid ${p.border}` }}
+          className="flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg transition-colors">
+          <Pencil size={12} /> Ajustar gasto diário manualmente
         </button>
       )}
 
-      {/* Reserva de emergência: patrimônio já guardado + meta + progresso.
-          Tudo INFORMATIVO — não entra em renda nem no disponível para gastar. */}
+      {/* ── 8. Reserva acumulada + meta + progresso ── */}
       {(() => {
         const temMeta = metaReserva > 0
-        const pct = temMeta ? Math.min(100, (reservaAtual / metaReserva) * 100) : 0
+        const pctMeta = temMeta ? Math.min(100, (reservaAtual / metaReserva) * 100) : 0
         const faltaAcumular = temMeta ? Math.max(0, metaReserva - reservaAtual) : 0
         const metaAtingida = temMeta && reservaAtual >= metaReserva
         return (
-          <div className="mt-3 pt-4 border-t border-white/15">
+          <div className="rounded-xl px-4 py-3 space-y-2"
+            style={{ borderTop: `1px solid ${p.borderSub}`, paddingTop: 16, marginTop: 4 }}>
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs text-white/80">
-                Reserva de emergência atual: <strong className="text-white">{exibirMoeda(reservaAtual, ocultar)}</strong>
-              </span>
-              <button
-                onClick={onEditarReservaAtual}
-                className="flex items-center gap-1 text-xs font-medium text-white/90 bg-black/15 hover:bg-black/25 px-2.5 py-1.5 rounded-lg transition-colors flex-shrink-0"
-              >
-                <Pencil size={12} /> Editar
+              <p style={{ color: p.txtSec }} className="text-xs font-semibold flex items-center gap-1.5">
+                <PiggyBank size={13} style={{ color: p.accent }} />
+                Reserva acumulada
+              </p>
+              <button onClick={onEditarReservaAtual} type="button"
+                style={{ color: p.accent, background: p.accentBg, border: `1px solid ${p.accentBorder}` }}
+                className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg flex-shrink-0">
+                <Pencil size={11} /> Editar
               </button>
             </div>
-
+            <p style={{ color: p.txtPri }} className="text-xl font-bold tabular-nums">
+              {exibirMoeda(reservaAtual, ocultar)}
+              {temMeta && (
+                <span style={{ color: p.txtSec }} className="text-xs font-normal ml-2">
+                  de {exibirMoeda(metaReserva, ocultar)} meta
+                </span>
+              )}
+            </p>
             {temMeta && (
               <>
-                <div className="flex items-center justify-between text-xs text-white/80 mt-2">
-                  <span>Meta: <strong className="text-white">{exibirMoeda(metaReserva, ocultar)}</strong></span>
-                  <span>{pct.toFixed(1).replace('.', ',')}%</span>
+                <div className="w-full rounded-full h-2 overflow-hidden" style={{ background: p.barBg }}>
+                  <div className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${pctMeta}%`, background: p.barFill }} />
                 </div>
-                {/* Barra de progresso */}
-                <div className="w-full bg-black/20 rounded-full h-2 mt-1.5">
-                  <div
-                    className="h-2 rounded-full bg-white/90 transition-all duration-500"
-                    style={{ width: `${pct}%` }}
-                  />
+                <div className="flex items-center justify-between text-xs" style={{ color: p.txtSec }}>
+                  <span>{pctMeta.toFixed(1).replace('.', ',')}% atingido</span>
+                  {!metaAtingida && <span>Faltam {exibirMoeda(faltaAcumular, ocultar)}</span>}
+                  {metaAtingida && <span style={{ color: modoEscuro ? '#86EFAC' : '#166534' }}>✓ Meta atingida</span>}
                 </div>
-                <p className="text-xs text-white/80 mt-1.5">
-                  {metaAtingida
-                    ? <>Falta acumular: <strong className="text-white">{formatCurrency(0)}</strong> • <strong className="text-white">Meta atingida ✓</strong></>
-                    : <>Falta acumular: <strong className="text-white">{formatCurrency(faltaAcumular)}</strong></>}
-                </p>
-
-                {/* Previsão de quando a meta será atingida (calculada dinamicamente).
-                    aporte_mensal = renda × (reserva_percentual/100). Não altera cálculos. */}
-                {(() => {
-                  if (metaAtingida) {
-                    return <p className="text-xs text-white/90 mt-1.5 font-medium">Meta atingida 🎉</p>
-                  }
-                  const aporteMensal = receitaMes > 0 ? receitaMes * (reservaPercentual / 100) : 0
-                  if (aporteMensal <= 0) {
-                    return (
-                      <p className="text-xs text-white/70 mt-1.5">
-                        Informe sua renda e defina um percentual de reserva para visualizar a previsão.
-                      </p>
-                    )
-                  }
-                  const meses = Math.ceil(faltaAcumular / aporteMensal)
-                  // Mês/ano estimado (a partir do mês atual + meses).
+                {!metaAtingida && receitaMes > 0 && (() => {
+                  const aporteMensal = receitaMes * (reservaPercentual / 100)
+                  if (aporteMensal <= 0) return null
+                  const mesesParaMeta = Math.ceil(faltaAcumular / aporteMensal)
                   const alvo = new Date()
-                  alvo.setMonth(alvo.getMonth() + meses)
+                  alvo.setMonth(alvo.getMonth() + mesesParaMeta)
                   const mesAno = alvo.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
                   return (
-                    <div className="mt-2 bg-black/15 rounded-lg px-3 py-2">
-                      <p className="text-xs text-white/90">
-                        Mantendo seu aporte de <strong>{formatCurrency(aporteMensal)}/mês</strong>, você atingirá
-                        sua meta em aproximadamente <strong>{meses} {meses === 1 ? 'mês' : 'meses'}</strong>.
-                      </p>
-                      <p className="text-xs text-white/70 mt-0.5 capitalize">
-                        Previsão: {mesAno}.
-                      </p>
-                    </div>
+                    <p style={{ color: p.txtMuted }} className="text-xs">
+                      Mantendo {exibirMoeda(aporteMensal, ocultar)}/mês, meta em ~{mesesParaMeta} {mesesParaMeta === 1 ? 'mês' : 'meses'}
+                      {' '}({mesAno}).
+                    </p>
                   )
                 })()}
               </>
@@ -2695,6 +2808,7 @@ const carregandoLimite = carregando
           saldoSeguroHoje={saldoSeguroHoje}
           saldoAtual={saldoDisponivelAgora}
           dataProximaReceita={dataProximaReceita}
+          modoEscuro={modoEscuro}
         />
       </Modal>
 
