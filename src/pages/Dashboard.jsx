@@ -2312,31 +2312,32 @@ const carregandoLimite = carregando
   }
 
   return (
-    <div className="af-home-premium w-full max-w-none min-w-0 flex flex-col gap-0 pb-2 md:pb-0" style={variaveisHome}>
+    <div className="af-home-premium w-full max-w-none min-w-0 flex flex-col gap-0 md:pb-0" style={variaveisHome}>
       <style>{`
-        .af-home-premium { background: #140B10; color: #FAF7F8; min-height: 100%; }
-        .af-hcard { background: #21121F; border: 1px solid #502838; border-radius: 16px; padding: 14px 16px; min-width: 0; }
-        .af-hcard-accent { background: linear-gradient(135deg,#2B171F 0%,#21121F 100%); border: 1px solid #6b3050; border-radius: 16px; padding: 14px 16px; min-width: 0; }
-        .af-ht2 { color: #D4A8B6; font-size: 12px; }
-        .af-hlink { color: #C4507A; font-size: 12px; font-weight: 600; }
-        .af-home-header { background: linear-gradient(135deg,#5a1224 0%,#3d0a18 60%,#250610 100%); border-radius: 16px; padding: 14px 16px; margin-bottom: 10px; }
-        .af-cal-home { background: #21121F; border: 1px solid #502838; border-radius: 16px; padding: 14px; overflow: hidden; }
-        .af-cal-home .af-cal-day { background: #2B171F; border: 1px solid #3d1528; border-radius: 10px; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 4px 2px 3px; cursor: pointer; transition: border-color .15s; }
+        .af-home-premium { background: #140B10; color: #FAF7F8; min-height: 100%; padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+        @media (min-width: 768px) { .af-home-premium { padding-bottom: 0; } }
+        .af-hcard { background: #21121F; border: 1px solid #502838; border-radius: 13px; padding: 10px 12px; min-width: 0; }
+        .af-hcard-accent { background: linear-gradient(135deg,#2B171F 0%,#21121F 100%); border: 1px solid #6b3050; border-radius: 13px; padding: 10px 12px; min-width: 0; }
+        .af-ht2 { color: #D4A8B6; font-size: 11px; }
+        .af-hlink { color: #C4507A; font-size: 11px; font-weight: 600; }
+        .af-home-header { background: linear-gradient(135deg,#5a1224 0%,#3d0a18 60%,#250610 100%); border-radius: 13px; padding: 11px 13px; margin-bottom: 7px; }
+        .af-cal-home { background: #21121F; border: 1px solid #502838; border-radius: 13px; padding: 10px; overflow: hidden; }
+        .af-cal-home .af-cal-day { background: #2B171F; border: 1px solid #3d1528; border-radius: 8px; min-height: 36px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 3px 1px 2px; cursor: pointer; transition: border-color .15s; }
         .af-cal-home .af-cal-day:hover { border-color: #C4507A; }
         .af-cal-home .af-cal-day.hoje { background: #C4507A; border-color: #C4507A; }
-        .af-cal-home .af-cal-day.outro-mes { opacity: 0.38; }
+        .af-cal-home .af-cal-day.outro-mes { opacity: 0.35; }
         .af-cal-home .af-cal-day.selecionado { border-color: #C4507A; box-shadow: 0 0 0 1px #C4507A; }
-        .af-cal-dots { display: flex; gap: 2px; justify-content: center; flex-wrap: wrap; margin-top: 2px; }
-        .af-cal-dot { width: 5px; height: 5px; border-radius: 50%; }
-        .af-shortcut-btn { display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1; padding: 12px 4px; background: #21121F; border: 1px solid #502838; border-radius: 16px; cursor: pointer; transition: border-color .15s, background .15s; }
+        .af-cal-dots { display: flex; gap: 2px; justify-content: center; flex-wrap: wrap; margin-top: 1px; }
+        .af-cal-dot { width: 4px; height: 4px; border-radius: 50%; }
+        .af-shortcut-btn { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; padding: 9px 3px; background: #21121F; border: 1px solid #502838; border-radius: 12px; cursor: pointer; transition: border-color .15s, background .15s; }
         .af-shortcut-btn:hover { border-color: #C4507A; background: #2B171F; }
-        .af-shortcut-icon { width: 52px; height: 52px; border-radius: 14px; background: #3d1528; display: flex; align-items: center; justify-content: center; color: #C4507A; }
-        .af-side-section { background: #21121F; border: 1px solid #502838; border-radius: 16px; padding: 14px 16px; }
-        .af-side-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #3d1528; }
+        .af-shortcut-icon { width: 44px; height: 44px; border-radius: 11px; background: #3d1528; display: flex; align-items: center; justify-content: center; color: #C4507A; }
+        .af-side-section { background: #21121F; border: 1px solid #502838; border-radius: 13px; padding: 12px 14px; }
+        .af-side-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid #3d1528; }
         .af-side-item:last-child { border-bottom: none; }
-        .af-progress-bar { height: 6px; border-radius: 3px; background: #3d1528; overflow: hidden; margin-top: 6px; }
+        .af-progress-bar { height: 5px; border-radius: 3px; background: #3d1528; overflow: hidden; margin-top: 5px; }
         .af-progress-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg,#C4507A,#e8719a); }
-        @media (max-width: 767px) { .af-cal-home .af-cal-day { min-height: 38px; padding: 3px 1px 2px; } .af-cal-dot { width: 4px; height: 4px; } }
+        @media (max-width: 767px) { .af-cal-home .af-cal-day { min-height: 33px; padding: 2px 1px 1px; } .af-cal-dot { width: 3px; height: 3px; } }
       `}</style>
 
       {/* SAUDAÇÃO */}
@@ -2376,7 +2377,7 @@ const carregandoLimite = carregando
       )}
 
       {/* MOBILE */}
-      <div className="md:hidden flex flex-col gap-2">
+      <div className="md:hidden flex flex-col gap-1.5">
         {/* Saldo + Receitas + Compromissos */}
         <div className="af-hcard">
           <div className="flex items-center justify-between mb-2">

@@ -684,23 +684,24 @@ export default function Configuracoes() {
 
   return (
 
-    <div className="space-y-6 max-w-2xl">
+    <div className="w-full max-w-5xl space-y-0">
 
-      <div>
-
+      {/* Título */}
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Configurações</h1>
-
-        <p className="text-sm text-gray-500 mt-1">Minha conta</p>
-
+        <p className="text-sm text-gray-500 mt-1">Minha conta e preferências</p>
       </div>
 
+      {/* Grid principal: 2 colunas no desktop, 1 no mobile */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
 
+        {/* ── Coluna esquerda ── */}
+        <div className="space-y-5">
 
-      {/* Dados da conta */}
+          {/* Dados da conta */}
+          <div className="card">
 
-      <div className="card">
-
-        <h2 className="text-base font-semibold text-gray-900 mb-4">Minha conta</h2>
+            <h2 className="text-base font-semibold text-gray-900 mb-4">Minha conta</h2>
 
         <div className="space-y-3">
 
@@ -742,27 +743,26 @@ export default function Configuracoes() {
 
         </div>
 
-      </div>
+          </div>
 
+          {/* Aparência */}
+          <Aparencia />
 
+          {/* Notificações push */}
+          <div className="card" style={{ background: '#140B10', border: '1px solid #502838', borderRadius: 16 }}>
+            <NotificacoesPush contexto="configuracoes" />
+          </div>
 
-      {/* Acessos de consultoria (autorizar/recusar/revogar) */}
+        </div>{/* fim coluna esquerda */}
 
-      <AcessosConsultoria />
+        {/* ── Coluna direita ── */}
+        <div className="space-y-5">
 
+          {/* Acessos de consultoria */}
+          <AcessosConsultoria />
 
-
-      {/* Aparência (cor de marca: Azul / Rosa / Verde / Roxo / Preto) */}
-
-      <Aparencia />
-
-
-
-      {/* Ajuda: rever a apresentação inicial (3 telas). NÃO reinicia o
-
-          onboarding nem apaga dados — só reexibe as telas explicativas. */}
-
-      <div className="card">
+          {/* Rever apresentação */}
+          <div className="card">
 
         <div className="flex items-start gap-3">
 
@@ -800,19 +800,13 @@ export default function Configuracoes() {
 
         </div>
 
-      </div>
+          </div>
 
+          {/* Enviar feedback */}
+          <EnviarFeedback />
 
-
-      {/* Enviar feedback (sugestão / dúvida / problema) */}
-
-      <EnviarFeedback />
-
-
-
-      {/* Refazer configuração financeira (reabre o onboarding) */}
-
-      <div className="card">
+          {/* Atualizar dados financeiros */}
+          <div className="card">
 
         <div className="flex items-start gap-3">
 
@@ -850,17 +844,14 @@ export default function Configuracoes() {
 
         </div>
 
-      </div>
+          </div>
 
+        </div>{/* fim coluna direita */}
 
+      </div>{/* fim grid */}
 
-      {/* Notificações push */}
-
-      <div className="card" style={{ background: '#140B10', border: '1px solid #502838', borderRadius: 16 }}>
-        <NotificacoesPush contexto="configuracoes" />
-      </div>
-
-      {/* Zona de perigo: Zerar meus dados */}
+      {/* ── Zona de perigo — largura total ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
 
       <div className="card border-red-200">
 
@@ -964,6 +955,8 @@ export default function Configuracoes() {
 
 
 
+      </div>{/* fim grid perigo */}
+
       {/* Sobre o Almeida Finance — card discreto. Mostra apenas o que existe de
 
           verdade no projeto (nome + descrição). NÃO inventa versão, links de
@@ -972,7 +965,7 @@ export default function Configuracoes() {
 
           para esses itens. */}
 
-      <div className="card">
+      <div className="card mt-5">
 
         <h2 className="text-base font-semibold text-gray-900">Sobre o Almeida Finance</h2>
 
