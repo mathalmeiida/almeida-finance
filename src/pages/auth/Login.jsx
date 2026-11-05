@@ -55,8 +55,8 @@ export default function Login() {
       {/* ── Apresentação (desktop) — alinhada à esquerda ── */}
       <aside className="hidden lg:flex flex-col justify-center gap-7">
         <div className="w-full max-w-md">
-          <img src="/branding/icon-192.png" alt="Almeida Finance"
-            className="w-[140px] h-auto rounded-[22%]" />
+          <img src="/branding/af-icone.png" alt="Almeida Finance"
+            className="w-[140px] h-auto" />
           <h1 className="text-3xl font-extrabold mt-6 leading-tight">Suas finanças em um só lugar</h1>
           <p className="text-sm text-white/70 mt-2 max-w-md">
             Organize, planeje e tome decisões melhores com o Almeida Finance.
@@ -83,8 +83,8 @@ export default function Login() {
         <div className="w-full max-w-sm lg:max-w-[420px]">
           {/* Mobile: logo e título compactos acima do formulário */}
           <div className="flex flex-col items-center text-center mb-4 lg:hidden">
-            <img src="/branding/icon-192.png" alt="Almeida Finance"
-              className="w-[72px] h-auto rounded-[22%]" />
+            <img src="/branding/af-icone.png" alt="Almeida Finance"
+              className="w-[72px] h-auto" />
             <p className="text-sm text-white/70 mt-2">Suas finanças em um só lugar</p>
           </div>
 
