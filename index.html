@@ -2,15 +2,17 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
+    <!-- viewport-fit=cover: garante que o app preenche até o notch/Dynamic Island no iOS -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Almeida Finance</title>
 
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" href="/branding/af-icone.png" />
-    <link rel="shortcut icon" type="image/png" href="/branding/af-icone.png" />
+    <!-- Favicon (32px para navegadores) -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/branding/favicon-32.png" />
+    <link rel="icon" type="image/png" href="/branding/icon-192.png" />
+    <link rel="shortcut icon" type="image/png" href="/branding/icon-192.png" />
 
-    <!-- Apple PWA -->
-    <link rel="apple-touch-icon" href="/branding/af-icone.png" />
+    <!-- Apple PWA — apple-touch-icon sem fundo transparente (180px opaco vinho) -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/branding/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Almeida Finance" />
@@ -19,41 +21,42 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#3d0a18" />
     <meta name="msapplication-TileColor" content="#3d0a18" />
-    <meta name="msapplication-TileImage" content="/branding/af-icone.png" />
+    <meta name="msapplication-TileImage" content="/branding/icon-192.png" />
 
     <!-- SEO & Open Graph -->
     <meta name="description" content="Almeida Finance — Organize, Planeje e Invista com controle financeiro pessoal." />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Almeida Finance" />
     <meta property="og:description" content="Organize • Planeje • Invista — Controle financeiro pessoal." />
-    <meta property="og:image" content="/branding/af-icone.png" />
+    <meta property="og:image" content="/branding/icon-512.png" />
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="Almeida Finance" />
     <meta name="twitter:description" content="Organize • Planeje • Invista" />
-    <meta name="twitter:image" content="/branding/af-icone.png" />
+    <meta name="twitter:image" content="/branding/icon-512.png" />
 
     <style>
       /* Fundo imediato antes do React carregar — evita flash branco */
-      html, body { margin: 0; background-color: #3d0a18; }
+      html, body { margin: 0; background-color: #2d0211; }
       #splash-inicial {
         position: fixed; inset: 0; z-index: 2147483647;
         display: flex; align-items: center; justify-content: center;
-        background-color: #3d0a18;
+        background-color: #2d0211;
       }
       #splash-inicial img {
-        width: 120px; height: 120px;
+        width: 100px; height: 100px;
+        border-radius: 22px;
         animation: splash-pulse 1.2s ease-in-out infinite alternate;
       }
       @keyframes splash-pulse {
         from { opacity: 0.85; transform: scale(0.97); }
-        to   { opacity: 1;    transform: scale(1.03); }
+        to   { opacity: 1;    transform: scale(1.02); }
       }
     </style>
   </head>
   <body>
     <!-- Splash estático: aparece no primeiro paint, some quando o React monta -->
     <div id="splash-inicial">
-      <img src="/branding/af-icone.png" alt="Almeida Finance" />
+      <img src="/branding/icon-192.png" alt="Almeida Finance" />
     </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>

@@ -1,12 +1,15 @@
 // ============================================================
-// Almeida Finance — Service Worker
+// Almeida Finance — Service Worker v3
 // Gerencia push notifications no background.
-// NÃO modifica cache, rotas nem qualquer lógica do app.
+// v3: atualiza referências de ícone para novos arquivos sem transparência.
+// NÃO faz cache agressivo de assets — o Vite/Vercel gerencia isso via
+// content-hash. Apenas garante que o SW antigo seja substituído.
 // ============================================================
 
-const APP_NAME = 'Almeida Finance'
-const APP_ICON = '/branding/af-icone.png'
-const APP_URL  = self.location.origin
+const SW_VERSION  = 'v3'
+const APP_NAME    = 'Almeida Finance'
+const APP_ICON    = '/branding/icon-192.png'
+const APP_URL     = self.location.origin
 
 // ── Push handler ─────────────────────────────────────────────────────────────
 // Recebe a notificação do servidor, extrai os dados e exibe.
@@ -70,6 +73,27 @@ self.addEventListener('notificationclick', (event) => {
 })
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
-// Ativa imediatamente sem esperar abas fecharem.
-self.addEventListener('install',  () => self.skipWaiting())
-self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()))
+// skipWaiting: o novo SW v3 toma controle imediatamente (sem esperar abas fecharem).
+// Isso garante que os novos ícones sejam servidos assim que o usuário recarregar.
+self.addEventListener('install', (e) => {
+  console.log(`[SW] ${SW_VERSION} instalando`)
+  self.skipWaiting()
+})
+
+self.addEventListener('activate', (e) => {
+  console.log(`[SW] ${SW_VERSION} ativado`)
+  // Limpa caches antigos de ícones/assets que possam ter sido criados por
+  // versões anteriores do SW, sem apagar dados do usuário (Supabase cuida disso).
+  e.waitUntil(
+    caches.keys().then(nomes =>
+      Promise.all(
+        nomes
+          .filter(n => n.startsWith('af-assets-') && n !== `af-assets-${SW_VERSION}`)
+          .map(n => {
+            console.log(`[SW] Removendo cache antigo: ${n}`)
+            return caches.delete(n)
+          })
+      )
+    ).then(() => self.clients.claim())
+  )
+})

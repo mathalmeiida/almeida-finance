@@ -197,7 +197,7 @@ export default function Layout({ children }) {
     }
   }
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-[100dvh] flex">
       {/* ── Sidebar desktop recolhível ── */}
       <aside className={`hidden md:flex flex-col bg-white border-r border-gray-200/70 fixed top-0 left-0 h-full z-30 transition-[width] duration-200 ${recolhida ? 'w-16' : 'w-60'}`}>
         {/* Cabeçalho da sidebar: logo quando expandida, só ícone quando recolhida */}

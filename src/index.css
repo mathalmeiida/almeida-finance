@@ -94,11 +94,22 @@
   html {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     color-scheme: light;
+    /* Garante que o font-size base seja sempre 16px no modo PWA standalone iOS.
+       O Safari às vezes ajusta o tamanho de texto automaticamente (text-size-adjust).
+       Desabilitar o ajuste automático previne que o iOS amplie ou reduza textos
+       independentemente do CSS, o que pode parecer "zoom aplicado". */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Previne double-tap zoom em elementos interativos — sem bloquear o zoom
+       de acessibilidade do usuário (pinch-to-zoom continua funcionando). */
+    touch-action: manipulation;
   }
 
   body {
     /* Fundo geral claro (#F8FAFC) + texto escuro para legibilidade. */
     @apply bg-gray-50 text-gray-900;
+    /* font-size base explícito para o iOS PWA standalone respeitar a escala. */
+    font-size: 16px;
   }
   /* Fundo/texto base no modo escuro. */
   .tema-preto body {
@@ -166,6 +177,20 @@
 
   .input {
     @apply w-full bg-white border border-gray-300 text-gray-900 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-marca focus:border-transparent;
+    /* iOS Safari: font-size < 16px dispara zoom automático ao focar o campo.
+       A regra genérica em @layer base cobre <input>/<select>/<textarea> mas
+       @apply text-sm (14px) tem especificidade maior e a sobrescreve.
+       Aqui garantimos 16px mobile diretamente na classe .input (e .label não
+       é afetado — só os campos interativos). */
+    font-size: 16px;
+  }
+
+  /* No desktop a tela é larga o suficiente para não disparar zoom, mas
+     mantemos text-sm visualmente via line-height ajustado. */
+  @media (min-width: 768px) {
+    .input {
+      font-size: 0.875rem; /* text-sm = 14px no desktop */
+    }
   }
 
   .label {

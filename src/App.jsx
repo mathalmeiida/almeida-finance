@@ -71,11 +71,11 @@ function Carregando() {
 
   return (
 
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-gray-50">
 
       <div className="flex flex-col items-center gap-3">
 
-        <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <div className="w-10 h-10 border-4 border-marca border-t-transparent rounded-full animate-spin" />
 
         <p className="text-sm text-gray-500">Carregando...</p>
 
@@ -111,7 +111,7 @@ function ContaDesativada() {
 
   return (
 
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-gray-50 p-4">
 
       <div className="card max-w-md w-full text-center">
 
