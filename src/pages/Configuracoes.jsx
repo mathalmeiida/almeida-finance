@@ -726,7 +726,7 @@ export default function Configuracoes() {
           <Aparencia />
 
           {/* Notificações push */}
-          <div className="card" style={{ background: '#140B10', border: '1px solid #502838', borderRadius: 16 }}>
+          <div className="card">
             <NotificacoesPush contexto="configuracoes" />
           </div>
 
