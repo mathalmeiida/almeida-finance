@@ -2285,17 +2285,25 @@ const carregandoLimite = carregando
   )
 
   // ── Paleta vinho — adapta ao tema escolhido pelo usuário ──────────────────
-  // Tema Escuro / Automático-escuro → paleta escura vinho premium.
-  // Tema Claro → paleta clara com vinho como destaque (textos escuros, fundo branco).
-  // O cabeçalho (saudação) mantém fundo vinho escuro em todos os temas.
+  // modoEscuro é derivado do corTema (reativo a qualquer mudança).
+  // Para 'automatico', usa hook de mídia para ser reativo a mudanças do SO.
+  const [prefereEscuroSO, setPrefereEscuroSO] = React.useState(
+    () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-color-scheme: dark)').matches
+  )
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const handler = (e) => setPrefereEscuroSO(e.matches)
+    mq.addEventListener?.('change', handler)
+    return () => mq.removeEventListener?.('change', handler)
+  }, [])
+
   const modoEscuro = corTema === 'escuro' ||
-    (corTema === 'automatico' && typeof window !== 'undefined' &&
-      window.matchMedia?.('(prefers-color-scheme: dark)').matches)
+    (corTema === 'automatico' && prefereEscuroSO)
 
   const headerBg = 'linear-gradient(135deg, #5a1224 0%, #3d0a18 50%, #250610 100%)'
 
   const paletaHome = modoEscuro ? {
-    // Paleta escura — vinho premium
     fundo:     '#140B10',
     claro:     '#21121F',
     borda:     '#502838',
@@ -2303,8 +2311,9 @@ const carregandoLimite = carregando
     escuro:    '#3d0a18',
     painel:    '#2B171F',
     suave:     '#3d1528',
+    text:      '#FAF7F8',
+    muted:     '#D4A8B6',
   } : {
-    // Paleta clara — fundo branco, destaque vinho
     fundo:     '#F8F3F2',
     claro:     '#FFFFFF',
     borda:     '#E5BAC4',
@@ -2312,6 +2321,8 @@ const carregandoLimite = carregando
     escuro:    '#5a1224',
     painel:    '#FFF5F7',
     suave:     '#FFF0F3',
+    text:      '#25141B',
+    muted:     '#643F4F',
   }
   const variaveisHome = {
     '--af-home-bg':      paletaHome.fundo,
@@ -2322,50 +2333,12 @@ const carregandoLimite = carregando
     '--af-home-panel':   paletaHome.painel,
     '--af-home-soft':    paletaHome.suave,
     '--af-home-suave':   paletaHome.suave,
+    '--af-home-text':    paletaHome.text,
+    '--af-home-muted':   paletaHome.muted,
   }
 
   return (
     <div className="af-home-premium w-full max-w-none min-w-0 flex flex-col gap-0 md:pb-0" style={variaveisHome}>
-      <style>{`
-        .af-home-premium { background: var(--af-home-bg); color: ${modoEscuro ? '#FAF7F8' : '#25141B'}; min-height: 100%; transition: background .2s, color .2s; }
-        /* No tema claro, texto dos cards usa cor escura — sobrescreve text-white hardcoded */
-        .af-home-premium .af-hcard p.text-white, .af-home-premium .af-hcard strong.text-white,
-        .af-home-premium .af-hcard-accent p.text-white, .af-home-premium .af-hcard-accent strong.text-white,
-        .af-home-premium .af-side-section p.text-white, .af-home-premium .af-side-section strong.text-white
-          { color: ${modoEscuro ? '#FAF7F8' : '#25141B'} !important; }
-        /* Texto secundário nos cards */
-        .af-home-premium .af-hcard .text-2xl, .af-home-premium .af-hcard .text-xl,
-        .af-home-premium .af-hcard-accent .text-xl
-          { color: ${modoEscuro ? '#FAF7F8' : '#25141B'} !important; }
-        .af-home-premium .af-hcard .text-white, .af-home-premium .af-hcard-accent .text-white,
-        .af-home-premium .af-side-section .text-white
-          { color: ${modoEscuro ? '#FAF7F8' : '#25141B'} !important; }
-        .af-hcard { background: var(--af-home-light); border: 1px solid var(--af-home-border); border-radius: 13px; padding: 10px 12px; min-width: 0; }
-        .af-hcard-accent { background: ${modoEscuro ? 'linear-gradient(135deg,#2B171F 0%,#21121F 100%)' : 'linear-gradient(135deg,#FFF0F3 0%,#FFFFFF 100%)'}; border: 1px solid ${modoEscuro ? '#6b3050' : '#E5BAC4'}; border-radius: 13px; padding: 10px 12px; min-width: 0; }
-        .af-ht2 { color: ${modoEscuro ? '#D4A8B6' : '#643F4F'}; font-size: 11px; }
-        .af-hlink { color: var(--af-home-primary); font-size: 11px; font-weight: 600; }
-        .af-home-header { background: linear-gradient(135deg,#5a1224 0%,#3d0a18 60%,#250610 100%); border-radius: 13px; padding: 11px 13px; margin-bottom: 7px; }
-        .af-cal-home { background: var(--af-home-light); border: 1px solid var(--af-home-border); border-radius: 13px; padding: 10px; overflow: hidden; }
-        .af-cal-home .af-cal-day { background: var(--af-home-panel); border: 1px solid var(--af-home-border); border-radius: 8px; min-height: 36px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 3px 1px 2px; cursor: pointer; transition: border-color .15s; }
-        .af-cal-home .af-cal-day:hover { border-color: var(--af-home-primary); }
-        .af-cal-home .af-cal-day.hoje { background: var(--af-home-primary); border-color: var(--af-home-primary); }
-        .af-cal-home .af-cal-day.hoje span { color: #fff !important; }
-        .af-cal-home .af-cal-day.outro-mes { opacity: 0.35; }
-        .af-cal-home .af-cal-day.selecionado { border-color: var(--af-home-primary); box-shadow: 0 0 0 1px var(--af-home-primary); }
-        .af-cal-dots { display: flex; gap: 2px; justify-content: center; flex-wrap: wrap; margin-top: 1px; }
-        .af-cal-dot { width: 4px; height: 4px; border-radius: 50%; }
-        .af-shortcut-btn { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; padding: 9px 3px; background: var(--af-home-light); border: 1px solid var(--af-home-border); border-radius: 12px; cursor: pointer; transition: border-color .15s, background .15s; }
-        .af-shortcut-btn:hover { border-color: var(--af-home-primary); background: var(--af-home-panel); }
-        .af-shortcut-icon { width: 44px; height: 44px; border-radius: 11px; background: var(--af-home-suave, var(--af-home-panel)); display: flex; align-items: center; justify-content: center; color: var(--af-home-primary); }
-        .af-shortcut-btn span { color: ${modoEscuro ? '#D4A8B6' : '#643F4F'}; }
-        .af-side-section { background: var(--af-home-light); border: 1px solid var(--af-home-border); border-radius: 13px; padding: 12px 14px; }
-        .af-side-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--af-home-panel); }
-        .af-side-item:last-child { border-bottom: none; }
-        .af-progress-bar { height: 5px; border-radius: 3px; background: var(--af-home-panel); overflow: hidden; margin-top: 5px; }
-        .af-progress-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--af-home-primary), #e8719a); }
-        @media (max-width: 767px) { .af-cal-home .af-cal-day { min-height: 33px; padding: 2px 1px 1px; } .af-cal-dot { width: 3px; height: 3px; } }
-      `}</style>
-
       {/* SAUDAÇÃO */}
       <div className="af-home-header relative overflow-hidden mb-2">
         {ehNoite && <span className="sky-stars" aria-hidden="true" />}

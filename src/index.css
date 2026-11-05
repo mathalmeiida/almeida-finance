@@ -503,3 +503,184 @@
 .tema-escuro .border-slate-100,
 .tema-escuro .border-slate-200 { border-color: rgb(var(--border-col)) !important; }
 .tema-escuro .hover\:bg-slate-50:hover { background-color: rgb(var(--surface-2)) !important; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HOME PREMIUM — classes .af-* que consomem variáveis CSS injetadas pelo Dashboard.
+   As variáveis --af-home-* são definidas via style={} no componente e mudam
+   automaticamente quando o usuário troca de tema (claro/escuro/automático).
+   Nenhum cálculo de modo em JS aqui — o CSS reage às variáveis sozinho.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.af-home-premium {
+  background: var(--af-home-bg, #F8F3F2);
+  color: var(--af-home-text, #25141B);
+  min-height: 100%;
+  transition: background 0.2s, color 0.2s;
+}
+
+.af-hcard {
+  background: var(--af-home-light, #FFFFFF);
+  border: 1px solid var(--af-home-border, #E5BAC4);
+  border-radius: 13px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.af-hcard-accent {
+  background: var(--af-home-panel, #FFF5F7);
+  border: 1px solid var(--af-home-border, #E5BAC4);
+  border-radius: 13px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+/* Texto principal dentro dos cards — respeita a variável de texto */
+.af-hcard .text-white,
+.af-hcard strong,
+.af-hcard p,
+.af-hcard-accent .text-white,
+.af-hcard-accent strong,
+.af-hcard-accent p,
+.af-side-section .text-white,
+.af-side-section strong,
+.af-side-section p {
+  color: var(--af-home-text, #25141B) !important;
+}
+
+.af-ht2 {
+  color: var(--af-home-muted, #643F4F);
+  font-size: 11px;
+}
+
+.af-hlink {
+  color: var(--af-home-primary, #801D39);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Cabeçalho de saudação — sempre vinho escuro independente do tema */
+.af-home-header {
+  background: linear-gradient(135deg, #5a1224 0%, #3d0a18 60%, #250610 100%);
+  border-radius: 13px;
+  padding: 11px 13px;
+  margin-bottom: 7px;
+}
+
+/* Calendário da Home */
+.af-cal-home {
+  background: var(--af-home-light, #FFFFFF);
+  border: 1px solid var(--af-home-border, #E5BAC4);
+  border-radius: 13px;
+  padding: 10px;
+  overflow: hidden;
+}
+
+.af-cal-home .af-cal-day {
+  background: var(--af-home-panel, #FFF5F7);
+  border: 1px solid var(--af-home-border, #E5BAC4);
+  border-radius: 8px;
+  min-height: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 3px 1px 2px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.af-cal-home .af-cal-day:hover { border-color: var(--af-home-primary, #801D39); }
+
+.af-cal-home .af-cal-day.hoje {
+  background: var(--af-home-primary, #801D39);
+  border-color: var(--af-home-primary, #801D39);
+}
+
+.af-cal-home .af-cal-day.hoje span { color: #fff !important; }
+.af-cal-home .af-cal-day.outro-mes { opacity: 0.35; }
+
+.af-cal-home .af-cal-day.selecionado {
+  border-color: var(--af-home-primary, #801D39);
+  box-shadow: 0 0 0 1px var(--af-home-primary, #801D39);
+}
+
+.af-cal-dots {
+  display: flex;
+  gap: 2px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 1px;
+}
+
+.af-cal-dot { width: 4px; height: 4px; border-radius: 50%; }
+
+@media (max-width: 767px) {
+  .af-cal-home .af-cal-day { min-height: 33px; padding: 2px 1px 1px; }
+  .af-cal-dot { width: 3px; height: 3px; }
+}
+
+/* Atalhos */
+.af-shortcut-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  padding: 9px 3px;
+  background: var(--af-home-light, #FFFFFF);
+  border: 1px solid var(--af-home-border, #E5BAC4);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.af-shortcut-btn:hover {
+  border-color: var(--af-home-primary, #801D39);
+  background: var(--af-home-panel, #FFF5F7);
+}
+
+.af-shortcut-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  background: var(--af-home-panel, #FFF5F7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--af-home-primary, #801D39);
+}
+
+.af-shortcut-btn span { color: var(--af-home-muted, #643F4F); }
+
+/* Seções laterais */
+.af-side-section {
+  background: var(--af-home-light, #FFFFFF);
+  border: 1px solid var(--af-home-border, #E5BAC4);
+  border-radius: 13px;
+  padding: 12px 14px;
+}
+
+.af-side-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--af-home-panel, #FFF5F7);
+}
+
+.af-side-item:last-child { border-bottom: none; }
+
+.af-progress-bar {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--af-home-panel, #FFF5F7);
+  overflow: hidden;
+  margin-top: 5px;
+}
+
+.af-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--af-home-primary, #801D39), #C4507A);
+}
