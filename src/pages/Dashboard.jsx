@@ -1605,6 +1605,36 @@ export default function Dashboard() {
   const { perfil, atualizarPreferenciasLimite, somenteLeitura, usuario, idUsuarioLogado, corTema } = useAuth()
   const { ocultar, alternar } = useOcultarValores()
 
+  // ── Preferência independente do calendário (Configurações → Aparência dos calendários) ──
+  const [preferenciaCalHome, setPreferenciaCalHome] = useState('claro')
+  const [calDispositivoEscuro, setCalDispositivoEscuro] = useState(false)
+  useEffect(() => {
+    const chave = `almeida_calendario_estilo_${usuario?.id || 'anon'}`
+    const sincronizar = () => {
+      try {
+        const v = localStorage.getItem(chave)
+        setPreferenciaCalHome(['claro', 'escuro', 'automatico'].includes(v) ? v : 'claro')
+      } catch { setPreferenciaCalHome('claro') }
+    }
+    sincronizar()
+    window.addEventListener('almeida-calendario-estilo', sincronizar)
+    window.addEventListener('storage', sincronizar)
+    return () => {
+      window.removeEventListener('almeida-calendario-estilo', sincronizar)
+      window.removeEventListener('storage', sincronizar)
+    }
+  }, [usuario?.id])
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const atualizar = () => setCalDispositivoEscuro(mq.matches)
+    atualizar()
+    mq.addEventListener?.('change', atualizar)
+    return () => mq.removeEventListener?.('change', atualizar)
+  }, [])
+  const calEscuro = preferenciaCalHome === 'escuro' ||
+    (preferenciaCalHome === 'automatico' && calDispositivoEscuro)
+
   // ── Aparência dinâmica dia/noite (só o FUNDO do cabeçalho da Home) ──
   // Preferência por usuário no localStorage (padrão: ativada). Período pelo
   // relógio LOCAL do navegador: dia 06:00–17:59, noite 18:00–05:59. Atualiza ao
@@ -2444,21 +2474,21 @@ const carregandoLimite = carregando
           for(let i=1;i<=totalDias;i++) cels.push({dia:i,outro:false,iso:`${String(ano).padStart(4,'0')}-${String(mes+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`})
           const resto=(7-(cels.length%7))%7; for(let i=1;i<=resto;i++) cels.push({dia:i,outro:true,iso:new Date(ano,mes+1,i).toISOString().slice(0,10)})
           return (
-            <div className="af-cal-home">
+            <div className="af-cal-home" style={calEscuro ? {'--af-home-light':'#21121F','--af-home-panel':'#2B171F','--af-home-border':'#502838'} : {'--af-home-light':'#FFFFFF','--af-home-panel':'#FFF5F7','--af-home-border':'#E5BAC4'}}>
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2"><CalendarDays size={18} className="text-[#C4507A]"/><span className="font-semibold text-white text-sm">Calendário financeiro</span></div>
+                <div className="flex items-center gap-2"><CalendarDays size={18} className="text-[#C4507A]"/><span className={`font-semibold text-sm ${calEscuro ? 'text-white' : 'text-[#25141B]'}`}>Calendário financeiro</span></div>
                 <div className="flex items-center gap-1">
-                  <button type="button" onClick={()=>setMesCalendarioHome(new Date(ano,mes-1,1,12))} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#D4A8B6] hover:bg-[#3d1528]"><ChevronLeft size={16}/></button>
+                  <button type="button" onClick={()=>setMesCalendarioHome(new Date(ano,mes-1,1,12))} className={`w-7 h-7 rounded-lg flex items-center justify-center hover:bg-[#3d1528] ${calEscuro ? 'text-[#D4A8B6]' : 'text-[#643F4F]'}`}><ChevronLeft size={16}/></button>
                   <span className="text-xs text-[#D4A8B6] capitalize truncate max-w-[120px] text-center">{nomeMes}</span>
-                  <button type="button" onClick={()=>setMesCalendarioHome(new Date(ano,mes+1,1,12))} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#D4A8B6] hover:bg-[#3d1528]"><ChevronRight size={16}/></button>
+                  <button type="button" onClick={()=>setMesCalendarioHome(new Date(ano,mes+1,1,12))} className={`w-7 h-7 rounded-lg flex items-center justify-center hover:bg-[#3d1528] ${calEscuro ? 'text-[#D4A8B6]' : 'text-[#643F4F]'}`}><ChevronRight size={16}/></button>
                 </div>
               </div>
-              <div className="grid grid-cols-7 gap-1 mb-1">{['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(d=><span key={d} className="text-center text-[10px] text-[#D4A8B6]">{d}</span>)}</div>
+              <div className="grid grid-cols-7 gap-1 mb-1">{['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(d=><span key={d} className={`text-center text-[10px] ${calEscuro ? 'text-[#D4A8B6]' : 'text-[#643F4F]'}`}>{d}</span>)}</div>
               <div className="grid grid-cols-7 gap-1">
                 {cels.map((c,i)=>{
                   const isHoje=c.iso===hojeISO2, dots=dotsMapa[c.iso]?[...dotsMapa[c.iso]]:[]
                   return <button key={i} type="button" onClick={()=>{if(!c.outro){setDiaSelecionadoHome(c.dia);setModalCalendario(true)}}} className={`af-cal-day${isHoje?' hoje':''}${c.outro?' outro-mes':''}`}>
-                    <span className={`text-xs font-semibold leading-none ${isHoje?'text-white':c.outro?'text-[#6b3050]':'text-[#FAF7F8]'}`}>{c.dia}</span>
+                    <span className={`text-xs font-semibold leading-none ${isHoje?'text-white':c.outro?'text-[#6b3050]':calEscuro?'text-[#FAF7F8]':'text-[#25141B]'}`}>{c.dia}</span>
                     {dots.length>0&&<div className="af-cal-dots">{dots.slice(0,3).map((cor,di)=><span key={di} className="af-cal-dot" style={{background:cor}}/>)}</div>}
                   </button>
                 })}
@@ -2544,29 +2574,29 @@ const carregandoLimite = carregando
             for(let i=1;i<=totalDias;i++)cels.push({dia:i,outro:false,iso:`${String(ano).padStart(4,'0')}-${String(mes+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`})
             const resto=(7-(cels.length%7))%7;for(let i=1;i<=resto;i++)cels.push({dia:i,outro:true,iso:new Date(ano,mes+1,i).toISOString().slice(0,10)})
             return (
-              <div className="af-cal-home flex flex-col" style={{minHeight:420}}>
+              <div className="af-cal-home flex flex-col" style={{minHeight:420,...(calEscuro ? {'--af-home-light':'#21121F','--af-home-panel':'#2B171F','--af-home-border':'#502838'} : {'--af-home-light':'#FFFFFF','--af-home-panel':'#FFF5F7','--af-home-border':'#E5BAC4'})}}>
                 <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2"><CalendarDays size={18} className="text-[#C4507A]"/><span className="font-semibold text-white">Calendário financeiro</span></div>
+                  <div className="flex items-center gap-2"><CalendarDays size={18} className="text-[#C4507A]"/><span className={`font-semibold ${calEscuro ? 'text-white' : 'text-[#25141B]'}`}>Calendário financeiro</span></div>
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={()=>setMesCalendarioHome(new Date(ano,mes-1,1,12))} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#D4A8B6] hover:bg-[#3d1528]"><ChevronLeft size={16}/></button>
-                    <span className="text-sm text-[#D4A8B6] capitalize min-w-[140px] text-center">{nomeMes}</span>
-                    <button type="button" onClick={()=>setMesCalendarioHome(new Date(ano,mes+1,1,12))} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#D4A8B6] hover:bg-[#3d1528]"><ChevronRight size={16}/></button>
+                    <button type="button" onClick={()=>setMesCalendarioHome(new Date(ano,mes-1,1,12))} className={`w-7 h-7 rounded-lg flex items-center justify-center hover:bg-[#3d1528] ${calEscuro?'text-[#D4A8B6]':'text-[#643F4F]'}`}><ChevronLeft size={16}/></button>
+                    <span className={`text-sm capitalize min-w-[140px] text-center ${calEscuro?'text-[#D4A8B6]':'text-[#643F4F]'}`}>{nomeMes}</span>
+                    <button type="button" onClick={()=>setMesCalendarioHome(new Date(ano,mes+1,1,12))} className={`w-7 h-7 rounded-lg flex items-center justify-center hover:bg-[#3d1528] ${calEscuro?'text-[#D4A8B6]':'text-[#643F4F]'}`}><ChevronRight size={16}/></button>
                     {!somenteLeitura&&<button type="button" onClick={()=>{setDataGastoCalendario(null);setModalGasto(true)}} className="ml-2 flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-white" style={{background:'#C4507A'}}><Plus size={14}/> Adicionar</button>}
                   </div>
                 </div>
-                <div className="grid grid-cols-7 gap-1 mb-1">{['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(d=><span key={d} className="text-center text-xs text-[#D4A8B6]">{d}</span>)}</div>
+                <div className="grid grid-cols-7 gap-1 mb-1">{['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(d=><span key={d} className={`text-center text-xs ${calEscuro?'text-[#D4A8B6]':'text-[#643F4F]'}`}>{d}</span>)}</div>
                 <div className="grid grid-cols-7 gap-1 flex-1">
                   {cels.map((c,i)=>{
                     const isHoje=c.iso===hojeISO2,dots=dotsMapa[c.iso]?[...dotsMapa[c.iso]]:[]
                     return <button key={i} type="button" onClick={()=>!c.outro&&setModalCalendario(true)} className={`af-cal-day${isHoje?' hoje':''}${c.outro?' outro-mes':''}`} style={{minHeight:52}}>
-                      <span className={`text-sm font-semibold ${isHoje?'text-white':c.outro?'text-[#6b3050]':'text-[#FAF7F8]'}`}>{c.dia}</span>
+                      <span className={`text-sm font-semibold ${isHoje?'text-white':c.outro?'text-[#6b3050]':calEscuro?'text-[#FAF7F8]':'text-[#25141B]'}`}>{c.dia}</span>
                       {dots.length>0&&<div className="af-cal-dots mt-1">{dots.slice(0,4).map((cor,di)=><span key={di} className="af-cal-dot" style={{background:cor}}/>)}</div>}
                     </button>
                   })}
                 </div>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pt-3 border-t border-[#3d1528]">
+                <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pt-3 border-t ${calEscuro?'border-[#3d1528]':'border-[#E5BAC4]'}`}>
                   {[['#22c55e','Receita'],['#ef4444','Despesa'],['#eab308','Fatura'],['#a855f7','Planejado']].map(([cor,label])=>(
-                    <span key={label} className="flex items-center gap-1.5 text-xs text-[#D4A8B6]"><span className="w-2.5 h-2.5 rounded-full" style={{background:cor}}/>{label}</span>
+                    <span key={label} className={`flex items-center gap-1.5 text-xs ${calEscuro?'text-[#D4A8B6]':'text-[#643F4F]'}`}><span className="w-2.5 h-2.5 rounded-full" style={{background:cor}}/>{label}</span>
                   ))}
                 </div>
               </div>
