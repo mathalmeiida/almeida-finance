@@ -360,11 +360,42 @@ export function useInvestimentos() {
 
   const movsDeInvestimento = id => movimentacoes.filter(m => m.investimento_id === id)
 
+  // ── Derivações por ativo ──────────────────────────────────────────────────
+  // Retorna proventos acumulados (dividendo + juros + rendimento) de um ativo.
+  const proventosDeInvestimento = id =>
+    somaPorTipo(movsDeInvestimento(id), ['rendimento', 'dividendo', 'juros'])
+
+  // Retorna total aportado em um ativo (soma das movimentações de aporte).
+  // Difere de valor_aplicado (que pode ser editado manualmente): este valor
+  // reflete exclusivamente o histórico de movimentações registradas.
+  const totalAportadoDeInvestimento = id =>
+    somaPorTipo(movsDeInvestimento(id), ['aporte'])
+
+  // Retorna total resgatado de um ativo.
+  const totalResgatadoDeInvestimento = id =>
+    somaPorTipo(movsDeInvestimento(id), ['resgate'])
+
+  // Rentabilidade % de um ativo: (valor_atual - valor_aplicado) / valor_aplicado.
+  // Retorna null quando não há base (valor_aplicado = 0).
+  const rentabilidadeDeInvestimento = (investimento) => {
+    const aplicado = Number(investimento.valor_aplicado) || 0
+    const atual    = Number(investimento.valor_atual)    || 0
+    if (aplicado <= 0) return null
+    return ((atual - aplicado) / aplicado) * 100
+  }
+
+  // Proventos totais de todos os investimentos no período (ano/mês).
+  const proventosNoMes = (ano, mes) =>
+    somaPorTipo(movsNoMes(ano, mes), ['rendimento', 'dividendo', 'juros'])
+
   return {
     investimentos, movimentacoes, carregando, erro,
     criar, atualizar, remover, criarMovimentacao, removerMovimentacao,
     patrimonioTotal, totalAplicado, reservaVinculada, rendimentoAcumulado,
-    aportesNoMes, rendimentoNoMes, distribuicaoPorCategoria, movsDeInvestimento,
+    aportesNoMes, rendimentoNoMes, proventosNoMes,
+    distribuicaoPorCategoria, movsDeInvestimento,
+    proventosDeInvestimento, totalAportadoDeInvestimento,
+    totalResgatadoDeInvestimento, rentabilidadeDeInvestimento,
     recarregar: buscar,
   }
 }

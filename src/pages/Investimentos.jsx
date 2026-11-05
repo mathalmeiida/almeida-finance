@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-import { TrendingUp, Plus, Pencil, Trash2, Loader2, PiggyBank, Wallet, BarChart2, ArrowDownCircle, Eye, EyeOff, History, Landmark } from 'lucide-react'
+import { TrendingUp, Plus, Pencil, Trash2, Loader2, PiggyBank, Wallet, BarChart2, ArrowDownCircle, Eye, EyeOff, History, Landmark, RefreshCw } from 'lucide-react'
 
 import { useInvestimentos, CATEGORIAS_INVESTIMENTO, labelCategoriaInvestimento, TIPOS_MOV_INVESTIMENTO } from '../hooks/useInvestimentos'
 
@@ -13,6 +13,8 @@ import { formatCurrency, exibirMoeda, hojeISO, formatDate } from '../lib/utils'
 import Modal from '../components/Modal'
 
 import InputMoeda from '../components/InputMoeda'
+
+import { cotacoesDisponiveis } from '../lib/cotacoes'
 
 // Cores ligadas ao tema global do Almeida Finance (variável CSS --marca).
 // O mesmo tom é usado no gráfico e na legenda.
@@ -531,6 +533,7 @@ export default function Investimentos() {
     patrimonioTotal, totalAplicado, reservaVinculada, rendimentoAcumulado,
 
     aportesNoMes, rendimentoNoMes, distribuicaoPorCategoria, movsDeInvestimento,
+    proventosDeInvestimento, rentabilidadeDeInvestimento, proventosNoMes,
 
   } = useInvestimentos()
 
@@ -554,6 +557,8 @@ export default function Investimentos() {
   const aportesMes = aportesNoMes(anoAtual, mesAtual)
 
   const rendMes = rendimentoNoMes(anoAtual, mesAtual)
+
+  const proventosMes = proventosNoMes(anoAtual, mesAtual)
 
   // Usa exclusivamente movimentações já disponíveis no hook, sem estimar histórico.
   const ultimasMovimentacoes = (investimentos || [])
@@ -657,20 +662,21 @@ export default function Investimentos() {
           <span className="rounded-xl bg-white/10 p-3"><PiggyBank size={23}/></span>
         </div>
 
-        {/* 4 indicadores: aplicado, atual, rendimento mês, reserva — sem repetição */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-5">
+        {/* 5 indicadores: aplicado, atual, rendimento mês, proventos mês, reserva */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mt-5">
           <div className="rounded-xl bg-black/15 p-3 min-w-0"><p className="text-xs text-white/75">Aplicado</p><p className="text-base font-bold mt-1 break-words">{exibirMoeda(totalAplicado, ocultar)}</p></div>
           <div className="rounded-xl bg-black/15 p-3 min-w-0"><p className="text-xs text-white/75">Valor atual</p><p className="text-base font-bold mt-1 break-words">{exibirMoeda(patrimonioTotal, ocultar)}</p></div>
           <div className="rounded-xl bg-black/15 p-3 min-w-0">
             <p className="text-xs text-white/75">Rend. no mês</p>
             <p className="text-base font-bold mt-1 break-words">{exibirMoeda(rendMes, ocultar)}</p>
-            {/* Nota: rendimento acumulado soma apenas movimentações de tipo 'rendimento/dividendo/juros'.
-                A diferença entre valor_atual e valor_aplicado é o ganho por saldo informado —
-                conceitos distintos. Ambos são corretos. */}
+          </div>
+          <div className="rounded-xl bg-black/15 p-3 min-w-0">
+            <p className="text-xs text-white/75">Proventos no mês</p>
+            <p className="text-base font-bold mt-1 break-words">{exibirMoeda(proventosMes, ocultar)}</p>
           </div>
           <div className="rounded-xl bg-black/15 p-3 min-w-0"><p className="text-xs text-white/75">Reserva vinculada</p><p className="text-base font-bold mt-1 break-words">{exibirMoeda(reservaVinculada, ocultar)}</p></div>
         </div>
-        <p className="mt-3 text-xs text-white/70">Patrimônio separado do saldo em conta. Reserva vinculada já inclusa — não somada novamente.</p>
+        <p className="mt-3 text-xs text-white/70">Patrimônio separado do saldo em conta. Reserva vinculada já inclusa — não somada novamente. Proventos = dividendos, juros e rendimentos registrados.</p>
       </section>
 
       {/* ── Distribuição da carteira + Evolução (somente quando há dados) ── */}
@@ -778,6 +784,9 @@ export default function Investimentos() {
 
             const pctVariacao = temBaseVariacao ? (variacao / aplicado) * 100 : null
 
+            // Proventos acumulados (dividendos, juros, rendimentos registrados)
+            const proventosAtivo = proventosDeInvestimento(i.id)
+
             return (
 
               <div key={i.id} className="card">
@@ -824,6 +833,13 @@ export default function Investimentos() {
 
                   <p className="text-xs mt-0.5 text-gray-400">Informe o valor aplicado para ver a valorização.</p>
 
+                )}
+
+                {/* Proventos acumulados — só quando há registros */}
+                {proventosAtivo > 0 && (
+                  <p className="text-xs mt-0.5 text-violet-600">
+                    Proventos acumulados: {exibirMoeda(proventosAtivo, ocultar)}
+                  </p>
                 )}
 
                 {!somenteLeitura && (
@@ -947,6 +963,14 @@ export default function Investimentos() {
           )}
 
           <p className="text-[11px] text-gray-500">Valores correspondem aos registros de movimentação, não a uma evolução histórica do patrimônio.</p>
+
+          {/* Badge de status de cotações automáticas */}
+          <p className="text-[11px] mt-1 flex items-center gap-1.5 text-gray-400">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${cotacoesDisponiveis() ? 'bg-emerald-400' : 'bg-gray-300'}`} />
+            {cotacoesDisponiveis()
+              ? 'Cotações automáticas ativas (brapi.dev).'
+              : 'Cotações manuais — configure VITE_BRAPI_TOKEN para cotações automáticas.'}
+          </p>
 
         </section>
 

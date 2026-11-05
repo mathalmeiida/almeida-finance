@@ -17,6 +17,7 @@ import { formatCurrency, formatDate, corCategoria, FORMAS_PAGAMENTO, formaPagame
 import { classificarDespesa, labelTipoDespesa } from '../lib/classificarDespesa'
 import { FormParcelamento, CardParcelamento } from './Parcelamentos'
 import SimuladorAmortizacao from '../components/SimuladorAmortizacao'
+import SimuladorCustoVida from '../components/SimuladorCustoVida'
 import { taxaAnualParaMensal, amortizarSaldoDevedor } from '../lib/financiamento'
 
 const mesAtual = new Date().getMonth() + 1
@@ -1276,6 +1277,18 @@ export default function Despesas() {
     + totalParcelasVariaveisMes
   const totalGeral = totalFixas + totalVariaveis
 
+  // Agrupamento por categoria — usado pelo SimuladorCustoVida (não altera dados)
+  const gruposCategorias = (() => {
+    const m = new Map()
+    const add = (nome, valor) => {
+      const k = nome?.trim() || 'Sem categoria'
+      m.set(k, (m.get(k) || 0) + (Number(valor) || 0))
+    }
+    despesas.forEach(d => add(d.categorias?.nome, d.valor))
+    parcelasDoMes.forEach(({ parcelamento: p, valor }) => add(p.categorias?.nome, valor))
+    return [...m.entries()].map(([nome, valor]) => ({ nome, valor }))
+  })()
+
   const receitaBase = resumoMes.receitaTotal || 0
   const pctFixas = receitaBase > 0 ? Math.round((totalFixas / receitaBase) * 100) : 0
   const pctVariaveis = receitaBase > 0 ? Math.round((totalVariaveis / receitaBase) * 100) : 0
@@ -1864,6 +1877,13 @@ export default function Despesas() {
                 </button>
                 {planejamentoExpandido && <div className="mt-3"><ResumoMetaEconomia competencia={anoMesAtual} onAbrir={() => setPagina('analises')} /></div>}
               </section>
+
+              {/* Simulador de Custo de Vida — isolado, sem gravar dados */}
+              <SimuladorCustoVida
+                despesasReais={totalGeral}
+                categoriasTotais={gruposCategorias}
+                compact
+              />
             </aside>
           )}
         </div>
