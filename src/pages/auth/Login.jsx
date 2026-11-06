@@ -5,6 +5,7 @@ import {
   Wallet, Target, ShoppingCart, Sparkles, Smartphone, CheckCircle2,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import Apresentacao from '../../components/Apresentacao'
 
 // Benefícios exibidos na apresentação (coluna esquerda, desktop).
 const BENEFICIOS = [
@@ -16,9 +17,28 @@ const BENEFICIOS = [
   { icon: Smartphone, titulo: 'Em qualquer lugar', desc: 'Acesse pelo celular ou computador.' },
 ]
 
+// Chave localStorage para não re-exibir a apresentação se o usuário já a viu
+// neste dispositivo (antes de criar conta).
+const CHAVE_APRES_PUBLICA = 'almeida_apresentacao_publica_vista'
+
 export default function Login() {
   const { entrar } = useAuth()
   const navigate = useNavigate()
+
+  // Exibe a apresentação em mobile na primeira visita — apenas uma vez por
+  // dispositivo, antes do formulário de login. Desktop já tem o painel lateral.
+  // Condição: tela estreita (< 1024px) E nunca foi vista antes.
+  const [mostrarApresentacao, setMostrarApresentacao] = useState(() => {
+    if (typeof window === 'undefined') return false
+    if (window.innerWidth >= 1024) return false        // desktop: não exibe (tem painel lateral)
+    try { return localStorage.getItem(CHAVE_APRES_PUBLICA) !== '1' }
+    catch { return false }
+  })
+
+  function concluirApresentacaoPublica() {
+    try { localStorage.setItem(CHAVE_APRES_PUBLICA, '1') } catch { /* ignora */ }
+    setMostrarApresentacao(false)
+  }
 
   const [form, setForm] = useState({ email: '', senha: '' })
   const [mostrarSenha, setMostrarSenha] = useState(false)
@@ -44,6 +64,13 @@ export default function Login() {
     }
   }
 
+  // Apresentação mobile para usuários não autenticados — com botões de acesso reais.
+  // A Apresentacao padrão usa aoConcluir para "Pular" e "Começar agora".
+  // Aqui usamos uma versão com rodapé customizado: Cadastrar + Já tenho conta.
+  if (mostrarApresentacao) {
+    return <ApresentacaoPublica onCadastrar={() => navigate('/cadastro')} onLogin={concluirApresentacaoPublica} />
+  }
+
   return (
     // Fundo vinho escuro uniforme — identidade Almeida Finance Premium.
     // Sem gradientes decorativos azulados.
@@ -56,7 +83,7 @@ export default function Login() {
       <aside className="hidden lg:flex flex-col justify-center gap-7">
         <div className="w-full max-w-md">
           <img src="/branding/af-icone.png" alt="Almeida Finance"
-            className="w-[140px] h-auto" />
+            className="w-[160px] h-auto" />
           <h1 className="text-3xl font-extrabold mt-6 leading-tight">Suas finanças em um só lugar</h1>
           <p className="text-sm text-white/70 mt-2 max-w-md">
             Organize, planeje e tome decisões melhores com o Almeida Finance.
@@ -83,9 +110,11 @@ export default function Login() {
         <div className="w-full max-w-sm lg:max-w-[420px]">
           {/* Mobile: logo e título compactos acima do formulário */}
           <div className="flex flex-col items-center text-center mb-4 lg:hidden">
+            {/* w-[96px]: o conteudo visual da logo ocupa ~66% da imagem,
+                resultando em ~63px de logo visivel — compacto e proporcional. */}
             <img src="/branding/af-icone.png" alt="Almeida Finance"
-              className="w-[72px] h-auto" />
-            <p className="text-sm text-white/70 mt-2">Suas finanças em um só lugar</p>
+              className="w-[96px] h-auto" />
+            <p className="text-sm text-white/70 mt-1">Suas finanças em um só lugar</p>
           </div>
 
           <div className="bg-white rounded-t-2xl shadow-2xl shadow-black/30 ring-1 ring-white/10 border-b border-gray-100 p-6">
@@ -204,6 +233,37 @@ export default function Login() {
       </main>
       </div>
     </div>
+  )
+}
+
+// ─── Apresentação pública (mobile, não-autenticados) ─────────────────────────
+// Versão da Apresentacao com rodapé customizado: "Criar conta" e "Já tenho conta".
+// Reutiliza os slides e o visual da Apresentacao, adicionando os botões de acesso.
+function ApresentacaoPublica({ onCadastrar, onLogin }) {
+  return (
+    <Apresentacao
+      aoConcluir={onLogin}
+      rodapeCustom={
+        <div className="flex flex-col gap-2 w-full">
+          <button
+            type="button"
+            onClick={onCadastrar}
+            className="w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold"
+            style={{ background: 'rgba(255,255,255,0.95)', color: '#3d0a18' }}
+          >
+            Criar conta gratuita
+          </button>
+          <button
+            type="button"
+            onClick={onLogin}
+            className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium"
+            style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.15)' }}
+          >
+            Já tenho conta — Entrar
+          </button>
+        </div>
+      }
+    />
   )
 }
 

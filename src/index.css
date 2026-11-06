@@ -134,11 +134,11 @@
   }
 
   /* CAUSA DO ZOOM NO MOBILE: o iOS Safari aplica zoom automático ao focar
-     qualquer campo com font-size < 16px (e não desfaz sozinho). Vários campos
-     usam text-sm (14px). Abaixo de 768px, forçamos 16px em todos os campos
-     de formulário — elimina o zoom automático sem alterar o visual no desktop.
-     A altura do campo é controlada por padding (py), então o visual segue
-     praticamente igual, só com texto um pouco maior no celular. */
+     qualquer campo com font-size < 16px e não desfaz sozinho. A classe .input
+     já garante font-size: 16px mobile explicitamente (ver abaixo). Esta regra
+     genérica cobre qualquer campo que não use a classe .input (ex.: inputs
+     customizados em modais de terceiros). Redundância intencional — sem efeito
+     negativo no desktop (min-width: 768px não entra nesta media query). */
   @media (max-width: 767px) {
     input,
     select,

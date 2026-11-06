@@ -20,11 +20,12 @@ export default function Splash({ saindo = false }) {
         (saindo ? ' splash-fade-out' : '')
       }
     >
-      {/* Logo oficial com fade + zoom suave */}
+      {/* Logo oficial com fade + zoom suave.
+          af-icone.png já tem shape arredondado incorporado — sem rounded-* adicional. */}
       <img
         src="/branding/af-icone.png"
         alt="Almeida Finance"
-        className="animate-splash-logo w-32 max-w-[55vw] h-auto"
+        className="animate-splash-logo w-36 max-w-[55vw] h-auto"
       />
       {/* Barra de carregamento indeterminada */}
       <div className="mt-8 w-44 max-w-[60vw] h-1.5 rounded-full bg-white/20 overflow-hidden">

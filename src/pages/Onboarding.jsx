@@ -910,7 +910,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-violet-50 via-gray-50 to-white flex items-start sm:items-center justify-center px-3 py-5 sm:p-8 pb-24 sm:pb-8">
+    <div className="min-h-[100dvh] bg-gray-50 flex items-start sm:items-center justify-center px-3 py-5 sm:p-8 pb-24 sm:pb-8">
       <div className="w-full max-w-lg min-w-0">
         <div className="card w-full min-w-0 overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-xl p-4 sm:p-7">
           {/* A barra de progresso só aparece nas etapas de configuração. */}
@@ -918,52 +918,53 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
 
           {/* ─── INTRO ─── */}
           {etapa === INTRO && (
-            <div className="text-center py-4">
-              <div className="w-16 h-16 bg-violet-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <Sparkles size={30} className="text-violet-600" />
+            <div className="py-2">
+              {/* Logo + saudação */}
+              <div className="flex items-center gap-3 mb-5">
+                <img src="/branding/af-icone.png" alt="Almeida Finance" className="w-12 h-auto flex-shrink-0" />
+                <div className="min-w-0">
+                  <h1 className="text-lg font-bold text-gray-900 leading-tight">
+                    Bem-vindo ao Almeida Finance
+                  </h1>
+                  <p className="text-xs text-gray-500 mt-0.5">Vamos configurar o app para você</p>
+                </div>
               </div>
-              <h1 className="text-xl font-bold text-gray-900 mb-2">
-                Sua vida financeira, mais organizada
-              </h1>
-              <p className="text-sm text-gray-500 mb-5">
-                Vamos personalizar seu aplicativo. As informações serão usadas para calcular seu
-                orçamento, gasto diário, projeções e ajudar nas suas decisões financeiras.
+
+              <p className="text-sm text-gray-600 mb-5 leading-relaxed">
+                As informações que você informar serão usadas para calcular seu orçamento, gasto diário
+                e projeções financeiras. Você pode editar tudo depois.
               </p>
 
-              {/* 1ª etapa: cor do tema (antes das informações financeiras).
-                  Cartões de seleção com círculo colorido + indicador do escolhido.
-                  Aplica na hora e salva em perfis.cor_tema (via atualizarCorTema). */}
-              <div className="text-left mb-6">
-                <p className="label mb-2">Escolha a cor do app</p>
-                <div className="grid grid-cols-2 gap-2">
+              {/* Seletor de tema — antes das informações financeiras */}
+              <div className="mb-6">
+                <p className="text-sm font-semibold text-gray-900 mb-3">Como prefere visualizar o app?</p>
+                <div className="grid grid-cols-3 gap-2">
                   {CORES_TEMA.map(op => {
                     const ativo = corTema === op.value
+                    const icone = op.value === 'escuro' ? '🌙' : op.auto ? '⚙️' : '☀️'
                     return (
                       <button
                         key={op.value}
                         type="button"
                         onClick={() => atualizarCorTema(op.value)}
                         aria-pressed={ativo}
-                        className={`flex items-center gap-2.5 rounded-xl border p-2.5 text-left transition-all ${
-                          ativo ? 'border-gray-900 ring-2 ring-gray-900/10' : 'border-gray-200 hover:border-gray-300'
+                        className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-all ${
+                          ativo ? 'border-marca ring-1 ring-marca bg-marca-100/30' : 'border-gray-200 hover:border-gray-300'
                         }`}
                       >
-                        <span
-                          className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-                          style={{ backgroundColor: op.hex }}
-                        >
-                          {ativo && <CheckCircle2 size={15} className="text-white" />}
-                        </span>
-                        <span className="text-sm font-medium text-gray-900">{op.label}</span>
+                        <span className="text-xl">{icone}</span>
+                        <span className="text-xs font-semibold text-gray-900">{op.label}</span>
+                        {ativo && <CheckCircle2 size={14} className="text-marca" />}
                       </button>
                     )
                   })}
                 </div>
+                <p className="text-xs text-gray-400 mt-2">Você pode alterar depois em Configurações → Aparência.</p>
               </div>
 
               <button
                 onClick={() => setEtapa(SALDO)}
-                className="btn-primary w-full flex items-center justify-center gap-2"
+                className="btn-primary w-full flex items-center justify-center gap-2 py-3"
               >
                 Começar <ArrowRight size={16} />
               </button>
