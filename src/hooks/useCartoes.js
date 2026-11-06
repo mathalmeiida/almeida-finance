@@ -51,6 +51,7 @@ export function useCartoes() {
       .from('cartoes')
       .update(dados)
       .eq('id', id)
+      .eq('usuario_id', usuario.id)   // garante que só o dono pode alterar
       .select()
       .single()
     if (error) throw error
@@ -64,6 +65,7 @@ export function useCartoes() {
       .from('cartoes')
       .delete()
       .eq('id', id)
+      .eq('usuario_id', usuario.id)   // garante que só o dono pode remover
     if (error) throw error
     setCartoes(prev => prev.filter(c => c.id !== id))
   }

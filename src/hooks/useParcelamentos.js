@@ -199,6 +199,7 @@ export function useParcelamentos() {
       .from('parcelamentos')
       .update(dados)
       .eq('id', id)
+      .eq('usuario_id', usuario.id)
       .select(`*, categorias (id, nome, icone, cor)`)
       .single()
     if (error) {
@@ -303,6 +304,7 @@ export function useParcelamentos() {
       .from('parcelamentos')
       .delete()
       .eq('id', id)
+      .eq('usuario_id', usuario.id)
     if (error) throw error
     setParcelamentos(prev => prev.filter(p => p.id !== id))
   }

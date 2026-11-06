@@ -229,7 +229,7 @@ function SimuladorCompra() {
 
     const usaSaldo = form.fonte === 'saldo'
 
-    const disponivelProjetado = Number(projecao[0]?.disponivel) || 0
+    const disponivelProjetado = Number(resumoMes?.sobraPrevista) || Number(projecao[0]?.disponivel) || 0
 
     const antes = ehBeneficio ? saldoBeneficio : usaSaldo && temSaldoInformado ? saldoConta : disponivelProjetado
 

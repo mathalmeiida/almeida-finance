@@ -60,6 +60,7 @@ export function useComprasCartao(cartaoId = null) {
       .from('compras_cartao')
       .update(dados)
       .eq('id', id)
+      .eq('usuario_id', usuario.id)
       .select(`*, categorias (id, nome, icone, cor)`)
       .single()
     if (error) throw error
@@ -73,6 +74,7 @@ export function useComprasCartao(cartaoId = null) {
       .from('compras_cartao')
       .delete()
       .eq('id', id)
+      .eq('usuario_id', usuario.id)
     if (error) throw error
     setCompras(prev => prev.filter(c => c.id !== id))
   }

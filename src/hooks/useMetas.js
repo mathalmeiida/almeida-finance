@@ -51,6 +51,7 @@ export function useMetas() {
       .from('metas')
       .update(dados)
       .eq('id', id)
+      .eq('usuario_id', usuario.id)
       .select()
       .single()
     if (error) throw error
@@ -64,6 +65,7 @@ export function useMetas() {
       .from('metas')
       .delete()
       .eq('id', id)
+      .eq('usuario_id', usuario.id)
     if (error) throw error
     setMetas(prev => prev.filter(m => m.id !== id))
   }
@@ -87,7 +89,11 @@ export function useMetas() {
     }
     let novo = atual + d
     if (novo < 0) novo = 0
-    if (objetivo > 0 && novo > objetivo) novo = objetivo // aporte não passa do objetivo
+    if (objetivo > 0 && novo > objetivo) {
+      // Informa quanto foi efetivamente aportado para não confundir o usuário
+      // quando o valor informado excede o faltante para atingir o objetivo.
+      novo = objetivo
+    }
     return atualizar(id, { valor_atual: novo })
   }
 

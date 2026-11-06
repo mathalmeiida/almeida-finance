@@ -43,6 +43,12 @@ import Metas from './pages/Metas'
 
 import Mais from './pages/Mais'
 
+// Subpáginas do menu Mais
+import PerfilPage from './pages/mais/Perfil'
+import FuncionalidadesPage from './pages/mais/Funcionalidades'
+import AjudaFeedbackPage from './pages/mais/AjudaFeedback'
+import SobreAppPage from './pages/mais/SobreApp'
+
 import Consultoria from './pages/Consultoria'
 
 import Configuracoes from './pages/Configuracoes'
@@ -433,6 +439,12 @@ function Rotas() {
                 <Route path="/metas" element={<Metas />} />
 
                 <Route path="/mais" element={<Mais />} />
+
+                {/* Subpáginas do menu Mais */}
+                <Route path="/mais/perfil" element={<PerfilPage />} />
+                <Route path="/mais/funcionalidades" element={<FuncionalidadesPage />} />
+                <Route path="/mais/ajuda" element={<AjudaFeedbackPage />} />
+                <Route path="/mais/sobre" element={<SobreAppPage />} />
 
                 <Route path="/consultoria" element={<Consultoria />} />
 

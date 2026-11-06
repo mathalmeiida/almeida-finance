@@ -1,105 +1,118 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  TrendingUp, TrendingDown, CreditCard, CalendarClock, UtensilsCrossed, PiggyBank,
-  Target, BarChart2, LineChart, ShoppingCart, Sparkles, Landmark,
-  MessagesSquare, Palette, Settings, ShieldCheck, LogOut,
+  UserRound, Settings, Grid2X2, CircleHelp, Info,
+  LogOut, ChevronRight,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 
-// Página "Mais" — ferramentas do app organizadas em 3 grupos. SOMENTE rotas e
-// funcionalidades REAIS já existentes no projeto (nada de página vazia).
-// "Movimentações"/"Parcelamentos" levam a /despesas (parcelas vivem na aba
-// Parceladas). "Calendário" e "Horizonte diário" vivem na Home/Planejamento:
-// apontamos para rotas reais (/ e /projecao). "Aparência" abre Configurações
-// (onde fica o seletor de tema). Admin só para adminOnly.
-const GRUPOS = [
+// ─── Mais ─────────────────────────────────────────────────────────────────────
+// Versão desktop/página da navegação "Mais".
+// Exibe as mesmas 5 opções do menu mobile com destinos corretos.
+// Em mobile esta rota não é usada diretamente (o sheet substitui),
+// mas fica disponível como página normal no desktop.
+
+const ITENS = [
   {
-    titulo: 'Meu dinheiro',
-    itens: [
-      { to: '/despesas',      label: 'Movimentações',    icon: TrendingDown,    cor: 'text-rose-400' },
-      { to: '/cartoes',       label: 'Cartões',          icon: CreditCard,      cor: 'text-sky-400' },
-      { to: '/',              label: 'Calendário',       icon: CalendarClock,   cor: 'text-marca' },
-      { to: '/beneficios',    label: 'Benefícios VR/VA', icon: UtensilsCrossed, cor: 'text-emerald-400' },
-      { to: '/investimentos', label: 'Investimentos',    icon: PiggyBank,       cor: 'text-emerald-400' },
-      { to: '/despesas',      label: 'Parcelamentos',    icon: CreditCard,      cor: 'text-amber-400' },
-    ],
+    titulo: 'Meu perfil',
+    detalhe: 'Dados pessoais e segurança',
+    Icone: UserRound,
+    rota: '/mais/perfil',
+    bgIcon: 'bg-marca-100',
+    corIcon: 'text-marca',
   },
   {
-    titulo: 'Planejamento',
-    itens: [
-      { to: '/metas',         label: 'Metas',                 icon: Target,       cor: 'text-amber-400' },
-      { to: '/projecao',      label: 'Projeção financeira',   icon: BarChart2,    cor: 'text-violet-400' },
-      { to: '/projecao',      label: 'Horizonte diário',      icon: LineChart,    cor: 'text-violet-400' },
-      { to: '/posso-comprar', label: 'Posso comprar?',        icon: ShoppingCart, cor: 'text-marca' },
-      { to: '/e-se',          label: 'E se...?',              icon: Sparkles,     cor: 'text-violet-400' },
-      { to: '/e-se',          label: 'Financiamento e consórcio', icon: Landmark, cor: 'text-cyan-400' },
-    ],
+    titulo: 'Configurações',
+    detalhe: 'Tema, notificações e preferências',
+    Icone: Settings,
+    rota: '/configuracoes',
+    bgIcon: 'bg-violet-100',
+    corIcon: 'text-violet-600',
   },
   {
-    titulo: 'Conta e serviços',
-    itens: [
-      { to: '/consultoria',   label: 'Consultoria',    icon: MessagesSquare, cor: 'text-cyan-400' },
-      { to: '/configuracoes', label: 'Aparência',      icon: Palette,        cor: 'text-fuchsia-400' },
-      { to: '/configuracoes', label: 'Configurações',  icon: Settings,       cor: 'text-gray-400' },
-      { to: '/admin',         label: 'Admin',          icon: ShieldCheck,    cor: 'text-violet-400', adminOnly: true },
-    ],
+    titulo: 'Todas as funcionalidades',
+    detalhe: 'Acessar os recursos do app',
+    Icone: Grid2X2,
+    rota: '/mais/funcionalidades',
+    bgIcon: 'bg-blue-100',
+    corIcon: 'text-blue-600',
+  },
+  {
+    titulo: 'Ajuda & feedback',
+    detalhe: 'Dúvidas, suporte e sugestões',
+    Icone: CircleHelp,
+    rota: '/mais/ajuda',
+    bgIcon: 'bg-amber-100',
+    corIcon: 'text-amber-600',
+  },
+  {
+    titulo: 'Sobre o Almeida Finance',
+    detalhe: 'Informações do aplicativo',
+    Icone: Info,
+    rota: '/mais/sobre',
+    bgIcon: 'bg-cyan-100',
+    corIcon: 'text-cyan-600',
   },
 ]
 
-function LinhaItem({ item, onClick }) {
-  return (
-    <button type="button" onClick={onClick}
-      className="w-full flex items-center gap-3 px-2.5 py-3 hover:bg-gray-50 rounded-lg transition-colors text-left">
-      <span className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0">
-        <item.icon size={18} className={item.cor} />
-      </span>
-      <span className="flex-1 text-sm font-medium text-gray-900">{item.label}</span>
-    </button>
-  )
-}
-
 export default function Mais() {
   const navigate = useNavigate()
-  const { ehAdmin, sair, perfil, usuario } = useAuth()
+  const { sair, perfil, usuario } = useAuth()
 
-  const grupos = GRUPOS.map(g => ({
-    ...g,
-    itens: g.itens.filter(i => !i.adminOnly || ehAdmin),
-  })).filter(g => g.itens.length > 0)
-
-  const nome = perfil?.nome || usuario?.email?.split('@')[0] || 'Usuário'
+  const nome    = perfil?.nome || usuario?.email?.split('@')[0] || 'Usuário'
+  const email   = usuario?.email || ''
   const iniciais = nome.slice(0, 2).toUpperCase()
 
   async function handleSair() {
-    try { await sair(); navigate('/login') } catch (e) { console.error('Erro ao sair:', e) }
+    try { await sair(); navigate('/login') }
+    catch (e) { console.error('Erro ao sair:', e) }
   }
 
   return (
-    <div className="space-y-5 pb-mobilenav md:pb-0">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-marca-100 text-marca flex items-center justify-center flex-shrink-0">
-          <span className="text-sm font-bold">{iniciais}</span>
+    <div className="max-w-lg mx-auto space-y-5 pb-mobilenav md:pb-8">
+      {/* Avatar + dados do usuário */}
+      <div className="card flex items-center gap-4">
+        <div
+          className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 text-white text-lg font-bold"
+          style={{ background: 'linear-gradient(135deg,#801D39,#420D1D)' }}
+        >
+          {iniciais}
         </div>
         <div className="min-w-0">
-          <h1 className="text-xl font-bold text-gray-900 truncate">{nome}</h1>
-          <p className="text-xs text-gray-500 truncate">{usuario?.email}</p>
+          <p className="text-base font-bold text-gray-900 truncate">{nome}</p>
+          <p className="text-xs text-gray-500 truncate">{email}</p>
         </div>
       </div>
 
-      {grupos.map(grupo => (
-        <section key={grupo.titulo} className="card !p-2">
-          <p className="px-2.5 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-500">{grupo.titulo}</p>
-          <div className="divide-y divide-gray-100">
-            {grupo.itens.map(item => (
-              <LinhaItem key={item.label} item={item} onClick={() => navigate(item.to)} />
-            ))}
-          </div>
-        </section>
-      ))}
+      {/* Lista de itens */}
+      <div className="card !p-0 divide-y divide-gray-100 overflow-hidden">
+        {ITENS.map(item => (
+          <button
+            key={item.rota}
+            type="button"
+            onClick={() => navigate(item.rota)}
+            className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
+          >
+            <span
+              className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${item.bgIcon}`}
+            >
+              <item.Icone size={20} className={item.corIcon} />
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900">{item.titulo}</p>
+              <p className="text-xs text-gray-500">{item.detalhe}</p>
+            </div>
+            <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />
+          </button>
+        ))}
+      </div>
 
-      <button onClick={handleSair}
-        className="w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors">
+      {/* Sair */}
+      <button
+        type="button"
+        onClick={handleSair}
+        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 transition-colors"
+      >
         <LogOut size={18} /> Sair da conta
       </button>
     </div>

@@ -32,11 +32,15 @@ import {
 
 // mensais, sem datas de pagamento. Distribuição uniforme NÃO é fluxo de caixa real.
 
-function diasEstimadosCenario(resultadoMensal, dataInicio = new Date()) {
+// reservaInicial: saldo de partida — inclui reserva de emergência do usuário.
+
+function diasEstimadosCenario(resultadoMensal, dataInicio = new Date(), reservaInicial = 0) {
 
   const inicial = new Date(dataInicio.getFullYear(), dataInicio.getMonth(), 1)
 
   const linhas = []
+
+  let acumulado = Number(reservaInicial) || 0
 
   for (let m = 0; m < 12; m++) {
 
@@ -48,11 +52,15 @@ function diasEstimadosCenario(resultadoMensal, dataInicio = new Date()) {
 
     const ultimo = new Date(ano, mes + 1, 0).getDate()
 
+    const incrementoDiario = (Number(resultadoMensal) || 0) / ultimo
+
     for (let d = 1; d <= ultimo; d++) {
+
+      acumulado += incrementoDiario
 
       const data = `${primeiro.getFullYear()}-${String(primeiro.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
 
-      linhas.push({ data, saldo: (m + d / ultimo) * (Number(resultadoMensal) || 0) })
+      linhas.push({ data, saldo: Math.round(acumulado * 100) / 100 })
 
     }
 
@@ -63,13 +71,14 @@ function diasEstimadosCenario(resultadoMensal, dataInicio = new Date()) {
 }
 
 const CENARIOS = [
-  { id: 'aumento', nome: 'Aumentar renda', icone: TrendingUp, sinal: 1 },
-  { id: 'despesa', nome: 'Nova despesa', icone: Receipt, sinal: -1 },
-  { id: 'parcela', nome: 'Parcelamento', icone: CreditCard, sinal: -1 },
-  { id: 'financiamento', nome: 'Financiamento', icone: Home, sinal: -1 },
-  { id: 'investimento', nome: 'Investimento', icone: BarChart2, sinal: 0 },
-  { id: 'reducao', nome: 'Reduzir renda', icone: TrendingDown, sinal: -1 },
-  { id: 'desligamento', nome: 'Desemprego / rescisão', icone: Briefcase, sinal: -1 },
+  { id: 'aumento',      nome: 'Aumentar renda',        icone: TrendingUp,  sinal:  1 },
+  { id: 'perda',        nome: 'Perda de renda',         icone: TrendingDown, sinal: -1 },
+  { id: 'despesa',      nome: 'Nova despesa',           icone: Receipt,     sinal: -1 },
+  { id: 'parcela',      nome: 'Parcelamento',           icone: CreditCard,  sinal: -1 },
+  { id: 'financiamento',nome: 'Financiamento',          icone: Home,        sinal: -1 },
+  { id: 'investimento', nome: 'Investimento',           icone: BarChart2,   sinal:  0 },
+  { id: 'reducao',      nome: 'Reduzir renda',          icone: TrendingDown, sinal: -1 },
+  { id: 'desligamento', nome: 'Desemprego / rescisão',  icone: Briefcase,   sinal: -1 },
 ]
 
 // Cenários genéricos do modo "Renda profissional" (apenas rótulos; NÃO há
@@ -729,9 +738,9 @@ export default function SimuladorCenarios({ receitaAtual = 0, despesaMensal = 0,
 
         descricao="Valores estimados em R$; resultado acumulado, não saldo real da conta"
 
-        diasAtual={diasEstimadosCenario(atual.saldoMensal)}
+        diasAtual={diasEstimadosCenario(atual.saldoMensal, new Date(), reservaAtual)}
 
-        diasSimulado={diasEstimadosCenario(sim.saldoMensal)}
+        diasSimulado={diasEstimadosCenario(sim.saldoMensal, new Date(), reservaAtual)}
 
       />
 

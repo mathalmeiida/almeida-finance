@@ -59,7 +59,8 @@ export function useFaturasCartao(cartaoId = null) {
   // Remove o total informado (volta a valer a soma das compras daquele mês).
   async function removerFatura(id) {
     bloquearSeConsultoria(modoConsultoria)
-    const { error } = await supabase.from('faturas_cartao').delete().eq('id', id)
+    const { error } = await supabase.from('faturas_cartao').delete()
+      .eq('id', id).eq('usuario_id', usuario.id)
     if (error) throw error
     setFaturas(prev => prev.filter(f => f.id !== id))
   }

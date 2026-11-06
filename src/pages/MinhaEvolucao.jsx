@@ -32,8 +32,10 @@ export default function MinhaEvolucao() {
 
   const meses = useMemo(() => (Array.isArray(projecao) ? projecao.slice(0, 12) : []), [projecao])
   const receitas = n(resumoMes.receitaTotal)
-  const despesas = n(resumoMes.despesaTotal) + n(resumoMes.parcelasTotal) + n(resumoMes.faturasTotal)
+  // Derivar despesas de (receitas - sobraPrevista) garante coerência com useProjecao,
+  // evitando divergência silenciosa se a composição de compromissos mudar no hook.
   const sobra = n(resumoMes.sobraPrevista)
+  const despesas = receitas - sobra
   const reserva = n(perfil?.reserva_atual)
   const comDeficit = meses.filter(m => n(m.saldo) < 0).length
   const visiveis = verTodos ? meses : meses.slice(0, 4)

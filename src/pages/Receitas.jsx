@@ -367,6 +367,9 @@ export default function Receitas() {
     // evita duplicar: se por algum motivo já estiver na lista do mês, ignora
     .filter(r => !receitas.some(x => x.id === r.id))
 
+    // não projeta receitas cujo data_fim já passou antes do início do mês visualizado
+    .filter(r => !r.data_fim || r.data_fim >= inicioMesVis)
+
     .map(r => {
 
       // Projeta a data para o mês visualizado, mantendo o dia (limitado ao
