@@ -6,3 +6,24 @@ dist
 .vercel
 .env*
 erro.txt
+
+# Arquivos de staging e testes RLS (não publicar)
+staging/
+scripts/
+tests/
+*.sql
+*-erro.txt
+*-completo.txt
+diagnostico.txt
+build-erro.txt
+GUIA-STAGING-*.md
+PLANO-*.md
+RELATORIO-*.md
+RETOMADA-*.md
+README-TESTES-*.md
+INICIO-AQUI.md
+INSTRUCOES-PENDENCIAS.md
+STATUS-ATUAL.md
+alteracoes-*.txt
+test-*.sql
+_tmp_*.mjs
