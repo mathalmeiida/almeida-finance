@@ -2740,17 +2740,34 @@ const carregandoLimite = carregando
                   </div>
                 ))}
             </div>
+            {/* Metas financeiras — até 2 prioritárias com barras de progresso */}
             <div className="af-side-section">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2"><Target size={16} className="text-[#C4507A]"/><span className="font-semibold text-white text-sm">Minhas metas</span></div>
                 <button type="button" onClick={()=>navigate('/metas')} className="af-hlink">Ver metas →</button>
               </div>
-              {metaReserva>0?(<div>
-                <div className="flex items-center justify-between mb-1"><span className="text-sm text-[#D4A8B6]">Reserva de emergência</span><strong className="text-sm text-white">{exibirMoeda(metaReserva,ocultar)}</strong></div>
-                <div className="af-progress-bar"><div className="af-progress-fill" style={{width:`${Math.min(100,metaReserva>0?(reservaAtual/metaReserva*100):0)}%`}}/></div>
-                <p className="text-xs text-[#D4A8B6] mt-1">{exibirMoeda(reservaAtual,ocultar)} ({metaReserva>0?Math.round(reservaAtual/metaReserva*100):0}%)</p>
-              </div>):<p className="text-xs text-[#D4A8B6]">Nenhuma meta configurada.</p>}
-              {patrimonioTotal>0&&<div className="af-side-item mt-2"><span className="text-sm text-[#D4A8B6]">Patrimônio investido</span><strong className="text-sm text-white">{exibirMoeda(patrimonioTotal,ocultar)}</strong></div>}
+              {metasUsuario && metasUsuario.length > 0 ? (
+                <div className="space-y-3">
+                  {metasUsuario.slice(0, 2).map(m => {
+                    const progresso = m.valor_alvo > 0 ? Math.min(100, Math.round((m.valor_atual / m.valor_alvo) * 100)) : 0
+                    return (
+                      <div key={m.id}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm text-[#D4A8B6]">{m.nome}</span>
+                          <strong className="text-sm text-white">{exibirMoeda(m.valor_atual, ocultar)}</strong>
+                        </div>
+                        <div className="af-progress-bar"><div className="af-progress-fill" style={{width:`${progresso}%`}}/></div>
+                        <p className="text-xs text-[#D4A8B6] mt-1">{progresso}% de {exibirMoeda(m.valor_alvo, ocultar)}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-2">
+                  <p className="text-xs text-[#D4A8B6] mb-2">Nenhuma meta configurada.</p>
+                  <button type="button" onClick={()=>navigate('/metas')} className="text-xs af-hlink">Criar minha primeira meta</button>
+                </div>
+              )}
             </div>
           </div>
         </div>
