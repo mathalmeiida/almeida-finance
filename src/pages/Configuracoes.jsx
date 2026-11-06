@@ -203,7 +203,7 @@ function ConfigurarBiometria() {
 
         // Lista credenciais existentes do usuário
         if (usuario && suporta) {
-          const { data, error } = await supabase.auth.mfa.passkey.list()
+          const { data, error } = await supabase.auth.passkey.list()
           if (!error && data) {
             setCredenciais(data.all_passkey_identities || [])
           }
@@ -223,7 +223,7 @@ function ConfigurarBiometria() {
     setRegistrando(true)
     try {
       // Usa API nativa do Supabase para registrar passkey
-      const { data, error } = await supabase.auth.mfa.passkey.startRegistration({
+      const { data, error } = await supabase.auth.passkey.startRegistration({
         // Opcionalmente, pode passar um nome personalizado:
         // credential_nickname: 'Meu iPhone',
       })
@@ -231,7 +231,7 @@ function ConfigurarBiometria() {
       if (error) throw error
 
       // Atualiza lista de credenciais
-      const { data: lista } = await supabase.auth.mfa.passkey.list()
+      const { data: lista } = await supabase.auth.passkey.list()
       if (lista) {
         setCredenciais(lista.all_passkey_identities || [])
       }
@@ -245,7 +245,7 @@ function ConfigurarBiometria() {
 
   async function removerCredencial(id) {
     try {
-      const { error } = await supabase.auth.mfa.passkey.delete({ id })
+      const { error } = await supabase.auth.passkey.delete({ id })
       if (error) throw error
       setCredenciais(prev => prev.filter(c => c.id !== id))
     } catch (err) {

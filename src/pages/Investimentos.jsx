@@ -968,8 +968,8 @@ export default function Investimentos() {
           <p className="text-[11px] mt-1 flex items-center gap-1.5 text-gray-400">
             <span className={`w-2 h-2 rounded-full shrink-0 ${cotacoesDisponiveis() ? 'bg-emerald-400' : 'bg-gray-300'}`} />
             {cotacoesDisponiveis()
-              ? 'Cotações automáticas ativas (brapi.dev).'
-              : 'Cotações manuais — configure VITE_BRAPI_TOKEN para cotações automáticas.'}
+              ? 'Cotações automáticas ativas (brapi.dev via Edge Function).'
+              : 'Cotações manuais — Edge Function inativa ou sem configuração de backend.'}
           </p>
 
         </section>
