@@ -20,8 +20,6 @@ import Modal from '../components/Modal'
 
 import NotificacoesPush from '../components/NotificacoesPush'
 
-import { webAuthnDisponivel, suportaPasskeysPlatforma } from '../lib/webauthn'
-
 
 
 // Card de SEGURANÇA: alteração de senha para usuário já autenticado.
@@ -174,28 +172,92 @@ function AlterarSenha() {
   )
 }
 
-// Card de BIOMETRIA: ativação opcional de login biométrico (FaceID, TouchID, Windows Hello)
-// Usa WebAuthn/Passkeys — nenhum dado biométrico é armazenado no servidor.
-// Exibe apenas se o dispositivo suporta biometria de plataforma.
+// Card de BIOMETRIA: login biométrico usando Supabase Auth Passkeys (Beta)
+// Documentação: https://supabase.com/docs/guides/auth/passkeys
+// Usa WebAuthn/Passkeys nativos do Supabase — nenhum dado biométrico é armazenado.
+// Requer: Passkeys habilitados no Dashboard (Authentication → Passkeys).
 function ConfigurarBiometria() {
+  const { usuario } = useAuth()
   const [suportaBio, setSuportaBio] = useState(false)
-  const [ativa, setAtiva] = useState(false)
+  const [credenciais, setCredenciais] = useState([])
   const [verificando, setVerificando] = useState(true)
+  const [registrando, setRegistrando] = useState(false)
+  const [erro, setErro] = useState('')
 
   useEffect(() => {
     async function verificar() {
-      const disponivel = webAuthnDisponivel()
-      const suporta = disponivel && await suportaPasskeysPlatforma()
-      setSuportaBio(suporta)
-      // TODO: verificar no banco se há credencial ativa para o usuário
-      setAtiva(false)
-      setVerificando(false)
+      // Verifica se WebAuthn está disponível no navegador
+      const disponivel = typeof window !== 'undefined' && 
+                        window.PublicKeyCredential !== undefined
+      
+      if (!disponivel) {
+        setSuportaBio(false)
+        setVerificando(false)
+        return
+      }
+
+      try {
+        // Verifica se há passkeys de plataforma (FaceID, TouchID, Windows Hello)
+        const suporta = await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
+        setSuportaBio(suporta)
+
+        // Lista credenciais existentes do usuário
+        if (usuario && suporta) {
+          const { data, error } = await supabase.auth.mfa.passkey.list()
+          if (!error && data) {
+            setCredenciais(data.all_passkey_identities || [])
+          }
+        }
+      } catch (err) {
+        console.warn('[Biometria] Erro ao verificar suporte:', err)
+        setSuportaBio(false)
+      } finally {
+        setVerificando(false)
+      }
     }
     verificar()
-  }, [])
+  }, [usuario])
+
+  async function registrarPasskey() {
+    setErro('')
+    setRegistrando(true)
+    try {
+      // Usa API nativa do Supabase para registrar passkey
+      const { data, error } = await supabase.auth.mfa.passkey.startRegistration({
+        // Opcionalmente, pode passar um nome personalizado:
+        // credential_nickname: 'Meu iPhone',
+      })
+
+      if (error) throw error
+
+      // Atualiza lista de credenciais
+      const { data: lista } = await supabase.auth.mfa.passkey.list()
+      if (lista) {
+        setCredenciais(lista.all_passkey_identities || [])
+      }
+    } catch (err) {
+      setErro(err.message || 'Erro ao registrar biometria. Tente novamente.')
+      console.error('[Biometria] Erro ao registrar:', err)
+    } finally {
+      setRegistrando(false)
+    }
+  }
+
+  async function removerCredencial(id) {
+    try {
+      const { error } = await supabase.auth.mfa.passkey.delete({ id })
+      if (error) throw error
+      setCredenciais(prev => prev.filter(c => c.id !== id))
+    } catch (err) {
+      setErro('Erro ao remover credencial.')
+      console.error('[Biometria] Erro ao remover:', err)
+    }
+  }
 
   if (verificando) return null
   if (!suportaBio) return null
+
+  const temCredenciais = credenciais.length > 0
 
   return (
     <div className="card">
@@ -206,23 +268,55 @@ function ConfigurarBiometria() {
         <div className="flex-1 min-w-0">
           <h2 className="text-base font-semibold text-gray-900">Biometria e Passkeys</h2>
           <p className="text-sm text-gray-500 mt-1">
-            {ativa 
-              ? 'Login biométrico ativado. Use sua digital ou rosto para entrar.'
+            {temCredenciais
+              ? `${credenciais.length} credencial(is) ativa(s). Use biometria para fazer login.`
               : 'Ative o login por biometria para acessar sem digitar senha.'}
           </p>
+
           <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
             <CheckCircle2 size={13} className="text-green-500" />
-            <span>Compatível com FaceID, TouchID e Windows Hello</span>
+            <span>FaceID, TouchID e Windows Hello</span>
           </div>
+
+          {temCredenciais ? (
+            <div className="mt-4 space-y-2">
+              {credenciais.map(c => (
+                <div key={c.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Fingerprint size={14} className="text-gray-400 flex-shrink-0" />
+                    <span className="text-sm text-gray-700 truncate">
+                      {c.credential_nickname || 'Passkey sem nome'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => removerCredencial(c.id)}
+                    className="text-xs text-red-600 hover:underline flex-shrink-0"
+                    title="Remover credencial"
+                  >
+                    Remover
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {erro && (
+            <div className="mt-3 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg p-2">
+              {erro}
+            </div>
+          )}
+
           <button
-            className="mt-3 inline-flex items-center gap-2 btn-secondary text-sm"
-            title="Funcionalidade em desenvolvimento">
-            <Fingerprint size={15} /> 
-            {ativa ? 'Gerenciar biometria' : 'Ativar biometria'}
+            onClick={registrarPasskey}
+            disabled={registrando}
+            className="mt-3 inline-flex items-center gap-2 btn-secondary text-sm disabled:opacity-50"
+          >
+            {registrando ? (
+              <><Loader2 size={15} className="animate-spin" /> Registrando...</>
+            ) : (
+              <><Fingerprint size={15} /> {temCredenciais ? 'Adicionar outra' : 'Ativar biometria'}</>
+            )}
           </button>
-          <p className="text-xs text-amber-600 mt-2">
-            ⚠️ Funcionalidade em desenvolvimento. Requer backend adicional.
-          </p>
         </div>
       </div>
     </div>
