@@ -39,15 +39,26 @@ const BRAPI_BASE  = 'https://brapi.dev/api'
 //   updatedAt            → timestamp da última atualização
 
 /**
- * Busca cotação de um ou mais tickers (ex.: ['PETR4', 'MXRF11']).
- * Retorna Map<ticker, { preco, variacao, variacaoPct, atualizadoEm }> ou null se sem token.
- *
- * Uso:
- *   const cotacoes = await buscarCotacoes(['PETR4', 'MXRF11'])
- *   const petr4 = cotacoes?.get('PETR4')  // { preco: 38.50, ... } ou undefined
+ * Busca cotações e retorna informações estruturadas com tratamento de erro.
+ * 
+ * @returns {Promise<{
+ *   sucesso: boolean,
+ *   cotacoes: Map<string, {preco, variacao, variacaoPct, atualizadoEm}> | null,
+ *   erro: string | null,
+ *   timestamp: string
+ * }>}
  */
 export async function buscarCotacoes(tickers) {
-  if (!BRAPI_TOKEN || !Array.isArray(tickers) || tickers.length === 0) return null
+  const timestamp = new Date().toISOString()
+  
+  if (!BRAPI_TOKEN || !Array.isArray(tickers) || tickers.length === 0) {
+    return {
+      sucesso: false,
+      cotacoes: null,
+      erro: BRAPI_TOKEN ? 'Nenhum ticker informado' : 'Token não configurado',
+      timestamp
+    }
+  }
 
   // Remove duplicatas e garante uppercase
   const uniqueTickers = [...new Set(tickers.map(t => String(t).toUpperCase().trim()))]
@@ -58,8 +69,18 @@ export async function buscarCotacoes(tickers) {
     const url = `${BRAPI_BASE}/quote/${uniqueTickers.join(',')}?token=${BRAPI_TOKEN}&fundamental=false`
     const resp = await fetch(url, { signal: AbortSignal.timeout(8000) })
     if (!resp.ok) {
+      const erroMsg = resp.status === 401 
+        ? 'Token inválido'
+        : resp.status === 429
+        ? 'Limite de requisições excedido'
+        : `Erro ${resp.status}`
       console.warn(`[cotacoes] brapi retornou ${resp.status} para ${uniqueTickers.join(',')}`)
-      return null
+      return {
+        sucesso: false,
+        cotacoes: null,
+        erro: erroMsg,
+        timestamp
+      }
     }
     const json = await resp.json()
     const resultados = new Map()
@@ -72,21 +93,36 @@ export async function buscarCotacoes(tickers) {
         atualizadoEm:  item.updatedAt || null,
       })
     }
-    return resultados
+    return {
+      sucesso: true,
+      cotacoes: resultados,
+      erro: null,
+      timestamp
+    }
   } catch (err) {
-    // Timeout ou erro de rede: retorna null sem quebrar o app
+    // Timeout ou erro de rede: retorna estrutura de erro sem quebrar o app
+    const erroMsg = err?.name === 'AbortError' 
+      ? 'Tempo limite excedido'
+      : 'Erro de conexão'
     console.warn('[cotacoes] Erro ao buscar cotações:', err?.message || err)
-    return null
+    return {
+      sucesso: false,
+      cotacoes: null,
+      erro: erroMsg,
+      timestamp
+    }
   }
 }
 
 /**
  * Busca cotação de um único ticker.
  * Retorna { preco, variacao, variacaoPct, atualizadoEm } ou null.
+ * Para retrocompatibilidade, mantém retorno null em caso de erro.
  */
 export async function buscarCotacao(ticker) {
-  const m = await buscarCotacoes([ticker])
-  return m?.get(String(ticker).toUpperCase()) ?? null
+  const resultado = await buscarCotacoes([ticker])
+  if (!resultado.sucesso) return null
+  return resultado.cotacoes?.get(String(ticker).toUpperCase()) ?? null
 }
 
 /**

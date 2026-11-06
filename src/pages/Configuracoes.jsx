@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 
 import { useNavigate } from 'react-router-dom'
 
-import { User, Mail, AlertTriangle, Loader2, Trash2, LogOut, Sparkles, Eye, EyeOff, Clock, MessageSquarePlus, CheckCircle2, Palette, Check, Moon, Lock, ShieldCheck } from 'lucide-react'
+import { User, Mail, AlertTriangle, Loader2, Trash2, LogOut, Sparkles, Eye, EyeOff, Clock, MessageSquarePlus, CheckCircle2, Palette, Check, Moon, Lock, ShieldCheck, Fingerprint } from 'lucide-react'
 
 import { useAuth } from '../contexts/AuthContext'
 
@@ -19,6 +19,8 @@ import { CORES_TEMA } from '../lib/utils'
 import Modal from '../components/Modal'
 
 import NotificacoesPush from '../components/NotificacoesPush'
+
+import { webAuthnDisponivel, suportaPasskeysPlatforma } from '../lib/webauthn'
 
 
 
@@ -82,10 +84,12 @@ function AlterarSenha() {
           <div className="flex-1 min-w-0">
             <h2 className="text-base font-semibold text-gray-900">Segurança e acesso</h2>
             <p className="text-sm text-gray-500 mt-1">Gerencie sua senha e opções de acesso à conta.</p>
-            <button onClick={abrir}
-              className="mt-3 inline-flex items-center gap-2 btn-secondary text-sm">
-              <Lock size={15} /> Alterar senha
-            </button>
+            <div className="flex flex-wrap gap-2 mt-3">
+              <button onClick={abrir}
+                className="inline-flex items-center gap-2 btn-secondary text-sm">
+                <Lock size={15} /> Alterar senha
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -167,6 +171,61 @@ function AlterarSenha() {
         )}
       </Modal>
     </>
+  )
+}
+
+// Card de BIOMETRIA: ativação opcional de login biométrico (FaceID, TouchID, Windows Hello)
+// Usa WebAuthn/Passkeys — nenhum dado biométrico é armazenado no servidor.
+// Exibe apenas se o dispositivo suporta biometria de plataforma.
+function ConfigurarBiometria() {
+  const [suportaBio, setSuportaBio] = useState(false)
+  const [ativa, setAtiva] = useState(false)
+  const [verificando, setVerificando] = useState(true)
+
+  useEffect(() => {
+    async function verificar() {
+      const disponivel = webAuthnDisponivel()
+      const suporta = disponivel && await suportaPasskeysPlatforma()
+      setSuportaBio(suporta)
+      // TODO: verificar no banco se há credencial ativa para o usuário
+      setAtiva(false)
+      setVerificando(false)
+    }
+    verificar()
+  }, [])
+
+  if (verificando) return null
+  if (!suportaBio) return null
+
+  return (
+    <div className="card">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 bg-purple-50 rounded-xl flex items-center justify-center shrink-0">
+          <Fingerprint size={16} className="text-purple-600" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-semibold text-gray-900">Biometria e Passkeys</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            {ativa 
+              ? 'Login biométrico ativado. Use sua digital ou rosto para entrar.'
+              : 'Ative o login por biometria para acessar sem digitar senha.'}
+          </p>
+          <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
+            <CheckCircle2 size={13} className="text-green-500" />
+            <span>Compatível com FaceID, TouchID e Windows Hello</span>
+          </div>
+          <button
+            className="mt-3 inline-flex items-center gap-2 btn-secondary text-sm"
+            title="Funcionalidade em desenvolvimento">
+            <Fingerprint size={15} /> 
+            {ativa ? 'Gerenciar biometria' : 'Ativar biometria'}
+          </button>
+          <p className="text-xs text-amber-600 mt-2">
+            ⚠️ Funcionalidade em desenvolvimento. Requer backend adicional.
+          </p>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -887,6 +946,9 @@ export default function Configuracoes() {
 
           {/* Segurança e acesso */}
           <AlterarSenha />
+
+          {/* Biometria (se disponível no dispositivo) */}
+          <ConfigurarBiometria />
 
           {/* Rever apresentação */}
           <div className="card">
