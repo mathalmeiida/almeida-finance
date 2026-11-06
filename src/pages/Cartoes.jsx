@@ -38,12 +38,23 @@ function BarraLimite({ usado, total, cor = '#6366f1' }) {
 }
 // ─── Formulário de cartão (cadastro/edição) ───────────────────────────────────
 function FormCartao({ onSalvar, onCancelar, carregando, cartaoInicial, textoBotao }) {
+  const CORES_CARTAO = [
+    { valor: '#801D39', nome: 'Vinho',   fundo: '#801D39', texto: '#fff' },
+    { valor: '#1a1a1a', nome: 'Preto',   fundo: '#1a1a1a', texto: '#fff' },
+    { valor: '#f5f5f5', nome: 'Branco',  fundo: '#e5e5e5', texto: '#222' },
+    { valor: '#1d4ed8', nome: 'Azul',    fundo: '#1d4ed8', texto: '#fff' },
+    { valor: '#dc2626', nome: 'Vermelho',fundo: '#dc2626', texto: '#fff' },
+    { valor: '#7c3aed', nome: 'Roxo',    fundo: '#7c3aed', texto: '#fff' },
+    { valor: '#059669', nome: 'Verde',   fundo: '#059669', texto: '#fff' },
+    { valor: '#b45309', nome: 'Dourado', fundo: '#b45309', texto: '#fff' },
+  ]
   const [form, setForm] = useState({
     nome: cartaoInicial?.nome ?? '',
     banco: cartaoInicial?.banco ?? '',
     limite_total: cartaoInicial != null ? String(cartaoInicial.limite_total) : '',
     dia_fechamento: cartaoInicial != null ? String(cartaoInicial.dia_fechamento) : '',
     dia_vencimento: cartaoInicial != null ? String(cartaoInicial.dia_vencimento) : '',
+    cor: cartaoInicial?.cor ?? '#6366f1',
   })
   function handleChange(e) {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
@@ -56,6 +67,7 @@ function FormCartao({ onSalvar, onCancelar, carregando, cartaoInicial, textoBota
       limite_total: Number(form.limite_total) || 0,
       dia_fechamento: parseInt(form.dia_fechamento),
       dia_vencimento: parseInt(form.dia_vencimento),
+      cor: form.cor,
     })
   }
   return (
@@ -86,6 +98,34 @@ function FormCartao({ onSalvar, onCancelar, carregando, cartaoInicial, textoBota
           <label className="label">Dia de vencimento</label>
           <input name="dia_vencimento" value={form.dia_vencimento} onChange={handleChange}
             type="number" min="1" max="31" className="input" placeholder="Ex: 28" required />
+        </div>
+      </div>
+      {/* Seletor de cor */}
+      <div>
+        <label className="label">Cor do cartão</label>
+        <div className="flex flex-wrap gap-2 mt-1">
+          {CORES_CARTAO.map(c => (
+            <button key={c.valor} type="button" title={c.nome}
+              onClick={() => setForm(prev => ({ ...prev, cor: c.valor }))}
+              className={`w-8 h-8 rounded-full border-2 transition-transform ${form.cor === c.valor ? 'border-gray-900 scale-110' : 'border-transparent'}`}
+              style={{ backgroundColor: c.fundo }}
+              aria-label={c.nome}
+              aria-pressed={form.cor === c.valor}
+            />
+          ))}
+          {/* Cor personalizada */}
+          <label className="w-8 h-8 rounded-full border-2 border-gray-200 overflow-hidden cursor-pointer transition-transform hover:scale-110" title="Cor personalizada">
+            <input type="color" value={form.cor}
+              onChange={e => setForm(prev => ({ ...prev, cor: e.target.value }))}
+              className="w-full h-full opacity-0 absolute" style={{ width: 0, height: 0 }} />
+            <div className="w-full h-full rounded-full" style={{ backgroundColor: form.cor }} />
+          </label>
+        </div>
+        {/* Prévia */}
+        <div className="mt-3 rounded-xl p-3 flex items-center gap-2 text-sm font-medium"
+          style={{ background: form.cor, color: '#fff' }}>
+          <CreditCard size={16} />
+          {form.nome || 'Meu cartão'}
         </div>
       </div>
       <div className="flex gap-3 pt-1">

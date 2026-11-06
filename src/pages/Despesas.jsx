@@ -1889,19 +1889,6 @@ export default function Despesas() {
         </div>
       )}
 
-      {pagina === 'visao' && (
-        <section className="card !p-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center"><Lightbulb size={19} className="text-emerald-600" /></div>
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900">Resumo inteligente do mês</h2>
-              <p className="text-xs text-gray-500">Confira a distribuição dos gastos e a meta de economia.</p>
-            </div>
-          </div>
-          <button type="button" onClick={() => setPagina('analises')} className="text-sm font-semibold text-marca hover:underline">Ver análises →</button>
-        </section>
-      )}
-
       {pagina === 'futuras' && (
         <div className="space-y-4">
       {/* Despesas cadastradas para meses seguintes: visíveis sem afetar o resumo atual. */}
@@ -2059,16 +2046,6 @@ export default function Despesas() {
       {pagina === 'analises' && (
         <div className="space-y-4">
       {/* Painel inteligente: leitura dos valores existentes, sem persistência */}
-      <ResumoInteligenteDespesas
-        despesas={despesas}
-        parcelasDoMes={parcelasDoMes}
-        tipoNoMes={tipoNoMes}
-        anoMesAtual={anoMesAtual}
-        totalFixas={totalFixas}
-        totalVariaveis={totalVariaveis}
-        totalGeral={totalGeral}
-        carregando={carregando || carregandoParc}
-      />
 
       {/* Conferência de registros originais, inclusive lançamentos de outros meses. */}
       <section className="card">

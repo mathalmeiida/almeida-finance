@@ -287,7 +287,7 @@ export default function Consultoria() {
 
             <button type="button" onClick={irParaConsultoria} className="btn-primary flex w-full items-center justify-center gap-2 rounded-xl py-3 font-semibold">
 
-              Ver meu interesse <ArrowRight size={17} />
+              Solicitar consultoria <ArrowRight size={17} />
 
             </button>
 

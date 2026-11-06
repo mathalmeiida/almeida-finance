@@ -20,7 +20,7 @@
  *   compact             bool     layout reduzido para sidebar
  */
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { Calculator, ChevronDown, ChevronUp, RefreshCw, Info } from 'lucide-react'
 import InputMoeda from './InputMoeda'
 
@@ -91,6 +91,16 @@ export default function SimuladorCustoVida({
   }
 
   const [valores, setValores] = useState(valoresIniciais)
+
+  // Quando os dados reais chegam (props atualizadas) e o modo é 'real',
+  // reinicializa os valores para refletir os dados do mês atual.
+  // Isso corrige o problema de campos vazios ao abrir no modo 'real'.
+  useEffect(() => {
+    if (modo === 'real') {
+      aplicarModo('real')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [despesasReais, categoriasTotais.length])
 
   function aplicarModo(novoModo) {
     setModo(novoModo)

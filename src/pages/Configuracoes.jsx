@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 
 import { useNavigate } from 'react-router-dom'
 
-import { User, Mail, AlertTriangle, Loader2, Trash2, LogOut, Sparkles, Eye, EyeOff, Clock, MessageSquarePlus, CheckCircle2, Palette, Check, Moon } from 'lucide-react'
+import { User, Mail, AlertTriangle, Loader2, Trash2, LogOut, Sparkles, Eye, EyeOff, Clock, MessageSquarePlus, CheckCircle2, Palette, Check, Moon, Lock, ShieldCheck } from 'lucide-react'
 
 import { useAuth } from '../contexts/AuthContext'
 
@@ -22,8 +22,155 @@ import NotificacoesPush from '../components/NotificacoesPush'
 
 
 
+// Card de SEGURANÇA: alteração de senha para usuário já autenticado.
+// Usa supabase.auth.updateUser({ password }) via AuthContext.redefinirSenha.
+// Não armazena senhas em tabelas nem localStorage.
+function AlterarSenha() {
+  const { redefinirSenha } = useAuth()
+  const [aberto, setAberto] = useState(false)
+  const [nova, setNova] = useState('')
+  const [confirmar, setConfirmar] = useState('')
+  const [mostrarNova, setMostrarNova] = useState(false)
+  const [mostrarConf, setMostrarConf] = useState(false)
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+  const [sucesso, setSucesso] = useState(false)
+
+  function abrir() { setNova(''); setConfirmar(''); setErro(''); setSucesso(false); setAberto(true) }
+  function fechar() { if (!salvando) setAberto(false) }
+
+  function forca(s) {
+    if (!s) return null
+    let pts = 0
+    if (s.length >= 8) pts++
+    if (s.length >= 12) pts++
+    if (/[A-Z]/.test(s)) pts++
+    if (/[0-9]/.test(s)) pts++
+    if (/[^A-Za-z0-9]/.test(s)) pts++
+    if (pts <= 1) return { texto: 'Fraca', cor: 'bg-red-500', largura: '25%' }
+    if (pts <= 3) return { texto: 'Média', cor: 'bg-amber-500', largura: '60%' }
+    return { texto: 'Forte', cor: 'bg-green-500', largura: '100%' }
+  }
+
+  async function handleSalvar(e) {
+    e.preventDefault()
+    setErro('')
+    if (nova.length < 6) { setErro('A nova senha deve ter pelo menos 6 caracteres.'); return }
+    if (nova !== confirmar) { setErro('As senhas não coincidem.'); return }
+    setSalvando(true)
+    try {
+      await redefinirSenha(nova)
+      setSucesso(true)
+      setNova(''); setConfirmar('')
+      setTimeout(() => { setAberto(false); setSucesso(false) }, 2500)
+    } catch (err) {
+      setErro(err.message || 'Não foi possível alterar a senha. Tente novamente.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  const f = forca(nova)
+
+  return (
+    <>
+      <div className="card">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 bg-amber-50 rounded-xl flex items-center justify-center shrink-0">
+            <Lock size={16} className="text-amber-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-base font-semibold text-gray-900">Segurança e acesso</h2>
+            <p className="text-sm text-gray-500 mt-1">Gerencie sua senha e opções de acesso à conta.</p>
+            <button onClick={abrir}
+              className="mt-3 inline-flex items-center gap-2 btn-secondary text-sm">
+              <Lock size={15} /> Alterar senha
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <Modal aberto={aberto} onFechar={fechar} titulo="Alterar senha">
+        {sucesso ? (
+          <div className="flex items-center gap-3 py-4">
+            <CheckCircle2 size={22} className="text-green-500 flex-shrink-0" />
+            <p className="text-sm font-medium text-green-700">Senha alterada com sucesso!</p>
+          </div>
+        ) : (
+          <form onSubmit={handleSalvar} className="space-y-4">
+            <div>
+              <label className="label">Nova senha</label>
+              <div className="relative">
+                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type={mostrarNova ? 'text' : 'password'}
+                  value={nova}
+                  onChange={e => setNova(e.target.value)}
+                  className="input pl-9 pr-10"
+                  placeholder="Mínimo 6 caracteres"
+                  required
+                  autoComplete="new-password"
+                />
+                <button type="button" onClick={() => setMostrarNova(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  {mostrarNova ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {f && (
+                <div className="mt-1.5">
+                  <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full transition-all ${f.cor}`} style={{ width: f.largura }} />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">Força: {f.texto}</p>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="label">Confirmar nova senha</label>
+              <div className="relative">
+                <ShieldCheck size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type={mostrarConf ? 'text' : 'password'}
+                  value={confirmar}
+                  onChange={e => setConfirmar(e.target.value)}
+                  className="input pl-9 pr-10"
+                  placeholder="Repita a nova senha"
+                  required
+                  autoComplete="new-password"
+                />
+                <button type="button" onClick={() => setMostrarConf(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  {mostrarConf ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {confirmar && nova !== confirmar && (
+                <p className="text-xs text-red-500 mt-1">As senhas não coincidem.</p>
+              )}
+            </div>
+
+            {erro && (
+              <div className="flex items-start gap-2 bg-red-50 border border-red-100 text-red-700 text-sm rounded-xl p-3">
+                <AlertTriangle size={15} className="flex-shrink-0 mt-0.5" />
+                <span>{erro}</span>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-1">
+              <button type="button" onClick={fechar} disabled={salvando} className="btn-secondary flex-1">Cancelar</button>
+              <button type="submit" disabled={salvando || !nova || !confirmar}
+                className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-60">
+                {salvando ? <><Loader2 size={15} className="animate-spin" />Salvando...</> : 'Salvar nova senha'}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
+    </>
+  )
+}
+
 // Card de APARÊNCIA: escolha da cor do tema (Azul padrão / Rosa / Verde / Roxo).
-// A preferência é salva no perfil (atualizarCorTema → perfis.cor_tema) e aplicada
 // globalmente pela classe .tema-* no <html> (ver AuthContext + index.css). Só
 // identidade visual — não altera cálculos nem dados.
 // Preferência por usuário. O calendário completo lerá esta mesma chave.
@@ -737,6 +884,9 @@ export default function Configuracoes() {
 
           {/* Acessos de consultoria */}
           <AcessosConsultoria />
+
+          {/* Segurança e acesso */}
+          <AlterarSenha />
 
           {/* Rever apresentação */}
           <div className="card">

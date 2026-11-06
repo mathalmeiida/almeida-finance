@@ -27,6 +27,7 @@ import ModalAnteciparPagamento from '../components/ModalAnteciparPagamento'
 import HorizonteFinanceiro from '../components/HorizonteFinanceiro'
 import { gerarHorizonte } from '../lib/horizonteFinanceiro'
 import CalendarioFinanceiroHome from '../components/CalendarioFinanceiroHome'
+import { useMetas } from '../hooks/useMetas'
 
 // Chaves lidas em App.jsx (AreaAutenticada) para reabrir o onboarding e saber
 // em qual etapa começar. Mesmas chaves usadas pela tela de Configurações.
@@ -1803,6 +1804,8 @@ export default function Dashboard() {
   // Patrimônio investido (card "Meu Patrimônio"). Reutiliza o hook da aba
   // Investimentos. NÃO entra no saldo/limite/receitas — é patrimônio separado.
   const { investimentos, patrimonioTotal, reservaVinculada } = useInvestimentos()
+  // Metas do usuário — para o card de metas da sidebar (até 2 prioritárias)
+  const { metas: metasUsuario } = useMetas()
   // Modo da reserva: 'vinculada' soma reserva_valor dos investimentos; 'manual'
   // usa perfis.reserva_atual (comportamento atual). Default manual.
   const reservaModo = perfil?.reserva_modo === 'vinculada' ? 'vinculada' : 'manual'
