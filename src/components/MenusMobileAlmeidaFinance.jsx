@@ -3,6 +3,7 @@ import {
   X, ReceiptText, TrendingUp, CreditCard, UtensilsCrossed,
   UserRound, Settings, Grid2X2, CircleHelp, Info, LogOut, ChevronRight,
 } from 'lucide-react'
+import AvatarUsuario from './AvatarUsuario'
 
 /**
  * Menus inferiores para a navegação mobile do Almeida Finance.
@@ -13,8 +14,9 @@ import {
  *  onFechar — fecha o sheet
  *  onNavigate — navega para uma rota existente do React Router
  *  onSair   — encerra a sessão (já implementado no Layout)
+ *  avatarUrl, nomeUsuario — foto/nome do usuário, exibidos no item "Meu perfil"
  */
-export default function MenusMobileAlmeidaFinance({ aberto, onFechar, onNavigate, onSair }) {
+export default function MenusMobileAlmeidaFinance({ aberto, onFechar, onNavigate, onSair, avatarUrl = null, nomeUsuario = '' }) {
   // Fecha com Escape
   useEffect(() => {
     if (!aberto) return
@@ -42,6 +44,7 @@ export default function MenusMobileAlmeidaFinance({ aberto, onFechar, onNavigate
       detalhe: 'Dados pessoais e segurança',
       Icone: UserRound,
       rota: '/mais/perfil',
+      avatar: true, // mostra a foto do usuário (ou iniciais) no lugar do ícone
     },
     {
       titulo: 'Configurações',
@@ -141,6 +144,8 @@ export default function MenusMobileAlmeidaFinance({ aberto, onFechar, onNavigate
               key={item.titulo}
               item={item}
               ehMais={ehMais}
+              avatarUrl={avatarUrl}
+              nomeUsuario={nomeUsuario}
               onClick={() => escolher(item)}
             />
           ))}
@@ -172,7 +177,7 @@ export default function MenusMobileAlmeidaFinance({ aberto, onFechar, onNavigate
 }
 
 // ── Item individual ────────────────────────────────────────────────────────
-function ItemMenu({ item, ehMais, onClick }) {
+function ItemMenu({ item, ehMais, onClick, avatarUrl, nomeUsuario }) {
   // Visual vinho (menu Mais) vs branco (menu Adicionar)
   const bgItem   = ehMais ? 'rgba(255,255,255,0.05)' : '#ffffff'
   const border   = ehMais ? '1px solid rgba(80,40,56,0.5)' : '1px solid #f1f5f9'
@@ -189,12 +194,17 @@ function ItemMenu({ item, ehMais, onClick }) {
       className="flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left transition-all active:opacity-80"
       style={{ background: bgItem, border }}
     >
-      <span
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
-        style={{ background: bgIcon, color: corIcon }}
-      >
-        <item.Icone size={21} />
-      </span>
+      {item.avatar ? (
+        <AvatarUsuario url={avatarUrl} nome={nomeUsuario} variante="gradiente"
+          className="h-11 w-11" textoClassName="text-sm" />
+      ) : (
+        <span
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+          style={{ background: bgIcon, color: corIcon }}
+        >
+          <item.Icone size={21} />
+        </span>
+      )}
       <span className="min-w-0 flex-1">
         <strong className="block text-sm font-semibold" style={{ color: txtMain }}>
           {item.titulo}

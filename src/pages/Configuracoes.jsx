@@ -21,6 +21,7 @@ import Modal from '../components/Modal'
 import NotificacoesPush from '../components/NotificacoesPush'
 
 import { useOcultarValores } from '../contexts/OcultarValoresContext'
+import { abrirRefazerOnboarding } from '../lib/onboardingFlags'
 
 
 
@@ -845,9 +846,6 @@ function AcessosConsultoria() {
 
 
 
-// Mesma chave lida em App.jsx (AreaAutenticada) para reabrir o onboarding.
-const CHAVE_REFAZER = 'almeida_refazer_onboarding'
-
 
 
 const PALAVRA_ENCERRAR = 'ENCERRAR'
@@ -898,9 +896,9 @@ export default function Configuracoes() {
   // é o mesmo fluxo do 1º acesso, útil para revisar/complementar informações.
   function refazerConfiguracao() {
 
-    try { localStorage.setItem(CHAVE_REFAZER, '1') } catch { /* ignore */ }
+    abrirRefazerOnboarding()
 
-    navigate('/') // a Home (AreaAutenticada) detecta a flag e abre o onboarding
+    navigate('/') // a AreaAutenticada detecta o gatilho e abre o onboarding
 
   }
 

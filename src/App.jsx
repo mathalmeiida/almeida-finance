@@ -8,6 +8,10 @@ import { OcultarValoresProvider } from './contexts/OcultarValoresContext'
 
 import { useOnboarding } from './hooks/useOnboarding'
 
+import {
+  lerRefazerOnboarding, ouvirRefazerOnboarding, encerrarRefazerOnboarding, limparFlagsLegadasOnboarding,
+} from './lib/onboardingFlags'
+
 import Layout from './components/Layout'
 
 import Onboarding from './pages/Onboarding'
@@ -149,31 +153,78 @@ function ContaDesativada() {
 
 }
 
-// Gatilho de "refazer configuração financeira": a tela de Configurações (e o
+// Erro ao carregar o perfil (ex.: sem conexão). Em vez de ficar carregando
+// para sempre — ou pior, mostrar o onboarding por engano — oferece tentar de
+// novo. Os dados do usuário não são afetados.
+function ErroCarregarPerfil() {
 
-// card "Complete sua configuração" da Home) gravam esta flag no localStorage e
+  const { recarregarPerfil, sair } = useAuth()
 
-// redirecionam para a Home; aqui o onboarding é reaberto mesmo que a conta já
+  const [tentando, setTentando] = useState(false)
 
-// tenha dados (não depende de conta vazia).
+  async function tentarDeNovo() {
 
-const CHAVE_REFAZER = 'almeida_refazer_onboarding'
+    setTentando(true)
 
-// Etapa onde o onboarding deve começar quando reaberto pelo card da Home
+    try { await recarregarPerfil() } finally { setTentando(false) }
 
-// (ex.: 'renda', 'despesas', 'reserva'). Vazio = começa do início.
+  }
 
-const CHAVE_ETAPA_ONBOARDING = 'almeida_onboarding_etapa'
+  return (
+
+    <div className="min-h-[100dvh] flex items-center justify-center bg-gray-50 p-4">
+
+      <div className="card max-w-md w-full text-center">
+
+        <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+
+          <span className="text-3xl">📶</span>
+
+        </div>
+
+        <h1 className="text-xl font-bold text-gray-900 mb-2">Não foi possível carregar sua conta</h1>
+
+        <p className="text-sm text-gray-500 mb-6">
+
+          Verifique sua conexão com a internet e tente novamente. Seus dados estão preservados.
+
+        </p>
+
+        <button onClick={tentarDeNovo} disabled={tentando} className="btn-primary w-full mb-2 disabled:opacity-60">
+
+          {tentando ? 'Tentando...' : 'Tentar novamente'}
+
+        </button>
+
+        <button onClick={() => sair().catch(() => {})} className="btn-secondary w-full">Sair</button>
+
+      </div>
+
+    </div>
+
+  )
+
+}
 
 // Decide, para o usuário já autenticado, entre: conta desativada, onboarding
 
-// (primeiro acesso OU refazer) ou o app normal.
+// (primeiro acesso OU refazer manual) ou o app normal.
+
+//
+
+// Primeiro acesso: decidido SÓ por perfis.onboarding_concluido (banco).
+
+// "Refazer configuração" (Configurações / card da Home): gatilho em memória
+
+// (lib/onboardingFlags) — não persiste, então fechar/atualizar o app nunca
+
+// reabre o onboarding sozinho.
 
 function AreaAutenticada({ children }) {
 
-  const { usuario, perfil, contaDesativada, modoConsultoria } = useAuth()
+  const { perfilProprio, contaDesativada, modoConsultoria } = useAuth()
 
-  const { verificando, precisaOnboarding, concluir } = useOnboarding()
+  const { verificando, precisaOnboarding, erro: erroPerfil, concluir } = useOnboarding()
 
   // Solicitações de consultoria direcionadas a ESTE usuário (como cliente).
 
@@ -205,93 +256,61 @@ function AreaAutenticada({ children }) {
 
   }, [pendentesParaMim, autorizar, recusar])
 
-  // Flag de "refazer" lida do localStorage (setada em Configurações ou no card
+  // Reabertura manual do onboarding (em memória).
 
-  // "Complete sua configuração" da Home).
-
-  const [refazer, setRefazer] = useState(() => {
-
-    try { return localStorage.getItem(CHAVE_REFAZER) === '1' } catch { return false }
-
-  })
-
-  // Etapa inicial do onboarding (quando aberto pelo card da Home apontando para
-
-  // um item pendente específico). Vazio = começa do início.
-
-  const [etapaInicial, setEtapaInicial] = useState(() => {
-
-    try { return localStorage.getItem(CHAVE_ETAPA_ONBOARDING) || '' } catch { return '' }
-
-  })
-
-  // Reage caso a flag seja alterada em outra aba/fluxo (evento nativo 'storage')
-
-  // ou na MESMA aba (evento customizado disparado pelo card da Home).
+  const [refazer, setRefazer] = useState(() => lerRefazerOnboarding())
 
   useEffect(() => {
 
-    function sync() {
+    // Remove as chaves antigas do localStorage que faziam o onboarding voltar.
 
-      try {
+    limparFlagsLegadasOnboarding()
 
-        setRefazer(localStorage.getItem(CHAVE_REFAZER) === '1')
-
-        setEtapaInicial(localStorage.getItem(CHAVE_ETAPA_ONBOARDING) || '')
-
-      } catch { /* ignore */ }
-
-    }
-
-    window.addEventListener('storage', sync)
-
-    window.addEventListener('almeida-refazer-onboarding', sync)
-
-    return () => {
-
-      window.removeEventListener('storage', sync)
-
-      window.removeEventListener('almeida-refazer-onboarding', sync)
-
-    }
+    return ouvirRefazerOnboarding(() => setRefazer(lerRefazerOnboarding()))
 
   }, [])
 
   const encerrarOnboarding = useCallback(async () => {
 
-    try {
+    encerrarRefazerOnboarding()
 
-      localStorage.removeItem(CHAVE_REFAZER)
-
-      localStorage.removeItem(CHAVE_ETAPA_ONBOARDING)
-
-    } catch { /* ignore */ }
-
-    setRefazer(false)
-
-    setEtapaInicial('')
-
-    await concluir() // grava onboarding_concluido = true
+    await concluir() // grava onboarding_concluido = true no banco
 
   }, [concluir])
 
+  // Erro ao carregar o perfil: oferece tentar de novo (nunca decide às cegas).
+
+  if (erroPerfil && !perfilProprio) return <ErroCarregarPerfil />
+
   // Enquanto o perfil não carrega, não decide nada (evita piscar telas).
 
-  if (usuario && perfil == null) return <Carregando />
+  if (verificando) return <Carregando />
 
   // Conta desativada tem prioridade sobre qualquer outra tela.
 
   if (contaDesativada) return <ContaDesativada />
 
-  // Enquanto verifica o status do onboarding, aguarda (evita piscar o app).
+  // Onboarding: primeiro acesso (banco) OU refazer manual. Nunca no modo
 
-  if (verificando) return <Carregando />
+  // consultoria (o consultor está vendo a conta de outra pessoa).
 
-  // Onboarding: primeiro acesso (precisaOnboarding) OU refazer manual.
+  if (!modoConsultoria && (precisaOnboarding || refazer.ativo)) {
 
-  if (precisaOnboarding || refazer) {
+    return (
 
-    return <Onboarding aoConcluir={encerrarOnboarding} etapaInicial={etapaInicial} />
+      <Onboarding
+
+        aoConcluir={encerrarOnboarding}
+
+        etapaInicial={refazer.ativo ? refazer.etapa : ''}
+
+        // A apresentação (slides) só aparece no PRIMEIRO acesso real.
+
+        exibirApresentacao={precisaOnboarding && !refazer.ativo}
+
+      />
+
+    )
 
   }
 
