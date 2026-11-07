@@ -1,67 +1,36 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
 /**
  * Controla o fluxo de primeiro acesso (onboarding).
  *
- * FONTE PRINCIPAL e ÚNICA: perfis.onboarding_concluido (persistido no Supabase,
- * por conta → funciona em qualquer dispositivo). Sem localStorage.
+ * FONTE DA VERDADE: perfis.onboarding_concluido no Supabase, vinculado ao
+ * usuário autenticado → vale em qualquer dispositivo, após atualizar a página,
+ * fechar o navegador, reiniciar o celular ou sair e entrar de novo.
  *
- * Regra de exibição:
- *   - onboarding_concluido === true  → NUNCA mostra.
- *   - onboarding_concluido === false → SEMPRE mostra o onboarding, inclusive
- *     para contas que já têm dados financeiros (ex.: quando o Admin usa
- *     "Reiniciar onboarding"). Os dados NÃO são apagados — o fluxo apenas
- *     reaparece e as etapas vêm pré-preenchidas com o que já existe.
+ * A decisão é DERIVADA de forma síncrona do perfil já carregado (sem efeito
+ * assíncrono intermediário), então não existe um quadro em que o onboarding
+ * "pisque" antes de o status real ser conhecido:
+ *   - perfil ainda não carregou → verificando = true (tela de carregamento);
+ *   - erro ao carregar o perfil → erro (tela "Tentar novamente"), NUNCA o
+ *     onboarding por engano;
+ *   - onboarding_concluido === true  → nunca mostra;
+ *   - onboarding_concluido !== true  → mostra (conta nova ou "Reiniciar
+ *     onboarding" feito pelo Admin). Dados financeiros não são apagados.
+ *
+ * Usa SEMPRE o perfil do próprio usuário logado (perfilProprio). No modo
+ * consultoria `perfil` é o do cliente e não deve decidir o onboarding do
+ * consultor.
  */
 export function useOnboarding() {
-  const { usuario, perfil, marcarOnboardingConcluido } = useAuth()
-  const [verificando, setVerificando] = useState(true)
-  const [precisaOnboarding, setPrecisaOnboarding] = useState(false)
+  const { usuario, perfilProprio, perfilErro, marcarOnboardingConcluido } = useAuth()
 
-  const verificar = useCallback(async () => {
-    if (!usuario) return
-    // Aguarda o perfil carregar (o AuthContext busca em "perfis"). Enquanto
-    // não chegar, mantém "verificando" para não liberar o app nem piscar o
-    // onboarding antes de sabermos o status real.
-    if (perfil == null) { setVerificando(true); return }
+  const verificando = !!usuario && perfilProprio == null && !perfilErro
+  const precisaOnboarding = !!usuario && !!perfilProprio && perfilProprio.onboarding_concluido !== true
 
-    setVerificando(true)
-    try {
-      // Fonte principal e ÚNICA: a flag persistida no banco.
-      //  - true  → onboarding concluído, nunca mostra.
-      //  - false → mostra o onboarding. Isso vale tanto para contas novas e
-      //    vazias quanto para contas que o ADMIN reiniciou (onboarding_concluido
-      //    = false) MESMO que já tenham dados financeiros. Os dados NÃO são
-      //    apagados; o fluxo apenas reaparece e os campos vêm pré-preenchidos.
-      //
-      // Importante: NÃO auto-corrigimos mais a flag com base na existência de
-      // dados. Fazer isso anulava o "Reiniciar onboarding" do Admin para quem
-      // já tinha receitas/despesas (a flag voltava a true e o fluxo não abria).
-      setPrecisaOnboarding(perfil.onboarding_concluido !== true)
-    } catch {
-      // Em falha de rede, por segurança NÃO interrompe o acesso ao app.
-      setPrecisaOnboarding(false)
-    } finally {
-      setVerificando(false)
-    }
-  }, [usuario, perfil])
+  // Conclui o onboarding: grava onboarding_concluido = true no banco (com
+  // novas tentativas e reenvio automático se estiver sem conexão).
+  const concluir = useCallback(() => marcarOnboardingConcluido(), [marcarOnboardingConcluido])
 
-  useEffect(() => {
-    if (usuario) verificar()
-    else { setVerificando(false); setPrecisaOnboarding(false) }
-  }, [usuario, verificar])
-
-  // Conclui o onboarding: grava onboarding_concluido = true no Supabase.
-  const concluir = useCallback(async () => {
-    try {
-      await marcarOnboardingConcluido()
-    } catch {
-      // Mesmo se a gravação falhar, libera o acesso ao app nesta sessão.
-    } finally {
-      setPrecisaOnboarding(false)
-    }
-  }, [marcarOnboardingConcluido])
-
-  return { verificando, precisaOnboarding, concluir, reverificar: verificar }
+  return { verificando, precisaOnboarding, erro: perfilErro, concluir }
 }

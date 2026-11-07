@@ -130,7 +130,7 @@ function LinhaResumo({ label, valor, cor = 'text-gray-900' }) {
   )
 }
 
-export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
+export default function Onboarding({ aoConcluir, etapaInicial = '', exibirApresentacao = true }) {
   const { usuario, perfil, atualizarPreferenciasLimite, corTema, atualizarCorTema } = useAuth()
   const navigate = useNavigate()
   // Hooks das MESMAS tabelas usadas no app — sem estrutura paralela.
@@ -166,6 +166,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
     try { return localStorage.getItem(chaveApresentacao(id)) === '1' } catch { return false }
   }
   const [mostrarApresentacao, setMostrarApresentacao] = useState(() => {
+    if (!exibirApresentacao) return false     // reabertura manual: o usuário já conhece o app
     if (etapaInicial) return false            // reabertura direcionada: pula
     return !jaViuApresentacao(usuario?.id)    // sem id → mostra (não esconde à toa)
   })

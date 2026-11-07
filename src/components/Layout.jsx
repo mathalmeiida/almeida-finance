@@ -33,6 +33,7 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import LogoMarca from './LogoMarca'
 import MenusMobileAlmeidaFinance from './MenusMobileAlmeidaFinance'
+import AvatarUsuario from './AvatarUsuario'
 // Agrupamento VISUAL da sidebar desktop (mesmas rotas/itens de navItems,
 // apenas organizados em seções). As permissões seguem iguais: itens com
 // adminOnly só aparecem quando ehAdmin (filtrado na renderização).
@@ -103,13 +104,10 @@ function NavItem({ item, onClick }) {
 }
 function UserFooter({ onSair, perfil, usuario }) {
   const nomeExibido = perfil?.nome || usuario?.email?.split('@')[0] || 'Usuário'
-  const iniciais = nomeExibido.slice(0, 2).toUpperCase()
   return (
     <div className="px-4 pt-3 pb-4 border-t border-gray-100">
       <div className="flex items-center gap-3 px-1 py-2 mb-1">
-        <div className="w-9 h-9 bg-marca-100 rounded-full flex items-center justify-center flex-shrink-0">
-          <span className="text-xs font-bold text-marca">{iniciais}</span>
-        </div>
+        <AvatarUsuario url={perfil?.avatar_url} nome={nomeExibido} className="w-9 h-9" textoClassName="text-xs" />
         <div className="min-w-0 leading-tight">
           <p className="text-sm font-semibold text-gray-800 truncate">{nomeExibido}</p>
           <p className="text-xs text-gray-400 truncate">{usuario?.email}</p>
@@ -179,7 +177,6 @@ export default function Layout({ children }) {
   const navigate = useNavigate()
   const location = useLocation()
   const nomeExibido = perfil?.nome || usuario?.email?.split('@')[0] || 'Usuário'
-  const iniciais = nomeExibido.slice(0, 2).toUpperCase()
   // Home não tem seta de voltar; as demais telas internas sim.
   const ehHome = location.pathname === '/'
   // Volta respeitando o histórico de navegação. Se não houver histórico
@@ -303,11 +300,11 @@ export default function Layout({ children }) {
           <button
             type="button"
             onClick={() => setMenuMobile('mais')}
-            className="w-9 h-9 bg-marca-100 rounded-full flex items-center justify-center flex-shrink-0"
+            className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
             aria-label="Abrir mais ações e minha conta"
             aria-expanded={menuMobile === 'mais'}
           >
-            <span className="text-xs font-bold text-marca">{iniciais}</span>
+            <AvatarUsuario url={perfil?.avatar_url} nome={nomeExibido} className="w-9 h-9" textoClassName="text-xs" />
           </button>
         </header>
         {/* Barra de voltar no DESKTOP (que não tem header). Só fora da Home. */}
@@ -351,6 +348,8 @@ export default function Layout({ children }) {
         onFechar={() => setMenuMobile(null)}
         onNavigate={(rota) => { setMenuMobile(null); navigate(rota) }}
         onSair={handleSair}
+        avatarUrl={perfil?.avatar_url}
+        nomeUsuario={nomeExibido}
       />
     </div>
   )

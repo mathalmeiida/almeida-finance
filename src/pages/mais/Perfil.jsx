@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Mail, UserRound, CheckCircle2, Loader2, Pencil, X } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PaginaInterna from '../../components/PaginaInterna'
+import EditorFotoPerfil from '../../components/EditorFotoPerfil'
 // Reaproveita os fluxos reais já existentes em Configurações (sem duplicar lógica):
 //  - AlterarSenha: supabase.auth.updateUser({ password }) via AuthContext
 //  - ConfigurarBiometria: passkeys do Supabase Auth (só aparece se o dispositivo
@@ -11,7 +12,8 @@ import { AlterarSenha, ConfigurarBiometria } from '../Configuracoes'
 // ─── Meu Perfil ───────────────────────────────────────────────────────────────
 // Dados reais do usuário autenticado. Nome é gravado em perfis.nome (a RLS
 // permite apenas o próprio registro). O e-mail é gerenciado pela autenticação
-// e não é editável aqui. Não há foto: o projeto não possui storage configurado.
+// e não é editável aqui. Foto de perfil: Supabase Storage (bucket "avatars") +
+// perfis.avatar_url, via EditorFotoPerfil.
 export default function Perfil() {
   const { usuario, perfil, perfilProprio, atualizarPreferenciasLimite, somenteLeitura } = useAuth()
 
@@ -19,13 +21,19 @@ export default function Perfil() {
   const meuPerfil = perfilProprio || perfil
   const email = usuario?.email || ''
   const nome = meuPerfil?.nome || email.split('@')[0] || 'Usuário'
-  const iniciais = nome.slice(0, 2).toUpperCase()
 
   const [editando, setEditando] = useState(false)
   const [novoNome, setNovoNome] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [sucesso, setSucesso] = useState(false)
+  // Mensagem do editor de foto (sucesso ao salvar/remover).
+  const [msgFoto, setMsgFoto] = useState(null)
+  useEffect(() => {
+    if (!msgFoto) return undefined
+    const t = setTimeout(() => setMsgFoto(null), 4000)
+    return () => clearTimeout(t)
+  }, [msgFoto])
 
   function iniciarEdicao() {
     setNovoNome(meuPerfil?.nome || '')
@@ -53,18 +61,22 @@ export default function Perfil() {
   return (
     <PaginaInterna titulo="Meu perfil" descricao="Seus dados de acesso e segurança da conta.">
       {/* Identidade */}
-      <div className="card flex items-center gap-4">
-        <div
-          className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xl font-bold"
-          style={{ background: 'linear-gradient(135deg,#801D39,#420D1D)' }}
-          aria-hidden="true"
-        >
-          {iniciais}
+      <div className="card">
+        <div className="flex items-center gap-4">
+          <EditorFotoPerfil nome={nome} onMensagem={setMsgFoto} />
+          <div className="min-w-0">
+            <p className="text-base font-bold text-gray-900 truncate">{nome}</p>
+            <p className="text-sm text-gray-500 truncate">{email}</p>
+            {!somenteLeitura && (
+              <p className="text-xs text-gray-400 mt-0.5">Toque na foto para alterar</p>
+            )}
+          </div>
         </div>
-        <div className="min-w-0">
-          <p className="text-base font-bold text-gray-900 truncate">{nome}</p>
-          <p className="text-sm text-gray-500 truncate">{email}</p>
-        </div>
+        {msgFoto && (
+          <p role="status" className="text-xs text-green-700 mt-3 flex items-center gap-1">
+            <CheckCircle2 size={13} /> {msgFoto.texto}
+          </p>
+        )}
       </div>
 
       {/* Dados pessoais */}

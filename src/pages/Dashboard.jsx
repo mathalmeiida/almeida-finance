@@ -28,11 +28,7 @@ import HorizonteFinanceiro from '../components/HorizonteFinanceiro'
 import { gerarHorizonte } from '../lib/horizonteFinanceiro'
 import CalendarioFinanceiroHome from '../components/CalendarioFinanceiroHome'
 import { useMetas } from '../hooks/useMetas'
-
-// Chaves lidas em App.jsx (AreaAutenticada) para reabrir o onboarding e saber
-// em qual etapa começar. Mesmas chaves usadas pela tela de Configurações.
-const CHAVE_REFAZER = 'almeida_refazer_onboarding'
-const CHAVE_ETAPA_ONBOARDING = 'almeida_onboarding_etapa'
+import { abrirRefazerOnboarding } from '../lib/onboardingFlags'
 
 // ─── Modal de Gasto rápido ────────────────────────────────────────────────────
 // Categorias comuns de gasto do dia a dia — aparecem primeiro no seletor
@@ -2372,18 +2368,11 @@ const carregandoLimite = carregando
   }
 
   // Reabre o onboarding (mesmo fluxo do 1º acesso) na etapa pendente escolhida.
-  // Não cria dados novos: grava a flag que o AreaAutenticada (App.jsx) observa e
-  // abre o <Onboarding/> — e informa em qual etapa começar. Reutiliza o mesmo
-  // mecanismo de "Refazer configuração" das Configurações, sem duplicar lógica.
+  // Não cria dados novos: aciona o gatilho em memória que o AreaAutenticada
+  // (App.jsx) observa e abre o <Onboarding/> na etapa escolhida. Não persiste:
+  // fechar/atualizar o app no meio do fluxo NÃO o reabre sozinho depois.
   function continuarConfiguracao(chave) {
-    try {
-      localStorage.setItem(CHAVE_REFAZER, '1')
-      if (chave) localStorage.setItem(CHAVE_ETAPA_ONBOARDING, chave)
-      else localStorage.removeItem(CHAVE_ETAPA_ONBOARDING)
-    } catch { /* ignora indisponibilidade do localStorage */ }
-    // Dispara o 'storage' manualmente nesta mesma aba (o evento nativo só chega
-    // em OUTRAS abas) para o AreaAutenticada reagir imediatamente.
-    try { window.dispatchEvent(new Event('almeida-refazer-onboarding')) } catch { /* ignora */ }
+    abrirRefazerOnboarding(chave)
     navigate('/')
   }
 
