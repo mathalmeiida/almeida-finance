@@ -1,129 +1,99 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, CalendarDays, CreditCard, TrendingUp,
-  ShoppingCart, Target, BarChart2, TrendingDown,
-  Receipt, MessagesSquare,
+  LayoutDashboard, TrendingUp, TrendingDown, CreditCard, UtensilsCrossed,
+  PiggyBank, BarChart2, Activity, Target, ShoppingCart, Sparkles,
+  MessagesSquare, Settings, ShieldCheck, PlayCircle, ChevronRight,
 } from 'lucide-react'
+import { useAuth } from '../../contexts/AuthContext'
+import PaginaInterna from '../../components/PaginaInterna'
 
-// ─── Todas as Funcionalidades ────────────────────────────────────────────────
-// Grade 3 colunas com atalhos para todos os módulos reais do app.
-// Conforme design aprovado — sem páginas em branco ou destinos fictícios.
-
-const FUNCIONALIDADES = [
+// ─── Todas as funcionalidades ────────────────────────────────────────────────
+// Catálogo organizado por categoria. Cada item aponta para uma rota REAL e
+// ÚNICA do App.jsx (sem duplicatas e sem módulos inventados).
+// Parcelamentos vivem na aba "Parceladas" de Despesas (rota /parcelamentos
+// apenas redireciona), por isso não têm item separado.
+const CATEGORIAS = [
   {
-    label: 'Calendário\nFinanceiro',
-    Icone: CalendarDays,
-    rota: '/',
-    cor: '#7c3aed',
-    bg: '#ede9fe',
+    titulo: 'Visão geral',
+    itens: [
+      { rota: '/', Icone: LayoutDashboard, titulo: 'Início e calendário', detalhe: 'Saldo, limite do dia, calendário financeiro e lançamentos rápidos', cor: '#7c3aed', bg: '#ede9fe' },
+      { rota: '/minha-evolucao', Icone: Activity, titulo: 'Minha evolução', detalhe: 'Acompanhe o progresso da sua vida financeira', cor: '#7c3aed', bg: '#ede9fe' },
+    ],
   },
   {
-    label: 'Cartões\ne Faturas',
-    Icone: CreditCard,
-    rota: '/cartoes',
-    cor: '#0284c7',
-    bg: '#e0f2fe',
+    titulo: 'Movimentações',
+    itens: [
+      { rota: '/receitas', Icone: TrendingUp, titulo: 'Receitas', detalhe: 'Entradas, recorrências e categorias', cor: '#059669', bg: '#d1fae5' },
+      { rota: '/despesas', Icone: TrendingDown, titulo: 'Despesas e parcelamentos', detalhe: 'Gastos, contas fixas e compras parceladas', cor: '#e11d48', bg: '#ffe4e6' },
+      { rota: '/cartoes', Icone: CreditCard, titulo: 'Cartões e faturas', detalhe: 'Limites, compras e faturas dos cartões', cor: '#0284c7', bg: '#e0f2fe' },
+      { rota: '/beneficios', Icone: UtensilsCrossed, titulo: 'Benefícios VR/VA', detalhe: 'Saldo e gastos de vale-refeição e alimentação', cor: '#d97706', bg: '#fef3c7' },
+    ],
   },
   {
-    label: 'Investimentos',
-    Icone: TrendingUp,
-    rota: '/investimentos',
-    cor: '#059669',
-    bg: '#d1fae5',
+    titulo: 'Planejamento e investimentos',
+    itens: [
+      { rota: '/investimentos', Icone: PiggyBank, titulo: 'Investimentos', detalhe: 'Aportes, resgates e rentabilidade', cor: '#059669', bg: '#d1fae5' },
+      { rota: '/metas', Icone: Target, titulo: 'Metas', detalhe: 'Objetivos financeiros e progresso', cor: '#d97706', bg: '#fef3c7' },
+      { rota: '/projecao', Icone: BarChart2, titulo: 'Planejamento e projeção', detalhe: 'Organize hoje e projete os próximos meses', cor: '#7c3aed', bg: '#ede9fe' },
+    ],
   },
   {
-    label: 'Simular\nCompra (E Se)',
-    Icone: ShoppingCart,
-    rota: '/posso-comprar',
-    cor: '#801D39',
-    bg: '#fce7f3',
+    titulo: 'Simulações',
+    itens: [
+      { rota: '/posso-comprar', Icone: ShoppingCart, titulo: 'Posso comprar?', detalhe: 'Veja o impacto de uma compra no seu orçamento', cor: '#801D39', bg: '#fce7f3' },
+      { rota: '/e-se', Icone: Sparkles, titulo: 'E se...?', detalhe: 'Compare cenários financeiros', cor: '#7c3aed', bg: '#ede9fe' },
+    ],
   },
   {
-    label: 'Metas\nFinanceiras',
-    Icone: Target,
-    rota: '/metas',
-    cor: '#d97706',
-    bg: '#fef3c7',
-  },
-  {
-    label: 'Projeções\n(12 meses)',
-    Icone: BarChart2,
-    rota: '/projecao',
-    cor: '#7c3aed',
-    bg: '#ede9fe',
-  },
-  {
-    label: 'Receitas\ne Despesas',
-    Icone: TrendingDown,
-    rota: '/despesas',
-    cor: '#e11d48',
-    bg: '#ffe4e6',
-  },
-  {
-    label: 'Parcelamentos',
-    Icone: Receipt,
-    rota: '/despesas',        // integrado na aba "Parceladas" de Despesas
-    cor: '#d97706',
-    bg: '#fef3c7',
-  },
-  {
-    label: 'Consultoria',
-    Icone: MessagesSquare,
-    rota: '/consultoria',
-    cor: '#0891b2',
-    bg: '#cffafe',
+    titulo: 'Conta e suporte',
+    itens: [
+      { rota: '/consultoria', Icone: MessagesSquare, titulo: 'Consultoria', detalhe: 'Solicitações e acessos de consultoria', cor: '#0891b2', bg: '#cffafe' },
+      { rota: '/configuracoes', Icone: Settings, titulo: 'Configurações', detalhe: 'Aparência, notificações e privacidade', cor: '#475569', bg: '#e2e8f0' },
+      { rota: '/apresentacao', Icone: PlayCircle, titulo: 'Rever apresentação', detalhe: 'Reveja a apresentação inicial do app', cor: '#801D39', bg: '#fce7f3' },
+    ],
   },
 ]
 
+const CATEGORIA_ADMIN = {
+  titulo: 'Administração',
+  itens: [
+    { rota: '/admin', Icone: ShieldCheck, titulo: 'Painel administrativo', detalhe: 'Usuários e feedbacks (apenas administradores)', cor: '#7c3aed', bg: '#ede9fe' },
+  ],
+}
+
 export default function Funcionalidades() {
   const navigate = useNavigate()
+  const { ehAdmin } = useAuth()
+  const categorias = ehAdmin ? [...CATEGORIAS, CATEGORIA_ADMIN] : CATEGORIAS
 
   return (
-    <div className="min-h-[100dvh] bg-gray-50 -mx-4 -mt-1">
-      {/* Cabeçalho */}
-      <header className="sticky top-0 z-10 flex items-center gap-3 bg-white border-b border-gray-100 px-4 h-14"
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-        <button onClick={() => navigate(-1)} aria-label="Voltar"
-          className="touch-target -ml-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 flex items-center justify-center">
-          <ArrowLeft size={22} />
-        </button>
-        <h1 className="text-base font-bold text-gray-900 flex-1 text-center">Todas as funcionalidades</h1>
-        <span className="w-9" />
-      </header>
-
-      <div className="max-w-lg mx-auto px-4 py-5">
-        <p className="text-sm text-gray-500 mb-5">
-          Catálogo completo de recursos do Almeida Finance. Toque em qualquer item para acessar.
-        </p>
-
-        {/* Grade 3 colunas */}
-        <div className="grid grid-cols-3 gap-3">
-          {FUNCIONALIDADES.map(f => (
-            <button
-              key={f.rota + f.label}
-              type="button"
-              onClick={() => navigate(f.rota)}
-              className="flex flex-col items-center gap-2 rounded-2xl border border-gray-200 bg-white p-3 text-center shadow-sm transition-all active:scale-95 hover:shadow-md"
-            >
-              <span
-                className="flex h-12 w-12 items-center justify-center rounded-2xl"
-                style={{ background: f.bg, color: f.cor }}
+    <PaginaInterna titulo="Todas as funcionalidades" descricao="Toque em um recurso para abri-lo.">
+      {categorias.map(cat => (
+        <section key={cat.titulo} aria-label={cat.titulo}>
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2 px-1">{cat.titulo}</h2>
+          <div className="card !p-0 divide-y divide-gray-100 overflow-hidden">
+            {cat.itens.map(item => (
+              <button
+                key={item.rota}
+                type="button"
+                onClick={() => navigate(item.rota)}
+                className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
               >
-                <f.Icone size={24} />
-              </span>
-              <span className="text-xs font-semibold text-gray-800 leading-tight whitespace-pre-line">
-                {f.label}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {/* Nota de rodapé */}
-        <p className="text-xs text-gray-400 text-center mt-6">
-          Almeida Finance · Todas as funcionalidades disponíveis no app
-        </p>
-      </div>
-    </div>
+                <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl"
+                  style={{ background: item.bg, color: item.cor }}>
+                  <item.Icone size={20} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-gray-900">{item.titulo}</span>
+                  <span className="block text-xs text-gray-500">{item.detalhe}</span>
+                </span>
+                <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />
+              </button>
+            ))}
+          </div>
+        </section>
+      ))}
+    </PaginaInterna>
   )
 }

@@ -124,8 +124,21 @@
 
   /* Evita scroll horizontal acidental em telas pequenas (nenhuma página deve
      "vazar" na largura). Não afeta o desktop. */
+  /* Largura: nunca maior que a viewport. Em vez de `overflow-x: hidden` em
+     html/body (que no Safari iOS cria contêiner de rolagem, quebra position:
+     sticky e NÃO impede o navegador de alargar o layout viewport quando algum
+     filho é mais largo que a tela), tratamos a causa: o layout raiz usa
+     `min-w-0`/`max-w-full` (ver Layout.jsx) e o #root apenas "recorta" sem criar
+     contêiner de rolagem (`overflow-x: clip`) como última barreira. */
   html, body {
-    @apply overflow-x-hidden;
+    width: 100%;
+    max-width: 100%;
+  }
+  #root {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: clip;
   }
 
   /* Quando um modal/sheet está aberto, trava o scroll do conteúdo de fundo. */

@@ -128,7 +128,21 @@ export function AuthProvider({ children }) {
       }
     )
 
-    return () => subscription.unsubscribe()
+    // 3. Safari/iOS restaura páginas do cache de navegação (bfcache) ao tocar em
+    // "Voltar", inclusive a área autenticada exibida antes do logout. Ao voltar
+    // de um cache sem sessão válida, recarrega para o guard de rotas decidir.
+    function aoReexibirPagina(ev) {
+      if (!ev.persisted) return
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session && usuarioIdRef.current) window.location.reload()
+      })
+    }
+    window.addEventListener('pageshow', aoReexibirPagina)
+
+    return () => {
+      subscription.unsubscribe()
+      window.removeEventListener('pageshow', aoReexibirPagina)
+    }
   }, [])
 
   // Cadastro com e-mail e senha

@@ -1,264 +1,143 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import {
-  ArrowLeft, CircleHelp, BookOpen, MessageSquarePlus, Headphones,
-  ChevronRight, CheckCircle2, Loader2, X, ChevronDown, ChevronUp,
-} from 'lucide-react'
+import { ChevronDown, ChevronUp, CheckCircle2, Loader2, MessageSquarePlus, CircleHelp, BookOpen } from 'lucide-react'
 import { useFeedbacks } from '../../hooks/useFeedbacks'
+import { useAuth } from '../../contexts/AuthContext'
+import PaginaInterna from '../../components/PaginaInterna'
 
 // ─── Ajuda & Feedback ─────────────────────────────────────────────────────────
-// Quatro cards conforme design aprovado:
-//  1. Perguntas frequentes (FAQ) — expandível
-//  2. Como usar o aplicativo — guia expandível
-//  3. Enviar feedback — formulário real (usa useFeedbacks existente)
-//  4. Suporte — contato
-// ─────────────────────────────────────────────────────────────────────────────
+// FAQ + explicação das funcionalidades + formulário de feedback REAL.
+// Destino do feedback: tabela public.feedbacks do Supabase (hook useFeedbacks),
+// lida pelo administrador no painel Admin. Se a tabela/permissão não estiver
+// disponível no projeto, o erro é exibido — nunca simulamos sucesso.
 
 const FAQ = [
-  {
-    q: 'Como funciona o limite diário?',
-    r: 'O limite diário é calculado automaticamente a partir do seu saldo seguro (após descontar compromissos até a próxima receita e a reserva de emergência), dividido pelos dias restantes do período. Você também pode definir um valor manual.',
-  },
-  {
-    q: 'O que é saldo seguro?',
-    r: 'Saldo seguro = saldo atual − despesas, faturas e parcelas com vencimento antes da sua próxima receita. Representa o dinheiro disponível sem comprometer contas futuras.',
-  },
-  {
-    q: 'Os dados financeiros são privados?',
-    r: 'Sim. Seus dados são protegidos por políticas de segurança (RLS) no banco de dados. Nenhum usuário tem acesso aos dados de outro, a menos que você autorize explicitamente uma consultoria.',
-  },
-  {
-    q: 'Como adicionar um cartão de crédito?',
-    r: 'Acesse a seção Cartões no menu lateral ou pelo atalho "Cartões e Faturas" em Todas as Funcionalidades. Informe o nome, banco, limite, dia de fechamento e vencimento.',
-  },
-  {
-    q: 'Posso usar o app offline?',
-    r: 'O Almeida Finance é um PWA (Progressive Web App). Algumas telas podem ser acessadas offline, mas os dados financeiros exigem conexão para sincronizar com o banco de dados.',
-  },
-  {
-    q: 'Como funciona o modo Consultoria?',
-    r: 'Um consultor autorizado pode visualizar seus dados em modo somente leitura. Você concede e revoga o acesso a qualquer momento em Configurações → Acessos de consultoria.',
-  },
+  { q: 'Como funciona o limite diário?', r: 'O limite diário é calculado a partir do seu saldo seguro (já descontados os compromissos até a próxima receita e a reserva), dividido pelos dias restantes. Você também pode definir um valor manual.' },
+  { q: 'O que é saldo seguro?', r: 'É o saldo atual menos despesas, faturas e parcelas que vencem antes da sua próxima receita: o que você pode usar sem comprometer contas futuras.' },
+  { q: 'Meus dados são privados?', r: 'Sim. Cada usuário acessa apenas os próprios dados (regras de segurança no banco). Um consultor só vê suas informações, em modo somente leitura, se você autorizar.' },
+  { q: 'Como adiciono um cartão de crédito?', r: 'Abra Cartões e informe nome, limite, dia de fechamento e vencimento. As compras no cartão alimentam as faturas.' },
+  { q: 'Como escondo os valores na tela?', r: 'Use o ícone de olho na Home ou a opção "Ocultar valores" em Configurações. A escolha fica salva neste dispositivo.' },
+  { q: 'Como altero o tema?', r: 'Em Configurações → Aparência escolha Claro, Escuro ou Automático. A preferência é salva e restaurada ao entrar novamente.' },
+  { q: 'Como funciona a Consultoria?', r: 'Você pode autorizar ou recusar solicitações de consultoria e revogar o acesso a qualquer momento em Configurações.' },
 ]
 
-const GUIA = [
-  { titulo: 'Configurar o app', desc: 'Abra o menu Mais → vá em Configurações e escolha aparência, notificações e preferências financeiras.' },
-  { titulo: 'Registrar um gasto', desc: 'Toque no botão "+" na barra inferior → Despesa. Preencha valor, categoria e forma de pagamento.' },
-  { titulo: 'Simular uma compra', desc: 'Acesse "Simular Compra (E Se)" em Todas as Funcionalidades para ver o impacto no seu orçamento antes de comprar.' },
-  { titulo: 'Acompanhar investimentos', desc: 'Acesse Investimentos para registrar aportes, resgates e visualizar rentabilidade e proventos.' },
-  { titulo: 'Criar metas financeiras', desc: 'Acesse Metas para definir objetivos, vincular investimentos e acompanhar o progresso mensal.' },
+const FUNCIONALIDADES = [
+  { t: 'Início e calendário', d: 'Veja saldo, limite do dia, compromissos e o calendário financeiro, e registre gastos rapidamente.' },
+  { t: 'Receitas e Despesas', d: 'Cadastre entradas e gastos. Compras parceladas ficam na aba "Parceladas" de Despesas.' },
+  { t: 'Cartões', d: 'Controle limites, compras e faturas dos cartões.' },
+  { t: 'Benefícios VR/VA', d: 'Acompanhe saldo e gastos dos seus benefícios.' },
+  { t: 'Investimentos e Metas', d: 'Registre aportes e resgates e acompanhe objetivos financeiros.' },
+  { t: 'Planejamento e Evolução', d: 'Projete os próximos meses e acompanhe a evolução da sua vida financeira.' },
+  { t: 'Posso comprar? e E se...?', d: 'Simule o impacto de uma compra ou compare cenários antes de decidir.' },
+  { t: 'Consultoria', d: 'Gerencie acessos de consultoria aos seus dados.' },
 ]
 
 const TIPOS = [
   { value: 'sugestao', label: 'Sugestão' },
-  { value: 'duvida',   label: 'Dúvida' },
+  { value: 'duvida', label: 'Dúvida' },
   { value: 'problema', label: 'Problema' },
 ]
+const MIN = 10
+const MAX = 2000
+
+function Acordeao({ icone: Icone, titulo, itens, corIcone }) {
+  const [aberto, setAberto] = useState(null)
+  return (
+    <section className="card !p-0 overflow-hidden" aria-label={titulo}>
+      <h2 className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-gray-900 border-b border-gray-100">
+        <Icone size={16} className={corIcone} /> {titulo}
+      </h2>
+      <ul className="divide-y divide-gray-100">
+        {itens.map((it, i) => {
+          const ativo = aberto === i
+          return (
+            <li key={it.q || it.t}>
+              <button type="button" aria-expanded={ativo} onClick={() => setAberto(ativo ? null : i)}
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
+                <span className="min-w-0 text-sm font-medium text-gray-800">{it.q || it.t}</span>
+                {ativo ? <ChevronUp size={15} className="text-gray-400 flex-shrink-0" /> : <ChevronDown size={15} className="text-gray-400 flex-shrink-0" />}
+              </button>
+              {ativo && <p className="px-4 pb-3 text-sm text-gray-600 leading-relaxed">{it.r || it.d}</p>}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
 
 export default function AjudaFeedback() {
-  const navigate = useNavigate()
   const { criar } = useFeedbacks()
-
-  const [faqAberta, setFaqAberta] = useState(null)
-  const [guiaAberto, setGuiaAberto] = useState(null)
-  const [feedbackAberto, setFeedbackAberto] = useState(false)
-
-  // Formulário de feedback
+  const { somenteLeitura } = useAuth()
   const [tipo, setTipo] = useState('sugestao')
   const [mensagem, setMensagem] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [enviado, setEnviado] = useState(false)
-  const [erroEnvio, setErroEnvio] = useState('')
+  const [erro, setErro] = useState('')
 
-  async function handleEnviar(e) {
+  async function enviar(e) {
     e.preventDefault()
-    if (!mensagem.trim() || enviando) return
-    setEnviando(true); setErroEnvio('')
+    if (enviando) return
+    const texto = mensagem.trim()
+    if (texto.length < MIN) { setErro(`Escreva pelo menos ${MIN} caracteres para que possamos entender.`); return }
+    setEnviando(true); setErro('')
     try {
-      await criar({ tipo, mensagem })
-      setEnviado(true)
-      setMensagem(''); setTipo('sugestao')
-      setTimeout(() => { setEnviado(false); setFeedbackAberto(false) }, 3000)
-    } catch {
-      setErroEnvio('Não foi possível enviar. Tente novamente.')
+      await criar({ tipo, mensagem: texto })
+      setEnviado(true); setMensagem(''); setTipo('sugestao')
+    } catch (err) {
+      setErro(err?.message
+        ? `Não foi possível enviar: ${err.message}`
+        : 'Não foi possível enviar. Verifique sua conexão e tente novamente.')
     } finally {
       setEnviando(false)
     }
   }
 
-  const cardCls = 'card divide-y divide-gray-100 !p-0 overflow-hidden'
-  const linhaBtn = 'flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-gray-50'
-
   return (
-    <div className="min-h-[100dvh] bg-gray-50 -mx-4 -mt-1">
-      {/* Cabeçalho */}
-      <header className="sticky top-0 z-10 flex items-center gap-3 bg-white border-b border-gray-100 px-4 h-14"
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-        <button onClick={() => navigate(-1)} aria-label="Voltar"
-          className="touch-target -ml-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 flex items-center justify-center">
-          <ArrowLeft size={22} />
-        </button>
-        <h1 className="text-base font-bold text-gray-900 flex-1 text-center">Ajuda &amp; feedback</h1>
-        <span className="w-9" />
-      </header>
+    <PaginaInterna titulo="Ajuda & feedback" descricao="Tire dúvidas, conheça os recursos e fale com a gente.">
+      <Acordeao icone={CircleHelp} titulo="Perguntas frequentes" itens={FAQ} corIcone="text-violet-600" />
+      <Acordeao icone={BookOpen} titulo="Como usar cada funcionalidade" itens={FUNCIONALIDADES} corIcone="text-blue-600" />
 
-      <div className="max-w-lg mx-auto px-4 py-5 space-y-5">
-
-        {/* ── 1. FAQ ────────────────────────────────────────────────────── */}
-        <section>
-          <div className={cardCls}>
-            <button type="button" onClick={() => setFaqAberta(v => v === 'faq' ? null : 'faq')}
-              className={linhaBtn}>
-              <span className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center flex-shrink-0">
-                <CircleHelp size={20} className="text-violet-600" />
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900">Perguntas frequentes (FAQ)</p>
-                <p className="text-xs text-gray-500">Respostas para as principais dúvidas</p>
-              </div>
-              {faqAberta === 'faq'
-                ? <ChevronUp size={16} className="text-gray-400 flex-shrink-0" />
-                : <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />}
-            </button>
-
-            {faqAberta === 'faq' && (
-              <div className="border-t border-gray-100 divide-y divide-gray-100">
-                {FAQ.map((item, i) => (
-                  <div key={i} className="px-4">
-                    <button type="button"
-                      onClick={() => setFaqAberta(v => v === `faq-${i}` ? 'faq' : `faq-${i}`)}
-                      className="flex w-full items-center justify-between gap-2 py-3 text-left">
-                      <p className="text-sm font-medium text-gray-800">{item.q}</p>
-                      {faqAberta === `faq-${i}`
-                        ? <ChevronUp size={14} className="text-gray-400 flex-shrink-0" />
-                        : <ChevronDown size={14} className="text-gray-400 flex-shrink-0" />}
-                    </button>
-                    {faqAberta === `faq-${i}` && (
-                      <p className="text-xs text-gray-600 pb-3 leading-relaxed">{item.r}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* ── 2. Como usar ─────────────────────────────────────────────── */}
-        <section>
-          <div className={cardCls}>
-            <button type="button" onClick={() => setGuiaAberto(v => v === 'guia' ? null : 'guia')}
-              className={linhaBtn}>
-              <span className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
-                <BookOpen size={20} className="text-blue-600" />
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900">Como usar o aplicativo</p>
-                <p className="text-xs text-gray-500">Guias e tutoriais passo a passo</p>
-              </div>
-              {guiaAberto === 'guia'
-                ? <ChevronUp size={16} className="text-gray-400 flex-shrink-0" />
-                : <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />}
-            </button>
-
-            {guiaAberto === 'guia' && (
-              <div className="border-t border-gray-100 divide-y divide-gray-100">
-                {GUIA.map((item, i) => (
-                  <div key={i} className="px-4">
-                    <button type="button"
-                      onClick={() => setGuiaAberto(v => v === `g-${i}` ? 'guia' : `g-${i}`)}
-                      className="flex w-full items-center justify-between gap-2 py-3 text-left">
-                      <p className="text-sm font-medium text-gray-800">{item.titulo}</p>
-                      {guiaAberto === `g-${i}`
-                        ? <ChevronUp size={14} className="text-gray-400 flex-shrink-0" />
-                        : <ChevronDown size={14} className="text-gray-400 flex-shrink-0" />}
-                    </button>
-                    {guiaAberto === `g-${i}` && (
-                      <p className="text-xs text-gray-600 pb-3 leading-relaxed">{item.desc}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* ── 3. Enviar feedback ───────────────────────────────────────── */}
-        <section>
-          <div className={cardCls}>
-            <button type="button" onClick={() => setFeedbackAberto(v => !v)}
-              className={linhaBtn}>
-              <span className="w-10 h-10 rounded-xl bg-marca-100 flex items-center justify-center flex-shrink-0">
-                <MessageSquarePlus size={20} className="text-marca" />
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900">Enviar feedback</p>
-                <p className="text-xs text-gray-500">Sugestões, elogios ou problemas</p>
-              </div>
-              {feedbackAberto
-                ? <X size={16} className="text-gray-400 flex-shrink-0" />
-                : <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />}
-            </button>
-
-            {feedbackAberto && (
-              <div className="border-t border-gray-100 px-4 pb-4 pt-3">
-                {enviado ? (
-                  <div className="flex items-center gap-2 py-2">
-                    <CheckCircle2 size={18} className="text-green-500 flex-shrink-0" />
-                    <p className="text-sm text-green-700 font-medium">Feedback enviado com sucesso! Obrigado.</p>
-                  </div>
-                ) : (
-                  <form onSubmit={handleEnviar} className="space-y-3">
-                    <div className="grid grid-cols-3 gap-2">
-                      {TIPOS.map(t => (
-                        <button key={t.value} type="button" onClick={() => setTipo(t.value)}
-                          className={`py-2 rounded-lg text-xs font-medium border transition-colors ${
-                            tipo === t.value ? 'bg-marca text-white border-marca' : 'bg-gray-50 text-gray-600 border-gray-200'
-                          }`}>
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
-                    <textarea
-                      className="input min-h-[80px] resize-y text-sm"
-                      placeholder="Escreva sua mensagem aqui..."
-                      value={mensagem}
-                      onChange={e => setMensagem(e.target.value)}
-                      maxLength={2000}
-                    />
-                    {erroEnvio && <p className="text-xs text-red-500">{erroEnvio}</p>}
-                    <button type="submit" disabled={enviando || !mensagem.trim()}
-                      className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50">
-                      {enviando ? <><Loader2 size={14} className="animate-spin" /> Enviando...</> : 'Enviar'}
-                    </button>
-                  </form>
-                )}
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* ── 4. Suporte ───────────────────────────────────────────────── */}
-        <section>
-          <div className={cardCls}>
-            <div className={linhaBtn + ' cursor-default'}>
-              <span className="w-10 h-10 rounded-xl bg-cyan-50 flex items-center justify-center flex-shrink-0">
-                <Headphones size={20} className="text-cyan-600" />
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900">Suporte</p>
-                <p className="text-xs text-gray-500">Fale com o time do Almeida Finance</p>
-              </div>
-              <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />
+      <section className="card" aria-label="Enviar feedback">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-1">
+          <MessageSquarePlus size={16} className="text-marca" /> Enviar feedback
+        </h2>
+        <p className="text-xs text-gray-500 mb-3">
+          Sua mensagem é gravada na sua conta e analisada pelo administrador do app.
+        </p>
+        {somenteLeitura ? (
+          <p className="text-sm text-gray-600">Indisponível no modo consultoria (somente leitura).</p>
+        ) : enviado ? (
+          <div className="space-y-3">
+            <div role="status" className="flex items-start gap-2 rounded-xl bg-green-50 border border-green-100 p-3">
+              <CheckCircle2 size={18} className="text-green-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-green-800 font-medium">Feedback enviado com sucesso. Obrigado!</p>
             </div>
-            <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
-              <p className="text-xs text-gray-500 leading-relaxed">
-                Para suporte direto, use a opção <strong className="text-gray-700">Enviar feedback</strong> acima
-                com o tipo <em>"Problema"</em>. Nossa equipe analisa todos os envios e retorna pelo e-mail da conta.
-              </p>
-            </div>
+            <button type="button" onClick={() => setEnviado(false)} className="btn-secondary text-sm">Enviar outro</button>
           </div>
-        </section>
-      </div>
-    </div>
+        ) : (
+          <form onSubmit={enviar} className="space-y-3" noValidate>
+            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Tipo de feedback">
+              {TIPOS.map(t => (
+                <button key={t.value} type="button" role="radio" aria-checked={tipo === t.value} onClick={() => setTipo(t.value)}
+                  className={`py-2 rounded-lg text-xs font-medium border transition-colors ${tipo === t.value ? 'bg-marca text-white border-marca' : 'bg-gray-50 text-gray-600 border-gray-200'}`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <div>
+              <label htmlFor="fb-msg" className="label">Mensagem</label>
+              <textarea id="fb-msg" className="input min-h-[110px] resize-y" placeholder="Descreva sua sugestão, dúvida ou problema..."
+                value={mensagem} maxLength={MAX} onChange={e => { setMensagem(e.target.value); if (erro) setErro('') }} />
+              <p className="text-[11px] text-gray-400 text-right mt-0.5">{mensagem.trim().length}/{MAX}</p>
+            </div>
+            {erro && <p role="alert" className="text-xs text-red-600">{erro}</p>}
+            <button type="submit" disabled={enviando}
+              className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-60">
+              {enviando ? <><Loader2 size={14} className="animate-spin" /> Enviando...</> : 'Enviar feedback'}
+            </button>
+          </form>
+        )}
+      </section>
+    </PaginaInterna>
   )
 }

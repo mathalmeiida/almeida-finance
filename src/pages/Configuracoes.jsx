@@ -20,12 +20,14 @@ import Modal from '../components/Modal'
 
 import NotificacoesPush from '../components/NotificacoesPush'
 
+import { useOcultarValores } from '../contexts/OcultarValoresContext'
+
 
 
 // Card de SEGURANÇA: alteração de senha para usuário já autenticado.
 // Usa supabase.auth.updateUser({ password }) via AuthContext.redefinirSenha.
 // Não armazena senhas em tabelas nem localStorage.
-function AlterarSenha() {
+export function AlterarSenha() {
   const { redefinirSenha } = useAuth()
   const [aberto, setAberto] = useState(false)
   const [nova, setNova] = useState('')
@@ -176,7 +178,7 @@ function AlterarSenha() {
 // Documentação: https://supabase.com/docs/guides/auth/passkeys
 // Usa WebAuthn/Passkeys nativos do Supabase — nenhum dado biométrico é armazenado.
 // Requer: Passkeys habilitados no Dashboard (Authentication → Passkeys).
-function ConfigurarBiometria() {
+export function ConfigurarBiometria() {
   const { usuario } = useAuth()
   const [suportaBio, setSuportaBio] = useState(false)
   const [credenciais, setCredenciais] = useState([])
@@ -852,6 +854,36 @@ const PALAVRA_ENCERRAR = 'ENCERRAR'
 
 
 
+// Card de PRIVACIDADE: oculta/mostra os valores financeiros em todo o app.
+// Usa o mesmo contexto do ícone de olho da Home; a escolha fica salva neste
+// dispositivo (localStorage) e é restaurada ao recarregar.
+function PrivacidadeExibicao() {
+  const { ocultar, alternar } = useOcultarValores()
+  return (
+    <div className="card">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 bg-marca-100 rounded-xl flex items-center justify-center shrink-0">
+          {ocultar ? <EyeOff size={16} className="text-marca" /> : <Eye size={16} className="text-marca" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-semibold text-gray-900">Privacidade e exibição</h2>
+          <div className="flex items-center justify-between gap-3 mt-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-900">Ocultar valores</p>
+              <p className="text-xs text-gray-500">Esconde saldos e valores em todas as telas. Fica salvo neste dispositivo.</p>
+            </div>
+            <button type="button" role="switch" aria-label="Ocultar valores" aria-checked={ocultar}
+              onClick={alternar}
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${ocultar ? 'bg-marca' : 'bg-gray-300'}`}>
+              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${ocultar ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Configuracoes() {
 
   const { usuario, perfil, ehAdmin, encerrarMinhaConta } = useAuth()
@@ -1024,6 +1056,9 @@ export default function Configuracoes() {
 
           {/* Aparência */}
           <Aparencia />
+
+          {/* Privacidade e exibição */}
+          <PrivacidadeExibicao />
 
           {/* Notificações push */}
           <div className="card">
