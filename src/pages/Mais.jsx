@@ -64,7 +64,7 @@ export default function Mais() {
   const iniciais = nome.slice(0, 2).toUpperCase()
 
   async function handleSair() {
-    try { await sair(); navigate('/login') }
+    try { await sair(); navigate('/login', { replace: true }) }
     catch (e) { console.error('Erro ao sair:', e) }
   }
 

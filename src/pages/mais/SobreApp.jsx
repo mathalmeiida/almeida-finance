@@ -1,101 +1,76 @@
 import React from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Info, FileText, Shield, ChevronRight } from 'lucide-react'
+import { Info, ShieldCheck, Sparkles } from 'lucide-react'
+import PaginaInterna from '../../components/PaginaInterna'
 
-// Versão lida do package.json via import.meta.env (Vite expõe como string vazia
-// se não estiver definido). Como não há campo customizado, usamos a constante
-// que o próprio Vite injeta via define em vite.config, ou o fallback fixo.
-// Mantenemos uma variável de fácil atualização — sem inventar versões.
-const APP_VERSION = '1.4.0'
-const APP_NAME    = 'Almeida Finance'
-const APP_DESC    = 'Sua vida financeira de forma simples, inteligente e no seu controle.'
+// Valores injetados no build (vite.config.js): versão do package.json e, na
+// Vercel, o commit publicado. Nada aqui é inventado.
+const VERSAO = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : ''
+const BUILD = typeof __APP_BUILD__ !== 'undefined' ? __APP_BUILD__ : ''
+
+const DESTAQUES = [
+  'Saldo, receitas e despesas em um só lugar',
+  'Limite diário e saldo seguro até a próxima receita',
+  'Calendário financeiro e projeção dos próximos meses',
+  'Cartões, faturas e compras parceladas',
+  'Benefícios VR/VA e investimentos',
+  'Metas, simulações "Posso comprar?" e "E se...?"',
+  'Consultoria com acesso autorizado por você',
+]
 
 export default function SobreApp() {
-  const navigate = useNavigate()
-
-  const cardCls = 'card divide-y divide-gray-100 !p-0 overflow-hidden'
-  const linhaBtn = 'flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-gray-50 cursor-default'
-
   return (
-    <div className="min-h-[100dvh] bg-gray-50 -mx-4 -mt-1">
-      {/* Cabeçalho */}
-      <header
-        className="sticky top-0 z-10 flex items-center gap-3 bg-white border-b border-gray-100 px-4 h-14"
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}
-      >
-        <button
-          onClick={() => navigate(-1)}
-          aria-label="Voltar"
-          className="touch-target -ml-2 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 flex items-center justify-center"
-        >
-          <ArrowLeft size={22} />
-        </button>
-        <h1 className="text-base font-bold text-gray-900 flex-1 text-center">
-          Sobre o {APP_NAME}
-        </h1>
-        <span className="w-9" />
-      </header>
-
-      <div className="max-w-lg mx-auto px-4 py-8 space-y-6">
-        {/* Identidade */}
-        <div className="flex flex-col items-center gap-4 text-center">
-          {/* Logo AF — usa af-icone.png que tem fundo vinho arredondado */}
-          <img
-            src="/branding/af-icone.png"
-            alt={APP_NAME}
-            className="w-24 h-auto"
-          />
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">{APP_NAME}</h2>
-            <p className="text-sm text-gray-500 mt-1 max-w-xs">{APP_DESC}</p>
-          </div>
+    <PaginaInterna titulo="Sobre o Almeida Finance">
+      {/* Identidade — logo AF original (af-icone.png, fundo vinho) */}
+      <div className="flex flex-col items-center gap-4 text-center py-2">
+        <img src="/branding/af-icone.png" alt="Almeida Finance" className="w-24 h-auto" />
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">Almeida Finance</h2>
+          <p className="text-sm text-gray-500 mt-1 max-w-xs mx-auto">
+            Organize, planeje e invista: controle financeiro pessoal simples e no seu controle.
+          </p>
         </div>
-
-        {/* Cards de informação */}
-        <section>
-          <div className={cardCls}>
-            {/* Versão */}
-            <div className={linhaBtn}>
-              <span className="w-10 h-10 rounded-xl bg-marca-100 flex items-center justify-center flex-shrink-0">
-                <Info size={19} className="text-marca" />
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900">Versão do aplicativo</p>
-              </div>
-              <span className="text-sm font-semibold text-marca flex-shrink-0">
-                v{APP_VERSION}
-              </span>
-            </div>
-
-            {/* Política de Privacidade */}
-            <div className={linhaBtn}>
-              <span className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
-                <Shield size={19} className="text-blue-600" />
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900">Política de Privacidade</p>
-              </div>
-              <ChevronRight size={16} className="text-gray-300 flex-shrink-0" />
-            </div>
-
-            {/* Termos de Uso */}
-            <div className={linhaBtn}>
-              <span className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center flex-shrink-0">
-                <FileText size={19} className="text-violet-600" />
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900">Termos de Uso</p>
-              </div>
-              <ChevronRight size={16} className="text-gray-300 flex-shrink-0" />
-            </div>
-          </div>
-        </section>
-
-        {/* Nota de rodapé */}
-        <p className="text-center text-xs text-gray-400">
-          © {new Date().getFullYear()} {APP_NAME} · Todos os direitos reservados
-        </p>
       </div>
-    </div>
+
+      <section className="card !p-0 divide-y divide-gray-100 overflow-hidden" aria-label="Informações do aplicativo">
+        <div className="flex items-center gap-3 px-4 py-3.5">
+          <span className="w-10 h-10 rounded-xl bg-marca-100 flex items-center justify-center flex-shrink-0">
+            <Info size={19} className="text-marca" />
+          </span>
+          <p className="flex-1 min-w-0 text-sm font-semibold text-gray-900">Versão do aplicativo</p>
+          <span className="text-sm font-semibold text-marca flex-shrink-0">
+            {VERSAO ? `v${VERSAO}` : 'não informada'}{BUILD ? ` · ${BUILD}` : ''}
+          </span>
+        </div>
+      </section>
+
+      <section className="card" aria-label="Principais funcionalidades">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-3">
+          <Sparkles size={16} className="text-marca" /> Principais funcionalidades
+        </h2>
+        <ul className="space-y-2">
+          {DESTAQUES.map(t => (
+            <li key={t} className="flex items-start gap-2 text-sm text-gray-700">
+              <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-marca flex-shrink-0" aria-hidden="true" />
+              <span className="min-w-0">{t}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="card" aria-label="Privacidade">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-2">
+          <ShieldCheck size={16} className="text-marca" /> Privacidade e segurança
+        </h2>
+        <p className="text-sm text-gray-600 leading-relaxed">
+          Seus dados ficam protegidos por autenticação e por regras de acesso no banco de dados
+          (RLS): cada usuário acessa somente as próprias informações. Você só compartilha seus
+          dados com um consultor se autorizar, e pode revogar o acesso em Configurações.
+        </p>
+      </section>
+
+      <p className="text-center text-xs text-gray-400">
+        © {new Date().getFullYear()} Almeida Finance · Todos os direitos reservados
+      </p>
+    </PaginaInterna>
   )
 }

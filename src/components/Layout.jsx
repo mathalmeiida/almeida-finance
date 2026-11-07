@@ -25,6 +25,10 @@ import {
   Eye,
   PanelLeftClose,
   PanelLeftOpen,
+  UserRound,
+  Grid2X2,
+  CircleHelp,
+  Info,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import LogoMarca from './LogoMarca'
@@ -52,7 +56,11 @@ const navGrupos = [
     { to: '/consultoria',   label: 'Consultoria',    icon: MessagesSquare, corIcone: 'text-cyan-400' },
   ]},
   { titulo: 'Conta', itens: [
+    { to: '/mais/perfil',   label: 'Meu perfil',     icon: UserRound,     corIcone: 'text-marca'        },
     { to: '/configuracoes', label: 'Configurações',  icon: Settings,      corIcone: 'text-gray-400'     },
+    { to: '/mais/funcionalidades', label: 'Funcionalidades', icon: Grid2X2, corIcone: 'text-sky-400'    },
+    { to: '/mais/ajuda',    label: 'Ajuda & feedback', icon: CircleHelp,  corIcone: 'text-amber-400'    },
+    { to: '/mais/sobre',    label: 'Sobre o app',    icon: Info,          corIcone: 'text-cyan-400'     },
   ]},
   { titulo: 'Administração', itens: [
     { to: '/admin',         label: 'Admin',          icon: ShieldCheck,   corIcone: 'text-violet-400', adminOnly: true },
@@ -191,13 +199,14 @@ export default function Layout({ children }) {
   async function handleSair() {
     try {
       await sair()
-      navigate('/login')
+      // replace: remove a área autenticada do histórico, então "Voltar" não a reabre.
+      navigate('/login', { replace: true })
     } catch (err) {
       console.error('Erro ao sair:', err)
     }
   }
   return (
-    <div className="min-h-[100dvh] flex">
+    <div className="min-h-[100dvh] flex w-full max-w-full min-w-0">
       {/* ── Sidebar desktop recolhível ── */}
       <aside className={`hidden md:flex flex-col bg-white border-r border-gray-200/70 fixed top-0 left-0 h-full z-30 transition-[width] duration-200 ${recolhida ? 'w-16' : 'w-60'}`}>
         {/* Cabeçalho da sidebar: logo quando expandida, só ícone quando recolhida */}
@@ -257,7 +266,7 @@ export default function Layout({ children }) {
         </button>
       </aside>
       {/* ── Conteúdo principal (margem esquerda acompanha sidebar) ── */}
-      <div className={`flex-1 flex flex-col min-h-screen transition-[margin] duration-200 ${recolhida ? 'md:ml-16' : 'md:ml-60'}`}>
+      <div className={`flex-1 min-w-0 max-w-full flex flex-col min-h-[100dvh] transition-[margin] duration-200 ${recolhida ? 'md:ml-16' : 'md:ml-60'}`}>
         {/* ── Banner GLOBAL "Modo Consultoria" ──
             Fica fixo no topo de todas as telas internas enquanto o consultor
             visualiza os dados de um cliente (somente leitura). */}
