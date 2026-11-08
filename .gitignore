@@ -7,11 +7,40 @@ dist
 .env*
 erro.txt
 
-# Arquivos de staging e testes RLS (não publicar)
+# Arquivos de staging (não publicar)
 staging/
 scripts/
-tests/
 *.sql
+# Exceções: schema, migrations e testes RLS do Supabase SÃO versionados
+# (não contêm credenciais; são a fonte da estrutura do banco).
+!supabase/schema.sql
+!supabase/migrations/*.sql
+!supabase/tests/*.sql
+
+# Testes: scripts automatizados são versionados. Ficam fora os roteiros
+# manuais, SQL avulso e specs antigos que apontam para produção ou dependem
+# de ferramentas não instaladas (vitest).
+tests/*.md
+tests/playwright-producao.spec.js
+tests/calculos-financeiros.test.js
+test-results/
+playwright-report/
+e2e/.auth/
+
+# Relatórios gerados durante auditorias/correções (não versionar)
+AUDITORIA-*.md
+CORRECAO-*.md
+RESUMO-*.md
+VERIFICACAO-*.md
+VALIDACAO-*.md
+DEPLOY-*.md
+TESTES-MANUAIS-*.md
+DIAGNOSTICO-*.md
+EXECUCAO-*.md
+IMPLEMENTACAO-*.md
+PRONTO-*.md
+APLICAR-*.md
+demo-*.html
 *-erro.txt
 *-completo.txt
 diagnostico.txt
@@ -27,3 +56,4 @@ STATUS-ATUAL.md
 alteracoes-*.txt
 test-*.sql
 _tmp_*.mjs
+capturas-revisao/
