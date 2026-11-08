@@ -146,13 +146,13 @@
     overflow: hidden;
   }
 
-  /* CAUSA DO ZOOM NO MOBILE: o iOS Safari aplica zoom automático ao focar
-     qualquer campo com font-size < 16px e não desfaz sozinho. A classe .input
-     já garante font-size: 16px mobile explicitamente (ver abaixo). Esta regra
-     genérica cobre qualquer campo que não use a classe .input (ex.: inputs
-     customizados em modais de terceiros). Redundância intencional — sem efeito
-     negativo no desktop (min-width: 768px não entra nesta media query). */
-  @media (max-width: 767px) {
+  /* ZOOM AUTOMÁTICO DO SAFARI iOS: ao focar um campo com fonte computada
+     < 16px, o Safari amplia a página. A regra é baseada no TIPO DE
+     DISPOSITIVO (toque), não na largura: um iPhone em paisagem tem 844px e
+     caía na regra de desktop (≥768px → 14px), voltando a ampliar.
+     Base genérica aqui; a garantia contra classes text-xs/text-sm fica em
+     @layer components (ver .input). Zoom manual (pinch) continua livre. */
+  @media (hover: none), (pointer: coarse) {
     input,
     select,
     textarea {
@@ -190,20 +190,20 @@
 
   .input {
     @apply w-full bg-white border border-gray-300 text-gray-900 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-marca focus:border-transparent;
-    /* iOS Safari: font-size < 16px dispara zoom automático ao focar o campo.
-       Removemos text-sm do @apply e aplicamos 16px diretamente com !important
-       para garantir que não seja sobrescrito pelo Tailwind. */
-    font-size: 16px !important;
+    font-size: 16px;
     line-height: 1.5;
   }
 
-  /* No desktop (≥768px), reduzimos para 14px mantendo a proporção visual.
-     Desktop não dispara zoom automático. */
-  @media (min-width: 768px) {
+  /* Computador com mouse/trackpad (sem zoom de foco): campos .input voltam
+     ao visual compacto de 14px. Celulares e tablets de toque NUNCA entram
+     aqui, em qualquer largura ou orientação. */
+  @media (min-width: 768px) and (hover: hover) and (pointer: fine) {
     .input {
-      font-size: 0.875rem !important; /* 14px no desktop */
+      font-size: 0.875rem; /* 14px */
     }
   }
+
+
 
   .label {
     @apply block text-sm font-medium text-gray-700 mb-1;
@@ -691,6 +691,41 @@
 
 .af-shortcut-btn span { color: var(--af-home-muted, #643F4F); }
 
+/* Setas do carrossel de atalhos (desktop/tablet). Discretas, sobre as bordas. */
+.af-shortcut-seta {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  align-items: center;
+  justify-content: center;
+  background: var(--af-home-light, #FFFFFF);
+  border: 1px solid var(--af-home-border, #E5BAC4);
+  color: var(--af-home-primary, #801D39);
+  box-shadow: 0 2px 8px rgba(37, 20, 27, 0.12);
+  z-index: 2;
+}
+.af-shortcut-seta:hover { background: var(--af-home-panel, #FFF5F7); }
+
+/* Indicadores de posição do carrossel de atalhos. */
+.af-shortcut-dot {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--af-home-border, #E5BAC4);
+  transition: width 0.2s, background 0.2s;
+}
+.af-shortcut-dot[data-ativo='true'] {
+  width: 14px;
+  background: var(--af-home-primary, #801D39);
+}
+@media (prefers-reduced-motion: reduce) {
+  .af-shortcut-dot { transition: none; }
+}
+
 /* Seções laterais */
 .af-side-section {
   background: var(--af-home-light, #FFFFFF);
@@ -732,4 +767,27 @@
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Apresentação: entrada suave do conteúdo da tela ativa. Desligada quando o
+   aparelho pede movimento reduzido (o componente nem aplica a classe). */
+@keyframes af-apres-entrada {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.af-apres-entrada { animation: af-apres-entrada 0.35s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .af-apres-entrada { animation: none; }
+}
+
+/* ─── Anti-zoom de foco no Safari iOS (dispositivos de toque) ────────────────
+   Nenhum campo de texto abaixo de 16px em telas de toque, mesmo quando o
+   componente usa utilitários menores (text-xs, text-sm, !text-xs...). Só
+   eleva o que era menor: campos maiores (ex.: text-xl) não são afetados.
+   Fora de @layer para o Tailwind não remover a regra. Não usa transform,
+   não bloqueia o pinch-zoom e não depende da largura da tela. */
+@media (hover: none), (pointer: coarse) {
+  :is(input, select, textarea):is(.text-xs, .text-sm, .\!text-xs, .\!text-sm, .text-\[10px\], .text-\[11px\], .text-\[12px\], .text-\[13px\], .text-\[14px\], .text-\[15px\]) {
+    font-size: 16px !important;
+  }
 }

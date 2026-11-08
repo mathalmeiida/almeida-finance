@@ -73,6 +73,10 @@ export default function RecuperarSenha() {
                       className="input pl-9"
                       required
                       autoComplete="email"
+                      inputMode="email"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                       autoFocus
                     />
                   </div>
@@ -105,6 +109,8 @@ export default function RecuperarSenha() {
 function traduzirErro(msg) {
   if (!msg) return 'Erro ao enviar o e-mail. Tente novamente.'
   const m = msg.toLowerCase()
+  if (m.includes('failed to fetch') || m.includes('network'))
+    return 'Sem conexão com a internet. Verifique e tente novamente.'
   if (m.includes('rate limit') || m.includes('too many'))
     return 'Muitas tentativas. Aguarde alguns minutos e tente novamente.'
   if (m.includes('invalid email') || m.includes('unable to validate'))

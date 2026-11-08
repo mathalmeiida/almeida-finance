@@ -25,19 +25,30 @@ export default function Login() {
   const { entrar } = useAuth()
   const navigate = useNavigate()
 
-  // Exibe a apresentação em mobile na primeira visita — apenas uma vez por
-  // dispositivo, antes do formulário de login. Desktop já tem o painel lateral.
-  // Condição: tela estreita (< 1024px) E nunca foi vista antes.
+  // Apresentação pública: exibida na primeira visita deste dispositivo (celular
+  // ou computador), antes do formulário. Depois que o visitante escolhe
+  // "Começar agora" ou "Já tenho uma conta" (ou pula), não aparece de novo a
+  // cada login. Pode ser revista pelo link "Conhecer o Almeida Finance".
   const [mostrarApresentacao, setMostrarApresentacao] = useState(() => {
     if (typeof window === 'undefined') return false
-    if (window.innerWidth >= 1024) return false        // desktop: não exibe (tem painel lateral)
     try { return localStorage.getItem(CHAVE_APRES_PUBLICA) !== '1' }
     catch { return false }
   })
 
-  function concluirApresentacaoPublica() {
+  function marcarApresentacaoVista() {
     try { localStorage.setItem(CHAVE_APRES_PUBLICA, '1') } catch { /* ignora */ }
+  }
+
+  function concluirApresentacaoPublica() {
+    marcarApresentacaoVista()
     setMostrarApresentacao(false)
+  }
+
+  // "Começar agora" → cadastro. Marca como vista para que, ao voltar do
+  // cadastro para o login, a apresentação não reapareça (evita o vai-e-volta).
+  function comecarAgora() {
+    marcarApresentacaoVista()
+    navigate('/cadastro')
   }
 
   const [form, setForm] = useState({ email: '', senha: '' })
@@ -68,7 +79,7 @@ export default function Login() {
   // A Apresentacao padrão usa aoConcluir para "Pular" e "Começar agora".
   // Aqui usamos uma versão com rodapé customizado: Cadastrar + Já tenho conta.
   if (mostrarApresentacao) {
-    return <ApresentacaoPublica onCadastrar={() => navigate('/cadastro')} onLogin={concluirApresentacaoPublica} />
+    return <Apresentacao onComecar={comecarAgora} onEntrar={concluirApresentacaoPublica} />
   }
 
   return (
@@ -142,6 +153,10 @@ export default function Login() {
                     className="input pl-9"
                     required
                     autoComplete="email"
+                    inputMode="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                   />
                 </div>
               </div>
@@ -217,6 +232,12 @@ export default function Login() {
               Criar conta gratuita
             </Link>
           </p>
+          <p className="text-center mt-2">
+            <button type="button" onClick={() => setMostrarApresentacao(true)}
+              className="text-xs text-white/60 hover:text-white underline-offset-2 hover:underline">
+              Conhecer o Almeida Finance
+            </button>
+          </p>
 
           {/* Benefícios — só no mobile, abaixo do formulário. */}
           <ul className="grid grid-cols-2 gap-3 mt-8 lg:hidden">
@@ -236,41 +257,12 @@ export default function Login() {
   )
 }
 
-// ─── Apresentação pública (mobile, não-autenticados) ─────────────────────────
-// Versão da Apresentacao com rodapé customizado: "Criar conta" e "Já tenho conta".
-// Reutiliza os slides e o visual da Apresentacao, adicionando os botões de acesso.
-function ApresentacaoPublica({ onCadastrar, onLogin }) {
-  return (
-    <Apresentacao
-      aoConcluir={onLogin}
-      rodapeCustom={
-        <div className="flex flex-col gap-2 w-full">
-          <button
-            type="button"
-            onClick={onCadastrar}
-            className="w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold"
-            style={{ background: 'rgba(255,255,255,0.95)', color: '#3d0a18' }}
-          >
-            Criar conta gratuita
-          </button>
-          <button
-            type="button"
-            onClick={onLogin}
-            className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium"
-            style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.15)' }}
-          >
-            Já tenho conta — Entrar
-          </button>
-        </div>
-      }
-    />
-  )
-}
-
 // Traduz as mensagens de erro do Supabase para português
 function traduzirErro(msg) {
   if (!msg) return 'Erro desconhecido. Tente novamente.'
   const m = msg.toLowerCase()
+  if (m.includes('failed to fetch') || m.includes('network'))
+    return 'Sem conexão com a internet. Verifique e tente novamente.'
   if (m.includes('invalid login credentials') || m.includes('invalid credentials'))
     return 'E-mail ou senha incorretos.'
   if (m.includes('email not confirmed'))

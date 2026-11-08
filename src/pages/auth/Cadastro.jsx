@@ -121,6 +121,10 @@ export default function Cadastro() {
                   className="input pl-9"
                   required
                   autoComplete="email"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
               </div>
             </div>
@@ -257,6 +261,8 @@ function calcularForcaSenha(senha) {
 function traduzirErro(msg) {
   if (!msg) return 'Erro desconhecido. Tente novamente.'
   const m = msg.toLowerCase()
+  if (m.includes('failed to fetch') || m.includes('network'))
+    return 'Sem conexão com a internet. Verifique e tente novamente.'
   if (m.includes('user already registered') || m.includes('already been registered'))
     return 'Este e-mail já está cadastrado. Tente fazer login.'
   if (m.includes('password should be at least'))
