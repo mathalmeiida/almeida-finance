@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react'
 import {
   X, ReceiptText, TrendingUp, CreditCard, UtensilsCrossed,
-  UserRound, Settings, Grid2X2, CircleHelp, Info, LogOut, ChevronRight,
+  UserRound, Settings, Grid2X2, CircleHelp, Info, LogOut, ChevronRight, FileUp,
 } from 'lucide-react'
 
 /**
@@ -33,6 +33,7 @@ export default function MenusMobileAlmeidaFinance({ aberto, onFechar, onNavigate
     { titulo: 'Receita',         detalhe: 'Registrar uma entrada', Icone: TrendingUp,  rota: '/receitas?novo=1', cor: '#059669' },
     { titulo: 'Compra no cartão',detalhe: 'Adicionar uma compra',  Icone: CreditCard,  rota: '/cartoes',        cor: '#0ea5e9' },
     { titulo: 'Gasto VR/VA',     detalhe: 'Registrar um gasto',    Icone: UtensilsCrossed, rota: '/beneficios', cor: '#d97706' },
+    { titulo: 'Importar documento', detalhe: 'Extrato, fatura ou investimentos', Icone: FileUp, rota: '/importacao', cor: '#801D39' },
   ]
 
   // ── Itens do menu "Mais" — cada opção tem rota própria ──────────────────

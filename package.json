@@ -10,17 +10,21 @@
     "test:beneficios": "node tests/beneficios.test.mjs",
     "test:financiamento": "node tests/financiamento.test.mjs",
     "test:cenarios": "node tests/cenarios.test.mjs",
-    "test:receitas": "node tests/receitas.test.mjs"
+    "test:receitas": "node tests/receitas.test.mjs",
+    "test:importacao": "node tests/importacao.test.mjs",
+    "test:importacao-sql": "node tests/importacao-sql.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",
     "lucide-react": "^0.395.0",
+    "pdfjs-dist": "6.5.438",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.23.1",
     "recharts": "^2.12.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.15",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.39",

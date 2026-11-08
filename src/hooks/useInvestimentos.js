@@ -274,6 +274,20 @@ export function useInvestimentos() {
     const valorAtualPos = Number(inv.valor_atual)    || 0
     const v             = Number(mov.valor)          || 0
 
+    // Movimentação apenas de histórico (ex.: vinda da Importação Inteligente,
+    // afeta_saldo = false) não alterou os saldos ao ser gravada; por isso a
+    // exclusão também não os altera. Ausente/true = comportamento original.
+    if (mov.afeta_saldo === false) {
+      const { error: errDelHist } = await supabase
+        .from('investimentos_movimentacoes')
+        .delete()
+        .eq('id', id)
+        .eq('usuario_id', usuario.id)
+      if (errDelHist) throw errDelHist
+      setMovimentacoes(prev => prev.filter(m => m.id !== id))
+      return
+    }
+
     // Calcula saldo revertido (inverso do criarMovimentacao).
     let novoAplicado = aplicadoAtual
     let novoAtual    = valorAtualPos

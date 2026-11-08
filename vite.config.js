@@ -9,6 +9,9 @@ const commit = (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7)
 
 export default defineConfig({
   plugins: [react()],
+  // Web Worker da Importação Inteligente usa módulos ES com import dinâmico
+  // (pdf.js sob demanda); o formato padrão (iife) não permite code-splitting.
+  worker: { format: 'es' },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
     __APP_BUILD__: JSON.stringify(commit),
