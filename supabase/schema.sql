@@ -9,7 +9,7 @@
 -- 1. TABELA: perfis
 -- Armazena informações do usuário (complementa o auth.users)
 -- ============================================================
-faturas_cartao
+CREATE TABLE IF NOT EXISTS public.perfis (
   id          UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   nome        TEXT,
   email       TEXT,
