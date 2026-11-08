@@ -1,12 +1,12 @@
 // ============================================================
-// Almeida Finance — Service Worker v3
+// Almeida Finance — Service Worker v4
 // Gerencia push notifications no background.
-// v3: atualiza referências de ícone para novos arquivos sem transparência.
+// v4: corrige SimuladorCustoVida para incluir 100% das despesas.
 // NÃO faz cache agressivo de assets — o Vite/Vercel gerencia isso via
 // content-hash. Apenas garante que o SW antigo seja substituído.
 // ============================================================
 
-const SW_VERSION  = 'v3'
+const SW_VERSION  = 'v4'
 const APP_NAME    = 'Almeida Finance'
 const APP_ICON    = '/branding/icon-192.png'
 const APP_URL     = self.location.origin

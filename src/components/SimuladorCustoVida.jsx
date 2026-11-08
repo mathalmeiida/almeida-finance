@@ -65,23 +65,40 @@ export default function SimuladorCustoVida({
   // Estado dos valores simulados: Map<id, valor number>
   // No modo 'real' inicia com os totais por categoria passados via props.
   // No modo 'livre' inicia zerado.
+  // IMPORTANTE: TODAS as despesas são incluídas. Categorias não mapeadas vão para "Outros".
   const valoresIniciais = () => {
     const m = {}
     CATS_PADRAO.forEach(c => { m[c.id] = 0 })
     if (modo === 'real' && categoriasTotais.length > 0) {
       // Mapeia categorias reais para as categorias do simulador pelo nome (parcial)
+      // TODAS as categorias são incluídas - nenhuma despesa é ignorada
       categoriasTotais.forEach(({ nome, valor }) => {
         const n = String(nome || '').toLowerCase()
-        if (/morad|aluguel|financiamento|hipot/.test(n))   m.moradia     += valor
-        else if (/cond|condom|iptu/.test(n))               m.condominio  += valor
-        else if (/água|agua|energ|luz|gás|gas/.test(n))    m.agua_energia += valor
-        else if (/aliment|mercado|supermerc|comida|refeic/.test(n)) m.alimentacao += valor
-        else if (/transport|comb|gasolina|onibus|metrô/.test(n)) m.transporte += valor
-        else if (/saúde|saude|médic|plano|farmac/.test(n)) m.saude       += valor
-        else if (/internet|telefone|celular|claro|vivo|tim|oi/.test(n)) m.internet += valor
-        else if (/assina|stream|netflix|spotify/.test(n))  m.assinaturas += valor
-        else if (/lazer|entret|cinema|viagem/.test(n))     m.lazer       += valor
-        else                                                m.outros      += valor
+        const v = Number(valor) || 0
+        
+        // Tenta mapear para categoria específica
+        if (/morad|aluguel|financiamento|hipot/.test(n))   
+          m.moradia     += v
+        else if (/cond|condom|iptu/.test(n))               
+          m.condominio  += v
+        else if (/água|agua|energ|luz|gás|gas/.test(n))    
+          m.agua_energia += v
+        else if (/aliment|mercado|supermerc|comida|refeic/.test(n)) 
+          m.alimentacao += v
+        else if (/transport|comb|gasolina|onibus|metrô|metro/.test(n)) 
+          m.transporte += v
+        else if (/saúde|saude|médic|medic|plano|farmac|seguro/.test(n)) 
+          m.saude       += v
+        else if (/internet|telefone|celular|claro|vivo|tim|oi|tv|streaming/.test(n)) 
+          m.internet += v
+        else if (/assina|stream|netflix|spotify|prime|disney/.test(n))  
+          m.assinaturas += v
+        else if (/lazer|entret|cinema|viagem/.test(n))     
+          m.lazer       += v
+        else 
+          // GARANTIA: qualquer categoria não mapeada vai para "Outros"
+          // Nenhuma despesa é perdida ou ignorada
+          m.outros      += v
       })
     } else if (modo === 'real' && despesasReais > 0) {
       // Sem breakdown por categoria: coloca tudo em "outros"
@@ -109,18 +126,34 @@ export default function SimuladorCustoVida({
     CATS_PADRAO.forEach(c => { m[c.id] = 0 })
     if (novoModo === 'real') {
       if (categoriasTotais.length > 0) {
+        // TODAS as categorias são incluídas - nenhuma despesa é ignorada
         categoriasTotais.forEach(({ nome, valor }) => {
           const n = String(nome || '').toLowerCase()
-          if (/morad|aluguel|financiamento|hipot/.test(n))     m.moradia     += valor
-          else if (/cond|condom|iptu/.test(n))                 m.condominio  += valor
-          else if (/água|agua|energ|luz|gás|gas/.test(n))      m.agua_energia += valor
-          else if (/aliment|mercado|supermerc|comida|refeic/.test(n)) m.alimentacao += valor
-          else if (/transport|comb|gasolina|onibus|metrô/.test(n)) m.transporte += valor
-          else if (/saúde|saude|médic|plano|farmac/.test(n))   m.saude       += valor
-          else if (/internet|telefone|celular|claro|vivo|tim|oi/.test(n)) m.internet += valor
-          else if (/assina|stream|netflix|spotify/.test(n))    m.assinaturas += valor
-          else if (/lazer|entret|cinema|viagem/.test(n))       m.lazer       += valor
-          else                                                  m.outros      += valor
+          const v = Number(valor) || 0
+          
+          // Tenta mapear para categoria específica
+          if (/morad|aluguel|financiamento|hipot/.test(n))     
+            m.moradia     += v
+          else if (/cond|condom|iptu/.test(n))                 
+            m.condominio  += v
+          else if (/água|agua|energ|luz|gás|gas/.test(n))      
+            m.agua_energia += v
+          else if (/aliment|mercado|supermerc|comida|refeic/.test(n)) 
+            m.alimentacao += v
+          else if (/transport|comb|gasolina|onibus|metrô|metro/.test(n)) 
+            m.transporte += v
+          else if (/saúde|saude|médic|medic|plano|farmac|seguro/.test(n))   
+            m.saude       += v
+          else if (/internet|telefone|celular|claro|vivo|tim|oi|tv|streaming/.test(n)) 
+            m.internet += v
+          else if (/assina|stream|netflix|spotify|prime|disney/.test(n))    
+            m.assinaturas += v
+          else if (/lazer|entret|cinema|viagem/.test(n))       
+            m.lazer       += v
+          else                                                  
+            // GARANTIA: qualquer categoria não mapeada vai para "Outros"
+            // Nenhuma despesa é perdida ou ignorada
+            m.outros      += v
         })
       } else if (despesasReais > 0) {
         m.outros = despesasReais
@@ -205,6 +238,18 @@ export default function SimuladorCustoVida({
               <Info size={14} className="text-amber-600 shrink-0 mt-0.5" />
               <p className="text-xs text-amber-700">
                 Sem despesas no mês atual. Cadastre despesas ou use o modo "Simular do zero".
+              </p>
+            </div>
+          )}
+
+          {/* Transparência: mostra quantas despesas foram incluídas */}
+          {modo === 'real' && categoriasTotais.length > 0 && (
+            <div className="rounded-xl bg-blue-50 border border-blue-100 px-3 py-2.5">
+              <p className="text-xs font-semibold text-blue-900 mb-1">
+                ✓ {categoriasTotais.length} categoria{categoriasTotais.length !== 1 ? 's' : ''} incluída{categoriasTotais.length !== 1 ? 's' : ''}
+              </p>
+              <p className="text-[10px] text-blue-700">
+                Total: {fmtR(despesasReais)} · Todas as suas despesas foram consideradas
               </p>
             </div>
           )}
