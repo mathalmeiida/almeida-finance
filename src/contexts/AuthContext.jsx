@@ -264,6 +264,29 @@ export function AuthProvider({ children }) {
     }
   }
 
+  // Salva a personalização dos atalhos da Home (perfis.atalhos_home, JSONB)
+  // do PRÓPRIO usuário logado. Mesmo padrão do tema: aplica no estado local e
+  // tenta persistir no banco. Se a coluna ainda não existir (migration
+  // pendente), não quebra: o hook useAtalhosHome mantém a cópia no
+  // localStorage. Retorna true quando gravou no Supabase.
+  async function atualizarAtalhosHome(config) {
+    if (!usuario) return false
+    setPerfil(p => (p ? { ...p, atalhos_home: config } : p))
+    try {
+      const { data, error } = await supabase
+        .from('perfis')
+        .update({ atalhos_home: config })
+        .eq('id', usuario.id)
+        .select()
+        .single()
+      if (error) throw error
+      if (data) setPerfil(data)
+      return true
+    } catch {
+      return false
+    }
+  }
+
   // Encerra a PRÓPRIA conta: desativa o perfil (ativo = false) e faz logout.
   // Não apaga dados nem remove o usuário do Auth. A segurança está no banco:
   //  - policy "Usuário atualiza apenas o próprio perfil" permite só o próprio id;
@@ -353,6 +376,7 @@ export function AuthProvider({ children }) {
     // disponível, senão localStorage). Robusto à migration pendente.
     corTema,
     atualizarCorTema,
+    atualizarAtalhosHome,
     // ehAdmin usa SEMPRE o papel real do usuário logado (não o do cliente).
     ehAdmin: perfil?.papel === 'admin',
     // Conta desativada por um administrador (soft-disable). Baseado no perfil

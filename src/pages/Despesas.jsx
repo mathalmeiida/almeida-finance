@@ -1376,6 +1376,12 @@ export default function Despesas() {
       if (novo === 'parcelado') setFiltro('Parceladas')
       searchParams.delete('novo')
       setSearchParams(searchParams, { replace: true })
+    } else if (searchParams.get('aba') === 'parceladas') {
+      // Atalho "Parcelamentos" da Home: abre a seção de parcelamentos já
+      // existente (a mesma de "Mais seções → Parcelamentos"), sem abrir modal.
+      setPagina('parceladas')
+      searchParams.delete('aba')
+      setSearchParams(searchParams, { replace: true })
     }
   }, [searchParams, setSearchParams])
 

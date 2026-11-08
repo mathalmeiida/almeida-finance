@@ -27,6 +27,7 @@ import ModalAnteciparPagamento from '../components/ModalAnteciparPagamento'
 import HorizonteFinanceiro from '../components/HorizonteFinanceiro'
 import { gerarHorizonte } from '../lib/horizonteFinanceiro'
 import CalendarioFinanceiroHome from '../components/CalendarioFinanceiroHome'
+import AtalhosHome from '../components/AtalhosHome'
 import { useMetas } from '../hooks/useMetas'
 
 // Chaves lidas em App.jsx (AreaAutenticada) para reabrir o onboarding e saber
@@ -1891,6 +1892,13 @@ export default function Dashboard() {
 
   // Atalho do botão "+" (menu inferior mobile): ?novo=gasto|reserva abre o
   // modal JÁ existente desta página. Depois limpa o parâmetro da URL.
+  // Atalhos da Home que abrem modais JÁ existentes desta página.
+  function abrirModalAtalho(tipo) {
+    if (tipo === 'calendario') { setDiaSelecionadoHome(null); setModalCalendario(true) }
+    else if (tipo === 'gasto' && !somenteLeitura) { setDataGastoCalendario(null); setModalGasto(true) }
+    else if (tipo === 'planejamento') setModalPlanejamento(true)
+  }
+
   const [searchParams, setSearchParams] = useSearchParams()
   useEffect(() => {
     const novo = searchParams.get('novo')
@@ -2619,29 +2627,14 @@ const carregandoLimite = carregando
           )
         })()}
 
-        {/* Atalhos fixos - carrossel horizontal com scroll */}
-        <div className="relative -mx-4 px-4">
-          <div 
-            className="flex gap-2 overflow-x-auto py-1 snap-x snap-mandatory scrollbar-hide"
-            style={{ 
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none',
-              WebkitOverflowScrolling: 'touch',
-              touchAction: 'pan-x'
-            }}
-          >
-            {[{label:'Simular compra',rota:'/posso-comprar',Icone:ShoppingCart},{label:'E se...?',rota:'/e-se',Icone:Sparkles},{label:'Investimentos',rota:'/investimentos',Icone:TrendingUp},{label:'Metas',rota:'/metas',Icone:Target}].map(({label,rota,Icone})=>(
-              <button key={rota} type="button" onClick={()=>navigate(rota)} className="af-shortcut-btn snap-start flex-shrink-0" aria-label={label}>
-                <div className="af-shortcut-icon"><Icone size={22} strokeWidth={1.8}/></div>
-                <span className="text-[10px] text-[#D4A8B6] text-center leading-tight">{label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Atalhos — carrossel horizontal personalizável (src/components/AtalhosHome.jsx) */}
+        <AtalhosHome onAbrirModal={abrirModalAtalho} somenteLeitura={somenteLeitura} sangria />
       </div>
 
       {/* DESKTOP */}
       <div className="hidden md:flex md:flex-col gap-3">
+        {/* Atalhos — mesma faixa do mobile, com setas quando houver conteúdo oculto */}
+        <AtalhosHome onAbrirModal={abrirModalAtalho} somenteLeitura={somenteLeitura} />
         {/* 4 cards */}
         <div className="grid grid-cols-4 gap-3">
           <div className="af-hcard">
