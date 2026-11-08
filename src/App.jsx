@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react'
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 
@@ -56,6 +56,9 @@ import Configuracoes from './pages/Configuracoes'
 import ReverApresentacao from './pages/ReverApresentacao'
 
 import Investimentos from './pages/Investimentos'
+
+// Carregada sob demanda: o motor de leitura (PDF/planilhas) só baixa quando usado.
+const ImportacaoInteligente = lazy(() => import('./pages/ImportacaoInteligente'))
 
 import Admin from './pages/Admin'
 
@@ -430,6 +433,8 @@ function Rotas() {
                 <Route path="/beneficios" element={<Beneficios />} />
 
                 <Route path="/investimentos" element={<Investimentos />} />
+
+                <Route path="/importacao" element={<Suspense fallback={<Carregando />}><ImportacaoInteligente /></Suspense>} />
 
                 <Route path="/projecao" element={<Projecao />} />
                 <Route path="/minha-evolucao" element={<MinhaEvolucao />} />

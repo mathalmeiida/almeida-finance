@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, TrendingUp, TrendingDown, CreditCard, UtensilsCrossed,
   PiggyBank, BarChart2, Activity, Target, ShoppingCart, Sparkles,
-  MessagesSquare, Settings, ShieldCheck, PlayCircle, ChevronRight,
+  MessagesSquare, Settings, ShieldCheck, PlayCircle, ChevronRight, FileUp,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PaginaInterna from '../../components/PaginaInterna'
@@ -28,6 +28,7 @@ const CATEGORIAS = [
       { rota: '/despesas', Icone: TrendingDown, titulo: 'Despesas e parcelamentos', detalhe: 'Gastos, contas fixas e compras parceladas', cor: '#e11d48', bg: '#ffe4e6' },
       { rota: '/cartoes', Icone: CreditCard, titulo: 'Cartões e faturas', detalhe: 'Limites, compras e faturas dos cartões', cor: '#0284c7', bg: '#e0f2fe' },
       { rota: '/beneficios', Icone: UtensilsCrossed, titulo: 'Benefícios VR/VA', detalhe: 'Saldo e gastos de vale-refeição e alimentação', cor: '#d97706', bg: '#fef3c7' },
+      { rota: '/importacao', Icone: FileUp, titulo: 'Importação Inteligente', detalhe: 'Importe extratos, faturas e investimentos com conferência', cor: '#801D39', bg: '#fce7f3' },
     ],
   },
   {
