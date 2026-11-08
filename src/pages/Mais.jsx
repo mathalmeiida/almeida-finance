@@ -5,6 +5,7 @@ import {
   LogOut, ChevronRight,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import FotoPerfil from '../components/FotoPerfil'
 
 // ─── Mais ─────────────────────────────────────────────────────────────────────
 // Versão desktop/página da navegação "Mais".
@@ -61,7 +62,6 @@ export default function Mais() {
 
   const nome    = perfil?.nome || usuario?.email?.split('@')[0] || 'Usuário'
   const email   = usuario?.email || ''
-  const iniciais = nome.slice(0, 2).toUpperCase()
 
   async function handleSair() {
     try { await sair(); navigate('/login', { replace: true }) }
@@ -72,12 +72,7 @@ export default function Mais() {
     <div className="max-w-lg mx-auto space-y-5 pb-mobilenav md:pb-8">
       {/* Avatar + dados do usuário */}
       <div className="card flex items-center gap-4">
-        <div
-          className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 text-white text-lg font-bold"
-          style={{ background: 'linear-gradient(135deg,#801D39,#420D1D)' }}
-        >
-          {iniciais}
-        </div>
+        <FotoPerfil perfil={perfil} usuario={usuario} tamanho="md" />
         <div className="min-w-0">
           <p className="text-base font-bold text-gray-900 truncate">{nome}</p>
           <p className="text-xs text-gray-500 truncate">{email}</p>

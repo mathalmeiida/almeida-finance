@@ -2619,14 +2619,24 @@ const carregandoLimite = carregando
           )
         })()}
 
-        {/* Atalhos fixos */}
-        <div className="grid grid-cols-4 gap-2 py-1">
-          {[{label:'Simular compra',rota:'/posso-comprar',Icone:ShoppingCart},{label:'E se...?',rota:'/e-se',Icone:Sparkles},{label:'Investimentos',rota:'/investimentos',Icone:TrendingUp},{label:'Metas',rota:'/metas',Icone:Target}].map(({label,rota,Icone})=>(
-            <button key={rota} type="button" onClick={()=>navigate(rota)} className="af-shortcut-btn" aria-label={label}>
-              <div className="af-shortcut-icon"><Icone size={22} strokeWidth={1.8}/></div>
-              <span className="text-[10px] text-[#D4A8B6] text-center leading-tight">{label}</span>
-            </button>
-          ))}
+        {/* Atalhos fixos - carrossel horizontal com scroll */}
+        <div className="relative -mx-4 px-4">
+          <div 
+            className="flex gap-2 overflow-x-auto py-1 snap-x snap-mandatory scrollbar-hide"
+            style={{ 
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+              WebkitOverflowScrolling: 'touch',
+              touchAction: 'pan-x'
+            }}
+          >
+            {[{label:'Simular compra',rota:'/posso-comprar',Icone:ShoppingCart},{label:'E se...?',rota:'/e-se',Icone:Sparkles},{label:'Investimentos',rota:'/investimentos',Icone:TrendingUp},{label:'Metas',rota:'/metas',Icone:Target}].map(({label,rota,Icone})=>(
+              <button key={rota} type="button" onClick={()=>navigate(rota)} className="af-shortcut-btn snap-start flex-shrink-0" aria-label={label}>
+                <div className="af-shortcut-icon"><Icone size={22} strokeWidth={1.8}/></div>
+                <span className="text-[10px] text-[#D4A8B6] text-center leading-tight">{label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

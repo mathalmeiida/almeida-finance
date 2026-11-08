@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
-import { Mail, UserRound, CheckCircle2, Loader2, Pencil, X } from 'lucide-react'
+import { Mail, UserRound, CheckCircle2, Loader2, Pencil, X, Camera } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PaginaInterna from '../../components/PaginaInterna'
+import FotoPerfil from '../../components/FotoPerfil'
+import SeletorFotoPerfil from '../../components/SeletorFotoPerfil'
 // Reaproveita os fluxos reais já existentes em Configurações (sem duplicar lógica):
 //  - AlterarSenha: supabase.auth.updateUser({ password }) via AuthContext
 //  - ConfigurarBiometria: passkeys do Supabase Auth (só aparece se o dispositivo
@@ -11,21 +13,21 @@ import { AlterarSenha, ConfigurarBiometria } from '../Configuracoes'
 // ─── Meu Perfil ───────────────────────────────────────────────────────────────
 // Dados reais do usuário autenticado. Nome é gravado em perfis.nome (a RLS
 // permite apenas o próprio registro). O e-mail é gerenciado pela autenticação
-// e não é editável aqui. Não há foto: o projeto não possui storage configurado.
+// e não é editável aqui. Foto/avatar configuráveis via SeletorFotoPerfil.
 export default function Perfil() {
-  const { usuario, perfil, perfilProprio, atualizarPreferenciasLimite, somenteLeitura } = useAuth()
+  const { usuario, perfil, perfilProprio, atualizarPreferenciasLimite, somenteLeitura, recarregarPerfil } = useAuth()
 
   // Sempre o perfil do PRÓPRIO usuário (no modo consultoria `perfil` é o do cliente).
   const meuPerfil = perfilProprio || perfil
   const email = usuario?.email || ''
   const nome = meuPerfil?.nome || email.split('@')[0] || 'Usuário'
-  const iniciais = nome.slice(0, 2).toUpperCase()
 
   const [editando, setEditando] = useState(false)
   const [novoNome, setNovoNome] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
   const [sucesso, setSucesso] = useState(false)
+  const [modalFoto, setModalFoto] = useState(false)
 
   function iniciarEdicao() {
     setNovoNome(meuPerfil?.nome || '')
@@ -50,16 +52,36 @@ export default function Perfil() {
     }
   }
 
+  async function handleAtualizarFoto() {
+    // Recarregar perfil após alterar foto/avatar
+    if (recarregarPerfil) {
+      await recarregarPerfil()
+    }
+  }
+
   return (
     <PaginaInterna titulo="Meu perfil" descricao="Seus dados de acesso e segurança da conta.">
-      {/* Identidade */}
+      {/* Identidade com foto/avatar editável */}
       <div className="card flex items-center gap-4">
-        <div
-          className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xl font-bold"
-          style={{ background: 'linear-gradient(135deg,#801D39,#420D1D)' }}
-          aria-hidden="true"
-        >
-          {iniciais}
+        <div className="relative">
+          <FotoPerfil 
+            perfil={meuPerfil}
+            usuario={usuario}
+            tamanho="lg"
+            onClick={() => !somenteLeitura && setModalFoto(true)}
+            showEditIcon={!somenteLeitura}
+            className={somenteLeitura ? '' : 'relative group'}
+          />
+          {!somenteLeitura && (
+            <button
+              type="button"
+              onClick={() => setModalFoto(true)}
+              className="absolute bottom-0 right-0 w-8 h-8 bg-marca rounded-full flex items-center justify-center text-white shadow-lg hover:bg-marca/90 transition-colors"
+              title="Alterar foto"
+            >
+              <Camera size={16} />
+            </button>
+          )}
         </div>
         <div className="min-w-0">
           <p className="text-base font-bold text-gray-900 truncate">{nome}</p>
@@ -140,6 +162,16 @@ export default function Perfil() {
           <AlterarSenha />
           <ConfigurarBiometria />
         </section>
+      )}
+
+      {/* Modal de seleção de foto/avatar */}
+      {modalFoto && (
+        <SeletorFotoPerfil
+          usuario={usuario}
+          perfil={meuPerfil}
+          onAtualizar={handleAtualizarFoto}
+          onFechar={() => setModalFoto(false)}
+        />
       )}
     </PaginaInterna>
   )

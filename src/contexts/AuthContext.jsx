@@ -33,6 +33,12 @@ export function AuthProvider({ children }) {
     setPerfil(data)
   }
 
+  // Recarrega o perfil do usuário atual (útil após atualizar foto/avatar)
+  async function recarregarPerfil() {
+    if (!usuario?.id) return
+    await buscarPerfil(usuario.id)
+  }
+
   // ── Cor da marca (Aparência: Azul padrão / Rosa) ────────────────────────────
   // FONTE DA PREFERÊNCIA de cor do tema (robusta, sem depender da migration):
   //   1) localStorage 'almeida_cor_tema' → aplica JÁ no boot (antes do perfil
@@ -340,6 +346,7 @@ export function AuthProvider({ children }) {
     redefinirSenha,
     atualizarLimiteDiario,
     atualizarPreferenciasLimite,
+    recarregarPerfil,          // recarga o perfil após atualizar foto/avatar
     marcarOnboardingConcluido,
     encerrarMinhaConta,
     // Aparência (cor do tema) — preferência efetiva (perfil do banco quando

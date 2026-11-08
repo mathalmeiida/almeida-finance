@@ -722,3 +722,13 @@
   border-radius: 3px;
   background: linear-gradient(90deg, var(--af-home-primary, #801D39), #C4507A);
 }
+
+
+/* Esconde scrollbar mas mantém funcionalidade de scroll */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
