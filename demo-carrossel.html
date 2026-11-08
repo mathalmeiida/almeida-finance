@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demo: Carrossel de Atalhos - Almeida Finance</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f3f4f6;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      font-size: 20px;
+      color: #801D39;
+      margin-bottom: 10px;
+    }
+
+    .info {
+      background: #FFF5F7;
+      border: 1px solid #E5BAC4;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      color: #643F4F;
+    }
+
+    .viewport-info {
+      background: #e0f2fe;
+      border: 1px solid #7dd3fc;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 15px;
+      font-size: 12px;
+      color: #0369a1;
+      text-align: center;
+    }
+
+    /* Simula o contêiner da Home */
+    .home-section {
+      margin: -20px;
+      padding: 20px;
+      background: #f9fafb;
+    }
+
+    /* Carrossel exatamente como no app */
+    .carousel-container {
+      position: relative;
+      margin: 0 -20px;
+      padding: 0 20px;
+    }
+
+    .carousel {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 4px 0;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-x;
+    }
+
+    .carousel::-webkit-scrollbar {
+      display: none;
+    }
+
+    /* Botão exatamente como .af-shortcut-btn corrigido */
+    .shortcut-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      min-width: 100px;  /* ✅ Largura fixa */
+      width: 100px;      /* ✅ Largura fixa */
+      flex-shrink: 0;
+      padding: 9px 3px;
+      background: #FFFFFF;
+      border: 1px solid #E5BAC4;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      scroll-snap-align: start;
+    }
+
+    .shortcut-btn:hover {
+      border-color: #801D39;
+      background: #FFF5F7;
+    }
+
+    .shortcut-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 11px;
+      background: #FFF5F7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #801D39;
+      font-size: 22px;
+    }
+
+    .shortcut-btn span {
+      color: #643F4F;
+      font-size: 10px;
+      text-align: center;
+      line-height: 1.2;
+    }
+
+    .test-buttons {
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .test-btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
+      font-size: 13px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: opacity 0.2s;
+    }
+
+    .test-btn:hover {
+      opacity: 0.8;
+    }
+
+    .btn-375 {
+      background: #801D39;
+      color: white;
+    }
+
+    .btn-768 {
+      background: #C4507A;
+      color: white;
+    }
+
+    .btn-1920 {
+      background: #FFF5F7;
+      color: #801D39;
+      border: 1px solid #E5BAC4;
+    }
+
+    @media (max-width: 640px) {
+      .container {
+        padding: 15px;
+      }
+
+      .carousel-container {
+        margin: 0 -15px;
+        padding: 0 15px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎠 Demo: Carrossel de Atalhos</h1>
+    
+    <div class="info">
+      <strong>✅ Correção Aplicada:</strong> Botões têm largura fixa de 100px.
+      <br><br>
+      <strong>✨ Comportamento:</strong>
+      <ul style="margin-left: 20px; margin-top: 8px;">
+        <li>Mobile (< 400px): <strong>Scroll horizontal ativo</strong></li>
+        <li>Desktop (> 400px): Todos visíveis sem scroll</li>
+      </ul>
+    </div>
+
+    <div class="viewport-info" id="viewport-info">
+      Viewport: <strong id="viewport-width">-</strong>px × <strong id="viewport-height">-</strong>px
+    </div>
+
+    <div class="home-section">
+      <div class="carousel-container">
+        <div class="carousel" id="carousel">
+          <button class="shortcut-btn" onclick="alert('Simular compra')">
+            <div class="shortcut-icon">🛒</div>
+            <span>Simular<br>compra</span>
+          </button>
+          
+          <button class="shortcut-btn" onclick="alert('E se...?')">
+            <div class="shortcut-icon">✨</div>
+            <span>E se...?</span>
+          </button>
+          
+          <button class="shortcut-btn" onclick="alert('Investimentos')">
+            <div class="shortcut-icon">📈</div>
+            <span>Investimentos</span>
+          </button>
+          
+          <button class="shortcut-btn" onclick="alert('Metas')">
+            <div class="shortcut-icon">🎯</div>
+            <span>Metas</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="test-buttons">
+      <button class="test-btn btn-375" onclick="setViewport(375)">
+        📱 iPhone SE (375px)
+      </button>
+      <button class="test-btn btn-768" onclick="setViewport(768)">
+        📱 Tablet (768px)
+      </button>
+      <button class="test-btn btn-1920" onclick="setViewport(1920)">
+        🖥️ Desktop (1920px)
+      </button>
+    </div>
+
+    <div style="margin-top: 20px; padding: 12px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; font-size: 12px; color: #166534;">
+      <strong>✅ Teste com os dedos:</strong><br>
+      Em viewports < 400px, arraste os cards para os lados. Eles devem deslizar suavemente e "grudar" (snap) ao soltar.
+    </div>
+  </div>
+
+  <script>
+    function updateViewportInfo() {
+      const width = window.innerWidth
+      const height = window.innerHeight
+      document.getElementById('viewport-width').textContent = width
+      document.getElementById('viewport-height').textContent = height
+
+      const carousel = document.getElementById('carousel')
+      const scrollWidth = carousel.scrollWidth
+      const clientWidth = carousel.clientWidth
+      const hasScroll = scrollWidth > clientWidth
+
+      const info = document.getElementById('viewport-info')
+      if (hasScroll) {
+        info.style.background = '#dcfce7'
+        info.style.borderColor = '#86efac'
+        info.style.color = '#166534'
+        info.innerHTML = `
+          Viewport: <strong>${width}</strong>px × <strong>${height}</strong>px
+          <br>
+          <strong>✅ Scroll ativo</strong> (${scrollWidth}px > ${clientWidth}px)
+        `
+      } else {
+        info.style.background = '#fef3c7'
+        info.style.borderColor = '#fde68a'
+        info.style.color = '#92400e'
+        info.innerHTML = `
+          Viewport: <strong>${width}</strong>px × <strong>${height}</strong>px
+          <br>
+          <strong>ℹ️ Todos visíveis</strong> (${scrollWidth}px ≤ ${clientWidth}px)
+        `
+      }
+    }
+
+    function setViewport(width) {
+      // Apenas para fins de demonstração visual
+      // Em um app real, use DevTools para mudar o viewport
+      document.querySelector('.container').style.maxWidth = width + 'px'
+      setTimeout(updateViewportInfo, 100)
+    }
+
+    // Atualiza info ao carregar e ao redimensionar
+    updateViewportInfo()
+    window.addEventListener('resize', updateViewportInfo)
+    
+    // Atualiza após scroll para mostrar indicador
+    document.getElementById('carousel').addEventListener('scroll', () => {
+      const carousel = document.getElementById('carousel')
+      const scrollLeft = carousel.scrollLeft
+      const maxScroll = carousel.scrollWidth - carousel.clientWidth
+      
+      console.log(`Scroll: ${scrollLeft.toFixed(0)}px / ${maxScroll.toFixed(0)}px`)
+    })
+  </script>
+</body>
+</html>

@@ -189,20 +189,19 @@
   }
 
   .input {
-    @apply w-full bg-white border border-gray-300 text-gray-900 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-marca focus:border-transparent;
+    @apply w-full bg-white border border-gray-300 text-gray-900 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-marca focus:border-transparent;
     /* iOS Safari: font-size < 16px dispara zoom automático ao focar o campo.
-       A regra genérica em @layer base cobre <input>/<select>/<textarea> mas
-       @apply text-sm (14px) tem especificidade maior e a sobrescreve.
-       Aqui garantimos 16px mobile diretamente na classe .input (e .label não
-       é afetado — só os campos interativos). */
-    font-size: 16px;
+       Removemos text-sm do @apply e aplicamos 16px diretamente com !important
+       para garantir que não seja sobrescrito pelo Tailwind. */
+    font-size: 16px !important;
+    line-height: 1.5;
   }
 
-  /* No desktop a tela é larga o suficiente para não disparar zoom, mas
-     mantemos text-sm visualmente via line-height ajustado. */
+  /* No desktop (≥768px), reduzimos para 14px mantendo a proporção visual.
+     Desktop não dispara zoom automático. */
   @media (min-width: 768px) {
     .input {
-      font-size: 0.875rem; /* text-sm = 14px no desktop */
+      font-size: 0.875rem !important; /* 14px no desktop */
     }
   }
 
