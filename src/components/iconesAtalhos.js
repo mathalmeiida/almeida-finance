@@ -1,6 +1,6 @@
 import {
   ShoppingCart, Sparkles, TrendingUp, Target, CreditCard, CalendarDays, Plus,
-  MessageCircle, Receipt, BarChart2, Wallet,
+  MessageCircle, Receipt, BarChart2, Wallet, Upload,
 } from 'lucide-react'
 
 // Ícones por id do catálogo de atalhos (src/lib/atalhosHome.js). Os 4
@@ -17,4 +17,5 @@ export const ICONES_ATALHOS = {
   parcelamentos: Receipt,
   projecao: BarChart2,
   'gastar-hoje': Wallet,
+  importacao: Upload,
 }

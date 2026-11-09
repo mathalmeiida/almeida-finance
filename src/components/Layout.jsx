@@ -29,6 +29,7 @@ import {
   Grid2X2,
   CircleHelp,
   Info,
+  Upload,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import LogoMarca from './LogoMarca'
@@ -47,6 +48,7 @@ const navGrupos = [
     { to: '/cartoes',       label: 'Cartões',        icon: CreditCard,    corIcone: 'text-sky-400'      },
     { to: '/beneficios',    label: 'Benefícios',     icon: UtensilsCrossed, corIcone: 'text-emerald-400' },
     { to: '/investimentos', label: 'Investimentos',  icon: TrendingUp,    corIcone: 'text-green-400'    },
+      { to: '/importacao',    label: 'Importação',     icon: Upload,        corIcone: 'text-sky-400'      },
     { to: '/projecao',      label: 'Projeção',       icon: BarChart2,     corIcone: 'text-violet-400'   },
     { to: '/minha-evolucao', label: 'Minha evolução', icon: Activity, corIcone: 'text-violet-400' },
   ]},

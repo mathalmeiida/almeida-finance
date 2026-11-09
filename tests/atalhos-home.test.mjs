@@ -13,7 +13,7 @@ const padrao = configPadraoAtalhos()
 assert('4 originais primeiro, na ordem', JSON.stringify(padrao.ordem.slice(0, 4)) === JSON.stringify(['simular-compra', 'e-se', 'investimentos', 'metas']))
 assert('ids únicos no catálogo', new Set(CATALOGO_ATALHOS.map(a => a.id)).size === CATALOGO_ATALHOS.length)
 assert('todo atalho tem rota OU modal', CATALOGO_ATALHOS.every(a => !!a.rota !== !!a.modal))
-assert('Importação Inteligente ausente até existir (Parte C)', !CATALOGO_ATALHOS.some(a => /import/i.test(a.id)))
+assert('Importação Inteligente aponta para a página existente', CATALOGO_ATALHOS.find(a => a.id === 'importacao')?.rota === '/importacao')
 assert('padrão mostra todos', atalhosVisiveis(padrao).length === CATALOGO_ATALHOS.length)
 
 console.log('\n# Normalização de dados vindos do banco')
@@ -48,7 +48,7 @@ assert('arrastar e soltar no topo', c.ordem[0] === 'gastar-hoje' && c.ordem[1] =
 assert('reposicionar preserva todos os itens', c.ordem.length === CATALOGO_ATALHOS.length)
 
 console.log('\n# Somente leitura (consultoria)')
-assert('oculta "Registrar gasto"', !ids(atalhosVisiveis(padrao, { somenteLeitura: true })).includes('registrar-gasto'))
+assert('oculta "Registrar gasto" e importação', !ids(atalhosVisiveis(padrao, { somenteLeitura: true })).some(i => ['registrar-gasto', 'importacao'].includes(i)))
 
 console.log(falhas === 0 ? '\nOK — todos os testes passaram' : `\n${falhas} FALHA(S)`)
 process.exit(falhas === 0 ? 0 : 1)

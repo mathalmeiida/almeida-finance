@@ -57,6 +57,8 @@ import ReverApresentacao from './pages/ReverApresentacao'
 
 import Investimentos from './pages/Investimentos'
 
+import ImportacaoInteligente from './pages/ImportacaoInteligente'
+
 import Admin from './pages/Admin'
 
 // Páginas públicas (autenticação)
@@ -430,6 +432,8 @@ function Rotas() {
                 <Route path="/beneficios" element={<Beneficios />} />
 
                 <Route path="/investimentos" element={<Investimentos />} />
+
+                <Route path="/importacao" element={<ImportacaoInteligente />} />
 
                 <Route path="/projecao" element={<Projecao />} />
                 <Route path="/minha-evolucao" element={<MinhaEvolucao />} />

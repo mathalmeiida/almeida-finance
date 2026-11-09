@@ -5,8 +5,7 @@
 // Cada atalho executa uma ação JÁ existente no app:
 //   { rota }  → navega para a página existente
 //   { modal } → abre um modal existente da Home ('calendario' | 'gasto' | 'planejamento')
-// "Importação Inteligente" NÃO está no catálogo: a funcionalidade ainda não
-// existe (Parte C). Não apresentamos funções inexistentes como disponíveis.
+// Só entram atalhos de funções que existem (Importação: página /importacao).
 
 export const VERSAO_CONFIG_ATALHOS = 1
 
@@ -18,6 +17,7 @@ export const CATALOGO_ATALHOS = [
   { id: 'cartoes', label: 'Cartões', rota: '/cartoes' },
   { id: 'calendario', label: 'Calendário', modal: 'calendario' },
   { id: 'registrar-gasto', label: 'Registrar gasto', modal: 'gasto', exigeEscrita: true },
+  { id: 'importacao', label: 'Importação Inteligente', rota: '/importacao', exigeEscrita: true },
   { id: 'consultoria', label: 'Consultoria', rota: '/consultoria' },
   { id: 'parcelamentos', label: 'Parcelamentos', rota: '/despesas?aba=parceladas' },
   { id: 'projecao', label: 'Projeção financeira', rota: '/projecao' },

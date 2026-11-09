@@ -1,0 +1,6 @@
+Data,Tipo,Ativo,Valor
+01/10/2026,Aplicação,CDB Banco Ficticio,"1.000,00"
+15/10/2026,Rendimento,CDB Banco Ficticio,"12,34"
+20/10/2026,Dividendos,FII FICT11,"45,60"
+25/10/2026,Resgate parcial,CDB Banco Ficticio,"300,00"
+26/10/2026,Evento desconhecido,CDB Banco Ficticio,"1,00"

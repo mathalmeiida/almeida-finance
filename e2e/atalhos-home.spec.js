@@ -15,17 +15,17 @@ async function abrirHome(page, opcoes = {}) {
 }
 
 const PADRAO = ['simular-compra', 'e-se', 'investimentos', 'metas', 'cartoes', 'calendario',
-  'registrar-gasto', 'consultoria', 'parcelamentos', 'projecao', 'gastar-hoje']
+  'registrar-gasto', 'importacao', 'consultoria', 'parcelamentos', 'projecao', 'gastar-hoje']
 
 async function idsVisiveis(page) {
   return faixa(page).locator('[data-atalho]').evaluateAll(els => els.map(e => e.dataset.atalho))
 }
 
-test('ordem padrão começa pelos 4 atalhos originais e não há importação (ainda inexistente)', async ({ page }) => {
+test('ordem padrão começa pelos 4 atalhos originais e inclui a importação', async ({ page }) => {
   await abrirHome(page)
   const ids = await idsVisiveis(page)
   expect(ids).toEqual(PADRAO)
-  expect(ids).not.toContain('importacao')
+  expect(ids).toContain('importacao')
 })
 
 test('faixa rola na horizontal sem alargar a página e sem bloquear rolagem vertical', async ({ page }) => {
@@ -93,6 +93,7 @@ test('cada atalho executa sua ação real (rota ou modal existente)', async ({ p
     consultoria: /\/consultoria$/,
     parcelamentos: /\/despesas$/, // ?aba=parceladas é consumido pela página
     projecao: /\/projecao$/,
+    importacao: /\/importacao$/,
   }
   for (const [id, rota] of Object.entries(rotas)) {
     await page.goto('/')

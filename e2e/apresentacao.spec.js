@@ -43,7 +43,7 @@ test('avançar, voltar, deslizar e indicadores acompanham a posição', async ({
   await page.getByTestId('apresentacao-trilho').evaluate(el => el.scrollTo({ left: el.clientWidth * 4, behavior: 'auto' }))
   await expect.poll(() => indiceAtivo(page)).toBe(4)
   await expect(page.getByRole('heading', { name: 'Menos trabalho. Mais controle.' })).toBeInViewport()
-  await expect(page.getByText('Em breve')).toBeVisible()
+  await expect(page.getByText('Em breve')).toHaveCount(0) // importação já disponível
 
   await page.getByTestId('apresentacao-voltar').click()
   await expect.poll(() => indiceAtivo(page)).toBe(3)

@@ -80,9 +80,10 @@ test('novo usuário completa as 8 etapas sem duplicar lançamentos', async ({ pa
 
   // 6 — Importação (Em breve)
   await expect(etapa(page)).toHaveAttribute('data-etapa', '6')
-  await expect(page.getByTestId('onboarding-importacao-em-breve')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Importar agora' })).toBeDisabled()
+  await page.getByTestId('onboarding-importar-agora').click()
+  await expect(page.getByTestId('importacao')).toBeVisible() // mesmo módulo da página /importacao
   await capturar(page, '6-importacao', info)
+  await page.getByRole('button', { name: 'Voltar', exact: true }).click()
   await page.getByRole('button', { name: /Deixar para depois/ }).click()
 
   // 7 — Metas + reserva

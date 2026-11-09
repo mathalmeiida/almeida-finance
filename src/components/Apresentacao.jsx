@@ -23,7 +23,7 @@ import {
 
 // A Importação Inteligente é entregue na Parte C. Até lá a tela de
 // apresentação a mostra com o selo "Em breve", sem prometer disponibilidade.
-const IMPORTACAO_DISPONIVEL = false
+const IMPORTACAO_DISPONIVEL = true
 
 const painel = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }
 const painelForte = { background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.15)' }

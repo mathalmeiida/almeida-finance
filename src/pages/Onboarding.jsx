@@ -11,6 +11,7 @@ import { useInvestimentos } from '../hooks/useInvestimentos'
 import { useMetas } from '../hooks/useMetas'
 import { useAtalhosHome } from '../hooks/useAtalhosHome'
 import ModalPersonalizarAtalhos from '../components/ModalPersonalizarAtalhos'
+import ImportacaoInteligente from './ImportacaoInteligente'
 import { ICONES_ATALHOS } from '../components/iconesAtalhos'
 import { atalhosVisiveis } from '../lib/atalhosHome'
 import { CORES_CARTAO } from '../lib/coresCartao'
@@ -149,12 +150,12 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   // Investimentos e metas: mesmos hooks/tabelas dos módulos do app.
   const {
     investimentos, movimentacoes, carregando: carregandoInvestimentos,
-    criar: criarInvestimento, atualizar: atualizarInvestimento, remover: removerInvestimento,
+    criar: criarInvestimento, atualizar: atualizarInvestimento, remover: removerInvestimento, recarregar: recarregarInvestimentos,
   } = useInvestimentos()
   const { metas, carregando: carregandoMetas, criar: criarMeta, atualizar: atualizarMeta, remover: removerMeta } = useMetas()
   const { config: configAtalhos, salvar: salvarAtalhos } = useAtalhosHome()
   // Hooks das MESMAS tabelas usadas no app — sem estrutura paralela.
-  const { receitas: receitasExistentes, criar: criarReceita, atualizar: atualizarReceita } = useReceitas()
+  const { receitas: receitasExistentes, criar: criarReceita, atualizar: atualizarReceita, recarregar: recarregarReceitas } = useReceitas()
   const { despesas: despesasExistentes, criar: criarDespesa, atualizar: atualizarDespesa, remover: removerDespesa, carregando: carregandoDespesas, erro: erroCarregamentoDespesas, recarregar: recarregarDespesas } = useDespesas()
   const { categorias: categoriasReceita } = useCategorias('receita')
   const { categorias: categoriasDespesa } = useCategorias('despesa')
@@ -214,6 +215,8 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
 
   // ETAPA 5 — cor do cartão (mesma paleta da página Cartões).
   const [personalizandoAtalhos, setPersonalizandoAtalhos] = useState(false)
+  // ETAPA 6 — Importação Inteligente embutida (mesmo componente da página).
+  const [importando, setImportando] = useState(false)
 
   // Apresentação inicial (3 telas) — mostrada UMA VEZ por usuário, antes do
   // fluxo de configuração. NÃO aparece quando o onboarding é reaberto apontando
@@ -1752,37 +1755,48 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
             </div>
           )}
 
-          {/* ─── ETAPA 6 — Importação Inteligente (Em breve) ─── */}
+          {/* ─── ETAPA 6 — Importação Inteligente (mesmo módulo da página /importacao) ─── */}
           {etapa === IMPORTACAO && (
             <div className="py-2">
-              <span className="inline-block mb-3 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-100 text-amber-800"
-                data-testid="onboarding-importacao-em-breve">Em breve</span>
-              <CabecalhoEtapa
-                icone={Upload} cor="text-marca" bg="bg-marca-100"
-                titulo="Quer organizar suas finanças ainda mais rápido?"
-                subtitulo="Importe seus extratos, faturas ou investimentos e confira os dados identificados."
-              />
-              <div className="rounded-xl border border-dashed border-gray-300 p-4 flex items-center gap-3 text-sm text-gray-500">
-                <FileSpreadsheet size={22} className="text-gray-400 flex-shrink-0" />
-                <span>A Importação Inteligente (CSV, OFX, planilhas e PDF) ainda está em desenvolvimento. Você revisará tudo antes de salvar, e nada é duplicado.</span>
-              </div>
-              <button type="button" disabled aria-disabled="true"
-                className="btn-primary w-full mt-4 flex items-center justify-center gap-2 opacity-50 cursor-not-allowed">
-                <Upload size={16} /> Importar agora
-              </button>
-              <button type="button" onClick={() => setEtapa(RENDA)}
-                className="btn-secondary w-full mt-2">
-                Cadastrar manualmente
-              </button>
-              <div className="flex gap-2 mt-4">
-                <button onClick={voltar} className="btn-secondary flex items-center gap-1 px-3" aria-label="Voltar">
-                  <ArrowLeft size={16} />
-                </button>
-                <button type="button" onClick={avancar}
-                  className="btn-secondary flex-1 flex items-center justify-center gap-2">
-                  Deixar para depois <ArrowRight size={16} />
-                </button>
-              </div>
+              {importando ? (
+                <ImportacaoInteligente embutido
+                  onCancelar={() => setImportando(false)}
+                  onConcluir={async () => {
+                    setImportando(false)
+                    // Atualiza as listas desta tela com o que acabou de ser gravado.
+                    await Promise.allSettled([recarregarReceitas?.(), recarregarDespesas?.(), recarregarInvestimentos?.()])
+                    avancar()
+                  }} />
+              ) : (
+                <>
+                  <CabecalhoEtapa
+                    icone={Upload} cor="text-marca" bg="bg-marca-100"
+                    titulo="Quer organizar suas finanças ainda mais rápido?"
+                    subtitulo="Importe seus extratos, faturas ou investimentos e confira os dados identificados."
+                  />
+                  <div className="rounded-xl border border-gray-200 p-4 flex items-center gap-3 text-sm text-gray-600">
+                    <FileSpreadsheet size={22} className="text-marca flex-shrink-0" />
+                    <span>CSV, OFX, planilhas e PDF com texto. O arquivo é lido no seu aparelho, você revisa tudo antes de salvar e o que já foi cadastrado não é duplicado.</span>
+                  </div>
+                  <button type="button" onClick={() => setImportando(true)}
+                    className="btn-primary w-full mt-4 flex items-center justify-center gap-2" data-testid="onboarding-importar-agora">
+                    <Upload size={16} /> Importar agora
+                  </button>
+                  <button type="button" onClick={() => setEtapa(RENDA)}
+                    className="btn-secondary w-full mt-2">
+                    Cadastrar manualmente
+                  </button>
+                  <div className="flex gap-2 mt-4">
+                    <button onClick={voltar} className="btn-secondary flex items-center gap-1 px-3" aria-label="Voltar">
+                      <ArrowLeft size={16} />
+                    </button>
+                    <button type="button" onClick={avancar}
+                      className="btn-secondary flex-1 flex items-center justify-center gap-2">
+                      Deixar para depois <ArrowRight size={16} />
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
