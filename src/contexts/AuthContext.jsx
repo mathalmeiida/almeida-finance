@@ -264,6 +264,30 @@ export function AuthProvider({ children }) {
     }
   }
 
+  // Grava campos OPCIONAIS do perfil do onboarding (objetivos_financeiros,
+  // onboarding_etapa) que dependem de migration ainda não aplicada. Se a
+  // coluna não existir, não quebra o fluxo: devolve false e o chamador mantém
+  // a cópia no localStorage. Nunca usado para campos financeiros.
+  const CAMPOS_PERFIL_OPCIONAIS = ['objetivos_financeiros', 'onboarding_etapa']
+  async function atualizarPerfilOpcional(campos) {
+    if (!usuario || consultoriaAlvo) return false
+    const permitidos = Object.fromEntries(Object.entries(campos).filter(([k]) => CAMPOS_PERFIL_OPCIONAIS.includes(k)))
+    if (Object.keys(permitidos).length === 0) return false
+    try {
+      const { data, error } = await supabase
+        .from('perfis')
+        .update(permitidos)
+        .eq('id', usuario.id)
+        .select()
+        .single()
+      if (error) throw error
+      if (data) setPerfil(data)
+      return true
+    } catch {
+      return false
+    }
+  }
+
   // Salva a personalização dos atalhos da Home (perfis.atalhos_home, JSONB)
   // do PRÓPRIO usuário logado. Mesmo padrão do tema: aplica no estado local e
   // tenta persistir no banco. Se a coluna ainda não existir (migration
@@ -377,6 +401,7 @@ export function AuthProvider({ children }) {
     corTema,
     atualizarCorTema,
     atualizarAtalhosHome,
+    atualizarPerfilOpcional,
     // ehAdmin usa SEMPRE o papel real do usuário logado (não o do cliente).
     ehAdmin: perfil?.papel === 'admin',
     // Conta desativada por um administrador (soft-disable). Baseado no perfil

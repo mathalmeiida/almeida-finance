@@ -1,12 +1,24 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import {
-  Wallet, TrendingUp, TrendingDown, ShieldCheck, Sparkles,
+  Wallet, TrendingUp, TrendingDown, ShieldCheck,
   CheckCircle2, ArrowRight, ArrowLeft, Plus, Trash2, Loader2, UtensilsCrossed,
-  CreditCard, ShoppingBag, Pencil, Landmark, BarChart2, Target, ShoppingCart, MessagesSquare, PiggyBank, Bell,
+  CreditCard, ShoppingBag, Pencil, Target, PiggyBank,
+  UserRound, Upload, FileSpreadsheet, Palette, SlidersHorizontal, Star,
 } from 'lucide-react'
 import NotificacoesPush from '../components/NotificacoesPush'
-import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useInvestimentos } from '../hooks/useInvestimentos'
+import { useMetas } from '../hooks/useMetas'
+import { useAtalhosHome } from '../hooks/useAtalhosHome'
+import ModalPersonalizarAtalhos from '../components/ModalPersonalizarAtalhos'
+import { ICONES_ATALHOS } from '../components/iconesAtalhos'
+import { atalhosVisiveis } from '../lib/atalhosHome'
+import { CORES_CARTAO } from '../lib/coresCartao'
+import {
+  TELAS_ONBOARDING, ETAPAS_ONBOARDING, TOTAL_ETAPAS, etapaDaTela, CHAVE_PARA_TELA, telaParaRetomar,
+  OBJETIVOS_FINANCEIROS, normalizarObjetivos, alternarObjetivo, validarPerfil,
+  acaoPatrimonioInicial, ehPatrimonioInicial, totalInvestido, validarMeta, itensResumoFinal,
+} from '../lib/onboardingFluxo'
 import { useReceitas } from '../hooks/useReceitas'
 import { useDespesas } from '../hooks/useDespesas'
 import { useCategorias } from '../hooks/useCategorias'
@@ -46,11 +58,7 @@ const FORMAS_PAGAMENTO_ONBOARDING = [
 const labelFormaOnboarding = (value) =>
   FORMAS_PAGAMENTO_ONBOARDING.find(f => f.value === value)?.label || ''
 
-// Etapas do fluxo (índices internos):
-//   0 = Intro | 1 = Saldo | 2 = Renda | 3 = Despesas | 4 = Cartões |
-//   5 = Benefícios (VR/VA) | 6 = Reserva | 7 = Final
-// CARTOES e BENEFICIOS são etapas OPCIONAIS (podem ser puladas) e NÃO entram
-// na barra de progresso "X de 4" (que cobre só saldo/renda/despesas/reserva).
+// Etapas do fluxo: 8 etapas definidas em src/lib/onboardingFluxo.js.
 // Opções e rótulo da recorrência de RECEITAS (reutilizadas no form e na lista).
 const FREQUENCIAS_RECEITA = [
   { value: 'nao_repete',     label: 'Uma única vez' },
@@ -68,41 +76,47 @@ const labelFrequenciaReceita = (freq) => {
   return (FREQUENCIAS_RECEITA.find(o => o.value === f)?.label || f).toLowerCase()
 }
 
-const INTRO = 0
-const SALDO = 1
-const INVESTIMENTOS = 2
-const RENDA = 3
-const DESPESAS = 4
-const CARTOES = 5
-const BENEFICIOS = 6
-const RESERVA = 7
-const NOTIFICACOES = 8   // nova etapa: ativar alertas push
-const FINAL = 9
+// Telas do fluxo (ordem e agrupamento em 8 etapas: src/lib/onboardingFluxo.js).
+const PERFIL = 'perfil'
+const SALDO = 'saldo'
+const RENDA = 'renda'
+const BENEFICIOS = 'beneficios'
+const DESPESAS = 'despesas'
+const CARTOES = 'cartoes'
+const IMPORTACAO = 'importacao'
+const METAS = 'metas'
+const RESERVA = 'reserva'
+const PERSONALIZACAO = 'personalizacao'
+const NOTIFICACOES = 'notificacoes'
+const FINAL = 'final'
+const RETOMAR = 'retomar' // tela de escolha "continuar ou ir para o app"
 
-// A barra de progresso cobre apenas as 4 etapas de configuração (saldo, renda,
-// despesas, reserva) — "X de 4", igual ao card da Home.
-const ETAPAS_CONFIG = [SALDO, RENDA, DESPESAS, RESERVA]
+const CHAVE_PROGRESSO = (id) => `almeida_onboarding_progresso_${id}`
+const CHAVE_OBJETIVOS = (id) => `almeida_onboarding_objetivos_${id}`
 
-// Mapeia a chave vinda do card da Home ("Complete sua configuração") para a
-// etapa correspondente, para reabrir o fluxo exatamente no item pendente.
-const CHAVE_PARA_ETAPA = {
-  saldo: SALDO,
-  renda: RENDA,
-  despesas: DESPESAS,
-  reserva: RESERVA,
+function lerLocal(chave) {
+  try { return localStorage.getItem(chave) } catch { return null }
+}
+function gravarLocal(chave, valor) {
+  try {
+    if (valor == null) localStorage.removeItem(chave)
+    else localStorage.setItem(chave, valor)
+  } catch { /* ignora */ }
 }
 
-// Barra de progresso enxuta (apenas as 4 etapas de configuração).
+// Barra de progresso discreta: 8 etapas. Telas que pertencem à mesma etapa
+// (ex.: Receitas + VR/VA) mostram o mesmo número.
 function Progresso({ etapa }) {
-  const etapas = [SALDO, RENDA, DESPESAS, CARTOES, BENEFICIOS, RESERVA]
-  const indice = etapas.indexOf(etapa)
-  return <div className="mb-6">
+  const atual = etapaDaTela(etapa)
+  if (!atual) return null
+  const titulo = ETAPAS_ONBOARDING.find(e => e.numero === atual)?.titulo
+  return <div className="mb-6" data-testid="onboarding-progresso" data-etapa={atual}>
     <div className="flex items-center justify-between text-xs mb-2">
-      <span className="font-semibold text-marca">Seu planejamento</span>
-      <span className="text-gray-500">{indice + 1} de {etapas.length}</span>
+      <span className="font-semibold text-marca">{titulo}</span>
+      <span className="text-gray-500">Etapa {atual} de {TOTAL_ETAPAS}</span>
     </div>
-    <div className="flex gap-1.5">{etapas.map((n, i) =>
-      <div key={n} className={`h-1.5 flex-1 rounded-full ${i <= indice ? 'bg-marca' : 'bg-gray-200'}`} />
+    <div className="flex gap-1.5" aria-hidden="true">{ETAPAS_ONBOARDING.map(e =>
+      <div key={e.numero} className={`h-1.5 flex-1 rounded-full ${e.numero <= atual ? 'bg-marca' : 'bg-gray-200'}`} />
     )}</div>
   </div>
 }
@@ -123,16 +137,22 @@ function CabecalhoEtapa({ icone: Icone, cor, bg, titulo, subtitulo }) {
 // Linha de resumo da tela final.
 function LinhaResumo({ label, valor, cor = 'text-gray-900' }) {
   return (
-    <div className="flex items-center justify-between py-2 border-b border-gray-200 last:border-0">
-      <span className="text-sm text-gray-500">{label}</span>
-      <span className={`text-sm font-semibold ${cor}`}>{valor}</span>
+    <div className="flex items-start justify-between gap-4 py-2 border-b border-gray-200 last:border-0">
+      <span className="text-sm text-gray-500 max-w-[45%]">{label}</span>
+      <span className={`text-sm font-semibold text-right min-w-0 ${cor}`}>{valor}</span>
     </div>
   )
 }
 
 export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
-  const { usuario, perfil, atualizarPreferenciasLimite, corTema, atualizarCorTema } = useAuth()
-  const navigate = useNavigate()
+  const { usuario, perfil, atualizarPreferenciasLimite, corTema, atualizarCorTema, atualizarPerfilOpcional } = useAuth()
+  // Investimentos e metas: mesmos hooks/tabelas dos módulos do app.
+  const {
+    investimentos, movimentacoes, carregando: carregandoInvestimentos,
+    criar: criarInvestimento, atualizar: atualizarInvestimento, remover: removerInvestimento,
+  } = useInvestimentos()
+  const { metas, carregando: carregandoMetas, criar: criarMeta, atualizar: atualizarMeta, remover: removerMeta } = useMetas()
+  const { config: configAtalhos, salvar: salvarAtalhos } = useAtalhosHome()
   // Hooks das MESMAS tabelas usadas no app — sem estrutura paralela.
   const { receitas: receitasExistentes, criar: criarReceita, atualizar: atualizarReceita } = useReceitas()
   const { despesas: despesasExistentes, criar: criarDespesa, atualizar: atualizarDespesa, remover: removerDespesa, carregando: carregandoDespesas, erro: erroCarregamentoDespesas, recarregar: recarregarDespesas } = useDespesas()
@@ -146,9 +166,54 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   // Benefícios. Usado na etapa Benefícios do onboarding.
   const { beneficios, criarBeneficio, atualizarBeneficio, removerBeneficio, saldoDoBeneficio } = useBeneficios()
 
-  const [etapa, setEtapa] = useState(INTRO)
+  // Tela inicial: reabertura direcionada (card da Home) → tela do item;
+  // progresso salvo de um onboarding interrompido → oferece retomar;
+  // senão começa pelo Perfil.
+  const progressoSalvo = () => telaParaRetomar(
+    perfil?.onboarding_etapa || (usuario?.id ? lerLocal(CHAVE_PROGRESSO(usuario.id)) : null))
+  const [etapa, setEtapa] = useState(() => {
+    const alvo = CHAVE_PARA_TELA[etapaInicial]
+    if (alvo) return alvo
+    return progressoSalvo() ? RETOMAR : PERFIL
+  })
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+
+  // Salva a tela atual (para continuar depois). localStorage sempre;
+  // perfis.onboarding_etapa quando a coluna existir (migration pendente).
+  useEffect(() => {
+    if (!usuario?.id || etapa === RETOMAR || etapa === FINAL) return
+    gravarLocal(CHAVE_PROGRESSO(usuario.id), etapa)
+    atualizarPerfilOpcional?.({ onboarding_etapa: etapa })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [etapa, usuario?.id])
+
+  // ETAPA 1 — Perfil: nome de preferência (perfis.nome, já existente) e
+  // objetivos (perfis.objetivos_financeiros quando existir; cópia local).
+  const [nomePreferido, setNomePreferido] = useState(() => perfil?.nome || '')
+  const [objetivos, setObjetivos] = useState(() => {
+    if (Array.isArray(perfil?.objetivos_financeiros)) return normalizarObjetivos(perfil.objetivos_financeiros)
+    try { return normalizarObjetivos(JSON.parse(lerLocal(CHAVE_OBJETIVOS(usuario?.id)) || '[]')) } catch { return [] }
+  })
+
+  // ETAPA 2 — patrimônio investido (módulo Investimentos, separado do saldo).
+  const registroPatrimonio = investimentos.find(ehPatrimonioInicial) || null
+  const investimentosProprios = investimentos.filter(i => !ehPatrimonioInicial(i))
+  const [patrimonio, setPatrimonio] = useState('')
+  const [patrimonioHidratado, setPatrimonioHidratado] = useState(false)
+  useEffect(() => {
+    if (patrimonioHidratado || carregandoInvestimentos) return
+    if (registroPatrimonio) setPatrimonio(Number(registroPatrimonio.valor_atual) || 0)
+    setPatrimonioHidratado(true)
+  }, [carregandoInvestimentos, registroPatrimonio, patrimonioHidratado])
+
+  // ETAPA 7 — Metas (gravadas na hora, como as despesas, para não duplicar).
+  const metaFormVazio = { nome: '', valor_desejado: '', valor_atual: '', prazo: '' }
+  const [metaForm, setMetaForm] = useState(metaFormVazio)
+  const [metaEditId, setMetaEditId] = useState(null)
+
+  // ETAPA 5 — cor do cartão (mesma paleta da página Cartões).
+  const [personalizandoAtalhos, setPersonalizandoAtalhos] = useState(false)
 
   // Apresentação inicial (3 telas) — mostrada UMA VEZ por usuário, antes do
   // fluxo de configuração. NÃO aparece quando o onboarding é reaberto apontando
@@ -167,6 +232,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   }
   const [mostrarApresentacao, setMostrarApresentacao] = useState(() => {
     if (etapaInicial) return false            // reabertura direcionada: pula
+    if (progressoSalvo()) return false        // retomada: já passou pela apresentação
     return !jaViuApresentacao(usuario?.id)    // sem id → mostra (não esconde à toa)
   })
   // Quando o id do usuário chega depois da 1ª montagem, reavalia: se ele JÁ viu
@@ -191,7 +257,6 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   // (edição). Para quem nunca informou (saldo_base = null, inclusive após
   // "zerar dados"), inicia VAZIO — o campo mostra apenas o placeholder R$ 0,00
   // e nada é gravado sem o usuário informar.
-  const [temInvestimentos, setTemInvestimentos] = useState(null)
   const [saldo, setSaldo] = useState(() =>
     perfil?.saldo_base != null ? Number(perfil.saldo_base) : '')
 
@@ -261,7 +326,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
 
   // ETAPA Cartões — formulário local de um cartão (gravado ao avançar).
   const [cartaoForm, setCartaoForm] = useState({
-    nome: '', banco: '', limite_total: '', dia_fechamento: '', dia_vencimento: '',
+    nome: '', banco: '', limite_total: '', dia_fechamento: '', dia_vencimento: '', cor: CORES_CARTAO[0].valor,
   })
   const [cartaoEditId, setCartaoEditId] = useState(null)
 
@@ -285,25 +350,113 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
     return !OPCOES_RESERVA.includes(pct)
   })
 
-  // Se o fluxo foi reaberto pelo card da Home apontando para um item pendente,
-  // começa direto nessa etapa (sem passar pela intro). Caso contrário, intro.
-  useEffect(() => {
-    const alvo = CHAVE_PARA_ETAPA[etapaInicial]
-    if (alvo != null) setEtapa(alvo)
-    // Executa só na montagem (a etapa inicial não muda durante o fluxo).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Avança para a PRÓXIMA etapa de configuração (ou para o final). Como o fluxo
-  // pode ter sido iniciado no meio (card da Home), avançamos sempre em ordem.
+  // Navegação em ordem pelas telas (src/lib/onboardingFluxo.js). Como o fluxo
+  // pode ter sido iniciado no meio (card da Home), segue sempre a ordem.
   const avancar = () => {
     setErro('')
-    setEtapa((e) => Math.min(e + 1, FINAL))
+    setEtapa((e) => {
+      const i = TELAS_ONBOARDING.indexOf(e)
+      return i < 0 ? PERFIL : TELAS_ONBOARDING[Math.min(i + 1, TELAS_ONBOARDING.length - 1)]
+    })
   }
   const voltar = () => {
     setErro('')
-    // Volta uma etapa; da primeira etapa de config (SALDO) retorna à intro.
-    setEtapa((e) => Math.max(e - 1, INTRO))
+    setEtapa((e) => {
+      const i = TELAS_ONBOARDING.indexOf(e)
+      return i <= 0 ? PERFIL : TELAS_ONBOARDING[i - 1]
+    })
+  }
+
+  // ─── ETAPA 1 — Perfil ───
+  async function salvarPerfil() {
+    if (emGravacao.current) return
+    const problema = validarPerfil({ nome: nomePreferido })
+    if (problema) { setErro(problema); return }
+    const nome = nomePreferido.trim()
+    emGravacao.current = true
+    setSalvando(true); setErro('')
+    try {
+      if (nome !== (perfil?.nome || '')) await atualizarPreferenciasLimite({ nome })
+      const lista = normalizarObjetivos(objetivos)
+      gravarLocal(CHAVE_OBJETIVOS(usuario?.id), JSON.stringify(lista))
+      await atualizarPerfilOpcional?.({ objetivos_financeiros: lista })
+      avancar()
+    } catch (e) {
+      setErro(`Não foi possível salvar seu perfil. ${e?.message || 'Tente novamente.'}`)
+    } finally {
+      setSalvando(false)
+      emGravacao.current = false
+    }
+  }
+
+  // "Ir para o app agora": conclui o primeiro acesso mantendo o que já foi
+  // salvo. O que faltar continua no card "Complete sua configuração" da Home.
+  async function terminarDepois() {
+    if (emGravacao.current) return
+    emGravacao.current = true
+    setSalvando(true)
+    try {
+      await aoConcluir?.()
+    } finally {
+      setSalvando(false)
+      emGravacao.current = false
+    }
+  }
+
+  // ─── ETAPA 7 — Metas ───
+  async function salvarMetaForm() {
+    if (salvando || emGravacao.current) return false
+    const problema = validarMeta(metaForm, hojeISO())
+    if (problema) { setErro(problema); return false }
+    const payload = {
+      nome: metaForm.nome.trim(),
+      valor_desejado: Number(metaForm.valor_desejado),
+      valor_atual: Number(metaForm.valor_atual) || 0,
+      prazo: metaForm.prazo || null,
+    }
+    emGravacao.current = true
+    setSalvando(true); setErro('')
+    try {
+      if (metaEditId) await atualizarMeta(metaEditId, payload)
+      else await criarMeta({ ...payload, cor: '#801D39' })
+      setMetaForm(metaFormVazio)
+      setMetaEditId(null)
+      return true
+    } catch (e) {
+      setErro(`Não foi possível salvar a meta. ${e?.message || 'Tente novamente.'}`)
+      return false
+    } finally {
+      setSalvando(false)
+      emGravacao.current = false
+    }
+  }
+  function editarMeta(m) {
+    setMetaEditId(m.id)
+    setMetaForm({
+      nome: m.nome || '', valor_desejado: Number(m.valor_desejado) || '',
+      valor_atual: Number(m.valor_atual) || '', prazo: m.prazo || '',
+    })
+    setErro('')
+  }
+  async function excluirMeta(m) {
+    if (salvando || emGravacao.current) return
+    if (!window.confirm(`Excluir a meta "${m.nome}"?`)) return
+    emGravacao.current = true
+    setSalvando(true); setErro('')
+    try {
+      await removerMeta(m.id)
+      if (metaEditId === m.id) { setMetaEditId(null); setMetaForm(metaFormVazio) }
+    } catch (e) {
+      setErro(`Não foi possível excluir a meta. ${e?.message || ''}`)
+    } finally {
+      setSalvando(false)
+      emGravacao.current = false
+    }
+  }
+  async function continuarMetas() {
+    const preenchido = metaForm.nome.trim() || Number(metaForm.valor_desejado) > 0
+    if (preenchido && !(await salvarMetaForm())) return
+    avancar()
   }
 
   // "Pular por enquanto": avança SEM salvar nada. Não cria dados fictícios nem
@@ -320,14 +473,26 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
     if (emGravacao.current) return
     emGravacao.current = true
     const valor = Number(saldo) || 0
+    if (valor < 0) { setErro('O saldo não pode ser negativo.'); emGravacao.current = false; return }
+    // Patrimônio investido: decidido ANTES de gravar, para não salvar metade.
+    const acao = carregandoInvestimentos
+      ? { tipo: 'aguardar' }
+      : acaoPatrimonioInicial({ investimentos, movimentacoes, valor: patrimonio })
+    if (acao.tipo === 'aguardar') { setErro('Aguarde carregar seus investimentos e tente de novo.'); emGravacao.current = false; return }
+    if (acao.tipo === 'invalido') { setErro(acao.motivo); emGravacao.current = false; return }
     setSalvando(true); setErro('')
     try {
-      // Grava mesmo que seja 0 (o usuário pode realmente estar zerado hoje).
-      await atualizarPreferenciasLimite({ saldo_base: valor, saldo_base_data: hojeISO() })
-      // Pergunta de investimentos já integrada na mesma tela — vai direto para RENDA.
+      // Saldo em conta (perfis.saldo_base). Só regrava quando mudou, para não
+      // mover a data-base do saldo sem necessidade ao voltar à etapa.
+      const mudouSaldo = perfil?.saldo_base == null || Number(perfil.saldo_base) !== valor
+      if (mudouSaldo) await atualizarPreferenciasLimite({ saldo_base: valor, saldo_base_data: hojeISO() })
+      // Patrimônio: uma posição no módulo Investimentos, NUNCA somada ao saldo.
+      if (acao.tipo === 'criar') await criarInvestimento({ ...acao.dados, data_aplicacao: hojeISO() })
+      else if (acao.tipo === 'atualizar') await atualizarInvestimento(acao.registro.id, acao.dados)
+      else if (acao.tipo === 'remover') await removerInvestimento(acao.registro.id)
       setEtapa(RENDA)
-    } catch {
-      setErro('Não foi possível salvar o saldo. Tente novamente.')
+    } catch (e) {
+      setErro(`Não foi possível salvar. ${e?.message || 'Tente novamente.'}`)
     } finally {
       setSalvando(false)
       emGravacao.current = false
@@ -657,7 +822,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
 
   // ─── ETAPA Cartões ───
   const limparCartaoForm = () => {
-    setCartaoForm({ nome: '', banco: '', limite_total: '', dia_fechamento: '', dia_vencimento: '' })
+    setCartaoForm({ nome: '', banco: '', limite_total: '', dia_fechamento: '', dia_vencimento: '', cor: CORES_CARTAO[0].valor })
     setCartaoEditId(null)
   }
 
@@ -668,6 +833,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
       limite_total: c.limite_total ?? '',
       dia_fechamento: c.dia_fechamento ?? '',
       dia_vencimento: c.dia_vencimento ?? '',
+      cor: c.cor || CORES_CARTAO[0].valor,
     })
     setErro('')
   }
@@ -688,12 +854,13 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
     }
   }
 
-  async function salvarCartao() {
+  // continuar=false: grava e permanece na etapa para cadastrar outro cartão.
+  async function salvarCartao({ continuar = true } = {}) {
     if (emGravacao.current) return
     const nome = cartaoForm.nome.trim()
     const temAlgo = nome || Number(cartaoForm.limite_total) > 0 ||
       cartaoForm.dia_fechamento || cartaoForm.dia_vencimento
-    if (!temAlgo && !cartaoEditId) { avancar(); return }
+    if (!temAlgo && !cartaoEditId) { if (continuar) avancar(); return }
     if (!nome) { setErro('Dê um nome ao cartão (ex.: Nubank).'); return }
     const diaFech = parseInt(cartaoForm.dia_fechamento, 10)
     const diaVenc = parseInt(cartaoForm.dia_vencimento, 10)
@@ -703,6 +870,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
       nome, banco: cartaoForm.banco.trim() || null,
       limite_total: Number(cartaoForm.limite_total) || 0,
       dia_fechamento: diaFech, dia_vencimento: diaVenc,
+      cor: cartaoForm.cor || CORES_CARTAO[0].valor,
     }
     emGravacao.current = true
     setSalvando(true); setErro('')
@@ -713,7 +881,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
         await criarCartao(payload)
       }
       limparCartaoForm()
-      avancar()
+      if (continuar) avancar()
     } catch (e) {
       setErro(`Não foi possível salvar o cartão. ${e?.message || 'Tente novamente.'}`)
     } finally {
@@ -845,66 +1013,42 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
     setSalvando(true)
     try {
       await aoConcluir?.() // marca onboarding_concluido = true e volta à Home
+      // Fluxo concluído: limpa o ponto de retomada.
+      if (usuario?.id) gravarLocal(CHAVE_PROGRESSO(usuario.id), null)
+      atualizarPerfilOpcional?.({ onboarding_etapa: null })
     } finally {
       setSalvando(false)
       emGravacao.current = false
     }
   }
 
-  // Conclui o onboarding e navega para um módulo avançado existente (atalhos da
-  // etapa final). Reutiliza finalizar() — não cria fluxo paralelo.
-  async function finalizarEIrPara(rota) {
-    if (emGravacao.current) return
-    emGravacao.current = true
-    setSalvando(true)
-    try {
-      await aoConcluir?.()
-      navigate(rota)
-    } finally {
-      setSalvando(false)
-      emGravacao.current = false
-    }
-  }
-
-  // ─── Resumo da tela final ───
-  // Soma o que foi configurado AGORA + o que já existia (admin reset / revisão),
-  // lendo das mesmas tabelas do app, para o resumo refletir o estado real.
-  const resumo = useMemo(() => {
-    const pctCustom = modoCustom ? (parseInt(reservaCustom, 10) || 0) : reservaPct
-
-    // Conjunto de receitas sem dupla contagem: a lista local (que, após a
-    // hidratação, já contém as persistidas com id) + as existentes cujo id NÃO
-    // está na lista local (caso ainda não tenham sido hidratadas).
+  // ─── Resumo final ───
+  // Só o que foi REALMENTE cadastrado, lido das mesmas tabelas do app (sem
+  // estimativas próprias: os cálculos de saldo e limite ficam com a Home).
+  const resumoFinal = useMemo(() => {
     const idsLocais = new Set(receitas.filter(r => r.id).map(r => r.id))
-    const existentesNaoLocais = (receitasExistentes || []).filter(r => !idsLocais.has(r.id))
-    const receitasParaResumo = [...receitas, ...existentesNaoLocais]
-    const rendaMensal = receitasParaResumo
-      .filter(r => r.recorrente)
-      .reduce((acc, r) => acc + (Number(r.valor) || 0), 0)
+    const qtdReceitas = idsLocais.size + (receitasExistentes || []).filter(r => !idsLocais.has(r.id)).length
+    const idsDesp = new Set([...despesas.filter(d => d.id).map(d => d.id), ...(despesasExistentes || []).map(d => d.id)])
+    return itensResumoFinal({
+      nome: (perfil?.nome || '').trim(),
+      objetivos: normalizarObjetivos(objetivos),
+      saldoConfigurado: perfil?.saldo_base != null,
+      saldo: perfil?.saldo_base,
+      patrimonio: totalInvestido(investimentos),
+      qtdReceitas,
+      qtdBeneficios: beneficios.length,
+      qtdDespesas: idsDesp.size,
+      qtdCartoes: cartoes.length,
+      qtdMetas: metas.length,
+      reservaConfigurada: perfil?.reserva_configurada === true,
+      reservaAtual: perfil?.reserva_atual,
+      reservaPct: perfil?.reserva_percentual ?? 20,
+      tema: corTema,
+    })
+  }, [perfil, objetivos, investimentos, receitas, receitasExistentes, despesas, despesasExistentes, beneficios, cartoes, metas, corTema])
 
-    const despesasNovas = despesas
-      .filter(d => !d.id && d.frequencia !== 'nao_repete')
-      .reduce((acc, d) => acc + (Number(d.valor) || 0), 0)
-    const despesasExistRecorrentes = (despesasExistentes || [])
-      .filter(d => d.recorrente)
-      .reduce((acc, d) => acc + (Number(d.valor) || 0), 0)
-    const despesasRecorrentes = despesasNovas + despesasExistRecorrentes
-
-    const reservaPlanejada = rendaMensal * (pctCustom / 100)
-    const disponivelEstimado = rendaMensal - despesasRecorrentes - reservaPlanejada
-
-    return {
-      saldo: Number(saldo) || 0,
-      rendaMensal,
-      despesasRecorrentes,
-      reservaPlanejada,
-      disponivelEstimado,
-      pct: pctCustom,
-    }
-  }, [saldo, receitas, despesas, receitasExistentes, despesasExistentes, reservaPct, reservaCustom, modoCustom])
-
-  // Antes de qualquer etapa de configuração, exibe a apresentação (3 telas) no
-  // primeiro acesso. Ao concluir/pular, cai no fluxo normal (INTRO em diante).
+  // Antes de qualquer etapa de configuração, exibe a apresentação no primeiro
+  // acesso. Ao concluir/pular, começa a Etapa 1 (Perfil).
   if (mostrarApresentacao) {
     return <Apresentacao aoConcluir={concluirApresentacao} />
   }
@@ -914,103 +1058,67 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
       <div className="w-full max-w-lg min-w-0">
         <div className="card w-full min-w-0 overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-xl p-4 sm:p-7">
           {/* A barra de progresso só aparece nas etapas de configuração. */}
-          {etapa > INTRO && etapa < FINAL && <Progresso etapa={etapa} />}
+          {/* Barra de progresso: etapas 1 a 8 (oculta na retomada e no final). */}
+          {etapa !== RETOMAR && etapa !== FINAL && <Progresso etapa={etapa} />}
 
-          {/* ─── INTRO ─── */}
-          {etapa === INTRO && (
-            <div className="py-2">
-              {/* Logo + saudação */}
-              <div className="flex items-center gap-3 mb-5">
+          {/* ─── RETOMAR — onboarding interrompido ─── */}
+          {etapa === RETOMAR && (
+            <div className="py-2" data-testid="onboarding-retomar">
+              <div className="flex items-center gap-3 mb-4">
                 <img src="/branding/af-icone.png" alt="Almeida Finance" className="w-12 h-auto flex-shrink-0" />
                 <div className="min-w-0">
-                  <h1 className="text-lg font-bold text-gray-900 leading-tight">
-                    Bem-vindo ao Almeida Finance
-                  </h1>
-                  <p className="text-xs text-gray-500 mt-0.5">Vamos configurar o app para você</p>
+                  <h1 className="text-lg font-bold text-gray-900 leading-tight">Bem-vindo de volta</h1>
+                  <p className="text-xs text-gray-500 mt-0.5">Sua configuração ficou pela metade.</p>
                 </div>
               </div>
-
               <p className="text-sm text-gray-600 mb-5 leading-relaxed">
-                As informações que você informar serão usadas para calcular seu orçamento, gasto diário
-                e projeções financeiras. Você pode editar tudo depois.
+                O que você já informou está salvo. Continue de onde parou ou vá para o app e termine depois
+                pelo card <strong>Complete sua configuração</strong>.
               </p>
-
-              {/* Seletor de tema — antes das informações financeiras */}
-              <div className="mb-6">
-                <p className="text-sm font-semibold text-gray-900 mb-3">Como prefere visualizar o app?</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {CORES_TEMA.map(op => {
-                    const ativo = corTema === op.value
-                    const icone = op.value === 'escuro' ? '🌙' : op.auto ? '⚙️' : '☀️'
-                    return (
-                      <button
-                        key={op.value}
-                        type="button"
-                        onClick={() => atualizarCorTema(op.value)}
-                        aria-pressed={ativo}
-                        className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-all ${
-                          ativo ? 'border-marca ring-1 ring-marca bg-marca-100/30' : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <span className="text-xl">{icone}</span>
-                        <span className="text-xs font-semibold text-gray-900">{op.label}</span>
-                        {ativo && <CheckCircle2 size={14} className="text-marca" />}
-                      </button>
-                    )
-                  })}
-                </div>
-                <p className="text-xs text-gray-400 mt-2">Você pode alterar depois em Configurações → Aparência.</p>
-              </div>
-
-              <button
-                onClick={() => setEtapa(SALDO)}
-                className="btn-primary w-full flex items-center justify-center gap-2 py-3"
-              >
-                Começar <ArrowRight size={16} />
+              <button type="button" onClick={() => setEtapa(progressoSalvo() || PERFIL)}
+                className="btn-primary w-full flex items-center justify-center gap-2 py-3">
+                Continuar de onde parei <ArrowRight size={16} />
+              </button>
+              <button type="button" onClick={terminarDepois} disabled={salvando}
+                className="btn-secondary w-full mt-2 py-3 disabled:opacity-60">
+                Ir para o app agora
               </button>
             </div>
           )}
 
-          {/* ─── ETAPA 1 — Saldo atual + pergunta de investimentos na mesma tela ─── */}
-          {etapa === SALDO && (
+          {/* ─── ETAPA 1 — Perfil e objetivos ─── */}
+          {etapa === PERFIL && (
             <div className="py-2">
               <CabecalhoEtapa
-                icone={Wallet} cor="text-marca" bg="bg-marca-100"
-                titulo="Qual é o saldo disponível nas suas contas?"
-                subtitulo="Some o dinheiro nas contas e carteiras digitais. Não inclua investimentos, reserva aplicada ou limite de crédito."
+                icone={UserRound} cor="text-marca" bg="bg-marca-100"
+                titulo="Vamos nos conhecer"
+                subtitulo="Assim o Almeida Finance fala com você do seu jeito. Tudo pode ser editado depois."
               />
-              <label className="label">Saldo disponível em conta (R$)</label>
-              <InputMoeda
-                valor={saldo} onChangeValor={setSaldo}
-                className="input text-2xl font-bold text-center py-3" prefixo={null} autoFocus
-              />
+              <label className="label" htmlFor="onb-nome">Como prefere ser chamado?</label>
+              <input id="onb-nome" className="input" value={nomePreferido} maxLength={60}
+                autoComplete="given-name" placeholder="Seu nome"
+                onChange={(e) => { setNomePreferido(e.target.value); setErro('') }} />
 
-              {/* Pergunta de investimentos integrada — sem tela separada */}
-              <div className="mt-5 rounded-xl border border-gray-200 p-4">
-                <p className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <PiggyBank size={16} className="text-marca" /> Você já tem dinheiro investido?
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  {[true, false].map(op => (
-                    <button type="button" key={String(op)}
-                      onClick={() => setTemInvestimentos(op)}
-                      className={`rounded-2xl border p-3 text-sm font-semibold transition-colors ${temInvestimentos === op ? 'border-marca bg-marca-100 text-marca' : 'border-gray-200 text-gray-700'}`}>
-                      <PiggyBank className="mx-auto mb-1.5" size={20}/>{op ? 'Sim, tenho' : 'Ainda não'}
+              <p className="label mt-5">O que você quer alcançar? <span className="text-gray-400 font-normal">(escolha quantos quiser)</span></p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" role="group" aria-label="Objetivos financeiros">
+                {OBJETIVOS_FINANCEIROS.map(o => {
+                  const ativo = objetivos.includes(o.id)
+                  return (
+                    <button key={o.id} type="button" aria-pressed={ativo}
+                      onClick={() => setObjetivos(l => alternarObjetivo(l, o.id))}
+                      className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${
+                        ativo ? 'border-marca bg-marca-100 text-marca font-semibold' : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                      }`}>
+                      {ativo ? <CheckCircle2 size={16} className="flex-shrink-0" /> : <span className="w-4 h-4 rounded-full border border-gray-300 flex-shrink-0" />}
+                      {o.label}
                     </button>
-                  ))}
-                </div>
-                {temInvestimentos && (
-                  <p className="text-xs text-gray-600 mt-3 bg-marca-100/40 rounded-lg p-3">
-                    Após concluir, cadastre seus investimentos no módulo <strong>Investimentos</strong>.
-                    Inclua sua reserva se ela estiver aplicada, sem duplicar no saldo em conta.
-                  </p>
-                )}
-                <p className="text-xs text-gray-400 mt-2">Esta resposta é informativa: nenhum investimento é gravado agora.</p>
+                  )
+                })}
               </div>
 
               {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
               <div className="flex gap-2 mt-6">
-                <button onClick={salvarSaldo} disabled={salvando}
+                <button type="button" onClick={salvarPerfil} disabled={salvando}
                   className="btn-primary flex-1 flex items-center justify-center gap-2">
                   {salvando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : <>Continuar <ArrowRight size={16} /></>}
                 </button>
@@ -1018,27 +1126,55 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
             </div>
           )}
 
-          {/* INVESTIMENTOS: etapa mantida para compatibilidade com etapaInicial='investimentos',
-              mas nunca exibida no fluxo normal (já está integrada ao SALDO acima). */}
-          {etapa === INVESTIMENTOS && <div className="py-2">
-            <CabecalhoEtapa icone={PiggyBank} cor="text-marca" bg="bg-marca-100"
-              titulo="Você já tem dinheiro investido?"
-              subtitulo="Seus investimentos ficam separados do saldo disponível para gastar." />
-            <div className="grid grid-cols-2 gap-3">
-              {[true,false].map(op => <button type="button" key={String(op)}
-                onClick={() => setTemInvestimentos(op)}
-                className={`rounded-2xl border p-4 text-sm font-semibold transition-colors ${temInvestimentos === op ? 'border-marca bg-marca-100 text-marca' : 'border-gray-200 text-gray-700'}`}>
-                <PiggyBank className="mx-auto mb-2" size={23}/>{op ? 'Sim, tenho' : 'Ainda não'}</button>)}
+          {/* ─── ETAPA 2 — Saldo em contas + patrimônio investido (separados) ─── */}
+          {etapa === SALDO && (
+            <div className="py-2">
+              <CabecalhoEtapa
+                icone={Wallet} cor="text-marca" bg="bg-marca-100"
+                titulo="Seu dinheiro hoje"
+                subtitulo="Informe separadamente o que está disponível para gastar e o que está investido."
+              />
+              <label className="label" htmlFor="onb-saldo">Saldo disponível em contas</label>
+              <p className="text-xs text-gray-500 -mt-0.5 mb-1.5">Quanto dinheiro você tem disponível atualmente? Some contas e carteiras digitais. Não inclua limite de crédito.</p>
+              <InputMoeda id="onb-saldo"
+                valor={saldo} onChangeValor={setSaldo}
+                className="input text-2xl font-bold text-center py-3" prefixo={null} autoFocus
+              />
+
+              <div className="mt-5 rounded-xl border border-gray-200 p-4">
+                <label className="label flex items-center gap-2" htmlFor="onb-patrimonio">
+                  <PiggyBank size={16} className="text-marca" /> Patrimônio investido
+                </label>
+                {investimentosProprios.length > 0 ? (
+                  <p className="text-sm text-gray-700" data-testid="onboarding-patrimonio-existente">
+                    Você já tem <strong>{formatCurrency(totalInvestido(investimentos))}</strong> em investimentos
+                    cadastrados. Para alterar, use o módulo Investimentos (nada é duplicado aqui).
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-xs text-gray-500 -mt-0.5 mb-1.5">Quanto você possui aplicado em investimentos? Pode deixar em branco.</p>
+                    <InputMoeda id="onb-patrimonio" valor={patrimonio} onChangeValor={setPatrimonio}
+                      className="input" prefixo={null} />
+                  </>
+                )}
+                <p className="text-xs text-gray-500 mt-2">
+                  O patrimônio fica no módulo Investimentos: <strong>não entra no saldo disponível</strong> para gastos
+                  e não conta como receita. Depois você pode detalhar por ativo.
+                </p>
+              </div>
+
+              {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
+              <div className="flex gap-2 mt-6">
+                <button onClick={voltar} className="btn-secondary flex items-center gap-1 px-3" aria-label="Voltar">
+                  <ArrowLeft size={16} />
+                </button>
+                <button onClick={salvarSaldo} disabled={salvando || carregandoInvestimentos}
+                  className="btn-primary flex-1 flex items-center justify-center gap-2">
+                  {salvando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : <>Continuar <ArrowRight size={16} /></>}
+                </button>
+              </div>
             </div>
-            {temInvestimentos && <p className="text-sm mt-4 rounded-xl bg-marca-100/40 p-4 text-gray-700">
-              Após concluir, cadastre seus investimentos no módulo <strong>Investimentos</strong>.
-              Inclua sua reserva se ela estiver aplicada, sem duplicar no saldo em conta.</p>}
-            <p className="text-xs text-gray-500 mt-3">Esta resposta é informativa: nenhum investimento é gravado nesta etapa.</p>
-            <div className="flex gap-2 mt-6">
-              <button type="button" onClick={voltar} className="btn-secondary px-4"><ArrowLeft size={16}/></button>
-              <button type="button" onClick={avancar} className="btn-primary flex-1 flex items-center justify-center gap-2">Continuar <ArrowRight size={16}/></button>
-            </div>
-          </div>}
+          )}
 
           {/* ─── ETAPA 2 — Renda ─── */}
           {etapa === RENDA && (
@@ -1368,7 +1504,28 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                       onChange={(e) => setCartaoForm(p => ({ ...p, dia_vencimento: e.target.value }))} />
                   </div>
                 </div>
+                {/* Cor do cartão — mesma paleta da página Cartões. */}
+                <div>
+                  <p className="label">Cor do cartão</p>
+                  <div className="flex flex-wrap gap-2" role="group" aria-label="Cor do cartão">
+                    {CORES_CARTAO.map(c => (
+                      <button key={c.valor} type="button" title={c.nome} aria-label={c.nome}
+                        aria-pressed={cartaoForm.cor === c.valor}
+                        onClick={() => setCartaoForm(p => ({ ...p, cor: c.valor }))}
+                        className={`w-8 h-8 rounded-full border-2 transition-transform ${cartaoForm.cor === c.valor ? 'border-gray-900 scale-110' : 'border-transparent'}`}
+                        style={{ backgroundColor: c.fundo }} />
+                    ))}
+                  </div>
+                  <div className="mt-2 rounded-xl p-3 flex items-center gap-2 text-sm font-medium"
+                    style={{ background: cartaoForm.cor, color: CORES_CARTAO.find(c => c.valor === cartaoForm.cor)?.texto || '#fff' }}>
+                    <CreditCard size={16} /> {cartaoForm.nome || 'Meu cartão'}
+                  </div>
+                </div>
               </div>
+              <button type="button" onClick={() => salvarCartao({ continuar: false })} disabled={salvando}
+                className="btn-secondary w-full mt-2 flex items-center justify-center gap-1 text-sm disabled:opacity-50">
+                <Plus size={15} /> {cartaoEditId ? 'Salvar alteração' : 'Adicionar e cadastrar outro'}
+              </button>
               {cartaoEditId && (
                 <button type="button" onClick={limparCartaoForm} disabled={salvando}
                   className="text-xs text-gray-500 underline mt-2">Cancelar edição do cartão</button>
@@ -1379,7 +1536,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                 <button onClick={voltar} className="btn-secondary flex items-center gap-1 px-3">
                   <ArrowLeft size={16} />
                 </button>
-                <button onClick={salvarCartao} disabled={salvando}
+                <button onClick={() => salvarCartao()} disabled={salvando}
                   className="btn-primary flex-1 flex items-center justify-center gap-2">
                   {salvando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : <>Salvar e continuar <ArrowRight size={16} /></>}
                 </button>
@@ -1595,6 +1752,173 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
             </div>
           )}
 
+          {/* ─── ETAPA 6 — Importação Inteligente (Em breve) ─── */}
+          {etapa === IMPORTACAO && (
+            <div className="py-2">
+              <span className="inline-block mb-3 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-amber-100 text-amber-800"
+                data-testid="onboarding-importacao-em-breve">Em breve</span>
+              <CabecalhoEtapa
+                icone={Upload} cor="text-marca" bg="bg-marca-100"
+                titulo="Quer organizar suas finanças ainda mais rápido?"
+                subtitulo="Importe seus extratos, faturas ou investimentos e confira os dados identificados."
+              />
+              <div className="rounded-xl border border-dashed border-gray-300 p-4 flex items-center gap-3 text-sm text-gray-500">
+                <FileSpreadsheet size={22} className="text-gray-400 flex-shrink-0" />
+                <span>A Importação Inteligente (CSV, OFX, planilhas e PDF) ainda está em desenvolvimento. Você revisará tudo antes de salvar, e nada é duplicado.</span>
+              </div>
+              <button type="button" disabled aria-disabled="true"
+                className="btn-primary w-full mt-4 flex items-center justify-center gap-2 opacity-50 cursor-not-allowed">
+                <Upload size={16} /> Importar agora
+              </button>
+              <button type="button" onClick={() => setEtapa(RENDA)}
+                className="btn-secondary w-full mt-2">
+                Cadastrar manualmente
+              </button>
+              <div className="flex gap-2 mt-4">
+                <button onClick={voltar} className="btn-secondary flex items-center gap-1 px-3" aria-label="Voltar">
+                  <ArrowLeft size={16} />
+                </button>
+                <button type="button" onClick={avancar}
+                  className="btn-secondary flex-1 flex items-center justify-center gap-2">
+                  Deixar para depois <ArrowRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ─── ETAPA 7 — Metas ─── */}
+          {etapa === METAS && (
+            <div className="py-2">
+              <CabecalhoEtapa
+                icone={Target} cor="text-marca" bg="bg-marca-100"
+                titulo="Qual conquista você quer alcançar?"
+                subtitulo="Crie uma meta financeira. É opcional, e você acompanha a evolução no módulo Metas."
+              />
+              {carregandoMetas && <p className="text-xs text-gray-400 mb-3" role="status">Carregando metas salvas...</p>}
+              {metas.length > 0 && (
+                <ul className="space-y-2 mb-3">
+                  {metas.map(m => (
+                    <li key={m.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                      <span className="text-sm text-gray-800 truncate min-w-0">
+                        {m.nome}
+                        {m.prazo && <span className="block text-[11px] text-gray-400">até {new Date(`${m.prazo}T12:00:00`).toLocaleDateString('pt-BR')}</span>}
+                      </span>
+                      <span className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-sm font-semibold text-gray-700">{formatCurrency(m.valor_desejado)}</span>
+                        <button type="button" disabled={salvando} onClick={() => editarMeta(m)}
+                          aria-label={`Editar ${m.nome}`} className="text-gray-400 hover:text-marca"><Pencil size={15} /></button>
+                        <button type="button" disabled={salvando} onClick={() => excluirMeta(m)}
+                          aria-label={`Excluir ${m.nome}`} className="text-gray-400 hover:text-red-500"><Trash2 size={15} /></button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="space-y-2">
+                <input className="input" placeholder="Nome da meta (ex.: Viagem, Carro)" maxLength={80}
+                  value={metaForm.nome} onChange={(e) => setMetaForm(p => ({ ...p, nome: e.target.value }))} />
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="label">Valor desejado</label>
+                    <InputMoeda valor={metaForm.valor_desejado} prefixo={null} className="input"
+                      onChangeValor={(n) => setMetaForm(p => ({ ...p, valor_desejado: n }))} />
+                  </div>
+                  <div>
+                    <label className="label">Prazo <span className="text-gray-400 font-normal">(opcional)</span></label>
+                    <input type="date" className="input" min={hojeISO()} value={metaForm.prazo}
+                      onChange={(e) => setMetaForm(p => ({ ...p, prazo: e.target.value }))} />
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Quanto você já tem guardado para ela? <span className="text-gray-400 font-normal">(opcional)</span></label>
+                  <InputMoeda valor={metaForm.valor_atual} prefixo={null} className="input"
+                    onChangeValor={(n) => setMetaForm(p => ({ ...p, valor_atual: n }))} />
+                </div>
+              </div>
+              <button type="button" onClick={salvarMetaForm} disabled={salvando}
+                className="btn-secondary w-full mt-2 flex items-center justify-center gap-1 text-sm disabled:opacity-50">
+                <Plus size={15} /> {metaEditId ? 'Salvar alteração' : 'Adicionar meta'}
+              </button>
+              {erro && <p className="text-xs text-red-500 mt-2">{erro}</p>}
+              <div className="flex gap-2 mt-6">
+                <button onClick={voltar} className="btn-secondary flex items-center gap-1 px-3" aria-label="Voltar">
+                  <ArrowLeft size={16} />
+                </button>
+                <button onClick={continuarMetas} disabled={salvando}
+                  className="btn-primary flex-1 flex items-center justify-center gap-2">
+                  {salvando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : <>Continuar <ArrowRight size={16} /></>}
+                </button>
+              </div>
+              <div className="mt-3 text-center">
+                <button type="button" onClick={pular} disabled={salvando}
+                  className="text-sm text-gray-400 hover:text-gray-600 underline underline-offset-2 disabled:opacity-50">
+                  Pular por enquanto
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ─── ETAPA 8 — Tema e atalhos ─── */}
+          {etapa === PERSONALIZACAO && (
+            <div className="py-2">
+              <CabecalhoEtapa
+                icone={Palette} cor="text-marca" bg="bg-marca-100"
+                titulo="Deixe o app do seu jeito"
+                subtitulo="Escolha a aparência e os atalhos que aparecem primeiro na sua Home."
+              />
+              <p className="label">Aparência</p>
+              <div className="grid grid-cols-3 gap-2">
+                {CORES_TEMA.map(op => {
+                  const ativo = corTema === op.value
+                  const icone = op.value === 'escuro' ? '🌙' : op.auto ? '⚙️' : '☀️'
+                  return (
+                    <button key={op.value} type="button" onClick={() => atualizarCorTema(op.value)} aria-pressed={ativo}
+                      className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-all ${
+                        ativo ? 'border-marca ring-1 ring-marca bg-marca-100/30' : 'border-gray-200 hover:border-gray-300'
+                      }`}>
+                      <span className="text-xl" aria-hidden="true">{icone}</span>
+                      <span className="text-xs font-semibold text-gray-900">{op.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              <p className="label mt-5">Atalhos da Home</p>
+              <div className="flex flex-wrap gap-1.5" data-testid="onboarding-atalhos-previa">
+                {atalhosVisiveis(configAtalhos).slice(0, 6).map(a => {
+                  const Ic = ICONES_ATALHOS[a.id]
+                  return (
+                    <span key={a.id} data-atalho={a.id}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-1 text-xs text-gray-700">
+                      {a.favorito ? <Star size={12} className="text-amber-500 fill-amber-400" /> : <Ic size={12} className="text-marca" />}
+                      {a.label}
+                    </span>
+                  )
+                })}
+                <span className="text-xs text-gray-400 self-center">…</span>
+              </div>
+              <button type="button" onClick={() => setPersonalizandoAtalhos(true)}
+                className="btn-secondary w-full mt-2 flex items-center justify-center gap-1.5 text-sm">
+                <SlidersHorizontal size={15} /> Escolher e ordenar atalhos
+              </button>
+
+              <div className="flex gap-2 mt-6">
+                <button onClick={voltar} className="btn-secondary flex items-center gap-1 px-3" aria-label="Voltar">
+                  <ArrowLeft size={16} />
+                </button>
+                <button type="button" onClick={avancar}
+                  className="btn-primary flex-1 flex items-center justify-center gap-2">
+                  Continuar <ArrowRight size={16} />
+                </button>
+              </div>
+              {personalizandoAtalhos && (
+                <ModalPersonalizarAtalhos aberto configInicial={configAtalhos}
+                  onFechar={() => setPersonalizandoAtalhos(false)}
+                  onSalvar={async nova => { const r = await salvarAtalhos(nova); setPersonalizandoAtalhos(false); return r }} />
+              )}
+            </div>
+          )}
+
           {/* ─── FINALIZAÇÃO ─── */}
           {etapa === FINAL && (
             <div className="py-4">
@@ -1602,60 +1926,44 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                 <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <CheckCircle2 size={30} className="text-green-600" />
                 </div>
-                <h1 className="text-xl font-bold text-gray-900 mb-1">🎉 Seu Almeida Finance está pronto</h1>
+                <h1 className="text-xl font-bold text-gray-900 mb-1">Tudo pronto!</h1>
                 <p className="text-sm text-gray-500 mb-5">
-                  Confira o resumo e entre no app para acompanhar tudo em tempo real.
+                  Seu Almeida Finance está preparado para ajudar você a organizar seu dinheiro e planejar suas próximas conquistas.
                 </p>
               </div>
 
-              <div className="bg-gray-50 rounded-xl px-4 py-2 mb-5">
-                <LinhaResumo label="Saldo atual" valor={formatCurrency(resumo.saldo)} />
-                <LinhaResumo label="Renda mensal" valor={formatCurrency(resumo.rendaMensal)} cor="text-green-600" />
-                <LinhaResumo label="Despesas recorrentes" valor={formatCurrency(resumo.despesasRecorrentes)} cor="text-red-500" />
-                <LinhaResumo label={`Reserva planejada (${resumo.pct}%)`} valor={formatCurrency(resumo.reservaPlanejada)} cor="text-amber-600" />
-                <LinhaResumo
-                  label="Disponível estimado"
-                  valor={formatCurrency(resumo.disponivelEstimado)}
-                  cor={resumo.disponivelEstimado >= 0 ? 'text-gray-900' : 'text-red-600'}
-                />
-              </div>
-
-              {/* Configurações avançadas (opcional): atalhos para módulos JÁ
-                  existentes. Não obrigam preenchimento. Cada um conclui o
-                  onboarding e abre o módulo correspondente. */}
-              <div className="mb-4">
-                <p className="text-xs font-medium text-gray-500 mb-2">Explorar depois (opcional)</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { rota: '/posso-comprar', icone: ShoppingCart, label: 'Financiamentos, consórcio e amortização' },
-                    { rota: '/e-se',          icone: Sparkles,     label: 'Simular cenários (E se...?)' },
-                    { rota: '/projecao',      icone: BarChart2,    label: 'Horizonte financeiro (12 meses)' },
-                    { rota: '/metas',         icone: Target,       label: 'Metas financeiras' },
-                    { rota: '/consultoria',   icone: MessagesSquare, label: 'Consultoria' },
-                  ].map(({ rota, icone: Ic, label }) => (
-                    <button
-                      key={rota}
-                      type="button"
-                      onClick={() => finalizarEIrPara(rota)}
-                      disabled={salvando}
-                      className="flex items-center gap-2 p-2.5 rounded-xl border border-gray-200 text-left text-xs font-medium text-gray-700 hover:border-marca/40 hover:bg-marca-100 transition-colors disabled:opacity-60"
-                    >
-                      <Ic size={15} className="text-marca flex-shrink-0" />
-                      <span className="min-w-0 leading-snug">{label}</span>
-                    </button>
-                  ))}
+              {resumoFinal.length > 0 ? (
+                <div className="bg-gray-50 rounded-xl px-4 py-2 mb-5" data-testid="onboarding-resumo">
+                  {resumoFinal.map(i => <LinhaResumo key={i.id} label={i.label} valor={i.valor} />)}
                 </div>
-              </div>
+              ) : (
+                <p className="text-sm text-gray-500 text-center mb-5">Nada foi cadastrado ainda. Você pode adicionar tudo pela Home.</p>
+              )}
 
-              <button onClick={finalizar} disabled={salvando}
-                className="btn-primary w-full flex items-center justify-center gap-2">
-                {salvando ? <><Loader2 size={15} className="animate-spin" /> Abrindo...</> : <>Ir para minha Home <ArrowRight size={16} /></>}
-              </button>
+              <div className="flex gap-2">
+                <button onClick={voltar} className="btn-secondary flex items-center gap-1 px-3" aria-label="Voltar">
+                  <ArrowLeft size={16} />
+                </button>
+                <button onClick={finalizar} disabled={salvando}
+                  className="btn-primary flex-1 flex items-center justify-center gap-2">
+                  {salvando ? <><Loader2 size={15} className="animate-spin" /> Abrindo...</> : <>Ir para minha Home <ArrowRight size={16} /></>}
+                </button>
+              </div>
             </div>
           )}
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-4">Almeida Finance</p>
+        {etapa !== RETOMAR && etapa !== FINAL ? (
+          <p className="text-center mt-4">
+            <button type="button" onClick={terminarDepois} disabled={salvando}
+              className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2"
+              data-testid="onboarding-terminar-depois">
+              Terminar a configuração depois (o que já foi salvo fica guardado)
+            </button>
+          </p>
+        ) : (
+          <p className="text-center text-xs text-gray-400 mt-4">Almeida Finance</p>
+        )}
       </div>
     </div>
   )

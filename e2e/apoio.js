@@ -45,7 +45,61 @@ export function perfilFalso(extra = {}) {
 }
 
 // Instala os mocks. Retorna um registro das escritas feitas em perfis.
-export async function isolarSupabase(page, { autenticado = false, perfil = perfilFalso(), colunaAtalhosAusente = false } = {}) {
+// Banco em memória (opcional) para testar fluxos que gravam dados: suporta
+// GET com filtros eq./in./is.null, POST, PATCH e DELETE por id. Registra cada
+// escrita em `escritas` para verificar ausência de duplicidade.
+export function criarBancoMemoria(inicial = {}) {
+  const tabelas = {
+    categorias: [
+      { id: 'cat-moradia', usuario_id: null, nome: 'Moradia', icone: '🏠', cor: null, tipo: 'despesa' },
+      { id: 'cat-alimentacao', usuario_id: null, nome: 'Alimentação', icone: '🍽️', cor: null, tipo: 'despesa' },
+      { id: 'cat-salario', usuario_id: null, nome: 'Salário', icone: '💼', cor: null, tipo: 'receita' },
+    ],
+    ...JSON.parse(JSON.stringify(inicial)),
+  }
+  let seq = 1
+  const escritas = []
+  function filtrar(linhas, params) {
+    return linhas.filter(l => {
+      for (const [k, v] of params) {
+        if (['select', 'order', 'limit', 'offset', 'or'].includes(k)) continue
+        if (v.startsWith('eq.') && String(l[k]) !== v.slice(3)) return false
+        if (v.startsWith('in.(')) { const op = v.slice(4, -1).split(','); if (!op.includes(String(l[k]))) return false }
+        if (v === 'is.null' && l[k] != null) return false
+      }
+      return true
+    })
+  }
+  return {
+    tabelas,
+    escritas,
+    linhas: t => tabelas[t] || [],
+    tratar(tabela, metodo, params, corpo) {
+      const lista = (tabelas[tabela] ||= [])
+      if (metodo === 'GET' || metodo === 'HEAD') return filtrar(lista, params)
+      if (metodo === 'POST') {
+        const novos = (Array.isArray(corpo) ? corpo : [corpo]).map(r => ({ id: `${tabela}-${seq++}`, criado_em: new Date().toISOString(), ...r }))
+        lista.push(...novos)
+        escritas.push({ tabela, metodo, corpo })
+        return novos
+      }
+      const alvo = filtrar(lista, params)
+      if (metodo === 'PATCH') {
+        alvo.forEach(l => Object.assign(l, corpo))
+        escritas.push({ tabela, metodo, corpo })
+        return alvo
+      }
+      if (metodo === 'DELETE') {
+        tabelas[tabela] = lista.filter(l => !alvo.includes(l))
+        escritas.push({ tabela, metodo })
+        return alvo
+      }
+      return []
+    },
+  }
+}
+
+export async function isolarSupabase(page, { autenticado = false, perfil = perfilFalso(), colunaAtalhosAusente = false, colunasOnboardingAusentes = false, banco = null } = {}) {
   const escritasPerfil = []
   let perfilAtual = { ...perfil }
 
@@ -70,12 +124,23 @@ export async function isolarSupabase(page, { autenticado = false, perfil = perfi
         if (colunaAtalhosAusente && 'atalhos_home' in corpo) {
           return json({ code: 'PGRST204', message: "Could not find the 'atalhos_home' column of 'perfis'" }, 400)
         }
+        if (colunasOnboardingAusentes && ('objetivos_financeiros' in corpo || 'onboarding_etapa' in corpo)) {
+          return json({ code: 'PGRST204', message: "Could not find the 'onboarding_etapa' column of 'perfis'" }, 400)
+        }
         perfilAtual = { ...perfilAtual, ...corpo }
       }
       return json(objeto ? perfilAtual : [perfilAtual])
     }
 
     if (url.pathname.startsWith('/rest/v1/rpc/')) return json(null)
+    if (banco && url.pathname.startsWith('/rest/v1/')) {
+      const tabela = url.pathname.replace('/rest/v1/', '')
+      const objeto = (req.headers()['accept'] || '').includes('vnd.pgrst.object')
+      const corpo = ['POST', 'PATCH'].includes(metodo) ? req.postDataJSON() : null
+      const linhas = banco.tratar(tabela, metodo, [...url.searchParams.entries()], corpo)
+      if (objeto) return linhas.length ? json(linhas[0]) : json({ code: 'PGRST116', message: 'no rows' }, 406)
+      return json(linhas)
+    }
     if (url.pathname.startsWith('/rest/v1/')) {
       if (metodo === 'GET' || metodo === 'HEAD') {
         const objeto = (req.headers()['accept'] || '').includes('vnd.pgrst.object')
