@@ -14,6 +14,9 @@ import React, { useState, useRef } from 'react'
 import { Upload, Grid3x3, Type, X, Check, Loader2, Camera, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { AVATARES_PREDEFINIDOS } from '../lib/avatares'
+import { validarArquivoFoto, ehHeic, caminhoFoto, caminhoNovaFoto, mensagemErroFoto } from '../lib/fotoPerfil'
+import { useUrlFoto } from '../hooks/useUrlFoto'
+import RecorteFoto from './RecorteFoto'
 
 export default function SeletorFotoPerfil({ 
   usuario, 
@@ -25,113 +28,91 @@ export default function SeletorFotoPerfil({
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState('')
   const [previewUrl, setPreviewUrl] = useState(null)
-  const [arquivoSelecionado, setArquivoSelecionado] = useState(null)
+  const [imagem, setImagem] = useState(null)
+  const [carregandoImagem, setCarregandoImagem] = useState(false)
   const inputRef = useRef(null)
+  const recorteRef = useRef(null)
 
   const userId = usuario?.id
   const fotoAtual = perfil?.foto_url
+  const urlFotoAtual = useUrlFoto(fotoAtual)
   const avatarAtual = perfil?.avatar_id
 
-  // Validação de arquivo
-  function validarArquivo(arquivo) {
-    const tiposPermitidos = ['image/jpeg', 'image/png', 'image/webp']
-    const tamanhoMax = 5 * 1024 * 1024 // 5MB
-
-    if (!tiposPermitidos.includes(arquivo.type)) {
-      return 'Formato não suportado. Use JPG, PNG ou WebP.'
-    }
-
-    if (arquivo.size > tamanhoMax) {
-      return 'Arquivo muito grande. Máximo 5MB.'
-    }
-
-    return null
+  // Remove o arquivo antigo do bucket (depois que a nova foto já foi salva).
+  async function removerArquivoAntigo() {
+    const caminho = caminhoFoto(fotoAtual)
+    if (caminho) await supabase.storage.from('avatares').remove([caminho]).catch(() => {})
   }
 
-  // Selecionar arquivo
-  function handleFileSelect(e) {
+  // Seleciona e decodifica a imagem no aparelho (a orientação EXIF é
+  // respeitada pelo navegador). Fotos grandes são aceitas: o envio é sempre
+  // um JPEG de 512 px.
+  async function handleFileSelect(e) {
     const arquivo = e.target.files?.[0]
+    e.target.value = '' // permite escolher a mesma foto de novo
     if (!arquivo) return
-
-    const erroValidacao = validarArquivo(arquivo)
-    if (erroValidacao) {
-      setErro(erroValidacao)
-      return
-    }
-
+    const erroValidacao = validarArquivoFoto(arquivo)
+    if (erroValidacao) { setErro(erroValidacao); return }
     setErro('')
-    setArquivoSelecionado(arquivo)
-    
-    // Gerar preview
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      setPreviewUrl(event.target.result)
+    setCarregandoImagem(true)
+    const url = URL.createObjectURL(arquivo)
+    try {
+      const img = new Image()
+      img.src = url
+      await img.decode()
+      if (!img.naturalWidth || !img.naturalHeight) throw new Error('sem dimensões')
+      setImagem(img)
+      setPreviewUrl(url)
+    } catch {
+      URL.revokeObjectURL(url)
+      setErro(ehHeic(arquivo)
+        ? 'Este navegador não abre fotos HEIC. No iPhone, escolha a foto pela Fototeca; no computador, converta para JPG.'
+        : 'Não foi possível abrir esta imagem. O arquivo pode estar corrompido.')
+    } finally {
+      setCarregandoImagem(false)
     }
-    reader.readAsDataURL(arquivo)
   }
 
-  // Fazer upload da foto
-  async function handleUploadFoto() {
-    if (!arquivoSelecionado || !userId) return
+  function descartarSelecao() {
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setPreviewUrl(null)
+    setImagem(null)
+  }
 
+  // Envia a foto recortada. Ordem segura: 1) envia o arquivo novo; 2) grava o
+  // caminho no perfil; 3) só então remove o antigo. Se o passo 2 falhar, o
+  // arquivo novo é apagado e a foto atual continua valendo.
+  async function handleUploadFoto() {
+    if (!imagem || !userId || enviando) return
     setEnviando(true)
     setErro('')
-
+    let caminhoNovo = null
     try {
-      // 1. Remover foto antiga se existir
-      if (fotoAtual) {
-        const pathAntigo = fotoAtual.split('/avatares/')[1]
-        if (pathAntigo) {
-          await supabase.storage
-            .from('avatares')
-            .remove([pathAntigo])
-        }
-      }
-
-      // 2. Upload novo arquivo
-      const ext = arquivoSelecionado.name.split('.').pop()
-      const nomeArquivo = `${userId}/perfil-${Date.now()}.${ext}`
-      
+      const blob = await recorteRef.current.gerarBlob()
+      caminhoNovo = caminhoNovaFoto(userId)
       const { error: uploadError } = await supabase.storage
         .from('avatares')
-        .upload(nomeArquivo, arquivoSelecionado, {
-          cacheControl: '3600',
-          upsert: false
-        })
-
+        .upload(caminhoNovo, blob, { contentType: 'image/jpeg', cacheControl: '3600', upsert: false })
       if (uploadError) throw uploadError
 
-      // 3. Obter URL pública (assinada para acesso privado)
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatares')
-        .getPublicUrl(nomeArquivo)
-
-      // 4. Atualizar perfil no banco
       const { error: updateError } = await supabase
         .from('perfis')
-        .update({
-          foto_url: publicUrl,
-          avatar_id: null,  // Remove avatar se tinha
-          foto_atualizada_em: new Date().toISOString()
-        })
+        .update({ foto_url: caminhoNovo, avatar_id: null, foto_atualizada_em: new Date().toISOString() })
         .eq('id', userId)
-
       if (updateError) throw updateError
+      caminhoNovo = null // gravado com sucesso: não apagar
 
-      // 5. Notificar componente pai
-      if (onAtualizar) {
-        await onAtualizar()
-      }
-
+      await removerArquivoAntigo()
+      if (onAtualizar) await onAtualizar()
+      descartarSelecao()
       onFechar()
     } catch (err) {
-      console.error('Erro ao fazer upload:', err)
-      setErro(err.message || 'Erro ao fazer upload da foto.')
+      if (caminhoNovo) await supabase.storage.from('avatares').remove([caminhoNovo]).catch(() => {})
+      setErro(mensagemErroFoto(err))
     } finally {
       setEnviando(false)
     }
   }
-
   // Escolher avatar predefinido
   async function handleEscolherAvatar(avatarId) {
     if (!userId) return
@@ -142,7 +123,7 @@ export default function SeletorFotoPerfil({
     try {
       // 1. Remover foto se existir
       if (fotoAtual) {
-        const pathAntigo = fotoAtual.split('/avatares/')[1]
+        const pathAntigo = caminhoFoto(fotoAtual)
         if (pathAntigo) {
           await supabase.storage
             .from('avatares')
@@ -169,7 +150,6 @@ export default function SeletorFotoPerfil({
 
       onFechar()
     } catch (err) {
-      console.error('Erro ao selecionar avatar:', err)
       setErro(err.message || 'Erro ao selecionar avatar.')
     } finally {
       setEnviando(false)
@@ -186,7 +166,7 @@ export default function SeletorFotoPerfil({
     try {
       // 1. Remover foto se existir
       if (fotoAtual) {
-        const pathAntigo = fotoAtual.split('/avatares/')[1]
+        const pathAntigo = caminhoFoto(fotoAtual)
         if (pathAntigo) {
           await supabase.storage
             .from('avatares')
@@ -213,7 +193,6 @@ export default function SeletorFotoPerfil({
 
       onFechar()
     } catch (err) {
-      console.error('Erro ao remover foto/avatar:', err)
       setErro(err.message || 'Erro ao atualizar perfil.')
     } finally {
       setEnviando(false)
@@ -229,7 +208,7 @@ export default function SeletorFotoPerfil({
 
     try {
       // 1. Remover do storage
-      const pathAntigo = fotoAtual.split('/avatares/')[1]
+      const pathAntigo = caminhoFoto(fotoAtual)
       if (pathAntigo) {
         await supabase.storage
           .from('avatares')
@@ -252,10 +231,8 @@ export default function SeletorFotoPerfil({
         await onAtualizar()
       }
 
-      setPreviewUrl(null)
-      setArquivoSelecionado(null)
+      descartarSelecao()
     } catch (err) {
-      console.error('Erro ao remover foto:', err)
       setErro(err.message || 'Erro ao remover foto.')
     } finally {
       setEnviando(false)
@@ -317,8 +294,8 @@ export default function SeletorFotoPerfil({
               {fotoAtual && !previewUrl && (
                 <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
                   <img 
-                    src={fotoAtual} 
-                    alt="Foto atual" 
+                    src={urlFotoAtual || undefined}
+                    alt="Foto atual"
                     className="w-16 h-16 rounded-full object-cover"
                   />
                   <div className="flex-1">
@@ -340,23 +317,15 @@ export default function SeletorFotoPerfil({
               <input
                 ref={inputRef}
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/*"
+                data-testid="foto-arquivo"
                 onChange={handleFileSelect}
                 className="hidden"
               />
 
-              {previewUrl ? (
+              {previewUrl && imagem ? (
                 <div className="space-y-3">
-                  <div className="flex justify-center">
-                    <img 
-                      src={previewUrl} 
-                      alt="Preview" 
-                      className="w-32 h-32 rounded-full object-cover border-4 border-marca-100"
-                    />
-                  </div>
-                  <p className="text-sm text-center text-gray-600">
-                    Pré-visualização da foto selecionada
-                  </p>
+                  <RecorteFoto ref={recorteRef} imagem={imagem} />
                   <div className="flex gap-2">
                     <button
                       type="button"
@@ -364,7 +333,7 @@ export default function SeletorFotoPerfil({
                       disabled={enviando}
                       className="flex-1 btn-secondary text-sm"
                     >
-                      Escolher outra
+                      Trocar foto
                     </button>
                     <button
                       type="button"
@@ -375,7 +344,7 @@ export default function SeletorFotoPerfil({
                       {enviando ? (
                         <><Loader2 size={16} className="animate-spin" /> Enviando...</>
                       ) : (
-                        <><Check size={16} /> Confirmar</>
+                        <><Check size={16} /> Salvar foto</>
                       )}
                     </button>
                   </div>
@@ -394,7 +363,7 @@ export default function SeletorFotoPerfil({
                     <div>
                       <p className="font-semibold text-gray-900">Selecionar foto</p>
                       <p className="text-sm text-gray-500 mt-1">
-                        JPG, PNG ou WebP • Máximo 5MB
+                        {carregandoImagem ? 'Abrindo foto...' : 'JPG, PNG, WebP ou HEIC'}
                       </p>
                     </div>
                   </div>

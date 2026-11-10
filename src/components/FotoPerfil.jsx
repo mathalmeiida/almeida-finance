@@ -7,8 +7,9 @@
  * 3. Iniciais do nome (fallback)
  */
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { obterAvatar, obterIniciais } from '../lib/avatares'
+import { useUrlFoto } from '../hooks/useUrlFoto'
 
 export default function FotoPerfil({ 
   perfil, 
@@ -18,7 +19,11 @@ export default function FotoPerfil({
   className = '',
   showEditIcon = false
 }) {
-  const fotoUrl = perfil?.foto_url
+  // Bucket privado: a foto é exibida por URL assinada. Enquanto carrega ou se
+  // falhar (sem permissão, arquivo removido), mostra avatar/iniciais.
+  const fotoUrl = useUrlFoto(perfil?.foto_url)
+  const [falhou, setFalhou] = useState(false)
+  useEffect(() => { setFalhou(false) }, [fotoUrl])
   const avatarId = perfil?.avatar_id
   const nome = perfil?.nome
   const email = usuario?.email
@@ -34,7 +39,7 @@ export default function FotoPerfil({
   const classesTamanho = tamanhos[tamanho] || tamanhos.md
 
   // 1. Se tiver foto, exibir a imagem
-  if (fotoUrl) {
+  if (fotoUrl && !falhou) {
     return (
       <div 
         className={`${classesTamanho} rounded-full overflow-hidden flex-shrink-0 relative ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''} ${className}`}
@@ -43,9 +48,11 @@ export default function FotoPerfil({
         tabIndex={onClick ? 0 : undefined}
       >
         <img 
-          src={fotoUrl} 
-          alt="Foto de perfil" 
+          src={fotoUrl}
+          alt="Foto de perfil"
           className="w-full h-full object-cover"
+          onError={() => setFalhou(true)}
+          data-testid="foto-perfil-img"
         />
         {showEditIcon && (
           <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
@@ -62,7 +69,7 @@ export default function FotoPerfil({
     if (avatar) {
       return (
         <div 
-          className={`${classesTamanho} rounded-full flex items-center justify-center flex-shrink-0 ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''} ${className}`}
+          className={`${classesTamanho} rounded-full flex items-center justify-center flex-shrink-0 relative ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''} ${className}`}
           style={{ background: avatar.cor + '20' }}
           onClick={onClick}
           role={onClick ? 'button' : undefined}
@@ -83,7 +90,7 @@ export default function FotoPerfil({
   const iniciais = obterIniciais(nome, email)
   return (
     <div 
-      className={`${classesTamanho} rounded-full flex items-center justify-center font-bold text-white flex-shrink-0 ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''} ${className}`}
+      className={`${classesTamanho} rounded-full flex items-center justify-center font-bold text-white flex-shrink-0 relative ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''} ${className}`}
       style={{ background: 'linear-gradient(135deg,#801D39,#420D1D)' }}
       onClick={onClick}
       role={onClick ? 'button' : undefined}

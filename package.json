@@ -12,7 +12,7 @@
     "test:cenarios": "node tests/cenarios.test.mjs",
     "test:receitas": "node tests/receitas.test.mjs",
     "test:atalhos": "node tests/atalhos-home.test.mjs",
-    "test:unit": "node tests/beneficios.test.mjs && node tests/financiamento.test.mjs && node tests/cenarios.test.mjs && node tests/receitas.test.mjs && node tests/atalhos-home.test.mjs && node tests/onboarding-fluxo.test.mjs",
+    "test:unit": "node tests/beneficios.test.mjs && node tests/financiamento.test.mjs && node tests/cenarios.test.mjs && node tests/receitas.test.mjs && node tests/atalhos-home.test.mjs && node tests/onboarding-fluxo.test.mjs && node tests/importacao.test.mjs && node tests/foto-perfil.test.mjs",
     "test:e2e": "vite build && playwright test"
   },
   "dependencies": {
