@@ -2,10 +2,12 @@ import { test, expect } from '@playwright/test'
 import { isolarSupabase, perfilFalso, medirViewport } from './apoio'
 
 // Home autenticada com sessão e dados FALSOS (nenhuma chamada ao Supabase real).
-// Só a instância visível da faixa (mobile ou desktop) é usada.
+// Celular (< 768 px): faixa deslizante com todos os atalhos.
+// Computador (>= 768 px): grade com os 5 atalhos principais.
 function faixa(page) {
   return page.locator('[data-testid="atalhos-home"]:visible')
 }
+const ehDesktop = info => info.project.use.viewport.width >= 768
 
 async function abrirHome(page, opcoes = {}) {
   const ctx = await isolarSupabase(page, { autenticado: true, ...opcoes })
@@ -14,39 +16,37 @@ async function abrirHome(page, opcoes = {}) {
   return ctx
 }
 
-const PADRAO = ['simular-compra', 'e-se', 'investimentos', 'metas', 'cartoes', 'calendario',
-  'registrar-gasto', 'importacao', 'consultoria', 'parcelamentos', 'projecao', 'gastar-hoje']
+const PADRAO = ['receitas', 'despesas', 'registrar-gasto', 'simular-compra', 'calendario', 'gastar-hoje',
+  'consultoria', 'investimentos', 'metas', 'cartoes', 'e-se', 'importacao', 'parcelamentos', 'projecao']
+const DESKTOP = ['registrar-gasto', 'simular-compra', 'calendario', 'gastar-hoje', 'consultoria']
 
 async function idsVisiveis(page) {
   return faixa(page).locator('[data-atalho]').evaluateAll(els => els.map(e => e.dataset.atalho))
 }
 
-test('ordem padrão começa pelos 4 atalhos originais e inclui a importação', async ({ page }) => {
+test('ordem padrão: celular com Receitas e Despesas primeiro; computador com os 5 principais', async ({ page }, info) => {
   await abrirHome(page)
-  const ids = await idsVisiveis(page)
-  expect(ids).toEqual(PADRAO)
-  expect(ids).toContain('importacao')
+  expect(await idsVisiveis(page)).toEqual(ehDesktop(info) ? DESKTOP : PADRAO)
 })
 
-test('faixa rola na horizontal sem alargar a página e sem bloquear rolagem vertical', async ({ page }) => {
+test('celular: faixa rola na horizontal sem alargar a página e sem bloquear rolagem vertical', async ({ page }, info) => {
+  test.skip(ehDesktop(info), 'faixa deslizante só no celular')
   await abrirHome(page)
   const trilho = faixa(page).getByTestId('atalhos-trilho')
-  const info = await trilho.evaluate(el => ({
+  const r = await trilho.evaluate(el => ({
     rola: el.scrollWidth > el.clientWidth,
     touchAction: getComputedStyle(el).touchAction,
     snap: getComputedStyle(el).scrollSnapType,
   }))
-  expect(info.rola).toBe(true)
-  expect(info.touchAction).toBe('manipulation') // permite pan vertical e pinch-zoom
-  expect(info.snap).toContain('x')
+  expect(r.rola).toBe(true)
+  expect(r.touchAction).toBe('manipulation')
+  expect(r.snap).toContain('x')
   const m = await medirViewport(page)
   expect(m.scrollWidth, `elementos vazando: ${m.vazando.join(', ')}`).toBeLessThanOrEqual(m.clientWidth)
 })
 
-test('mobile: parte do próximo card visível, indicadores e dica "Deslize para ver mais"', async ({ page }, info) => {
-  // Layout mobile da Home vai até 767px; acima disso (ex.: iPhone em paisagem
-  // a 844px) vale o layout de tablet/desktop, com setas no lugar da dica.
-  test.skip(!info.project.use.isMobile || info.project.use.viewport.width >= 768, 'layout mobile (< 768px)')
+test('celular: parte do próximo card visível, indicadores e dica "Deslize para ver mais"', async ({ page }, info) => {
+  test.skip(ehDesktop(info), 'layout mobile (< 768px)')
   await abrirHome(page)
   const trilho = faixa(page).getByTestId('atalhos-trilho')
   const parcial = await trilho.evaluate(el => {
@@ -62,117 +62,118 @@ test('mobile: parte do próximo card visível, indicadores e dica "Deslize para 
   const dots = faixa(page).locator('.af-shortcut-dot')
   expect(await dots.count()).toBeGreaterThan(1)
   await expect(dots.first()).toHaveAttribute('data-ativo', 'true')
-
   await trilho.evaluate(el => el.scrollTo({ left: el.scrollWidth, behavior: 'auto' }))
   await expect(dots.last()).toHaveAttribute('data-ativo', 'true')
-  await expect(dica).toHaveCount(0) // some após a interação
+  await expect(dica).toHaveCount(0)
 })
 
-test('desktop/tablet: setas aparecem só com conteúdo oculto e somem nas extremidades', async ({ page }, info) => {
-  test.skip(info.project.use.viewport.width < 768, 'layout com setas (>= 768px)')
+test('computador: 5 cards alinhados, do mesmo tamanho, sem texto cortado e sem setas', async ({ page }, info) => {
+  test.skip(!ehDesktop(info), 'grade só no computador')
   await abrirHome(page)
-  const esq = faixa(page).getByTestId('atalhos-seta-esquerda')
-  const dir = faixa(page).getByTestId('atalhos-seta-direita')
-  await expect(esq).toHaveCount(0)
-  await expect(dir).toBeVisible()
-  await dir.click()
-  await expect(esq).toBeVisible()
-  await faixa(page).getByTestId('atalhos-trilho').evaluate(el => el.scrollTo({ left: el.scrollWidth, behavior: 'auto' }))
-  await expect(dir).toHaveCount(0)
-  await expect(esq).toBeVisible()
+  const cards = faixa(page).locator('[data-atalho]')
+  await expect(cards).toHaveCount(5)
+  const caixas = await cards.evaluateAll(els => els.map(e => {
+    const r = e.getBoundingClientRect(); const s = e.querySelector('span')
+    return { top: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height), cortado: s.scrollWidth > s.clientWidth + 1 || s.scrollHeight > s.clientHeight + 1 }
+  }))
+  expect(new Set(caixas.map(c => c.top)).size).toBe(1)
+  expect(Math.max(...caixas.map(c => c.w)) - Math.min(...caixas.map(c => c.w))).toBeLessThanOrEqual(1)
+  expect(new Set(caixas.map(c => c.h)).size).toBe(1)
+  expect(caixas.some(c => c.cortado)).toBe(false)
+  await expect(faixa(page).getByTestId('atalhos-seta-direita')).toHaveCount(0)
+  const m = await medirViewport(page)
+  expect(m.scrollWidth).toBeLessThanOrEqual(m.clientWidth)
 })
 
-test('cada atalho executa sua ação real (rota ou modal existente)', async ({ page }) => {
+test('computador: menu lateral continua com Investimentos, Metas, Cartões, Projeção e Receitas', async ({ page }, info) => {
+  test.skip(info.project.use.viewport.width < 1024, 'menu lateral só aparece em telas largas')
+  await abrirHome(page)
+  for (const nome of ['Investimentos', 'Metas', 'Cartões', 'Projeção', 'Receitas', 'Despesas', 'Importação']) {
+    await expect(page.getByRole('link', { name: nome, exact: true }).first()).toBeAttached()
+  }
+})
+
+test('cada atalho visível executa sua ação (rota ou modal) e nenhum repete destino', async ({ page }) => {
   await abrirHome(page)
   const rotas = {
-    'simular-compra': /\/posso-comprar$/,
-    'e-se': /\/e-se$/,
-    investimentos: /\/investimentos$/,
-    metas: /\/metas$/,
-    cartoes: /\/cartoes$/,
-    consultoria: /\/consultoria$/,
-    parcelamentos: /\/despesas$/, // ?aba=parceladas é consumido pela página
-    projecao: /\/projecao$/,
-    importacao: /\/importacao$/,
-  }
-  for (const [id, rota] of Object.entries(rotas)) {
-    await page.goto('/')
-    const botao = faixa(page).locator(`[data-atalho="${id}"]`)
-    await botao.scrollIntoViewIfNeeded()
-    await botao.click()
-    await expect(page, `atalho ${id}`).toHaveURL(rota)
+    receitas: /\/receitas$/, despesas: /\/despesas$/, 'simular-compra': /\/posso-comprar$/, 'e-se': /\/e-se$/,
+    investimentos: /\/investimentos$/, metas: /\/metas$/, cartoes: /\/cartoes$/, consultoria: /\/consultoria$/,
+    parcelamentos: /\/despesas$/, projecao: /\/projecao$/, importacao: /\/importacao$/,
   }
   const modais = { calendario: 'Calendário financeiro', 'registrar-gasto': 'Gasto rápido', 'gastar-hoje': 'Planejamento completo' }
-  for (const [id, titulo] of Object.entries(modais)) {
+  const visiveis = await idsVisiveis(page)
+  for (const id of visiveis) {
     await page.goto('/')
     const botao = faixa(page).locator(`[data-atalho="${id}"]`)
     await botao.scrollIntoViewIfNeeded()
     await botao.click()
-    const dialogo = page.locator('div.fixed.inset-0.z-50').filter({ has: page.getByRole('heading', { name: titulo, exact: true }) })
-    await expect(dialogo, `modal de ${id}`).toBeVisible()
+    if (rotas[id]) await expect(page, `atalho ${id}`).toHaveURL(rotas[id])
+    else {
+      const dialogo = page.locator('div.fixed.inset-0.z-50').filter({ has: page.getByRole('heading', { name: modais[id], exact: true }) })
+      await expect(dialogo, `modal de ${id}`).toBeVisible()
+    }
   }
 })
 
-test('parcelamentos abre a aba Parceladas', async ({ page }) => {
+test('celular: Despesas abre a lista e Parcelamentos abre a seção de parcelas (destinos distintos)', async ({ page }, info) => {
+  test.skip(ehDesktop(info), 'esses atalhos ficam no celular')
   await abrirHome(page)
+  await faixa(page).locator('[data-atalho="despesas"]').click()
+  await expect(page).toHaveURL(/\/despesas$/)
+  await expect(page.getByRole('heading', { name: 'Acompanhamento de parcelas' })).toHaveCount(0)
+  await page.goto('/')
   const botao = faixa(page).locator('[data-atalho="parcelamentos"]')
   await botao.scrollIntoViewIfNeeded()
   await botao.click()
-  await expect(page).toHaveURL(/\/despesas$/)
   await expect(page.getByRole('heading', { name: 'Acompanhamento de parcelas' })).toBeVisible()
 })
 
-test('personalizar: ocultar, favoritar, reordenar, salvar no perfil e restaurar padrão', async ({ page }) => {
+test('personalizar: ocultar, favoritar, reordenar, salvar no perfil e restaurar padrão', async ({ page }, info) => {
   const ctx = await abrirHome(page)
   await faixa(page).getByTestId('atalhos-personalizar').click()
   const lista = page.getByTestId('lista-personalizar-atalhos')
   await expect(lista).toBeVisible()
-
-  await lista.getByRole('button', { name: 'Ocultar Consultoria' }).click()
-  await lista.getByRole('button', { name: 'Favoritar Cartões' }).click()
-  await lista.getByRole('button', { name: 'Mover E se...? para baixo' }).click()
+  await lista.getByRole('button', { name: 'Ocultar Calendário' }).click()
+  await lista.getByRole('button', { name: 'Favoritar Consultoria' }).click()
+  await lista.getByRole('button', { name: 'Mover Simular compra para baixo' }).click()
+  await lista.getByRole('button', { name: 'Mover Simular compra para baixo' }).click()
   await page.getByRole('button', { name: 'Salvar' }).click()
   await expect(lista).toHaveCount(0)
 
   const ids = await idsVisiveis(page)
-  expect(ids[0]).toBe('cartoes') // favorito primeiro
-  expect(ids).not.toContain('consultoria')
-  expect(ids.indexOf('investimentos')).toBeLessThan(ids.indexOf('e-se'))
-
-  // Gravado no Supabase (PATCH em perfis) com a config normalizada.
+  expect(ids[0]).toBe('consultoria')
+  expect(ids).not.toContain('calendario')
+  expect(ids.indexOf('gastar-hoje')).toBeLessThan(ids.indexOf('simular-compra'))
   const escrita = ctx.escritasPerfil.find(e => e.atalhos_home)
-  expect(escrita).toBeTruthy()
-  expect(escrita.atalhos_home.ocultos).toEqual(['consultoria'])
-  expect(escrita.atalhos_home.favoritos).toEqual(['cartoes'])
+  expect(escrita.atalhos_home).toMatchObject({ versao: 2, ocultos: ['calendario'], favoritos: ['consultoria'] })
 
-  // Persistência após recarregar (perfil devolvido pelo "banco").
   await page.reload()
   await expect(faixa(page)).toBeVisible({ timeout: 20_000 })
-  expect((await idsVisiveis(page))[0]).toBe('cartoes')
+  expect((await idsVisiveis(page))[0]).toBe('consultoria')
 
-  // Restaurar padrão.
   await faixa(page).getByTestId('atalhos-personalizar').click()
   await page.getByRole('button', { name: 'Restaurar padrão' }).click()
   await page.getByRole('button', { name: 'Salvar' }).click()
-  await expect.poll(() => idsVisiveis(page)).toEqual(PADRAO)
+  await expect.poll(() => idsVisiveis(page)).toEqual(ehDesktop(info) ? DESKTOP : PADRAO)
 })
 
 test('sem a coluna atalhos_home no banco (migration pendente) a preferência fica no aparelho', async ({ page }) => {
   await abrirHome(page, { colunaAtalhosAusente: true })
   await faixa(page).getByTestId('atalhos-personalizar').click()
-  await page.getByTestId('lista-personalizar-atalhos').getByRole('button', { name: 'Ocultar Metas' }).click()
+  await page.getByTestId('lista-personalizar-atalhos').getByRole('button', { name: 'Ocultar Consultoria' }).click()
   await page.getByRole('button', { name: 'Salvar' }).click()
-  await expect.poll(async () => (await idsVisiveis(page)).includes('metas')).toBe(false)
+  await expect.poll(async () => (await idsVisiveis(page)).includes('consultoria')).toBe(false)
   await page.reload()
   await expect(faixa(page)).toBeVisible({ timeout: 20_000 })
-  expect(await idsVisiveis(page)).not.toContain('metas')
+  expect(await idsVisiveis(page)).not.toContain('consultoria')
 })
 
-test('preferência salva no perfil é recuperada em novo login', async ({ page }) => {
+test('preferência salva é recuperada em novo login; configuração antiga ganha Receitas e Despesas', async ({ page }, info) => {
   await abrirHome(page, {
-    perfil: perfilFalso({ atalhos_home: { versao: 1, ordem: PADRAO, ocultos: ['e-se'], favoritos: ['projecao'] } }),
+    perfil: perfilFalso({ atalhos_home: { versao: 1, ordem: ['metas', 'gastar-hoje', 'simular-compra'], ocultos: ['simular-compra'], favoritos: ['gastar-hoje'] } }),
   })
   const ids = await idsVisiveis(page)
-  expect(ids[0]).toBe('projecao')
-  expect(ids).not.toContain('e-se')
+  expect(ids[0]).toBe('gastar-hoje')
+  expect(ids).not.toContain('simular-compra')
+  if (!ehDesktop(info)) expect(ids.slice(1, 4)).toEqual(['receitas', 'despesas', 'metas'])
 })

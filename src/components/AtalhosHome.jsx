@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, SlidersHorizontal } from 'lucide-react'
-import { atalhosVisiveis } from '../lib/atalhosHome'
+import { atalhosVisiveis, atalhosDesktop } from '../lib/atalhosHome'
 import { useAtalhosHome } from '../hooks/useAtalhosHome'
 import { ICONES_ATALHOS } from './iconesAtalhos'
 import ModalPersonalizarAtalhos from './ModalPersonalizarAtalhos'
@@ -24,10 +24,12 @@ function prefereMenosMovimento() {
 //   onAbrirModal(tipo) — abre um modal existente da Home ('calendario' | 'gasto' | 'planejamento')
 //   somenteLeitura     — modo consultoria: oculta "Registrar gasto" e "Personalizar"
 //   sangria            — estende a faixa até as bordas da tela (layout mobile)
-export default function AtalhosHome({ onAbrirModal, somenteLeitura = false, sangria = false }) {
+//   modo           — 'carrossel' (celular, deslizante) | 'grade' (computador: 5 principais)
+export default function AtalhosHome({ onAbrirModal, somenteLeitura = false, sangria = false, modo = 'carrossel' }) {
+  const grade = modo === 'grade'
   const navigate = useNavigate()
   const { config, salvar } = useAtalhosHome()
-  const itens = atalhosVisiveis(config, { somenteLeitura })
+  const itens = grade ? atalhosDesktop(config, { somenteLeitura }) : atalhosVisiveis(config, { somenteLeitura })
 
   const trilhoRef = useRef(null)
   const [estado, setEstado] = useState({ transborda: false, esquerda: false, direita: false, paginas: 1, ativa: 0 })
@@ -93,8 +95,12 @@ export default function AtalhosHome({ onAbrirModal, somenteLeitura = false, sang
       <div className="relative">
         <div
           ref={trilhoRef}
-          className={`flex gap-2 overflow-x-auto py-1 snap-x snap-mandatory scrollbar-hide overscroll-x-contain ${sangria ? 'px-4 scroll-px-4' : ''}`}
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch', touchAction: 'manipulation' }}
+          className={grade
+            ? 'grid gap-3 py-1'
+            : `flex gap-2 overflow-x-auto py-1 snap-x snap-mandatory scrollbar-hide overscroll-x-contain ${sangria ? 'px-4 scroll-px-4' : ''}`}
+          style={grade
+            ? { gridTemplateColumns: `repeat(${Math.max(itens.length, 1)}, minmax(0, 1fr))` }
+            : { scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch', touchAction: 'manipulation' }}
           data-testid="atalhos-trilho"
         >
           {itens.map(a => {
@@ -104,12 +110,12 @@ export default function AtalhosHome({ onAbrirModal, somenteLeitura = false, sang
                 key={a.id}
                 type="button"
                 onClick={() => executar(a)}
-                className="af-shortcut-btn snap-start flex-shrink-0"
+                className={grade ? 'af-shortcut-btn af-shortcut-grade' : 'af-shortcut-btn snap-start flex-shrink-0'}
                 aria-label={a.label}
                 data-atalho={a.id}
               >
                 <div className="af-shortcut-icon"><Icone size={22} strokeWidth={1.8} /></div>
-                <span className="text-[10px] text-[#D4A8B6] text-center leading-tight">{a.label}</span>
+                <span className={`text-center leading-tight text-[#D4A8B6] ${grade ? 'text-xs font-medium' : 'text-[10px]'}`}>{a.label}</span>
               </button>
             )
           })}

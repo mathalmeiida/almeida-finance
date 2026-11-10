@@ -7,22 +7,28 @@
 //   { modal } → abre um modal existente da Home ('calendario' | 'gasto' | 'planejamento')
 // Só entram atalhos de funções que existem (Importação: página /importacao).
 
-export const VERSAO_CONFIG_ATALHOS = 1
+export const VERSAO_CONFIG_ATALHOS = 2
 
+// Ordem padrão = ordem do celular. No computador a Home mostra só os 5
+// ATALHOS_DESKTOP (o restante fica no menu lateral), na ordem do usuário.
 export const CATALOGO_ATALHOS = [
+  { id: 'receitas', label: 'Receitas', rota: '/receitas' },
+  { id: 'despesas', label: 'Despesas', rota: '/despesas' },
+  { id: 'registrar-gasto', label: 'Registrar gasto', modal: 'gasto', exigeEscrita: true },
   { id: 'simular-compra', label: 'Simular compra', rota: '/posso-comprar' },
-  { id: 'e-se', label: 'E se...?', rota: '/e-se' },
+  { id: 'calendario', label: 'Calendário', modal: 'calendario' },
+  { id: 'gastar-hoje', label: 'Quanto posso gastar hoje?', modal: 'planejamento' },
+  { id: 'consultoria', label: 'Consultoria', rota: '/consultoria' },
   { id: 'investimentos', label: 'Investimentos', rota: '/investimentos' },
   { id: 'metas', label: 'Metas', rota: '/metas' },
   { id: 'cartoes', label: 'Cartões', rota: '/cartoes' },
-  { id: 'calendario', label: 'Calendário', modal: 'calendario' },
-  { id: 'registrar-gasto', label: 'Registrar gasto', modal: 'gasto', exigeEscrita: true },
+  { id: 'e-se', label: 'E se...?', rota: '/e-se' },
   { id: 'importacao', label: 'Importação Inteligente', rota: '/importacao', exigeEscrita: true },
-  { id: 'consultoria', label: 'Consultoria', rota: '/consultoria' },
   { id: 'parcelamentos', label: 'Parcelamentos', rota: '/despesas?aba=parceladas' },
   { id: 'projecao', label: 'Projeção financeira', rota: '/projecao' },
-  { id: 'gastar-hoje', label: 'Quanto posso gastar hoje?', modal: 'planejamento' },
 ]
+
+export const ATALHOS_DESKTOP = ['registrar-gasto', 'simular-compra', 'calendario', 'gastar-hoje', 'consultoria']
 
 const IDS_VALIDOS = new Set(CATALOGO_ATALHOS.map(a => a.id))
 
@@ -53,7 +59,10 @@ function listaIdsValidos(lista) {
 // atalhos novos do catálogo que o usuário ainda não conhecia.
 export function normalizarConfigAtalhos(bruto) {
   const base = bruto && typeof bruto === 'object' && !Array.isArray(bruto) ? bruto : {}
-  const ordem = listaIdsValidos(base.ordem)
+  let ordem = listaIdsValidos(base.ordem)
+  // Versão 1 (antes de Receitas/Despesas): mantém a ordem do usuário e
+  // coloca os dois atalhos novos no início, como no padrão.
+  if (ordem.length && (Number(base.versao) || 1) < 2) ordem = ['receitas', 'despesas', ...ordem.filter(id => id !== 'receitas' && id !== 'despesas')]
   for (const a of CATALOGO_ATALHOS) if (!ordem.includes(a.id)) ordem.push(a.id)
   return {
     versao: VERSAO_CONFIG_ATALHOS,
@@ -77,6 +86,11 @@ export function atalhosVisiveis(config, { somenteLeitura = false } = {}) {
     ...visiveis.filter(id => !favoritos.has(id)),
   ]
   return ordenados.map(id => ({ ...porId[id], favorito: favoritos.has(id) }))
+}
+
+// Faixa do computador: só os 5 principais, respeitando ocultos/favoritos/ordem.
+export function atalhosDesktop(config, opcoes) {
+  return atalhosVisiveis(config, opcoes).filter(a => ATALHOS_DESKTOP.includes(a.id))
 }
 
 export function moverAtalho(config, id, delta) {

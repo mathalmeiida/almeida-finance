@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Sun, Plus, Pencil,
@@ -2634,7 +2634,7 @@ const carregandoLimite = carregando
       {/* DESKTOP */}
       <div className="hidden md:flex md:flex-col gap-3">
         {/* Atalhos — mesma faixa do mobile, com setas quando houver conteúdo oculto */}
-        <AtalhosHome onAbrirModal={abrirModalAtalho} somenteLeitura={somenteLeitura} />
+        <AtalhosHome onAbrirModal={abrirModalAtalho} somenteLeitura={somenteLeitura} modo="grade" />
         {/* 4 cards */}
         <div className="grid grid-cols-4 gap-3">
           <div className="af-hcard">

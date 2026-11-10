@@ -791,3 +791,13 @@
     font-size: 16px !important;
   }
 }
+
+/* Atalhos no computador: 5 cards proporcionais em grade (sem rolagem). */
+.af-shortcut-btn.af-shortcut-grade {
+  width: auto;
+  min-width: 0;
+  padding: 12px 8px;
+  gap: 8px;
+}
+.af-shortcut-btn.af-shortcut-grade span { overflow-wrap: anywhere; }
+
