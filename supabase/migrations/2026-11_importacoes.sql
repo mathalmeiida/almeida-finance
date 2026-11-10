@@ -80,7 +80,9 @@ BEGIN
   END IF;
 END $$;
 
-REVOKE ALL ON TABLE public.importacoes, public.importacoes_itens FROM anon;
+-- Produção concede ALL por padrão (incl. UPDATE e TRUNCATE) a anon e authenticated
+-- em tabelas novas: reduz ao necessário (o TRUNCATE ignoraria a RLS).
+REVOKE ALL ON TABLE public.importacoes, public.importacoes_itens FROM anon, authenticated;
 GRANT SELECT, INSERT, DELETE ON TABLE public.importacoes, public.importacoes_itens TO authenticated;
 
 COMMIT;
