@@ -46,7 +46,10 @@ export function useImportacoes() {
       importacao_id: imp.id, usuario_id: usuario.id, chave: g.chave, destino_tabela: g.tabela, destino_id: g.id,
     }))
     for (let i = 0; i < itens.length; i += 200) {
-      const { error: e2 } = await supabase.from('importacoes_itens').insert(itens.slice(i, i + 200))
+      const { error: e2 } = await supabase.from('importacoes_itens')
+        // Chave já registrada (ex.: usuário reincluiu um item já importado): ignora,
+        // sem derrubar o restante do histórico.
+        .upsert(itens.slice(i, i + 200), { onConflict: 'usuario_id,chave', ignoreDuplicates: true })
       if (e2) return { registrado: false, ausente: tabelaAusente(e2) }
     }
     return { registrado: true, id: imp.id }
