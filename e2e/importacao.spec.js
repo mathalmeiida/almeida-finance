@@ -208,3 +208,57 @@ test('onboarding etapa 6 usa a mesma importação e volta ao fluxo', async ({ pa
   await expect(page.getByTestId('onboarding-progresso')).toHaveAttribute('data-etapa', '7')
   expect(banco.linhas('despesas')).toHaveLength(6)
 })
+
+test('indicador de progresso e cancelar antes de confirmar não grava nada', async ({ page }) => {
+  const banco = await abrir(page)
+  await expect(page.getByTestId('importacao-passos')).toHaveAttribute('data-passo', '1')
+  await enviar(page, 'extrato.csv', fx('extrato-banco.csv'), 'text/csv')
+  await expect(page.getByTestId('importacao-passos')).toHaveAttribute('data-passo', '2')
+  await page.getByTestId('importacao-cancelar').click()
+  await expect(page.getByTestId('importacao-passos')).toHaveAttribute('data-passo', '1')
+  await expect(page.getByTestId('importacao-lista')).toHaveCount(0)
+  expect(banco.escritas).toHaveLength(0)
+})
+
+test('falha de conexão ao analisar: mensagem clara e nada gravado', async ({ page }) => {
+  const banco = await abrir(page)
+  await page.route(/\/rest\/v1\/(receitas|despesas)\?/, r => r.abort('internetdisconnected'))
+  await enviar(page, 'extrato.csv', fx('extrato-banco.csv'), 'text/csv')
+  await expect(page.getByRole('alert')).toContainText('Sem conexão')
+  expect(banco.escritas).toHaveLength(0)
+})
+
+test('falha de conexão ao gravar: informa o que não foi salvo', async ({ page }) => {
+  const banco = await abrir(page)
+  await enviar(page, 'extrato.csv', fx('extrato-banco.csv'), 'text/csv')
+  await page.route(/\/rest\/v1\/despesas/, r => (r.request().method() === 'POST' ? r.abort('internetdisconnected') : r.fallback()))
+  await confirmar(page).click()
+  const fim = page.getByTestId('importacao-concluida')
+  await expect(fim).toContainText('2 lançamentos importados') // só as receitas
+  await expect(fim.getByRole('alert')).toContainText('6 em despesas')
+  expect(banco.linhas('despesas')).toHaveLength(0)
+  expect(banco.linhas('importacoes')[0].status).toBe('parcial')
+})
+
+test('isolamento: lançamento de outro usuário não interfere na duplicidade nem é lido', async ({ page }) => {
+  const banco = criarBancoMemoria({ despesas: [{ id: 'x1', usuario_id: 'outro-usuario', data: '2026-10-03', valor: 182.4, descricao: 'SUPERMERCADO BOM PRECO', recorrente: false }] })
+  await abrir(page, { banco })
+  await enviar(page, 'extrato.csv', fx('extrato-banco.csv'), 'text/csv')
+  await expect(item(page, 'SUPERMERCADO').locator('[data-status]')).toHaveCount(0)
+  await confirmar(page).click()
+  await expect(page.getByTestId('importacao-concluida')).toBeVisible()
+  expect(banco.linhas('despesas').filter(d => d.usuario_id === U)).toHaveLength(6)
+  expect(banco.linhas('despesas').find(d => d.id === 'x1').usuario_id).toBe('outro-usuario')
+})
+
+test('saldo da Home depois da importação = saldo informado + impacto mostrado na prévia', async ({ page }) => {
+  // A Home soma os lançamentos do mês corrente após a data do saldo: fixa
+  // 'hoje' em outubro, mês do extrato fictício.
+  await page.clock.setFixedTime(new Date('2026-10-20T12:00:00-03:00'))
+  await abrir(page, { perfil: perfilFalso({ saldo_base: 1000, saldo_base_data: '2026-10-05' }) })
+  await enviar(page, 'extrato.csv', fx('extrato-banco.csv'), 'text/csv')
+  await expect(page.getByTestId('importacao-impacto')).toContainText('43,69')
+  await confirmar(page).click()
+  await page.getByRole('button', { name: 'Ir para a Home' }).click()
+  await expect(page.getByText('R$ 956,31').filter({ visible: true }).first()).toBeVisible({ timeout: 20_000 }) // 1.000,00 − 43,69
+})

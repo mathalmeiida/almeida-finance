@@ -152,4 +152,28 @@ assert('ZIP que não é xlsx rejeitado', !!detectarFormato('a.zip', new Uint8Arr
 assert('acima de 5 MB rejeitado', !!detectarFormato('a.csv', new Uint8Array(5 * 1024 * 1024 + 1).fill(65)).erro)
 
 console.log(falhas === 0 ? '\nOK — todos os testes passaram' : `\n${falhas} FALHA(S)`)
-process.exit(falhas === 0 ? 0 : 1)
+if (falhas) process.exitCode = 1
+
+// ── Parte C (retomada): taxas, compra/venda e ativos ─────────────────────────
+{
+  let f2 = 0
+  const ok = (n, c) => { if (!c) f2++; console.log(`${c ? 'PASS' : 'FALHA'} — ${n}`) }
+  const base = [
+    { linha: 1, data: '2026-10-01', descricao: 'Taxa de custódia', valor: -5, ativo: null },
+    { linha: 2, data: '2026-10-02', descricao: 'IR sobre resgate', valor: -12, ativo: null },
+    { linha: 3, data: '2026-10-03', descricao: 'Compra FICT11', valor: -980, ativo: 'FICT11' },
+    { linha: 4, data: '2026-10-04', descricao: 'Venda FICT11', valor: 500, ativo: 'FICT11' },
+    { linha: 5, data: '2026-10-05', descricao: 'Rendimento', valor: 3, ativo: 'XPTO99' },
+  ]
+  const invs = [{ id: 'a', nome: 'CDB Banco X' }, { id: 'b', nome: 'FII FICT11' }]
+  const r = prepararItens(base, { contexto: 'investimentos', origem: 'inv:a', investimentoId: 'a', investimentos: invs })
+  ok('taxa de custódia = taxa, fora da gravação', r[0].tipo === 'taxa' && !r[0].incluir)
+  ok('IR = taxa, fora da gravação', r[1].tipo === 'taxa' && !r[1].incluir)
+  ok('compra de cotas = aporte, com aviso de quantidade', r[2].tipo === 'aporte' && r[2].avisos.some(a => a.includes('quantidade')))
+  ok('venda = resgate', r[3].tipo === 'resgate')
+  ok('ativo associado ao investimento de mesmo nome', r[2].investimentoId === 'b' && r[3].investimentoId === 'b')
+  ok('ativo sem correspondência: padrão + revisão', r[4].investimentoId === 'a' && r[4].revisar)
+  ok('taxas não geram registros', montarRegistros(r).investimentos_movimentacoes.length === 3)
+  console.log(f2 === 0 ? 'OK — retomada' : `${f2} FALHA(S) na retomada`)
+  if (f2) process.exitCode = 1
+}

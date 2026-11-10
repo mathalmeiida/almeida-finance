@@ -66,6 +66,10 @@ export function criarBancoMemoria(inicial = {}) {
         if (v.startsWith('eq.') && String(l[k]) !== v.slice(3)) return false
         if (v.startsWith('in.(')) { const op = v.slice(4, -1).split(','); if (!op.includes(String(l[k]))) return false }
         if (v === 'is.null' && l[k] != null) return false
+        if (v.startsWith('gte.') && !(String(l[k] ?? '') >= v.slice(4))) return false
+        if (v.startsWith('lte.') && !(String(l[k] ?? '') <= v.slice(4))) return false
+        if (v.startsWith('gt.') && !(String(l[k] ?? '') > v.slice(3))) return false
+        if (v.startsWith('lt.') && !(String(l[k] ?? '') < v.slice(3))) return false
       }
       return true
     })
@@ -99,7 +103,18 @@ export function criarBancoMemoria(inicial = {}) {
   }
 }
 
-export async function isolarSupabase(page, { autenticado = false, perfil = perfilFalso(), colunaAtalhosAusente = false, colunasOnboardingAusentes = false, banco = null } = {}) {
+// Extrai o arquivo de um corpo multipart (o supabase-js envia Blob como FormData).
+function arquivoDoMultipart(buf, contentType) {
+  const m = /boundary=(.+)$/.exec(contentType || '')
+  if (!m) return buf
+  const partes = buf.toString('latin1').split(`--${m[1]}`)
+  const parte = partes.find(p => /Content-Type:\s*image\//i.test(p)) || partes.find(p => /filename=/i.test(p))
+  if (!parte) return buf
+  const corpo = parte.slice(parte.indexOf('\r\n\r\n') + 4).replace(/\r\n$/, '')
+  return Buffer.from(corpo, 'latin1')
+}
+
+export async function isolarSupabase(page, { autenticado = false, perfil = perfilFalso(), colunaAtalhosAusente = false, colunasOnboardingAusentes = false, banco = null, storage = new Map(), falharStorage = false } = {}) {
   const escritasPerfil = []
   let perfilAtual = { ...perfil }
 
@@ -113,6 +128,31 @@ export async function isolarSupabase(page, { autenticado = false, perfil = perfi
       if (url.pathname.endsWith('/user')) return autenticado ? json(sessaoFalsa().user) : json({ message: 'no session' }, 401)
       if (url.pathname.endsWith('/logout')) return route.fulfill({ status: 204 })
       return json({ message: 'bloqueado em teste' }, 400)
+    }
+
+    // Storage em memória (bucket privado 'avatares': só URLs assinadas).
+    if (url.pathname.startsWith('/storage/v1/')) {
+      if (falharStorage) return route.abort('internetdisconnected')
+      const p = url.pathname.replace('/storage/v1/', '')
+      const caminhoDe = prefixo => decodeURIComponent(p.slice(prefixo.length))
+      if (p.startsWith('object/sign/avatares/')) {
+        const caminho = caminhoDe('object/sign/avatares/')
+        const obj = storage.get(caminho)
+        if (metodo === 'POST') return obj ? json({ signedURL: `/object/sign/avatares/${encodeURI(caminho)}?token=teste` }) : json({ statusCode: '404', error: 'not_found', message: 'Object not found' }, 400)
+        return obj ? route.fulfill({ status: 200, contentType: obj.tipo, body: obj.corpo }) : route.fulfill({ status: 404 })
+      }
+      if (p.startsWith('object/public/')) return json({ error: 'Bucket not found' }, 400) // bucket privado
+      if (metodo === 'POST' && p.startsWith('object/avatares/')) {
+        const caminho = caminhoDe('object/avatares/')
+        if (!caminho.startsWith(`${USUARIO_TESTE.id}/`)) return json({ statusCode: '403', error: 'Unauthorized', message: 'new row violates row-level security policy' }, 400)
+        storage.set(caminho, { tipo: 'image/jpeg', corpo: arquivoDoMultipart(req.postDataBuffer(), req.headers()['content-type']) })
+        return json({ Key: `avatares/${caminho}`, Id: caminho })
+      }
+      if (metodo === 'DELETE' && p === 'object/avatares') {
+        for (const k of req.postDataJSON()?.prefixes || []) storage.delete(k)
+        return json([])
+      }
+      return json({ message: 'não previsto' }, 400)
     }
 
     if (url.pathname.startsWith('/rest/v1/perfis')) {

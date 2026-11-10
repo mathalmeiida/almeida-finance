@@ -28,13 +28,14 @@ export const ROTULOS_TIPO = {
   dividendo: 'Dividendo',
   juros: 'Juros/JCP',
   amortizacao: 'Amortização',
+  taxa: 'Taxa/imposto',
   indefinido: 'Definir tipo',
 }
 
 export const TIPOS_POR_CONTEXTO = {
   extrato: ['receita', 'despesa', 'transferencia', 'pagamento_fatura', 'investimento', 'estorno'],
   fatura: ['compra', 'pagamento_fatura', 'estorno'],
-  investimentos: ['aporte', 'resgate', 'rendimento', 'dividendo', 'juros', 'amortizacao', 'indefinido'],
+  investimentos: ['aporte', 'resgate', 'rendimento', 'dividendo', 'juros', 'amortizacao', 'taxa', 'indefinido'],
 }
 
 const TIPOS_MOV = ['aporte', 'resgate', 'rendimento', 'dividendo', 'juros', 'amortizacao']
@@ -53,6 +54,7 @@ export const MOTIVO_NAO_IMPORTAVEL = {
   pagamento_fatura: 'As compras do cartão já entram pela fatura; importar o pagamento contaria o gasto duas vezes.',
   investimento: 'Aplicações e resgates ficam no módulo Investimentos, separados do saldo disponível.',
   estorno: 'Estorno não é renda. Se precisar, reclassifique ou ajuste a compra original.',
+  taxa: 'O módulo Investimentos não registra taxas e impostos como movimentação. Se o valor atual da posição mudou, ajuste-o em Investimentos.',
   indefinido: 'Escolha o tipo da movimentação para poder importar.',
 }
 
@@ -76,6 +78,7 @@ const RE = {
 }
 
 const RE_INV = [
+  ['taxa', /\btaxa|\btarifa|\bimposto|\bir\b|\birrf\b|\biof\b|custodia|corretagem|emolumento/],
   ['dividendo', /dividendo/],
   ['juros', /\bjcp\b|juros sobre capital|juros/],
   ['amortizacao', /amortizacao/],
@@ -107,7 +110,14 @@ export function classificar(t, contexto, { sinalCompra = 1 } = {}) {
     return { tipo: 'compra', incluir: true, revisar, avisos }
   }
   if (contexto === 'investimentos') {
-    for (const [tipo, re] of RE_INV) if (re.test(d)) return { tipo, incluir: true, revisar: false, avisos }
+    for (const [tipo, re] of RE_INV) {
+      if (!re.test(d)) continue
+      if (tipo === 'taxa') return { tipo, incluir: false, revisar: false, avisos }
+      // Compra/venda de cotas: registramos só o valor. Quantidade e preço
+      // médio não são inventados.
+      if (/\bcompra\b|\bvenda\b/.test(d)) avisos.push('Compra/venda: só o valor é registrado; quantidade e preço médio não são alterados')
+      return { tipo, incluir: true, revisar: false, avisos }
+    }
     return { tipo: 'indefinido', incluir: false, revisar: true, avisos: ['Não identificamos o tipo da movimentação'] }
   }
   // extrato bancário
@@ -283,12 +293,24 @@ export function marcarDuplicidades(itens, { existentes = [], chavesImportadas = 
 }
 
 // ── Preparação completa ──────────────────────────────────────────────────────
-export function prepararItens(transacoes, { contexto, origem, categorias = [], existentes = [], chavesImportadas = new Set(), cartaoId = null, investimentoId = null }) {
+// Arquivo com coluna de ativo: associa cada linha ao investimento de mesmo
+// nome. Sem correspondência única, usa o padrão escolhido e pede revisão.
+export function investimentoDoAtivo(ativo, investimentos, padrao) {
+  if (!ativo || !investimentos?.length) return { id: padrao, incerto: false }
+  const a = normalizar(ativo)
+  const achados = investimentos.filter(i => { const n = normalizar(i.nome); return n && (n === a || n.includes(a) || a.includes(n)) })
+  if (achados.length === 1) return { id: achados[0].id, incerto: false }
+  return { id: padrao, incerto: true }
+}
+
+export function prepararItens(transacoes, { contexto, origem, categorias = [], existentes = [], chavesImportadas = new Set(), cartaoId = null, investimentoId = null, investimentos = [] }) {
   const sinalCompra = contexto === 'fatura' ? sinalDeCompraNaFatura(transacoes) : 1
   const chaves = chavesDosItens(transacoes, origem)
   const itens = transacoes.map((t, i) => {
     const c = classificar(t, contexto, { sinalCompra })
     const cat = sugerirCategoria(t.descricao, c.tipo, categorias)
+    const inv = contexto === 'investimentos' ? investimentoDoAtivo(t.ativo, investimentos, investimentoId) : { id: investimentoId, incerto: false }
+    if (inv.incerto) { c.revisar = true; c.avisos.push(`Ativo "${t.ativo}" não corresponde a um investimento cadastrado: confira o investimento`) }
     return {
       uid: `i${i + 1}`,
       linha: t.linha,
@@ -307,7 +329,7 @@ export function prepararItens(transacoes, { contexto, origem, categorias = [], e
       categoriaId: cat && c.tipo !== 'receita' ? cat.id : null,
       categoriaNome: cat && c.tipo === 'receita' ? cat.nome : null,
       cartaoId,
-      investimentoId,
+      investimentoId: inv.id,
       ...chaves[i],
     }
   })

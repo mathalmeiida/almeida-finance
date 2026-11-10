@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Upload, Landmark, CreditCard, TrendingUp, FileText, AlertTriangle, CheckCircle2, Loader2,
-  Pencil, Trash2, ShieldCheck, ArrowLeft, RotateCcw, Info,
+  Pencil, Trash2, ShieldCheck, ArrowLeft, RotateCcw, Info, X,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -45,6 +45,29 @@ const FILTROS = [
   { id: 'duplicidades', label: 'Duplicidades' },
   { id: 'fora', label: 'Fora da importação' },
 ]
+
+// Falha de rede vira mensagem clara (sem expor detalhes técnicos).
+function mensagemErro(err, padrao) {
+  const m = String(err?.message || '')
+  if (/failed to fetch|network|load failed|fetch/i.test(m)) return 'Sem conexão com o servidor. Verifique a internet e tente de novo. Nada foi gravado nesta tentativa.'
+  return m || padrao
+}
+
+const PASSOS = ['Tipo e arquivo', 'Revisar', 'Resultado']
+function Passos({ etapa }) {
+  const atual = etapa === 'concluido' ? 2 : (etapa === 'previa' || etapa === 'gravando') ? 1 : 0
+  return (
+    <ol className="flex items-center gap-2 text-xs" aria-label="Progresso da importação" data-testid="importacao-passos" data-passo={atual + 1}>
+      {PASSOS.map((p, i) => (
+        <li key={p} className="flex items-center gap-2 flex-1 min-w-0" aria-current={i === atual ? 'step' : undefined}>
+          <span className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 font-semibold ${i <= atual ? 'bg-marca text-white' : 'bg-gray-200 text-gray-500'}`}>{i + 1}</span>
+          <span className={`truncate ${i === atual ? 'font-semibold text-gray-900' : 'text-gray-500'}`}>{p}</span>
+          {i < PASSOS.length - 1 && <span className={`h-0.5 flex-1 rounded ${i < atual ? 'bg-marca' : 'bg-gray-200'}`} />}
+        </li>
+      ))}
+    </ol>
+  )
+}
 
 const dataBR = iso => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString('pt-BR') : '')
 
@@ -123,13 +146,14 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
         contexto, origem, categorias: categoriasRef.current, existentes, chavesImportadas: hist.chaves,
         cartaoId: contexto === 'fatura' ? cartaoId : null,
         investimentoId: contexto === 'investimentos' ? investimentoId : null,
+        investimentos,
       }))
       setArquivo({ nome: file.name, formato: r.formato })
       setLeitura({ descartadas: r.descartadas || [], truncado: !!r.truncado, intervalo })
       setFiltro('todos'); setEditando(null)
       setEtapa('previa')
     } catch (err) {
-      setErro(err?.message || 'Não foi possível ler o arquivo.')
+      setErro(mensagemErro(err, 'Não foi possível ler o arquivo.'))
       setEtapa('configurar')
     }
   }
@@ -180,7 +204,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
       setResultado({ gravados: gravados.length, porTabela, falhas, historico: hist.registrado })
       setEtapa('concluido')
     } catch (err) {
-      setErro(`A importação foi interrompida. ${err?.message || ''} Confira em Receitas/Despesas o que já foi salvo antes de tentar de novo.`)
+      setErro(`A importação foi interrompida. ${mensagemErro(err, '')} Confira em Receitas/Despesas o que já foi salvo antes de tentar de novo.`)
       setEtapa('previa')
     } finally {
       emGravacao.current = false
@@ -205,6 +229,8 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
           <p className="text-sm text-gray-500">Importe extratos, faturas e movimentações de investimento e confira tudo antes de salvar.</p>
         </header>
       )}
+
+      <Passos etapa={etapa} />
 
       {erro && (
         <div role="alert" className="flex items-start gap-2 bg-red-50 border border-red-100 text-red-700 text-sm rounded-xl p-3">
@@ -460,6 +486,10 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
             <div className="card !p-3 shadow-lg flex flex-col sm:flex-row gap-2">
               <button type="button" onClick={recomecar} disabled={etapa === 'gravando'} className="btn-secondary flex items-center justify-center gap-1.5">
                 <RotateCcw size={15} /> Trocar arquivo
+              </button>
+              <button type="button" onClick={() => (embutido && onCancelar ? onCancelar() : recomecar())} disabled={etapa === 'gravando'}
+                className="btn-secondary flex items-center justify-center gap-1.5" data-testid="importacao-cancelar">
+                <X size={15} /> Cancelar importação
               </button>
               <button type="button" onClick={confirmar} disabled={etapa === 'gravando' || resumo.incluidos === 0 || comErro.length > 0}
                 className="btn-primary flex-1 flex items-center justify-center gap-2 py-3 disabled:opacity-50" data-testid="importacao-confirmar">
