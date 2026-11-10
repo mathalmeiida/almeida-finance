@@ -262,3 +262,13 @@ test('saldo da Home depois da importação = saldo informado + impacto mostrado 
   await page.getByRole('button', { name: 'Ir para a Home' }).click()
   await expect(page.getByText('R$ 956,31').filter({ visible: true }).first()).toBeVisible({ timeout: 20_000 }) // 1.000,00 − 43,69
 })
+
+test('saldo com data de mês anterior: Home conta os lançamentos importados depois do marco', async ({ page }) => {
+  // Hoje real (novembro); saldo informado em 05/10; extrato de outubro.
+  await abrir(page, { perfil: perfilFalso({ saldo_base: 1000, saldo_base_data: '2026-10-05' }) })
+  await enviar(page, 'extrato.csv', fx('extrato-banco.csv'), 'text/csv')
+  await expect(page.getByTestId('importacao-impacto')).toContainText('43,69')
+  await confirmar(page).click()
+  await page.getByRole('button', { name: 'Ir para a Home' }).click()
+  await expect(page.getByText('R$ 956,31').filter({ visible: true }).first()).toBeVisible({ timeout: 20_000 })
+})

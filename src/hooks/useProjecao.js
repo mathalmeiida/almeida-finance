@@ -1,4 +1,6 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { supabase } from '../lib/supabase'
+import { calcularSaldoDisponivel, precisaBuscarAnteriores, inicioDoMes } from '../lib/saldoDisponivel'
 import { useReceitas, valorReceitaRecorrenteNoMes } from './useReceitas'
 import { useDespesas, valorDespesaRecorrenteNoMes } from './useDespesas'
 import { useParcelamentos, valorParcelaNoMes } from './useParcelamentos'
@@ -32,7 +34,28 @@ export function useProjecao() {
   const { compras: comprasCartao, carregando: carregandoCompras } = useComprasCartao()
   // Faturas informadas por total (substituem a soma das compras no mês/cartão).
   const { faturas: faturasInformadas, carregando: carregandoFaturas } = useFaturasCartao()
-  const { perfil } = useAuth()
+  const { perfil, idEfetivo } = useAuth()
+
+  // Lançamentos entre a data do saldo informado e o início do mês atual (as
+  // listas acima só trazem o mês corrente). Só leitura, por usuário (RLS).
+  const [anteriores, setAnteriores] = useState({ receitas: [], despesas: [] })
+  const marcoSaldo = perfil?.saldo_base_data || null
+  const hojeRef = hojeISO()
+  useEffect(() => {
+    let ativo = true
+    if (!idEfetivo || perfil?.saldo_base == null || !precisaBuscarAnteriores(marcoSaldo, hojeRef)) {
+      setAnteriores({ receitas: [], despesas: [] })
+      return undefined
+    }
+    const ler = tabela => supabase.from(tabela).select('id, data, valor').eq('usuario_id', idEfetivo)
+      .gt('data', marcoSaldo).lt('data', inicioDoMes(hojeRef))
+    Promise.all([ler('receitas'), ler('despesas')]).then(([r, d]) => {
+      if (!ativo) return
+      setAnteriores({ receitas: r.error ? [] : (r.data || []), despesas: d.error ? [] : (d.data || []) })
+    }, () => {})
+    return () => { ativo = false }
+    // receitas/despesas.length: relê após cadastros/importações.
+  }, [idEfetivo, perfil?.saldo_base, marcoSaldo, hojeRef, receitas.length, despesas.length])
 
   // Percentual de reserva de emergência escolhido no Dashboard (padrão 20%).
   // Mesma fonte usada no card de reserva — projeção e Dashboard nunca divergem.
@@ -216,17 +239,15 @@ const marcoStr = perfil?.saldo_base_data || hojeStr
 // O saldo informado é a referência.
 // Movimentações anteriores ou do mesmo dia da atualização
 // não são descontadas novamente.
-const receitasAteHoje = receitas
-  .filter(r => r.data > marcoStr && r.data <= hojeStr)
-  .reduce((acc, r) => acc + Number(r.valor), 0)
-
-const despesasAteHoje = despesas
-  .filter(d => d.data > marcoStr && d.data <= hojeStr)
-  .reduce((acc, d) => acc + Number(d.valor), 0)
-
-const saldoDisponivelAgora = saldoConfigurado
-  ? saldoBase + receitasAteHoje - despesasAteHoje
-  : 0
+// Regra única em src/lib/saldoDisponivel.js: lançamentos após o marco e até
+// hoje, em qualquer mês (mês atual + meses anteriores desde o marco).
+const calculoSaldo = calcularSaldoDisponivel({
+  saldoBase: saldoConfigurado ? saldoBase : null, marco: marcoStr, hoje: hojeStr,
+  receitas: [receitas, anteriores.receitas], despesas: [despesas, anteriores.despesas],
+})
+const receitasAteHoje = calculoSaldo.receitas
+const despesasAteHoje = calculoSaldo.despesas
+const saldoDisponivelAgora = calculoSaldo.saldo
 
   // Lançamentos FUTUROS dentro do mês atual (efetiva > hoje). Despesas pagas
   // antecipadamente (pago_em <= hoje) saem daqui automaticamente, pois já
