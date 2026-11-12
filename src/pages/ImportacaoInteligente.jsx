@@ -284,7 +284,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
     setEtapa('configurar'); setItens([]); setArquivo(null); setLeitura(null); setResultado(null); setErro('')
   }
 
-  const conteiner = embutido ? 'space-y-4' : 'max-w-3xl mx-auto space-y-4 pb-24 md:pb-6'
+  const conteiner = embutido ? 'space-y-4' : 'w-full max-w-none space-y-4 pb-24 md:pb-6'
 
   if (somenteLeitura) {
     return <div className={conteiner}><div className="card text-sm text-gray-600">Modo Consultoria: a importação fica disponível apenas para o titular da conta.</div></div>
@@ -336,6 +336,8 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
             </div>
           </div>
 
+          <div className="space-y-4 md:space-y-0 md:grid md:grid-cols-2 md:gap-6 md:items-start" data-testid="importacao-colunas">
+          <div className="space-y-4">
           {contexto === 'extrato' && (
             <div>
               <label className="label" htmlFor="imp-conta">Conta <span className="text-gray-400 font-normal">(opcional)</span></label>
@@ -386,6 +388,8 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
             </form>
           )}
 
+          </div>
+          <div className="space-y-4">
           <div>
             <input ref={inputRef} type="file" className="sr-only" multiple data-testid="importacao-arquivo"
               accept=".csv,.ofx,.xlsx,.xls,.pdf,.txt,text/csv,application/pdf"
@@ -409,6 +413,8 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
               <ArrowLeft size={15} /> Voltar
             </button>
           )}
+          </div>
+          </div>
         </div>
       )}
 

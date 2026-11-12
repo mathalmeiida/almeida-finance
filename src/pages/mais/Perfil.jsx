@@ -60,7 +60,7 @@ export default function Perfil() {
   }
 
   return (
-    <PaginaInterna titulo="Meu perfil" descricao="Seus dados de acesso e segurança da conta.">
+    <PaginaInterna largo titulo="Meu perfil" descricao="Seus dados de acesso e segurança da conta.">
       {/* Identidade com foto/avatar editável */}
       <div className="card flex items-center gap-4">
         <div className="relative">
@@ -89,6 +89,7 @@ export default function Perfil() {
         </div>
       </div>
 
+      <div className="space-y-5 md:space-y-0 md:grid md:grid-cols-2 md:gap-5 md:items-start" data-testid="perfil-colunas">
       {/* Dados pessoais */}
       <section aria-labelledby="perfil-dados">
         <h2 id="perfil-dados" className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2 px-1">Dados pessoais</h2>
@@ -163,6 +164,7 @@ export default function Perfil() {
           <ConfigurarBiometria />
         </section>
       )}
+      </div>
 
       {/* Modal de seleção de foto/avatar */}
       {modalFoto && (

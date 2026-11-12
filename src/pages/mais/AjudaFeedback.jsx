@@ -93,9 +93,11 @@ export default function AjudaFeedback() {
   }
 
   return (
-    <PaginaInterna titulo="Ajuda & feedback" descricao="Tire dúvidas, conheça os recursos e fale com a gente.">
-      <Acordeao icone={CircleHelp} titulo="Perguntas frequentes" itens={FAQ} corIcone="text-violet-600" />
-      <Acordeao icone={BookOpen} titulo="Como usar cada funcionalidade" itens={FUNCIONALIDADES} corIcone="text-blue-600" />
+    <PaginaInterna largo titulo="Ajuda & feedback" descricao="Tire dúvidas, conheça os recursos e fale com a gente.">
+      <div className="space-y-5 md:space-y-0 md:grid md:grid-cols-2 md:gap-5 md:items-start" data-testid="ajuda-colunas">
+        <Acordeao icone={CircleHelp} titulo="Perguntas frequentes" itens={FAQ} corIcone="text-violet-600" />
+        <Acordeao icone={BookOpen} titulo="Como usar cada funcionalidade" itens={FUNCIONALIDADES} corIcone="text-blue-600" />
+      </div>
 
       <section className="card" aria-label="Enviar feedback">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-1">

@@ -68,7 +68,8 @@ export default function Funcionalidades() {
   const categorias = ehAdmin ? [...CATEGORIAS, CATEGORIA_ADMIN] : CATEGORIAS
 
   return (
-    <PaginaInterna titulo="Todas as funcionalidades" descricao="Toque em um recurso para abri-lo.">
+    <PaginaInterna largo titulo="Todas as funcionalidades" descricao="Toque em um recurso para abri-lo.">
+      <div className="space-y-5 md:space-y-0 md:grid md:grid-cols-2 xl:grid-cols-3 md:gap-5 md:items-start" data-testid="funcionalidades-grade">
       {categorias.map(cat => (
         <section key={cat.titulo} aria-label={cat.titulo}>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2 px-1">{cat.titulo}</h2>
@@ -94,6 +95,7 @@ export default function Funcionalidades() {
           </div>
         </section>
       ))}
+      </div>
     </PaginaInterna>
   )
 }
