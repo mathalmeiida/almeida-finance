@@ -2,8 +2,10 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <!-- viewport-fit=cover: garante que o app preenche até o notch/Dynamic Island no iOS -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- viewport-fit=cover: garante que o app preenche até o notch/Dynamic Island no iOS.
+         minimum-scale=1.0: permite zoom acessível mas previne zoom automático indesejado.
+         user-scalable=yes: mantém acessibilidade (zoom por pinch). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, viewport-fit=cover, user-scalable=yes" />
     <title>Almeida Finance</title>
 
     <!-- Favicon (32px para navegadores) -->
@@ -14,8 +16,11 @@
     <!-- Apple PWA — apple-touch-icon sem fundo transparente (180px opaco vinho) -->
     <link rel="apple-touch-icon" sizes="180x180" href="/branding/apple-touch-icon.png?v=2" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- default-translucent: barra de status translúcida no iOS standalone (mais espaço útil) -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Almeida Finance" />
+    <!-- Previne formatação automática de números de telefone no iOS -->
+    <meta name="format-detection" content="telephone=no" />
 
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.webmanifest" />

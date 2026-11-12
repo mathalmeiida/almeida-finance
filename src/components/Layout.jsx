@@ -218,7 +218,7 @@ export default function Layout({ children }) {
     }
   }
   return (
-    <div className="min-h-[100dvh] flex w-full max-w-full min-w-0">
+    <div className="min-h-[100dvh] flex w-full max-w-full min-w-0 standalone:min-h-screen">
       {/* ── Sidebar desktop recolhível ── */}
       <aside className={`hidden md:flex flex-col bg-white border-r border-gray-200/70 fixed top-0 left-0 h-full z-30 transition-[width] duration-200 ${recolhida ? 'w-16' : 'w-60'}`}>
         {/* Cabeçalho da sidebar: logo quando expandida, só ícone quando recolhida */}
@@ -278,7 +278,7 @@ export default function Layout({ children }) {
         </button>
       </aside>
       {/* ── Conteúdo principal (margem esquerda acompanha sidebar) ── */}
-      <div className={`flex-1 min-w-0 max-w-full flex flex-col min-h-[100dvh] transition-[margin] duration-200 ${recolhida ? 'md:ml-16' : 'md:ml-60'}`}>
+      <div className={`flex-1 min-w-0 max-w-full flex flex-col min-h-[100dvh] standalone:min-h-screen transition-[margin] duration-200 ${recolhida ? 'md:ml-16' : 'md:ml-60'}`}>
         {/* ── Banner GLOBAL "Modo Consultoria" ──
             Fica fixo no topo de todas as telas internas enquanto o consultor
             visualiza os dados de um cliente (somente leitura). */}
@@ -334,12 +334,9 @@ export default function Layout({ children }) {
           </div>
         )}
         {/* Conteúdo da página. No mobile reserva espaço para a barra inferior.
-            IMPORTANTE: o esticamento (flex-1) é aplicado SÓ no desktop (md:flex-1).
-            No mobile o <main> fica com a altura NATURAL do conteúdo — sem isso,
-            flex-1 + min-h-screen do pai faziam o main crescer até o fim da tela,
-            criando o vão em branco acima da barra inferior fixa quando o
-            conteúdo era curto. */}
-        <main className="md:flex-1 min-w-0 w-full max-w-none px-4 pt-1 pb-mobilenav md:px-6 md:pt-5 md:pb-8 xl:px-8">
+            IMPORTANTE: usa flex-1 para esticar até o fim disponível sem forçar altura
+            adicional. O padding pb-mobilenav já garante o espaço para o menu. */}
+        <main className="flex-1 min-w-0 w-full max-w-none px-4 pt-1 pb-mobilenav md:px-6 md:pt-5 md:pb-8 xl:px-8">
           {children}
         </main>
       </div>

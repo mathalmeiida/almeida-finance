@@ -103,6 +103,16 @@
     /* Previne double-tap zoom em elementos interativos — sem bloquear o zoom
        de acessibilidade do usuário (pinch-to-zoom continua funcionando). */
     touch-action: manipulation;
+    /* Previne overscroll bounce no iOS (especialmente no modo standalone) */
+    overscroll-behavior: none;
+  }
+  
+  /* Modo standalone (PWA instalado): correções específicas para iPhone */
+  @media (display-mode: standalone) {
+    body {
+      /* Previne zoom indesejado ao focar inputs no modo standalone */
+      -webkit-text-size-adjust: 100%;
+    }
   }
 
   body {
@@ -332,22 +342,38 @@
     padding-top: env(safe-area-inset-top);
   }
   /* Reserva de espaço para a barra inferior no mobile (altura + safe-area).
-     A barra tem o botão central "+" saliente (sobe ~20px) além dos itens
-     (~52px), então reservamos ~116px + inset para o último elemento da página
-     (ex.: "Registrar gasto de hoje" na Home) nunca ficar escondido atrás da
-     barra. Só aplicada abaixo de md. */
+     IMPORTANTE: No modo standalone (PWA instalado), o iOS às vezes ignora a
+     área segura inferior (safe-area-inset-bottom) ou aplica valores incorretos.
+     A medição real do menu (--af-nav-h) via ResizeObserver em Layout.jsx
+     garante que sempre reservamos o espaço REAL necessário, independente do
+     iOS reportar ou não a inset corretamente.
+     Fallback antes da medição: itens (53px) + área segura. Respiro de 8px. */
   .pb-mobilenav {
     /* --af-nav-h = altura REAL do menu (já inclui a área segura), medida em Layout.jsx.
-       Fallback antes da medição: itens (53px) + área segura. Respiro de 8px. */
-    padding-bottom: calc(var(--af-nav-h, calc(53px + env(safe-area-inset-bottom))) + 8px);
+       Usa env() diretamente sem fallback fixo para não duplicar com o valor medido. */
+    padding-bottom: calc(var(--af-nav-h, calc(53px + env(safe-area-inset-bottom, 0px))) + 8px);
+  }
+  
+  /* No modo standalone (PWA instalado), garante padding mínimo quando safe-area não for reportada */
+  @media (display-mode: standalone) {
+    .pb-mobilenav {
+      /* Usa max() para garantir mínimo de 73px (53px menu + 20px área segura estimada) */
+      padding-bottom: max(calc(var(--af-nav-h, calc(53px + env(safe-area-inset-bottom, 20px))) + 8px), 73px);
+    }
   }
   /* Cabeçalho mobile: a altura de 56px passa a SOMAR a área segura do topo.
-     Antes: h-14 (border-box) + pt-safe deixava só ~9px úteis no iPhone com notch,
-     e logo/avatar vazavam por cima do conteúdo. A faixa da área segura fica branca
-     (mesmo cor do cabeçalho) e o conteúdo fica abaixo. */
+     No modo standalone, garante um espaço mínimo para o notch/Dynamic Island. */
   .af-header-mobile {
-    height: calc(3.5rem + env(safe-area-inset-top));
-    background-image: linear-gradient(#ffffff, #ffffff env(safe-area-inset-top), transparent env(safe-area-inset-top));
+    height: calc(3.5rem + env(safe-area-inset-top, 0px));
+    background-image: linear-gradient(#ffffff, #ffffff env(safe-area-inset-top, 0px), transparent env(safe-area-inset-top, 0px));
+  }
+  
+  @media (display-mode: standalone) {
+    .af-header-mobile {
+      /* No PWA instalado, garante altura mínima para cobrir o notch quando iOS reporta 0 */
+      height: max(calc(3.5rem + env(safe-area-inset-top, 0px)), calc(3.5rem + 44px));
+      padding-top: env(safe-area-inset-top, 0px);
+    }
   }
   /* Área de toque mínima recomendada (~44px) para ícones/botões pequenos. */
   .touch-target {

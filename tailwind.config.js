@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+import plugin from 'tailwindcss/plugin'
+
 export default {
   content: [
     "./index.html",
@@ -58,5 +60,10 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // Plugin para adicionar variant standalone (PWA instalado)
+    plugin(function({ addVariant }) {
+      addVariant('standalone', '@media (display-mode: standalone)')
+    })
+  ],
 }
