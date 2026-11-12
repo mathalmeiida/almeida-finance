@@ -13,8 +13,8 @@ assert('8 etapas', TOTAL_ETAPAS === 8 && ETAPAS_ONBOARDING.map(e => e.numero).jo
 const telasDasEtapas = ETAPAS_ONBOARDING.flatMap(e => e.telas)
 assert('toda tela (exceto final) pertence a uma etapa', TELAS_ONBOARDING.filter(t => t !== 'final').every(t => telasDasEtapas.includes(t)))
 assert('ordem das telas respeita a ordem das etapas', TELAS_ONBOARDING.filter(t => t !== 'final').map(etapaDaTela).every((n, i, a) => i === 0 || n >= a[i - 1]))
-assert('saldo e investimentos na mesma etapa (2)', etapaDaTela('saldo') === 2)
-assert('importação é a etapa 6', etapaDaTela('importacao') === 6)
+assert('saldo e investimentos na mesma etapa (3)', etapaDaTela('saldo') === 3)
+assert('importação é a etapa 2, logo após o perfil', etapaDaTela('importacao') === 2 && TELAS_ONBOARDING[1] === 'importacao')
 assert('final não é etapa', etapaDaTela('final') === null)
 assert('chaves do card da Home mapeiam para telas válidas', Object.values(CHAVE_PARA_TELA).every(t => TELAS_ONBOARDING.includes(t)))
 

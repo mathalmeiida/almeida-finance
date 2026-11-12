@@ -1771,28 +1771,33 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                 <>
                   <CabecalhoEtapa
                     icone={Upload} cor="text-marca" bg="bg-marca-100"
-                    titulo="Quer organizar suas finanças ainda mais rápido?"
-                    subtitulo="Importe seus extratos, faturas ou investimentos e confira os dados identificados."
+                    titulo="Vamos organizar suas finanças?"
+                    subtitulo="Importe seus extratos e deixe o Almeida Finance identificar seus lançamentos."
                   />
-                  <div className="rounded-xl border border-gray-200 p-4 flex items-center gap-3 text-sm text-gray-600">
-                    <FileSpreadsheet size={22} className="text-marca flex-shrink-0" />
-                    <span>CSV, OFX, planilhas e PDF com texto. O arquivo é lido no seu aparelho, você revisa tudo antes de salvar e o que já foi cadastrado não é duplicado.</span>
-                  </div>
+                  <ul className="space-y-2" data-testid="onboarding-importacao-categorias">
+                    {[
+                      ['Extrato bancário', 'Receitas, despesas e transferências.'],
+                      ['Fatura de cartão', 'Compras, parcelas e estornos.'],
+                      ['Investimentos', 'Aportes, resgates e rendimentos.'],
+                    ].map(([t, d]) => (
+                      <li key={t} className="rounded-xl border border-gray-200 p-3 flex items-center gap-3 text-sm">
+                        <FileSpreadsheet size={20} className="text-marca flex-shrink-0" />
+                        <span className="min-w-0"><span className="font-semibold text-gray-900">{t}</span> <span className="text-gray-600">· {d}</span></span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-gray-500 mt-3">PDF, CSV, OFX, XLS e XLSX; você pode escolher vários arquivos. A leitura acontece no seu aparelho, nada é enviado a serviços externos, você revisa tudo antes de salvar e não geramos duplicidades.</p>
                   <button type="button" onClick={() => setImportando(true)}
                     className="btn-primary w-full mt-4 flex items-center justify-center gap-2" data-testid="onboarding-importar-agora">
-                    <Upload size={16} /> Importar agora
+                    <Upload size={16} /> Escolher arquivo
                   </button>
-                  <button type="button" onClick={() => setEtapa(RENDA)}
-                    className="btn-secondary w-full mt-2">
-                    Cadastrar manualmente
-                  </button>
-                  <div className="flex gap-2 mt-4">
+                  <div className="flex gap-2 mt-3">
                     <button onClick={voltar} className="btn-secondary flex items-center gap-1 px-3" aria-label="Voltar">
                       <ArrowLeft size={16} />
                     </button>
-                    <button type="button" onClick={avancar}
+                    <button type="button" onClick={avancar} data-testid="onboarding-preencher-manual"
                       className="btn-secondary flex-1 flex items-center justify-center gap-2">
-                      Deixar para depois <ArrowRight size={16} />
+                      Prefiro preencher manualmente <ArrowRight size={16} />
                     </button>
                   </div>
                 </>

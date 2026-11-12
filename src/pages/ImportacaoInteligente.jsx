@@ -26,8 +26,8 @@ import {
 // Props (uso dentro do onboarding): embutido, onConcluir, onCancelar.
 
 const CONTEXTOS = [
-  { id: 'extrato', titulo: 'Extrato bancário', texto: 'Receitas, despesas, PIX, tarifas', icone: Landmark },
-  { id: 'fatura', titulo: 'Fatura de cartão', texto: 'Compras, parcelas, estornos', icone: CreditCard },
+  { id: 'extrato', titulo: 'Extrato bancário', texto: 'Receitas, despesas e transferências', icone: Landmark },
+  { id: 'fatura', titulo: 'Fatura de cartão', texto: 'Compras, parcelas e estornos', icone: CreditCard },
   { id: 'investimentos', titulo: 'Investimentos', texto: 'Aportes, resgates, rendimentos', icone: TrendingUp },
 ]
 
@@ -129,11 +129,55 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
   const canceladoRef = useRef(false)
 
   function aoEscolherArquivo(e) {
-    const file = e.target.files?.[0]
+    const files = Array.from(e.target.files || [])
     e.target.value = '' // permite escolher o mesmo arquivo de novo
-    if (!file || !origemValida) return
+    if (!files.length || !origemValida) return
     setPendenteSenha(null); setSenhaPdf('')
-    processarArquivo(file)
+    if (files.length === 1) processarArquivo(files[0])
+    else processarVarios(files)
+  }
+
+  const progressoOcr = p => setProgressoLeitura(p.fase === 'ocr' ? `Reconhecendo o texto da imagem (OCR)... página ${p.pagina} de ${p.total}` : '')
+
+  // Vários documentos de uma vez: lê um a um e junta numa única conferência.
+  // Duplicidades entre arquivos são detectadas pelo mesmo mecanismo. PDFs com
+  // senha ou com erro ficam de fora (listados) para serem enviados à parte.
+  async function processarVarios(files) {
+    canceladoRef.current = false
+    setErro(''); setEtapa('lendo'); setProgressoLeitura('')
+    const juntas = []; const descartadas = []; const puladas = []
+    let formato = null; let ocr = false; let instituicao = null; let truncado = false; let tipoDocumento = null; let ehCartao = false
+    try {
+      for (const [i, file] of files.entries()) {
+        if (canceladoRef.current) break
+        setProgressoLeitura(`Lendo ${i + 1} de ${files.length}: ${file.name}`)
+        const r = await lerArquivoImportacao(file, { aoProgresso: progressoOcr, cancelado: () => canceladoRef.current })
+        if (r.precisaSenha) { puladas.push(`${file.name} (protegido por senha; envie-o sozinho)`); continue }
+        if (r.erro || !r.transacoes?.length) { puladas.push(`${file.name} (${r.erro || 'nenhum lançamento encontrado'})`); continue }
+        if (r.ehCartao && contexto !== 'fatura') { puladas.push(`${file.name} (é fatura de cartão; escolha "Fatura de cartão")`); continue }
+        // Períodos sobrepostos entre arquivos: o que já veio de um arquivo anterior
+        // (mesma data, valor e descrição) não entra de novo. Repetições legítimas
+        // dentro do mesmo arquivo são mantidas.
+        const chave = t => `${t.data}|${t.valor}|${normalizar(t.descricao || '')}`
+        const disponiveis = new Map()
+        for (const t of juntas) disponiveis.set(chave(t), (disponiveis.get(chave(t)) || 0) + 1)
+        const novas = r.transacoes.filter(t => {
+          const k = chave(t); const n = disponiveis.get(k) || 0
+          if (n > 0) { disponiveis.set(k, n - 1); return false }
+          return true
+        })
+        if (novas.length < r.transacoes.length) puladas.push(`${file.name}: ${r.transacoes.length - novas.length} lançamento(s) já presentes em outro arquivo foram ignorados`)
+        formato = formato || r.formato; juntas.push(...novas); descartadas.push(...(r.descartadas || []))
+        ocr = ocr || !!r.ocr; truncado = truncado || !!r.truncado
+        instituicao = instituicao || r.instituicao || null; tipoDocumento = tipoDocumento || r.tipoDocumento || null; ehCartao = ehCartao || !!r.ehCartao
+      }
+      if (canceladoRef.current) { setEtapa('configurar'); return }
+      if (!juntas.length) throw new Error(`Nenhum lançamento válido encontrado. ${puladas.join('; ')}`)
+      await montarPrevia({ transacoes: juntas, descartadas, truncado, instituicao, ocr, tipoDocumento }, { nome: `${files.length} arquivos`, formato }, puladas)
+    } catch (err) {
+      setErro(mensagemErro(err, 'Não foi possível ler os arquivos.'))
+      setEtapa('configurar')
+    }
   }
 
   async function processarArquivo(file, senha) {
@@ -142,7 +186,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
     try {
       const r = await lerArquivoImportacao(file, {
         senha,
-        aoProgresso: p => setProgressoLeitura(p.fase === 'ocr' ? `Reconhecendo o texto da imagem (OCR)... página ${p.pagina} de ${p.total}` : ''),
+        aoProgresso: progressoOcr,
         cancelado: () => canceladoRef.current,
       })
       if (r.precisaSenha) { setPendenteSenha({ file, incorreta: !!r.senhaIncorreta }); setSenhaPdf(''); setEtapa('configurar'); return }
@@ -151,6 +195,15 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
       if (r.erro) throw new Error(r.erro)
       if (r.ehCartao && contexto !== 'fatura') throw new Error('Este OFX é de cartão de crédito. Escolha "Fatura de cartão" e o cartão correspondente.')
       if (!r.transacoes.length) throw new Error('Nenhum lançamento válido encontrado no arquivo.')
+      await montarPrevia(r, { nome: file.name, formato: r.formato }, [])
+    } catch (err) {
+      setErro(mensagemErro(err, 'Não foi possível ler o arquivo.'))
+      setEtapa('configurar')
+    }
+  }
+
+  async function montarPrevia(r, info, puladas) {
+    {
       const intervalo = intervaloDatas(r.transacoes)
       const origem = contexto === 'fatura' ? `cartao:${cartaoId}`
         : contexto === 'investimentos' ? `inv:${investimentoId}`
@@ -167,13 +220,10 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
         investimentoId: contexto === 'investimentos' ? investimentoId : null,
         investimentos,
       }))
-      setArquivo({ nome: file.name, formato: r.formato })
-      setLeitura({ descartadas: r.descartadas || [], truncado: !!r.truncado, intervalo, instituicao: r.instituicao || null, ocr: !!r.ocr, tipoDocumento: r.tipoDocumento || null })
+      setArquivo(info)
+      setLeitura({ descartadas: r.descartadas || [], truncado: !!r.truncado, intervalo, instituicao: r.instituicao || null, ocr: !!r.ocr, tipoDocumento: r.tipoDocumento || null, puladas })
       setFiltro('todos'); setEditando(null)
       setEtapa('previa')
-    } catch (err) {
-      setErro(mensagemErro(err, 'Não foi possível ler o arquivo.'))
-      setEtapa('configurar')
     }
   }
 
@@ -337,7 +387,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
           )}
 
           <div>
-            <input ref={inputRef} type="file" className="sr-only" data-testid="importacao-arquivo"
+            <input ref={inputRef} type="file" className="sr-only" multiple data-testid="importacao-arquivo"
               accept=".csv,.ofx,.xlsx,.xls,.pdf,.txt,text/csv,application/pdf"
               onChange={aoEscolherArquivo} disabled={!origemValida || etapa === 'lendo'} />
             <button type="button" onClick={() => inputRef.current?.click()} disabled={!origemValida || etapa === 'lendo'}
@@ -404,6 +454,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
             {!historicoDisponivel && <p className="text-[11px] text-gray-400">Histórico de importações indisponível no momento: a duplicidade é verificada pelos lançamentos já cadastrados.</p>}
             {leitura?.ocr && <p className="text-xs text-amber-700 bg-amber-50 rounded-xl p-3" data-testid="importacao-aviso-ocr">Este PDF é uma imagem e foi lido por OCR no seu aparelho. O reconhecimento pode errar números e datas: confira cada lançamento antes de confirmar.</p>}
             {leitura?.tipoDocumento && leitura.tipoDocumento !== contexto && <p className="text-xs text-sky-800 bg-sky-50 rounded-xl p-3" data-testid="importacao-aviso-tipo">Este documento parece ser {{ fatura: 'uma fatura de cartão', extrato: 'um extrato bancário', investimentos: 'um extrato de investimentos' }[leitura.tipoDocumento]}, mas você escolheu "{CONTEXTOS.find(c => c.id === contexto)?.titulo}". Se estiver errado, use Trocar arquivo.</p>}
+            {leitura?.puladas?.length > 0 && <p className="text-xs text-amber-700 bg-amber-50 rounded-xl p-3" data-testid="importacao-puladas">Avisos da leitura: {leitura.puladas.join('; ')}.</p>}
             {leitura?.truncado && <p className="text-xs text-amber-700">O arquivo tem mais de 2.000 lançamentos; só os primeiros 2.000 foram lidos. Exporte um período menor.</p>}
             {leitura?.descartadas?.length > 0 && (
               <details className="text-xs text-gray-500">

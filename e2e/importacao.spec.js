@@ -194,7 +194,7 @@ test('arquivos inválidos são recusados com mensagem e nada é gravado', async 
   expect(banco.escritas).toHaveLength(0)
 })
 
-test('onboarding etapa 6 usa a mesma importação e volta ao fluxo', async ({ page }) => {
+test('onboarding etapa 2 usa a mesma importação e volta ao fluxo', async ({ page }) => {
   await page.addInitScript(id => {
     localStorage.setItem(`almeida_apresentacao_vista_${id}`, '1')
     localStorage.setItem(`almeida_onboarding_progresso_${id}`, 'importacao')
@@ -207,7 +207,10 @@ test('onboarding etapa 6 usa a mesma importação e volta ao fluxo', async ({ pa
   await enviar(page, 'extrato.csv', fx('extrato-banco.csv'), 'text/csv')
   await confirmar(page).click()
   await page.getByRole('button', { name: 'Continuar', exact: true }).click()
-  await expect(page.getByTestId('onboarding-progresso')).toHaveAttribute('data-etapa', '7')
+  await expect(page.getByTestId('onboarding-progresso')).toHaveAttribute('data-etapa', '3')
+  // Dados confirmados são aproveitados: a etapa de Receitas já mostra o salário importado.
+  await page.getByRole('button', { name: /Continuar|Pular/ }).first().click()
+  await expect(page.locator('li', { hasText: 'SALARIO' }).first()).toBeVisible({ timeout: 10_000 })
   expect(banco.linhas('despesas')).toHaveLength(6)
 })
 
@@ -273,4 +276,13 @@ test('saldo com data de mês anterior: Home conta os lançamentos importados dep
   await confirmar(page).click()
   await page.getByRole('button', { name: 'Ir para a Home' }).click()
   await expect(page.getByText('R$ 956,31').filter({ visible: true }).first()).toBeVisible({ timeout: 20_000 })
+})
+
+test('vários arquivos de uma vez: uma única conferência, sem lançamentos duplicados', async ({ page }) => {
+  const banco = await abrir(page, { perfil: perfilFalso({ saldo_base_data: '2026-10-05' }) })
+  await page.getByTestId('importacao-arquivo').setInputFiles([{ name: 'a.csv', mimeType: 'text/csv', buffer: fx('extrato-banco.csv') }, { name: 'b.csv', mimeType: 'text/csv', buffer: fx('extrato-banco.csv') }])
+  await expect(page.getByTestId('importacao-qtd-incluidos')).toHaveText('8', { timeout: 20_000 })
+  await confirmar(page).click()
+  await expect(page.getByTestId('importacao-concluida')).toContainText('8 lançamentos importados')
+  expect(banco.linhas('receitas').length + banco.linhas('despesas').length).toBe(8)
 })

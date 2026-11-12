@@ -7,12 +7,12 @@
 // (ex.: Receitas → benefícios VR/VA), contadas como UMA etapa no progresso.
 export const TELAS_ONBOARDING = [
   'perfil',         // 1
-  'saldo',          // 2  saldo em conta + patrimônio investido
-  'renda',          // 3
-  'beneficios',     // 3  (VR/VA, opcional)
-  'despesas',       // 4
-  'cartoes',        // 5
-  'importacao',     // 6  (Em breve até a Parte C)
+  'importacao',     // 2  importação inteligente (opcional, antes do preenchimento manual)
+  'saldo',          // 3  saldo em conta + patrimônio investido
+  'renda',          // 4
+  'beneficios',     // 4  (VR/VA, opcional)
+  'despesas',       // 5
+  'cartoes',        // 6
   'metas',          // 7
   'reserva',        // 7  (reserva de emergência)
   'personalizacao', // 8  tema + atalhos
@@ -22,11 +22,11 @@ export const TELAS_ONBOARDING = [
 
 export const ETAPAS_ONBOARDING = [
   { numero: 1, titulo: 'Perfil', telas: ['perfil'] },
-  { numero: 2, titulo: 'Saldo e investimentos', telas: ['saldo'] },
-  { numero: 3, titulo: 'Receitas', telas: ['renda', 'beneficios'] },
-  { numero: 4, titulo: 'Despesas', telas: ['despesas'] },
-  { numero: 5, titulo: 'Cartões', telas: ['cartoes'] },
-  { numero: 6, titulo: 'Importação', telas: ['importacao'] },
+  { numero: 2, titulo: 'Importação', telas: ['importacao'] },
+  { numero: 3, titulo: 'Saldo e investimentos', telas: ['saldo'] },
+  { numero: 4, titulo: 'Receitas', telas: ['renda', 'beneficios'] },
+  { numero: 5, titulo: 'Despesas', telas: ['despesas'] },
+  { numero: 6, titulo: 'Cartões', telas: ['cartoes'] },
   { numero: 7, titulo: 'Metas', telas: ['metas', 'reserva'] },
   { numero: 8, titulo: 'Personalização', telas: ['personalizacao', 'notificacoes'] },
 ]

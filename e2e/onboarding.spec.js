@@ -19,6 +19,10 @@ async function preparar(page, { perfil = perfilNovo(), banco = criarBancoMemoria
 
 const etapa = page => page.getByTestId('onboarding-progresso')
 const continuar = page => page.getByRole('button', { name: /^(Continuar|Salvar e continuar)/ })
+const pularImportacao = async page => {
+  await expect(etapa(page)).toHaveAttribute('data-etapa', '2')
+  await page.getByTestId('onboarding-preencher-manual').click()
+}
 const capturar = async (page, nome, info) => {
   if (process.env.CAPTURAS) await page.screenshot({ path: `capturas-revisao/onboarding/${info.project.name}/${nome}.png`, fullPage: true })
 }
@@ -32,25 +36,36 @@ async function etapasAteDespesas(page, info) {
   await capturar(page, '1-perfil', info)
   await continuar(page).click()
 
-  // 2 — Saldo + patrimônio
+  // 2 — Importação (opcional): abre o módulo, volta e escolhe preencher manualmente
   await expect(etapa(page)).toHaveAttribute('data-etapa', '2')
+  await expect(page.getByRole('heading', { name: 'Vamos organizar suas finanças?' })).toBeVisible()
+  await expect(page.getByTestId('onboarding-importacao-categorias')).toContainText('Fatura de cartão')
+  await page.getByTestId('onboarding-importar-agora').click()
+  await expect(page.getByTestId('importacao')).toBeVisible()
+  await expect(page.getByTestId('importacao-arquivo')).toHaveAttribute('multiple', '')
+  await capturar(page, '2-importacao', info)
+  await page.getByRole('button', { name: 'Voltar', exact: true }).click()
+  await pularImportacao(page)
+
+  // 3 — Saldo + patrimônio
+  await expect(etapa(page)).toHaveAttribute('data-etapa', '3')
   await page.locator('#onb-saldo').fill('150000')        // R$ 1.500,00
   await page.locator('#onb-patrimonio').fill('1000000')  // R$ 10.000,00
   await capturar(page, '2-saldo-investimentos', info)
   await continuar(page).click()
 
-  // 3 — Receitas
-  await expect(etapa(page)).toHaveAttribute('data-etapa', '3')
+  // 4 — Receitas
+  await expect(etapa(page)).toHaveAttribute('data-etapa', '4')
   await page.getByPlaceholder('Nome da receita (ex.: Salário)').fill('Salário')
   await page.getByPlaceholder('R$ 0,00').first().fill('480000')
   await capturar(page, '3-receitas', info)
   await continuar(page).click()
   await expect(page.getByRole('heading', { name: /Vale-Refeição ou Vale-Alimentação/ })).toBeVisible()
-  await expect(etapa(page)).toHaveAttribute('data-etapa', '3') // VR/VA faz parte da etapa 3
+  await expect(etapa(page)).toHaveAttribute('data-etapa', '4') // VR/VA faz parte da etapa 4
   await continuar(page).click()
 
-  // 4 — Despesas
-  await expect(etapa(page)).toHaveAttribute('data-etapa', '4')
+  // 5 — Despesas
+  await expect(etapa(page)).toHaveAttribute('data-etapa', '5')
   await page.getByPlaceholder('Nome da despesa (ex.: Aluguel)').fill('Aluguel')
   await page.getByPlaceholder('R$ 0,00').first().fill('120000')
   await page.getByRole('button', { name: 'Adicionar outra despesa' }).click()
@@ -66,25 +81,17 @@ test('novo usuário completa as 8 etapas sem duplicar lançamentos', async ({ pa
   // Voltar até o saldo e avançar de novo NÃO pode duplicar nada.
   await page.getByRole('button', { name: 'Voltar' }).or(page.locator('button:has(svg.lucide-arrow-left)')).first().click()
   await page.getByRole('button', { name: 'Continuar' }).click() // VR/VA
-  await expect(etapa(page)).toHaveAttribute('data-etapa', '4')
+  await expect(etapa(page)).toHaveAttribute('data-etapa', '5')
   await continuar(page).click()
 
-  // 5 — Cartões (com cor)
-  await expect(etapa(page)).toHaveAttribute('data-etapa', '5')
+  // 6 — Cartões (com cor)
+  await expect(etapa(page)).toHaveAttribute('data-etapa', '6')
   await page.getByPlaceholder('Nome do cartão (ex.: Nubank, Bradesco Visa)').fill('Nubank')
   await page.getByPlaceholder('Ex.: 20').fill('20')
   await page.getByPlaceholder('Ex.: 28').fill('28')
   await page.getByRole('button', { name: 'Roxo' }).click()
   await capturar(page, '5-cartoes', info)
   await continuar(page).click()
-
-  // 6 — Importação (Em breve)
-  await expect(etapa(page)).toHaveAttribute('data-etapa', '6')
-  await page.getByTestId('onboarding-importar-agora').click()
-  await expect(page.getByTestId('importacao')).toBeVisible() // mesmo módulo da página /importacao
-  await capturar(page, '6-importacao', info)
-  await page.getByRole('button', { name: 'Voltar', exact: true }).click()
-  await page.getByRole('button', { name: /Deixar para depois/ }).click()
 
   // 7 — Metas + reserva
   await expect(etapa(page)).toHaveAttribute('data-etapa', '7')
@@ -146,11 +153,11 @@ test('editar o patrimônio ao voltar atualiza o mesmo registro', async ({ page }
   await etapasAteDespesas(page, info)
   // Volta: Despesas → VR/VA → Receitas → Saldo
   for (let i = 0; i < 3; i++) await page.locator('button:has(svg.lucide-arrow-left)').first().click()
-  await expect(etapa(page)).toHaveAttribute('data-etapa', '2')
+  await expect(etapa(page)).toHaveAttribute('data-etapa', '3')
   await expect(page.locator('#onb-patrimonio')).toHaveValue('10.000,00')
   await page.locator('#onb-patrimonio').fill('1200000')
   await continuar(page).click()
-  await expect(etapa(page)).toHaveAttribute('data-etapa', '3')
+  await expect(etapa(page)).toHaveAttribute('data-etapa', '4')
   await expect(page.locator('li', { hasText: 'Salário' })).toHaveCount(1) // receita salva reaparece, uma vez
   await continuar(page).click()
   expect(banco.linhas('investimentos')).toHaveLength(1)
@@ -164,10 +171,11 @@ test('usuário com investimentos já cadastrados: patrimônio não é duplicado'
   await page.goto('/')
   await page.getByLabel('Como prefere ser chamado?').fill('Bia')
   await continuar(page).click()
+  await pularImportacao(page)
   await expect(page.getByTestId('onboarding-patrimonio-existente')).toContainText('3.200,00')
   await expect(page.locator('#onb-patrimonio')).toHaveCount(0)
   await continuar(page).click()
-  await expect(etapa(page)).toHaveAttribute('data-etapa', '3')
+  await expect(etapa(page)).toHaveAttribute('data-etapa', '4')
   expect(banco.linhas('investimentos')).toHaveLength(1)
 })
 
@@ -178,7 +186,7 @@ test('interromper e voltar: oferece continuar de onde parou ou ir para o app', a
   await page.reload()
   await expect(page.getByTestId('onboarding-retomar')).toBeVisible({ timeout: 20_000 })
   await page.getByRole('button', { name: 'Continuar de onde parei' }).click()
-  await expect(etapa(page)).toHaveAttribute('data-etapa', '4')
+  await expect(etapa(page)).toHaveAttribute('data-etapa', '5')
   await expect(page.getByText('Aluguel', { exact: true })).toBeVisible() // dado salvo continua lá
 
   await page.reload()
@@ -195,7 +203,7 @@ test('com a migration aplicada, objetivos e etapa vão para o perfil', async ({ 
   await continuar(page).click()
   await expect(etapa(page)).toHaveAttribute('data-etapa', '2')
   expect(escritasPerfil.some(e => Array.isArray(e.objetivos_financeiros) && e.objetivos_financeiros.includes('sair_dividas'))).toBe(true)
-  await expect.poll(() => escritasPerfil.some(e => e.onboarding_etapa === 'saldo')).toBe(true)
+  await expect.poll(() => escritasPerfil.some(e => e.onboarding_etapa === 'importacao')).toBe(true)
 })
 
 test('card da Home reabre direto na etapa pendente (reserva)', async ({ page }) => {
