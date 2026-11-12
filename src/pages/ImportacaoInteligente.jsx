@@ -349,26 +349,28 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
           {contexto === 'fatura' && (
             <div>
               <label className="label" htmlFor="imp-cartao">Cartão</label>
-              {!carregandoCartoes && cartoes.length === 0 ? (
-                <p className="text-sm text-gray-600">Cadastre o cartão primeiro{embutido ? ' na etapa Cartões' : <> em <button type="button" className="text-marca underline" onClick={() => navigate('/cartoes')}>Cartões</button></>}.</p>
-              ) : (
-                <select id="imp-cartao" className="input" value={cartaoId} onChange={e => setCartaoId(e.target.value)}>
-                  <option value="">Escolha o cartão da fatura</option>
-                  {cartoes.map(c => <option key={c.id} value={c.id}>{c.nome}{c.banco ? ` • ${c.banco}` : ''}</option>)}
-                </select>
+              <select id="imp-cartao" className="input" value={cartaoId} onChange={e => setCartaoId(e.target.value)}>
+                <option value="">Escolha o cartão da fatura</option>
+                {cartoes.map(c => <option key={c.id} value={c.id}>{c.nome}{c.banco ? ` • ${c.banco}` : ''}</option>)}
+              </select>
+              {!carregandoCartoes && cartoes.length === 0 && (
+                <p className="text-xs text-gray-500 mt-1.5">
+                  Nenhum cartão cadastrado. {embutido ? 'Pule esta etapa e cadastre depois em Cartões.' : <><button type="button" className="text-marca underline font-medium" onClick={() => navigate('/cartoes?novo=1')}>Cadastrar agora</button> ou pule e cadastre depois.</>}
+                </p>
               )}
             </div>
           )}
           {contexto === 'investimentos' && (
             <div>
               <label className="label" htmlFor="imp-inv">Investimento</label>
-              {!carregandoInv && investimentos.length === 0 ? (
-                <p className="text-sm text-gray-600">Cadastre o investimento primeiro{embutido ? '' : <> em <button type="button" className="text-marca underline" onClick={() => navigate('/investimentos')}>Investimentos</button></>}. As movimentações atualizam essa posição.</p>
-              ) : (
-                <select id="imp-inv" className="input" value={investimentoId} onChange={e => setInvestimentoId(e.target.value)}>
-                  <option value="">Escolha o investimento</option>
-                  {investimentos.map(i => <option key={i.id} value={i.id}>{i.nome}{i.instituicao ? ` • ${i.instituicao}` : ''}</option>)}
-                </select>
+              <select id="imp-inv" className="input" value={investimentoId} onChange={e => setInvestimentoId(e.target.value)}>
+                <option value="">Escolha o investimento</option>
+                {investimentos.map(i => <option key={i.id} value={i.id}>{i.nome}{i.instituicao ? ` • ${i.instituicao}` : ''}</option>)}
+              </select>
+              {!carregandoInv && investimentos.length === 0 && (
+                <p className="text-xs text-gray-500 mt-1.5">
+                  Nenhum investimento cadastrado. {embutido ? 'Pule esta etapa e cadastre depois em Investimentos.' : <><button type="button" className="text-marca underline font-medium" onClick={() => navigate('/investimentos?novo=1')}>Cadastrar agora</button> ou pule e cadastre depois.</>}
+                </p>
               )}
               <p className="text-xs text-gray-400 mt-1">Você pode trocar o investimento de cada linha na conferência.</p>
             </div>

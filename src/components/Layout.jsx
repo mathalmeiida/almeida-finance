@@ -299,7 +299,7 @@ export default function Layout({ children }) {
         )}
         {/* Header mobile compacto. Na Home: logo à esquerda. Nas telas internas:
             seta de voltar à esquerda. Avatar sempre à direita. */}
-        <header className="af-header-mobile md:hidden bg-white border-b border-gray-100 px-4 flex items-center justify-between sticky top-0 z-20 pt-safe">
+        <header className="af-header-mobile md:hidden bg-white border-b border-gray-100 px-4 flex items-center justify-between sticky top-0 z-20">
           {ehHome ? (
             <LogoMarca imgClassName="h-7 w-auto" padding="px-2.5 py-1.5" />
           ) : (

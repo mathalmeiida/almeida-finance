@@ -343,11 +343,11 @@
   }
   /* Cabeçalho mobile: a altura de 56px passa a SOMAR a área segura do topo.
      Antes: h-14 (border-box) + pt-safe deixava só ~9px úteis no iPhone com notch,
-     e logo/avatar vazavam por cima do conteúdo. A faixa da área segura fica vinho
-     (texto branco da barra de status legível) e o fundo do tema continua abaixo. */
+     e logo/avatar vazavam por cima do conteúdo. A faixa da área segura fica branca
+     (mesmo cor do cabeçalho) e o conteúdo fica abaixo. */
   .af-header-mobile {
     height: calc(3.5rem + env(safe-area-inset-top));
-    background-image: linear-gradient(#3d0a18, #3d0a18 env(safe-area-inset-top), transparent env(safe-area-inset-top));
+    background-image: linear-gradient(#ffffff, #ffffff env(safe-area-inset-top), transparent env(safe-area-inset-top));
   }
   /* Área de toque mínima recomendada (~44px) para ícones/botões pequenos. */
   .touch-target {
