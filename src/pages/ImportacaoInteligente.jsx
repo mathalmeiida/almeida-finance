@@ -11,6 +11,8 @@ import { useInvestimentos } from '../hooks/useInvestimentos'
 import { useCategorias } from '../hooks/useCategorias'
 import { useImportacoes } from '../hooks/useImportacoes'
 import InputMoeda from '../components/InputMoeda'
+import ResumoConciliacao from '../components/ResumoConciliacao'
+import ConciliacaoPrevia from '../components/ConciliacaoPrevia'
 import { formatCurrency, hojeISO } from '../lib/utils'
 import { lerArquivoImportacao } from '../lib/importacaoArquivos'
 import { buscarExistentes, gravarRegistros } from '../lib/importacaoGravar'
@@ -18,6 +20,7 @@ import {
   ROTULOS_TIPO, TIPOS_POR_CONTEXTO, TIPOS_IMPORTAVEIS, MOTIVO_NAO_IMPORTAVEL, normalizar,
   prepararItens, alterarTipo, sugerirCategoria, validarItem, montarRegistros, impactoNoSaldo, resumoImportacao, intervaloDatas,
 } from '../lib/importacaoRegras'
+import { conciliarTransacoes, resumoConciliacao } from '../lib/conciliacao'
 
 // ─── Importação Inteligente ──────────────────────────────────────────────────
 // 1) Escolher o tipo de documento e a origem  2) anexar o arquivo (lido NO
@@ -214,12 +217,19 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
         carregarChaves(),
       ])
       setHistoricoDisponivel(hist.disponivel)
-      setItens(prepararItens(r.transacoes, {
+      
+      // Preparar itens com regras existentes
+      let itensPreparados = prepararItens(r.transacoes, {
         contexto, origem, categorias: categoriasRef.current, existentes, chavesImportadas: hist.chaves,
         cartaoId: contexto === 'fatura' ? cartaoId : null,
         investimentoId: contexto === 'investimentos' ? investimentoId : null,
         investimentos,
-      }))
+      })
+      
+      // Aplicar conciliação inteligente (Fase 3)
+      itensPreparados = conciliarTransacoes(itensPreparados, existentes, hist.chaves)
+      
+      setItens(itensPreparados)
       setArquivo(info)
       setLeitura({ descartadas: r.descartadas || [], truncado: !!r.truncado, intervalo, instituicao: r.instituicao || null, ocr: !!r.ocr, tipoDocumento: r.tipoDocumento || null, puladas })
       setFiltro('todos'); setEditando(null)
