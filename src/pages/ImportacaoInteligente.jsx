@@ -627,6 +627,18 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
             </div>
           )}
           {!resultado.historico && <p className="text-xs text-gray-400">O histórico desta importação não foi salvo (recurso ainda não ativado no banco).</p>}
+          {resultado.historico && !embutido && (
+            <p className="text-xs text-gray-500">
+              <button
+                type="button"
+                onClick={() => navigate('/central-importacao')}
+                className="text-marca underline font-medium hover:text-marca-hover"
+              >
+                Ver histórico completo
+              </button>{' '}
+              na Central de Importação
+            </p>
+          )}
           <div className="flex flex-col sm:flex-row gap-2 pt-1">
             <button type="button" onClick={recomecar} className="btn-secondary flex-1">Importar outro arquivo</button>
             <button type="button" onClick={() => (embutido ? onConcluir?.(resultado) : navigate('/'))} className="btn-primary flex-1">

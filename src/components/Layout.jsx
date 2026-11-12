@@ -49,6 +49,7 @@ const navGrupos = [
     { to: '/beneficios',    label: 'Benefícios',     icon: UtensilsCrossed, corIcone: 'text-emerald-400' },
     { to: '/investimentos', label: 'Investimentos',  icon: TrendingUp,    corIcone: 'text-green-400'    },
       { to: '/importacao',    label: 'Importação',     icon: Upload,        corIcone: 'text-sky-400'      },
+      { to: '/central-importacao', label: 'Central de Importação', icon: Upload, corIcone: 'text-marca' },
     { to: '/projecao',      label: 'Projeção',       icon: BarChart2,     corIcone: 'text-violet-400'   },
     { to: '/minha-evolucao', label: 'Minha evolução', icon: Activity, corIcone: 'text-violet-400' },
   ]},

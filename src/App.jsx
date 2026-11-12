@@ -58,6 +58,7 @@ import ReverApresentacao from './pages/ReverApresentacao'
 import Investimentos from './pages/Investimentos'
 
 import ImportacaoInteligente from './pages/ImportacaoInteligente'
+import CentralImportacao from './pages/CentralImportacao'
 
 import Admin from './pages/Admin'
 
@@ -434,6 +435,7 @@ function Rotas() {
                 <Route path="/investimentos" element={<Investimentos />} />
 
                 <Route path="/importacao" element={<ImportacaoInteligente />} />
+                <Route path="/central-importacao" element={<CentralImportacao />} />
 
                 <Route path="/projecao" element={<Projecao />} />
                 <Route path="/minha-evolucao" element={<MinhaEvolucao />} />
