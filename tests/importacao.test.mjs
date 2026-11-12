@@ -141,7 +141,7 @@ assert('movimentações não mudam o saldo disponível', impactoNoSaldo(invItens
 console.log('\n# PDF (texto) e formatos')
 const pdf = textoPDFParaTransacoes(['EXTRATO', '02/10/2026 PAGTO SALARIO 4.800,00 5.800,00', '03/10 MERCADO -182,40', 'Total 1.000,00'], { anoPadrao: 2026 })
 assert('PDF: reconhece linhas data/descrição/valor', pdf.transacoes.length === 2)
-assert('PDF: tudo para revisão, com aviso de dois valores', pdf.transacoes.every(t => t.revisar) && pdf.transacoes[0].avisos.some(a => a.includes('dois valores')))
+assert('PDF: tudo para revisão; sem sinal nem saldo anterior fica incerto', pdf.transacoes.every(t => t.revisar) && pdf.transacoes[0].sinalIncerto)
 assert('PDF sem lançamentos: erro honesto', !!textoPDFParaTransacoes(['nada aqui']).erro)
 assert('arquivo vazio rejeitado', !!detectarFormato('a.csv', new Uint8Array()).erro)
 assert('assinatura PDF', detectarFormato('x.pdf', new TextEncoder().encode('%PDF-1.4 ...')).formato === 'pdf')

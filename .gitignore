@@ -57,3 +57,6 @@ alteracoes-*.txt
 test-*.sql
 _tmp_*.mjs
 capturas-revisao/
+
+# Arquivos do OCR copiados no build (vite.config.js)
+public/ocr/

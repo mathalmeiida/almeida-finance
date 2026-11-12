@@ -125,6 +125,8 @@ export function classificar(t, contexto, { sinalCompra = 1 } = {}) {
   if (RE.transferenciaPropria.test(d)) return { tipo: 'transferencia', incluir: false, revisar: false, avisos }
   if (t.valor > 0 && RE.rendimento.test(d)) return { tipo: 'receita', incluir: true, revisar: false, avisos }
   if (RE.investimento.test(d)) return { tipo: 'investimento', incluir: false, revisar: false, avisos }
+  // PDF sem sinal e sem saldo para deduzir: não presumimos entrada ou saída.
+  if (t.sinalIncerto) return { tipo: t.valor > 0 ? 'receita' : 'despesa', incluir: false, revisar: true, avisos: ['O PDF não indica se é entrada ou saída: escolha o tipo e marque para importar'] }
   if (t.valor > 0 && RE.estorno.test(d)) return { tipo: 'estorno', incluir: false, revisar: false, avisos }
   if (t.valor > 0) {
     if (RE.salario.test(d) || RE.reembolso.test(d)) return { tipo: 'receita', incluir: true, revisar: false, avisos }

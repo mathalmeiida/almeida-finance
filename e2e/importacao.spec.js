@@ -43,7 +43,7 @@ test('extrato CSV: prévia, impacto no saldo, confirmação e gravação sem tra
   const banco = await abrir(page, { perfil: perfilFalso({ saldo_base_data: '2026-10-05' }) })
   await enviar(page, 'extrato.csv', fx('extrato-banco.csv'), 'text/csv')
   await expect(page.getByTestId('importacao-resumo')).toContainText('12 movimentações identificadas')
-  await expect(page.getByTestId('importacao-resumo')).toContainText('2 linhas não foram lidas')
+  await expect(page.getByTestId('importacao-resumo')).toContainText('2 linhas não reconhecidas ou ignoradas')
   await expect(page.getByTestId('importacao-impacto')).toContainText('43,69')
   await expect(page.getByTestId('importacao-qtd-incluidos')).toHaveText('8')
   // Nada gravado antes da confirmação.
@@ -170,9 +170,11 @@ test('PDF com texto: lançamentos lidos e marcados para revisão', async ({ page
   await enviar(page, 'extrato.pdf', gerarPDF(['EXTRATO FICTICIO', '02/10/2026 PAGTO SALARIO 4.800,00', '03/10/2026 MERCADO CENTRAL -182,40', 'SALDO FINAL 4.617,60']), 'application/pdf')
   await expect(page.getByTestId('importacao-resumo')).toContainText('2 movimentações identificadas', { timeout: 20_000 })
   await expect(page.getByTestId('importacao-lista').getByText('Revisar', { exact: true })).toHaveCount(2)
+  // Valor sem sinal explícito (salário) tem sinal incerto: fica desmarcado até o usuário decidir.
+  await expect(page.getByTestId('importacao-qtd-incluidos')).toHaveText('1')
   await confirmar(page).click()
   await expect(page.getByTestId('importacao-concluida')).toBeVisible()
-  expect(banco.linhas('receitas')).toHaveLength(1)
+  expect(banco.linhas('receitas')).toHaveLength(0)
   expect(banco.linhas('despesas')[0]).toMatchObject({ valor: 182.4 })
 })
 

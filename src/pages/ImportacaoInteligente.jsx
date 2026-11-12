@@ -122,13 +122,32 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
 
   const origemValida = contexto === 'extrato' || (contexto === 'fatura' ? !!cartaoId : !!investimentoId)
 
-  async function aoEscolherArquivo(e) {
+  // PDF protegido: a senha fica só neste estado, é usada na leitura e descartada.
+  const [pendenteSenha, setPendenteSenha] = useState(null) // { file, incorreta }
+  const [senhaPdf, setSenhaPdf] = useState('')
+  const [progressoLeitura, setProgressoLeitura] = useState('')
+  const canceladoRef = useRef(false)
+
+  function aoEscolherArquivo(e) {
     const file = e.target.files?.[0]
     e.target.value = '' // permite escolher o mesmo arquivo de novo
     if (!file || !origemValida) return
-    setErro(''); setEtapa('lendo')
+    setPendenteSenha(null); setSenhaPdf('')
+    processarArquivo(file)
+  }
+
+  async function processarArquivo(file, senha) {
+    canceladoRef.current = false
+    setErro(''); setEtapa('lendo'); setProgressoLeitura('')
     try {
-      const r = await lerArquivoImportacao(file)
+      const r = await lerArquivoImportacao(file, {
+        senha,
+        aoProgresso: p => setProgressoLeitura(p.fase === 'ocr' ? `Reconhecendo o texto da imagem (OCR)... página ${p.pagina} de ${p.total}` : ''),
+        cancelado: () => canceladoRef.current,
+      })
+      if (r.precisaSenha) { setPendenteSenha({ file, incorreta: !!r.senhaIncorreta }); setSenhaPdf(''); setEtapa('configurar'); return }
+      setPendenteSenha(null); setSenhaPdf('')
+      if (canceladoRef.current) { setEtapa('configurar'); return }
       if (r.erro) throw new Error(r.erro)
       if (r.ehCartao && contexto !== 'fatura') throw new Error('Este OFX é de cartão de crédito. Escolha "Fatura de cartão" e o cartão correspondente.')
       if (!r.transacoes.length) throw new Error('Nenhum lançamento válido encontrado no arquivo.')
@@ -149,7 +168,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
         investimentos,
       }))
       setArquivo({ nome: file.name, formato: r.formato })
-      setLeitura({ descartadas: r.descartadas || [], truncado: !!r.truncado, intervalo })
+      setLeitura({ descartadas: r.descartadas || [], truncado: !!r.truncado, intervalo, instituicao: r.instituicao || null, ocr: !!r.ocr, tipoDocumento: r.tipoDocumento || null })
       setFiltro('todos'); setEditando(null)
       setEtapa('previa')
     } catch (err) {
@@ -234,7 +253,15 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
 
       {erro && (
         <div role="alert" className="flex items-start gap-2 bg-red-50 border border-red-100 text-red-700 text-sm rounded-xl p-3">
-          <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" /><span>{erro}</span>
+          <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+          <span>{erro}
+            {!embutido && /manualmente/.test(erro) && (
+              <span className="flex gap-3 mt-2">
+                <button type="button" className="underline font-medium" onClick={() => navigate('/despesas?novo=1')}>Cadastrar despesa</button>
+                <button type="button" className="underline font-medium" onClick={() => navigate('/receitas?novo=1')}>Cadastrar receita</button>
+              </span>
+            )}
+          </span>
         </div>
       )}
 
@@ -295,15 +322,32 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
             </div>
           )}
 
+          {pendenteSenha && (
+            <form data-testid="importacao-senha" className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2"
+              onSubmit={e => { e.preventDefault(); if (senhaPdf) processarArquivo(pendenteSenha.file, senhaPdf) }}>
+              <label className="label" htmlFor="imp-senha">Este PDF é protegido por senha</label>
+              {pendenteSenha.incorreta && <p className="text-xs text-red-600" role="alert">Senha incorreta. Tente novamente.</p>}
+              <input id="imp-senha" type="password" className="input" autoComplete="off" autoFocus value={senhaPdf} onChange={e => setSenhaPdf(e.target.value)} placeholder="Senha do PDF" />
+              <p className="text-[11px] text-gray-500">A senha é usada só para abrir o arquivo neste aparelho e não é guardada.</p>
+              <div className="flex gap-2">
+                <button type="button" className="btn-secondary flex-1" onClick={() => { setPendenteSenha(null); setSenhaPdf('') }}>Cancelar</button>
+                <button type="submit" disabled={!senhaPdf || etapa === 'lendo'} className="btn-primary flex-1 disabled:opacity-50">Abrir PDF</button>
+              </div>
+            </form>
+          )}
+
           <div>
             <input ref={inputRef} type="file" className="sr-only" data-testid="importacao-arquivo"
               accept=".csv,.ofx,.xlsx,.xls,.pdf,.txt,text/csv,application/pdf"
               onChange={aoEscolherArquivo} disabled={!origemValida || etapa === 'lendo'} />
             <button type="button" onClick={() => inputRef.current?.click()} disabled={!origemValida || etapa === 'lendo'}
               className="btn-primary w-full flex items-center justify-center gap-2 py-3 disabled:opacity-50">
-              {etapa === 'lendo' ? <><Loader2 size={16} className="animate-spin" /> Lendo arquivo...</> : <><Upload size={16} /> Escolher arquivo</>}
+              {etapa === 'lendo' ? <><Loader2 size={16} className="animate-spin" /> {progressoLeitura || 'Lendo arquivo...'}</> : <><Upload size={16} /> Escolher arquivo</>}
             </button>
-            <p className="text-xs text-gray-500 mt-2">CSV, OFX, XLSX/XLS ou PDF com texto selecionável, até 5 MB. PDFs digitalizados (imagem) ainda não são lidos.</p>
+            <p className="text-xs text-gray-500 mt-2">CSV, OFX, XLSX/XLS ou PDF até 5 MB. PDF digitalizado (imagem) é lido por OCR no seu aparelho e pode levar alguns segundos. PDF com senha: você informa a senha na hora e ela não é guardada.</p>
+            {etapa === 'lendo' && progressoLeitura && (
+              <button type="button" className="text-xs text-marca underline mt-1" data-testid="importacao-cancelar-leitura" onClick={() => { canceladoRef.current = true }}>Cancelar leitura</button>
+            )}
           </div>
 
           <p className="flex items-start gap-2 text-xs text-gray-500 bg-gray-50 rounded-xl p-3">
@@ -326,7 +370,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
               <span className="w-10 h-10 rounded-xl bg-marca-100 flex items-center justify-center flex-shrink-0"><FileText size={18} className="text-marca" /></span>
               <div className="min-w-0">
                 <p className="text-base font-bold text-gray-900">{itens.length} movimentações identificadas</p>
-                <p className="text-xs text-gray-500 truncate">{arquivo?.nome} · {arquivo?.formato?.toUpperCase()}{leitura?.intervalo ? ` · ${dataBR(leitura.intervalo.inicio)} a ${dataBR(leitura.intervalo.fim)}` : ''}</p>
+                <p className="text-xs text-gray-500 truncate">{arquivo?.nome} · {arquivo?.formato?.toUpperCase()}{leitura?.instituicao ? ` · ${leitura.instituicao}` : ''}{leitura?.intervalo ? ` · ${dataBR(leitura.intervalo.inicio)} a ${dataBR(leitura.intervalo.fim)}` : ''}</p>
               </div>
             </div>
             <ul className="flex flex-wrap gap-1.5 text-xs" aria-label="Resumo por tipo">
@@ -358,11 +402,13 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
             {contexto === 'fatura' && <p className="text-xs text-gray-500">As compras entram na fatura do cartão (não no saldo disponível). Pagamentos e estornos ficam fora para não contar em dobro.</p>}
             {contexto === 'investimentos' && <p className="text-xs text-gray-500">As movimentações atualizam o patrimônio investido; o saldo disponível não muda.</p>}
             {!historicoDisponivel && <p className="text-[11px] text-gray-400">Histórico de importações indisponível no momento: a duplicidade é verificada pelos lançamentos já cadastrados.</p>}
+            {leitura?.ocr && <p className="text-xs text-amber-700 bg-amber-50 rounded-xl p-3" data-testid="importacao-aviso-ocr">Este PDF é uma imagem e foi lido por OCR no seu aparelho. O reconhecimento pode errar números e datas: confira cada lançamento antes de confirmar.</p>}
+            {leitura?.tipoDocumento && leitura.tipoDocumento !== contexto && <p className="text-xs text-sky-800 bg-sky-50 rounded-xl p-3" data-testid="importacao-aviso-tipo">Este documento parece ser {{ fatura: 'uma fatura de cartão', extrato: 'um extrato bancário', investimentos: 'um extrato de investimentos' }[leitura.tipoDocumento]}, mas você escolheu "{CONTEXTOS.find(c => c.id === contexto)?.titulo}". Se estiver errado, use Trocar arquivo.</p>}
             {leitura?.truncado && <p className="text-xs text-amber-700">O arquivo tem mais de 2.000 lançamentos; só os primeiros 2.000 foram lidos. Exporte um período menor.</p>}
             {leitura?.descartadas?.length > 0 && (
               <details className="text-xs text-gray-500">
-                <summary className="cursor-pointer">{leitura.descartadas.length} linhas não foram lidas</summary>
-                <ul className="mt-1 space-y-0.5">{leitura.descartadas.slice(0, 30).map((d, i) => <li key={i}>Linha {d.linha}: {d.motivo}</li>)}</ul>
+                <summary className="cursor-pointer">{leitura.descartadas.length} linhas não reconhecidas ou ignoradas</summary>
+                <ul className="mt-1 space-y-0.5" data-testid="importacao-nao-reconhecidas">{leitura.descartadas.slice(0, 40).map((d, i) => <li key={i}>Linha {d.linha}: {d.motivo}{d.trecho ? <span className="block text-gray-400 break-words">“{d.trecho}”</span> : null}</li>)}</ul>
               </details>
             )}
           </div>

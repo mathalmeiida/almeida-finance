@@ -278,36 +278,139 @@ export function parseOFX(texto) {
   return { transacoes, descartadas, erro: null, conta, ehCartao }
 }
 
-// ── Texto extraído de PDF → transações ───────────────────────────────────────
-// PDF não tem estrutura padronizada entre bancos. Só aceitamos linhas no
-// formato "data  descrição  valor" e TODAS ficam marcadas para revisão.
-const RE_LINHA_PDF = /^(\d{1,2}[/.-]\d{1,2}(?:[/.-]\d{2,4})?)\s+(.+?)\s+((?:-\s?)?(?:R\$\s?)?\d{1,3}(?:\.\d{3})*,\d{2}(?:\s?[-DC])?)(?:\s+((?:-\s?)?(?:R\$\s?)?\d{1,3}(?:\.\d{3})*,\d{2}(?:\s?[-DC])?))?\s*$/i
+// ── Texto extraído de PDF (ou de OCR) → transações ───────────────────────────
+// PDF não tem estrutura padronizada entre bancos. Aceitamos linhas que
+// COMEÇAM com uma data e TERMINAM com um valor ("data  descrição  valor",
+// opcionalmente seguido do saldo). Tudo fica marcado para revisão e nada é
+// inventado: o que não bate com esse formato vai para "não reconhecidas".
+const MES_RE = '(?:jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-zç]*\\.?'
+const DATA_PDF = `(\\d{1,2}[/.-]\\d{1,2}(?:[/.-]\\d{2,4})?|\\d{1,2}\\s*(?:de\\s+)?${MES_RE}(?:\\s*(?:de\\s+|/)?\\d{4})?|\\d{1,2}[/.-]${MES_RE}(?:[/.-]\\d{2,4})?)`
+const VALOR_PDF = '((?:-\\s?)?(?:R\\$\\s?)?\\d{1,3}(?:\\.\\d{3})*,\\d{2}(?:\\s?[-DC])?)'
+const RE_LINHA_PDF = new RegExp(`^${DATA_PDF}\\s+(.+?)\\s+${VALOR_PDF}(?:\\s+${VALOR_PDF})?\\s*$`, 'i')
+const RE_COMECA_COM_DATA = new RegExp(`^${DATA_PDF}\\s+\\S`, 'i')
+const RE_DATA_COMPLETA = /\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})\b/g
+const RE_INFORMATIVA_PDF = /^(vencimento|fechamento|valor (total|da fatura|minimo)|pagamento minimo|total|subtotal|saldo|limite|melhor dia|periodo|data de)/
+const MESES = { jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6, jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12 }
 
-export function textoPDFParaTransacoes(linhasTexto, { anoPadrao = null } = {}) {
+// Regras reutilizáveis por instituição (começam pelos nomes mais comuns; para
+// incluir outra, basta acrescentar uma linha).
+const INSTITUICOES = [
+  ['Nubank', /nubank|nu pagamentos/], ['Itaú', /\bitau\b|itau unibanco/], ['Bradesco', /bradesco/],
+  ['Santander', /santander/], ['Banco do Brasil', /banco do brasil/], ['Caixa', /caixa economica/],
+  ['Inter', /banco inter\b/], ['C6 Bank', /\bc6 bank\b/], ['XP Investimentos', /\bxp (investimentos|inc)/],
+  ['BTG Pactual', /btg pactual/], ['Mercado Pago', /mercado pago/], ['PicPay', /picpay/],
+  ['Sicredi', /sicredi/], ['Sicoob', /sicoob/], ['Neon', /\bneon\b/], ['BS2', /\bbs2\b/],
+]
+
+export function detectarInstituicao(linhas) {
+  const topo = norm(linhas.slice(0, 60).join(' '))
+  const achada = INSTITUICOES.find(([, re]) => re.test(topo))
+  return achada ? achada[0] : null
+}
+
+// 'fatura' | 'extrato' | 'investimentos' | null — só uma sugestão ao usuário.
+export function detectarTipoDocumento(linhas) {
+  // Só o cabeçalho (antes do primeiro lançamento): linhas como "PAGAMENTO
+  // FATURA CARTAO" de um extrato não podem fazê-lo parecer uma fatura.
+  const fim = linhas.findIndex(l => RE_COMECA_COM_DATA.test(String(l).trim()))
+  const t = norm(linhas.slice(0, fim < 0 ? 80 : Math.min(fim, 80)).join(' '))
+  if (/\bfatura\b/.test(t) && /(cartao|vencimento|limite|fechamento)/.test(t)) return 'fatura'
+  if (/(posicao consolidada|carteira de investimentos|extrato de investimentos|nota de negociacao|rendimentos?)/.test(t) && /(investiment|cotas|ativos?|renda fixa|fundo)/.test(t)) return 'investimentos'
+  if (/extrato/.test(t)) return 'extrato'
+  return null
+}
+
+// Ano de referência: a maior data completa do documento (ex.: vencimento ou
+// fim do período). Datas "dd/mm" ou "05 NOV" sem ano usam esse ano, ou o
+// anterior quando o mês é posterior ao da referência (compra de dezembro numa
+// fatura de janeiro).
+function referenciaDoDocumento(linhas, anoPadrao) {
+  let maior = null
+  for (const l of linhas) {
+    for (const m of String(l).matchAll(RE_DATA_COMPLETA)) {
+      const iso = dataBR(`${m[1]}/${m[2]}/${m[3]}`)
+      if (iso && (!maior || iso > maior)) maior = iso
+    }
+  }
+  if (maior) return { ano: +maior.slice(0, 4), mes: +maior.slice(5, 7), deduzida: true }
+  return { ano: anoPadrao || new Date().getFullYear(), mes: 12, deduzida: false }
+}
+
+function dataDoTrecho(trecho, ref) {
+  const t = norm(trecho)
+  let m = t.match(/^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2}|\d{4}))?$/)
+  let dia, mes, ano
+  if (m) { dia = +m[1]; mes = +m[2]; ano = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : null }
+  else {
+    m = t.match(/^(\d{1,2})[\s/.-]*(?:de\s+)?([a-z]{3})[a-z]*\.?(?:[\s/.-]*(?:de\s+)?(\d{2}|\d{4}))?$/)
+    if (!m || !MESES[m[2]]) return null
+    dia = +m[1]; mes = MESES[m[2]]; ano = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : null
+  }
+  const semAno = ano == null
+  if (semAno) ano = mes > ref.mes ? ref.ano - 1 : ref.ano
+  const iso = dataBR(`${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${ano}`)
+  return iso ? { iso, semAno, ano } : null
+}
+
+const SINAL_EXPLICITO = /^\s*-|^\(|-\s*$|\s[DC]$/i
+
+export function textoPDFParaTransacoes(linhasTexto, { anoPadrao = null, ocr = false } = {}) {
+  const linhas = linhasTexto.map(l => String(l).replace(/\s+/g, ' ').trim()).filter(Boolean)
+  const ref = referenciaDoDocumento(linhas, anoPadrao)
   const transacoes = [], descartadas = []
-  linhasTexto.forEach((bruta, i) => {
-    const l = String(bruta).replace(/\s+/g, ' ').trim()
+  let saldoAnterior = null
+  const info = { instituicao: detectarInstituicao(linhas), tipoDocumento: detectarTipoDocumento(linhas), ocr }
+
+  linhas.forEach((l, i) => {
+    // "Saldo anterior ..." sem data: só serve para deduzir o sinal dos lançamentos.
+    const mSaldo = norm(l).match(/^saldo (anterior|inicial)\b/)
+    if (mSaldo) {
+      const v = [...l.matchAll(new RegExp(VALOR_PDF, 'gi'))].map(x => numeroBR(x[1])).filter(x => x != null)
+      if (v.length) saldoAnterior = v[v.length - 1]
+      return
+    }
     const m = l.match(RE_LINHA_PDF)
-    if (!m) return
-    const descricao = m[2].trim()
-    if (DESCRICOES_INFORMATIVAS.test(norm(descricao))) { descartadas.push({ linha: i + 1, motivo: 'Linha de saldo/total (informativa)' }); return }
-    const data = dataBR(m[1], anoPadrao)
-    const valor = numeroBR(m[3])
-    if (!data) { descartadas.push({ linha: i + 1, motivo: 'Data inválida ou sem ano' }); return }
-    if (valor == null || valor === 0) return
+    if (!m) {
+      if (RE_COMECA_COM_DATA.test(l) && /[a-zA-Z]{3}/.test(l.replace(new RegExp(`^${DATA_PDF}`, 'i'), ''))) {
+        descartadas.push({ linha: i + 1, motivo: 'Linha com data, mas sem valor reconhecível (layout diferente?)', trecho: l.slice(0, 90) })
+      }
+      return
+    }
+    let descricao = m[2].trim().replace(/^[•*·.xX]{2,}\s*\d{4}\s+/, '')
+    const data = dataDoTrecho(m[1], ref)
+    const valor1 = numeroBR(m[3])
+    const saldoLinha = m[4] != null ? numeroBR(m[4]) : null
+    if (RE_INFORMATIVA_PDF.test(norm(descricao))) {
+      if (saldoLinha != null) saldoAnterior = saldoLinha
+      else if (/^saldo/.test(norm(descricao)) && valor1 != null) saldoAnterior = valor1
+      descartadas.push({ linha: i + 1, motivo: 'Linha de saldo/total (informativa)', trecho: l.slice(0, 90) })
+      return
+    }
+    if (!data) { descartadas.push({ linha: i + 1, motivo: 'Data inválida', trecho: l.slice(0, 90) }); return }
+    if (valor1 == null || valor1 === 0) { descartadas.push({ linha: i + 1, motivo: 'Valor ausente ou inválido', trecho: l.slice(0, 90) }); return }
+
+    const avisos = [ocr ? 'Lido por reconhecimento de texto (OCR): confira data, descrição e valor' : 'Lido de PDF: confira data, descrição e valor']
+    let valor = valor1, sinalIncerto = false
+    if (!SINAL_EXPLICITO.test(m[3])) {
+      // Sem sinal no valor: tenta deduzir pela variação do saldo informado ao lado.
+      if (saldoLinha != null && saldoAnterior != null && Math.abs(Math.abs(saldoLinha - saldoAnterior) - Math.abs(valor1)) < 0.015) {
+        valor = (saldoLinha - saldoAnterior) < 0 ? -Math.abs(valor1) : Math.abs(valor1)
+        avisos.push('Entrada/saída deduzida pela variação do saldo')
+      } else sinalIncerto = true
+    }
+    if (saldoLinha != null) saldoAnterior = saldoLinha
+    if (data.semAno) avisos.push(ref.deduzida ? `Data sem ano: usamos ${data.ano}, deduzido das datas do documento` : `Data sem ano no documento: assumimos ${data.ano}`)
     const parcela = extrairParcela(descricao)
-    const avisos = ['Lido de PDF: confira data, descrição e valor']
-    if (/^\d{1,2}[/.-]\d{1,2}$/.test(m[1])) avisos.push(`Data sem ano no PDF: assumimos ${anoPadrao}`)
-    if (m[4]) avisos.push('A linha tem dois valores; usamos o primeiro (o segundo costuma ser o saldo)')
     transacoes.push({
-      linha: i + 1, data, descricao, valor, idOrigem: null,
+      linha: i + 1, data: data.iso, descricao, valor, idOrigem: null,
       parcelaAtual: parcela?.atual ?? null, parcelaTotal: parcela?.total ?? null,
-      tipoInformado: null, ativo: null, revisar: true, avisos,
+      tipoInformado: null, ativo: null, revisar: true, sinalIncerto, avisos,
     })
   })
   return {
-    transacoes, descartadas,
-    erro: transacoes.length ? null : 'Não reconhecemos lançamentos neste PDF. Se for digitalizado (imagem) ou de layout diferente, exporte o extrato em CSV, OFX ou planilha.',
+    transacoes, descartadas: descartadas.slice(0, 200), ...info,
+    erro: transacoes.length ? null
+      : 'Não reconhecemos lançamentos neste PDF (o layout do banco pode ser diferente). Você pode exportar o extrato em CSV, OFX ou planilha, ou cadastrar manualmente em Receitas e Despesas.',
   }
 }
 
