@@ -4,7 +4,7 @@ import {
 
   MessageCircle, CheckCircle2, Loader2, GraduationCap,
 
-  BadgeCheck, Wallet, PiggyBank, LineChart, ListChecks,
+  BadgeCheck, Wallet, PiggyBank, LineChart, ListChecks, PieChart,
 
   ChevronDown, ChevronUp, ArrowRight, Sparkles,
 
@@ -25,7 +25,7 @@ const AJUDAS = [
   { icon: Wallet,       titulo: 'Organização financeira',         descricao: 'Receitas, despesas, cartões e saldo no mesmo lugar.' },
   { icon: LineChart,    titulo: 'Planejamento e metas',           descricao: 'Estratégias para objetivos de curto, médio e longo prazo.' },
   { icon: PiggyBank,    titulo: 'Simulação de decisões',          descricao: 'Simule cenários antes de tomar decisões financeiras.' },
-  { icon: ListChecks,   titulo: 'Acompanhamento personalizado',   descricao: 'Orientações práticas para a sua realidade financeira.' },
+  { icon: PieChart,      titulo: 'Carteira de investimentos',      descricao: 'Orientação educacional sobre diversificação, conforme seus objetivos e perfil.' },
 ]
 
 const painel = 'rounded-2xl border border-marca/15 bg-white shadow-sm'
@@ -102,7 +102,7 @@ export default function Consultoria() {
 
       <section className={`${painel} overflow-hidden`}>
 
-        <div className="grid grid-cols-1 items-start gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1.2fr)_minmax(220px,0.8fr)] lg:gap-8 lg:p-8">
+        <div className="grid grid-cols-1 items-start gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(220px,0.8fr)] lg:gap-6 lg:p-6">
 
           {/* Coluna de texto — esquerda no desktop, baixo no mobile */}
           <div className="min-w-0 order-2 lg:order-1">
@@ -113,7 +113,7 @@ export default function Consultoria() {
 
             </span>
 
-            <h1 className="mt-4 text-2xl font-extrabold leading-tight tracking-tight text-gray-900 sm:text-3xl">
+            <h1 className="mt-3 text-2xl font-extrabold leading-tight tracking-tight text-gray-900 sm:text-3xl">
 
               Matheus Almeida
 
@@ -121,10 +121,7 @@ export default function Consultoria() {
 
             <p className="mt-3 text-sm leading-6 text-gray-600 sm:text-base">
 
-              Engenheiro de Produção com certificações ANBIMA (CPA e C-Pro R) e mais de 7 anos
-              de experiência no mercado financeiro. Criador do Almeida Finance para tornar o
-              controle financeiro mais simples e acessível.
-
+              Engenheiro de Produção, certificado pela ANBIMA (CPA e C-Pro R), com mais de 7 anos de experiência no mercado financeiro, unindo conhecimento e tecnologia para simplificar sua vida financeira.
             </p>
 
             <button
@@ -135,11 +132,11 @@ export default function Consultoria() {
 
               aria-expanded={mostrarTrajetoria}
 
-              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-marca-100 px-4 py-2 text-sm font-semibold text-marca transition-opacity hover:opacity-85"
+              className="mt-3 inline-flex items-center gap-2 rounded-xl bg-marca-100 px-4 py-2 text-sm font-semibold text-marca transition-opacity hover:opacity-85"
 
             >
 
-              Conheça minha trajetória
+              Minha história
 
               {mostrarTrajetoria ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
 
@@ -149,11 +146,11 @@ export default function Consultoria() {
 
               <div className="mt-4 space-y-3 border-t border-gray-200 pt-4 text-sm leading-6 text-gray-700">
 
-                <p>Ao longo de mais de 7 anos no mercado financeiro trabalhei diretamente com clientes, planejamento financeiro e identificação de soluções para diferentes momentos da vida.</p>
+                <p>O Almeida Finance nasceu de uma percepção: organizar o dinheiro não deveria ser complicado.</p>
 
-                <p>Percebi que muitas pessoas têm boa renda, mas encontram dificuldades para organizar o dinheiro e transformar objetivos em um plano claro. Foi a partir dessa necessidade que nasceu o Almeida Finance.</p>
+                <p>Ao longo da minha experiência no mercado financeiro, percebi a necessidade de soluções práticas para ajudar as pessoas a transformar objetivos em decisões mais conscientes.</p>
 
-                <p>Além do aplicativo, ofereço consultoria pessoal para quem busca organizar melhor as finanças e tomar decisões mais conscientes.</p>
+                <p>Foi assim que surgiu o Almeida Finance, combinando tecnologia, planejamento e educação financeira.</p>
 
               </div>
 
@@ -164,7 +161,7 @@ export default function Consultoria() {
           {/* Foto — direita no desktop, topo no mobile */}
           <div className="order-1 flex min-w-0 flex-col items-center lg:order-2">
 
-            <div className="w-full max-w-[260px] sm:max-w-[300px] lg:max-w-[320px] mx-auto overflow-hidden rounded-2xl">
+            <div className="w-full max-w-[220px] sm:max-w-[260px] lg:max-w-[300px] mx-auto overflow-hidden rounded-2xl">
 
               <img
 
@@ -183,7 +180,7 @@ export default function Consultoria() {
         </div>
 
         {/* Três cards compactos: Experiência, Formação, Certificações */}
-        <div className="grid grid-cols-1 gap-3 px-5 pb-5 sm:grid-cols-3 sm:px-7 sm:pb-7 lg:px-8 lg:pb-8">
+        <div className="grid grid-cols-1 gap-3 px-4 pb-4 sm:grid-cols-3 sm:px-6 sm:pb-6 lg:px-6 lg:pb-6">
 
           {[
 
