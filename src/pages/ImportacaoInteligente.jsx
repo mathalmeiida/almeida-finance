@@ -20,7 +20,7 @@ import {
   ROTULOS_TIPO, TIPOS_POR_CONTEXTO, TIPOS_IMPORTAVEIS, MOTIVO_NAO_IMPORTAVEL, normalizar,
   prepararItens, alterarTipo, sugerirCategoria, validarItem, montarRegistros, impactoNoSaldo, resumoImportacao, intervaloDatas,
 } from '../lib/importacaoRegras'
-import { conciliarTransacoes, resumoConciliacao } from '../lib/conciliacao'
+import { conciliarTransacoes, resumoConciliacao, obterEstadoVisual } from '../lib/conciliacao'
 
 // ─── Importação Inteligente ──────────────────────────────────────────────────
 // 1) Escolher o tipo de documento e a origem  2) anexar o arquivo (lido NO
@@ -243,6 +243,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
   const marcarTodos = valor => setItens(lista => lista.map(i => (TIPOS_IMPORTAVEIS.includes(i.tipo) ? { ...i, incluir: valor } : i)))
 
   const resumo = useMemo(() => resumoImportacao(itens), [itens])
+  const resumoConciliacaoData = useMemo(() => resumoConciliacao(itens), [itens])
   const impacto = useMemo(() => impactoNoSaldo(itens, { saldoBaseData: perfilProprio?.saldo_base_data || null, hoje }), [itens, perfilProprio?.saldo_base_data, hoje])
   const comErro = itens.filter(i => i.incluir && validarItem(i))
 
@@ -482,6 +483,9 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
             )}
           </div>
 
+          {/* Resumo de Conciliação (Fase 3) */}
+          {itens.length > 0 && <ResumoConciliacao resumo={resumoConciliacaoData} />}
+
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide" role="tablist" aria-label="Filtrar lançamentos">
             {FILTROS.map(f => (
               <button key={f.id} type="button" role="tab" aria-selected={filtro === f.id} onClick={() => setFiltro(f.id)}
@@ -521,6 +525,10 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
                         <span className="rounded-full bg-marca-100 text-marca px-2 py-0.5" data-tipo={it.tipo}>{ROTULOS_TIPO[it.tipo]}</span>
                         {nomeCategoria && <span className="rounded-full bg-gray-100 text-gray-600 px-2 py-0.5">{nomeCategoria}</span>}
                         {it.parcelaTotal && <span className="rounded-full bg-gray-100 text-gray-600 px-2 py-0.5">Parcela {it.parcelaAtual}/{it.parcelaTotal}</span>}
+                        {it.estadoConciliacao && it.estadoConciliacao !== 'novo' && (() => {
+                          const estadoVisual = obterEstadoVisual(it.estadoConciliacao)
+                          return <span className={`rounded-full px-2 py-0.5 ${estadoVisual.bg} ${estadoVisual.cor}`} data-estado={it.estadoConciliacao}>{estadoVisual.label}</span>
+                        })()}
                         {st && <span className={`rounded-full px-2 py-0.5 ${st.cor}`} data-status={it.status}>{st.texto}</span>}
                         {it.revisar && <span className="rounded-full bg-sky-100 text-sky-800 px-2 py-0.5">Revisar</span>}
                       </div>

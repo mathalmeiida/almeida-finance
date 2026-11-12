@@ -4,7 +4,7 @@
 import React, { useState } from 'react'
 import {
   CheckCircle2, AlertCircle, Plus, XCircle, Edit2, Eye, EyeOff,
-  ChevronDown, ChevronUp, Repeat, CreditCard, Link as LinkIcon
+  ChevronDown, ChevronUp, Repeat, CreditCard, Link as LinkIcon, Info
 } from 'lucide-react'
 import { obterEstadoVisual, podeAprovar, podeEditar, podeIgnorar, podeVincular } from '../lib/conciliacao'
 import { ROTULOS_TIPO } from '../lib/importacaoRegras'
