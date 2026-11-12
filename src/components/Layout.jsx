@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -189,6 +189,18 @@ export default function Layout({ children }) {
   }
   // Fecha os sheets ao trocar de rota
   useEffect(() => { setMenuMobile(null) }, [location.pathname, location.search])
+  // Reserva exata para o menu inferior: mede a altura real (itens + área segura) e
+  // publica em --af-nav-h; o conteúdo reserva essa altura + um respiro pequeno.
+  const navRef = useRef(null)
+  useEffect(() => {
+    const el = navRef.current
+    if (!el) return undefined
+    const aplicar = () => document.documentElement.style.setProperty('--af-nav-h', `${Math.round(el.getBoundingClientRect().height)}px`)
+    aplicar()
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const ro = new ResizeObserver(aplicar); ro.observe(el)
+    return () => { ro.disconnect(); document.documentElement.style.removeProperty('--af-nav-h') }
+  }, [])
   // Trava o scroll de fundo quando qualquer sheet está aberto
   useEffect(() => {
     const aberto = Boolean(menuMobile)
@@ -287,7 +299,7 @@ export default function Layout({ children }) {
         )}
         {/* Header mobile compacto. Na Home: logo à esquerda. Nas telas internas:
             seta de voltar à esquerda. Avatar sempre à direita. */}
-        <header className="md:hidden bg-white border-b border-gray-100 px-4 h-14 flex items-center justify-between sticky top-0 z-20 pt-safe">
+        <header className="af-header-mobile md:hidden bg-white border-b border-gray-100 px-4 flex items-center justify-between sticky top-0 z-20 pt-safe">
           {ehHome ? (
             <LogoMarca imgClassName="h-7 w-auto" padding="px-2.5 py-1.5" />
           ) : (
@@ -331,7 +343,7 @@ export default function Layout({ children }) {
         </main>
       </div>
       {/* Navegação mobile: cinco destinos, alinhados e sem botão flutuante. */}
-      <nav aria-label="Navegação principal" className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 shadow-[0_-1px_12px_rgba(0,0,0,0.06)] flex items-stretch justify-around px-1 pb-safe">
+      <nav ref={navRef} aria-label="Navegação principal" className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 shadow-[0_-1px_12px_rgba(0,0,0,0.06)] flex items-stretch justify-around px-1 pb-safe">
         <BottomNavItem to="/" label="Início" icon={LayoutDashboard} corIcone="text-marca" />
         <BottomNavItem to="/consultoria" label="Consultoria" icon={MessagesSquare} corIcone="text-marca" />
         {somenteLeitura ? (

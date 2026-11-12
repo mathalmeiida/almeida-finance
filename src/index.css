@@ -337,9 +337,17 @@
      (ex.: "Registrar gasto de hoje" na Home) nunca ficar escondido atrás da
      barra. Só aplicada abaixo de md. */
   .pb-mobilenav {
-    /* Barra real (53px) + respiro de 12px. Antes eram 88px: sobrava um vão
-       branco entre o último bloco e o menu. */
-    padding-bottom: calc(var(--af-nav-h, 53px) + 12px + env(safe-area-inset-bottom));
+    /* --af-nav-h = altura REAL do menu (já inclui a área segura), medida em Layout.jsx.
+       Fallback antes da medição: itens (53px) + área segura. Respiro de 8px. */
+    padding-bottom: calc(var(--af-nav-h, calc(53px + env(safe-area-inset-bottom))) + 8px);
+  }
+  /* Cabeçalho mobile: a altura de 56px passa a SOMAR a área segura do topo.
+     Antes: h-14 (border-box) + pt-safe deixava só ~9px úteis no iPhone com notch,
+     e logo/avatar vazavam por cima do conteúdo. A faixa da área segura fica vinho
+     (texto branco da barra de status legível) e o fundo do tema continua abaixo. */
+  .af-header-mobile {
+    height: calc(3.5rem + env(safe-area-inset-top));
+    background-image: linear-gradient(#3d0a18, #3d0a18 env(safe-area-inset-top), transparent env(safe-area-inset-top));
   }
   /* Área de toque mínima recomendada (~44px) para ícones/botões pequenos. */
   .touch-target {
