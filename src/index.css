@@ -337,7 +337,9 @@
      (ex.: "Registrar gasto de hoje" na Home) nunca ficar escondido atrás da
      barra. Só aplicada abaixo de md. */
   .pb-mobilenav {
-    padding-bottom: calc(88px + env(safe-area-inset-bottom));
+    /* Barra real (53px) + respiro de 12px. Antes eram 88px: sobrava um vão
+       branco entre o último bloco e o menu. */
+    padding-bottom: calc(var(--af-nav-h, 53px) + 12px + env(safe-area-inset-bottom));
   }
   /* Área de toque mínima recomendada (~44px) para ícones/botões pequenos. */
   .touch-target {
@@ -801,3 +803,12 @@
 }
 .af-shortcut-btn.af-shortcut-grade span { overflow-wrap: anywhere; }
 
+
+/* Atalhos no celular: ~4 cards inteiros + parte do próximo, em qualquer largura. */
+@media (max-width: 767px) {
+  .af-shortcut-btn:not(.af-shortcut-grade) {
+    width: clamp(72px, calc((100vw - 40px) / 4.3), 104px);
+    min-width: 0;
+    flex-shrink: 0;
+  }
+}

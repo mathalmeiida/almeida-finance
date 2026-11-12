@@ -1712,6 +1712,18 @@ function EvolucaoFinanceiraHome({ projecao = [], ocultar }) {
   )
 }
 
+// Pinta o fundo do <body> com a cor da Home enquanto ela está aberta. Assim a
+// área fora do conteúdo (margens laterais e espaço reservado ao menu inferior)
+// tem a mesma cor, sem faixa clara no iPhone/PWA. Restaura ao sair da Home.
+function FundoCorpoHome({ cor }) {
+  useEffect(() => {
+    const anterior = document.body.style.backgroundColor
+    document.body.style.backgroundColor = cor
+    return () => { document.body.style.backgroundColor = anterior }
+  }, [cor])
+  return null
+}
+
 export default function Dashboard() {
   const [abaMovimentacoes, setAbaMovimentacoes] = useState('transacoes');
   const [paginaAtalhos, setPaginaAtalhos] = useState(0)
@@ -2493,6 +2505,7 @@ const carregandoLimite = carregando
 
   return (
     <div className="af-home-premium w-full max-w-none min-w-0 flex flex-col gap-0 md:pb-0" style={variaveisHome}>
+      <FundoCorpoHome cor={variaveisHome['--af-home-bg']} />
       {/* SAUDAÇÃO */}
       <div className="af-home-header relative overflow-hidden mb-2">
         {ehNoite && <span className="sky-stars" aria-hidden="true" />}
