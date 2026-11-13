@@ -282,7 +282,24 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
         })
       }
       const porTabela = gravados.reduce((a, g) => ({ ...a, [g.tabela]: (a[g.tabela] || 0) + 1 }), {})
-      setResultado({ gravados: gravados.length, porTabela, falhas, historico: hist.registrado })
+      setResultado({ 
+        gravados: gravados.length, 
+        porTabela, 
+        falhas, 
+        historico: hist.registrado,
+        // Adiciona itens importados para hook adaptativo
+        itens: gravados.map(g => ({
+          ...g,
+          // Garante que cada item tem os campos necessários
+          tipo: g.tipo || 'desconhecido',
+          descricao: g.descricao || '',
+          valor: g.valor || 0,
+          data: g.data || hoje,
+          incluir: true,
+          _importado: true,
+          _confirmado: false
+        }))
+      })
       setEtapa('concluido')
     } catch (err) {
       setErro(`A importação foi interrompida. ${mensagemErro(err, '')} Confira em Receitas/Despesas o que já foi salvo antes de tentar de novo.`)

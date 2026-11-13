@@ -287,6 +287,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   })
   // Índice do item em EDIÇÃO na lista local (null = adicionando novo).
   const [recEditIdx, setRecEditIdx] = useState(null)
+  
   // Rehidrata a lista local com as receitas JÁ salvas (ao voltar à etapa),
   // evitando duplicação: itens com id não são recriados no salvar.
   const [recHidratado, setRecHidratado] = useState(false)
@@ -307,6 +308,39 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
       setRecHidratado(true)
     }
   }, [receitasExistentes, recHidratado])
+  
+  // PRÉ-PREENCHIMENTO ADAPTATIVO: carrega receitas importadas
+  useEffect(() => {
+    if (etapa !== RENDA || !adaptativo.dadosTemp) return
+    
+    const dadosImportados = adaptativo.obterDadosEtapa('receitas')
+    if (dadosImportados && dadosImportados.length > 0) {
+      setReceitas(prev => {
+        // Evita duplicar itens já existentes
+        const existentesIds = new Set(prev.filter(r => r.id).map(r => r.id))
+        const existentesDescs = new Set(prev.map(r => r.descricao?.toLowerCase().trim()))
+        
+        const novas = dadosImportados
+          .filter(r => !r._confirmado && !existentesIds.has(r.id))
+          .filter(r => !existentesDescs.has(r.descricao?.toLowerCase().trim()))
+          .map(r => ({
+            descricao: r.descricao || '',
+            valor: Math.abs(Number(r.valor)) || 0,
+            categoria: r.categoria || r.categoriaNome || null,
+            data: r.data || hojeISO(),
+            frequencia: 'nao_repete', // NÃO assume recorrência
+            recorrencia_meses: null,
+            ocorrencias: null,
+            data_fim: null,
+            _importado: true,
+            _revisar: r.revisar || false,
+            uid: crypto.randomUUID()
+          }))
+        
+        return [...prev, ...novas]
+      })
+    }
+  }, [etapa, adaptativo])
 
   // ETAPA Despesas — lista local.
   const [despesas, setDespesas] = useState([]) // { descricao, valor, categoria_id, data, frequencia, recorrenciaMeses }
@@ -609,7 +643,12 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
       }
     }
 
-    if (lista.length === 0) { avancar(); return }
+    if (lista.length === 0) { 
+      // Confirma etapa vazia e avança
+      adaptativo.confirmarEtapa && adaptativo.confirmarEtapa('receitas', [])
+      avancar()
+      return
+    }
 
     emGravacao.current = true
     setSalvando(true); setErro('')
@@ -630,16 +669,30 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
         }
         if (r.id) {
           const atualizado = await atualizarReceita(r.id, payload)
-          salvos.push({ ...r, id: atualizado?.id ?? r.id })
+          salvos.push({ ...r, id: atualizado?.id ?? r.id, _confirmado: true })
         } else {
           const criado = await criarReceita(payload)
-          salvos.push({ ...r, id: criado?.id })
+          salvos.push({ ...r, id: criado?.id, _confirmado: true })
         }
       }
       // Mantém a lista COM os ids (sem limpar) para que, ao voltar à etapa, os
-      // itens reapareçam e não sejam recriados. Avança após sucesso.
+      // itens reapareçam e não sejam recriados.
       setReceitas(salvos)
       limparRecForm()
+      
+      // Confirma etapa no adaptativo
+      adaptativo.confirmarEtapa && adaptativo.confirmarEtapa('receitas', salvos)
+      
+      // Navegação adaptativa: determina próxima etapa (pula confirmadas)
+      if (typeof determinarProximaEtapa === 'function' && adaptativo.etapasPreenchidas) {
+        const proxima = determinarProximaEtapa(adaptativo.etapasPreenchidas, 'receitas')
+        if (proxima && CHAVE_PARA_TELA[proxima]) {
+          setEtapa(CHAVE_PARA_TELA[proxima])
+          return
+        }
+      }
+      
+      // Fallback: avança normalmente
       avancar()
     } catch (e) {
       // NÃO avança em silêncio: mostra erro e impede o avanço.
@@ -1217,27 +1270,94 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                 titulo="Quanto você recebe?"
                 subtitulo="Salário, freelance, renda extra... Informe nome, valor, dia de recebimento e se repete todo mês."
               />
+              
+              {/* Banner de dados importados */}
+              {adaptativo.etapaPrecisaRevisao && adaptativo.etapaPrecisaRevisao('receitas') && (
+                <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4 rounded-r-lg">
+                  <div className="flex items-start gap-3">
+                    <FileCheck className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-blue-900 mb-1">
+                        Dados importados!
+                      </p>
+                      <p className="text-sm text-blue-700">
+                        {receitas.filter(r => r._importado).length} receita{receitas.filter(r => r._importado).length !== 1 ? 's' : ''} {receitas.filter(r => r._importado).length !== 1 ? 'foram identificadas' : 'foi identificada'}.
+                        Revise e confirme as informações abaixo.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {receitas.length > 0 && (
-                <ul className="space-y-2 mb-3">
-                  {receitas.map((r, i) => (
-                    <li key={r.id || i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                      <span className="text-sm text-gray-800 truncate min-w-0">
-                        {r.descricao}
-                        <span className="text-xs text-marca ml-1">• {labelFrequenciaReceita(r.frequencia)}</span>
-                      </span>
-                      <span className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-sm font-semibold text-green-600">{formatCurrency(r.valor)}</span>
-                        <button onClick={() => editarReceitaLocal(i)} className="text-gray-400 hover:text-marca" title="Editar">
-                          <Pencil size={15} />
-                        </button>
-                        <button onClick={() => removerReceitaLocal(i)} className="text-gray-400 hover:text-red-500" title="Remover">
-                          <Trash2 size={15} />
-                        </button>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  {/* Separador: Importadas */}
+                  {receitas.some(r => r._importado) && (
+                    <>
+                      <h4 className="text-sm font-semibold text-gray-700 mt-4 mb-2 flex items-center gap-2">
+                        <FileCheck size={16} className="text-blue-600" />
+                        Importadas ({receitas.filter(r => r._importado).length})
+                      </h4>
+                      <ul className="space-y-2 mb-3">
+                        {receitas.filter(r => r._importado).map((r, i) => {
+                          const idxReal = receitas.indexOf(r)
+                          return (
+                            <li key={r.id || r.uid || i} className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+                              <span className="flex items-center gap-2 text-sm text-gray-800 truncate min-w-0">
+                                <IndicadorStatusIcone status={r._confirmado ? 'confirmado' : 'importado'} tamanho="sm" />
+                                <span>
+                                  {r.descricao}
+                                  <span className="text-xs text-marca ml-1">• {labelFrequenciaReceita(r.frequencia)}</span>
+                                </span>
+                              </span>
+                              <span className="flex items-center gap-2 flex-shrink-0">
+                                <span className="text-sm font-semibold text-green-600">{formatCurrency(r.valor)}</span>
+                                <button onClick={() => editarReceitaLocal(idxReal)} className="text-gray-400 hover:text-marca" title="Editar">
+                                  <Pencil size={15} />
+                                </button>
+                                <button onClick={() => removerReceitaLocal(idxReal)} className="text-gray-400 hover:text-red-500" title="Remover">
+                                  <Trash2 size={15} />
+                                </button>
+                              </span>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </>
+                  )}
+                  
+                  {/* Separador: Adicionadas manualmente */}
+                  {receitas.some(r => !r._importado) && (
+                    <>
+                      <h4 className="text-sm font-semibold text-gray-700 mt-4 mb-2 flex items-center gap-2">
+                        <Pencil size={16} className="text-gray-600" />
+                        Adicionadas manualmente ({receitas.filter(r => !r._importado).length})
+                      </h4>
+                      <ul className="space-y-2 mb-3">
+                        {receitas.filter(r => !r._importado).map((r, i) => {
+                          const idxReal = receitas.indexOf(r)
+                          return (
+                            <li key={r.id || r.uid || i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                              <span className="text-sm text-gray-800 truncate min-w-0">
+                                {r.descricao}
+                                <span className="text-xs text-marca ml-1">• {labelFrequenciaReceita(r.frequencia)}</span>
+                              </span>
+                              <span className="flex items-center gap-2 flex-shrink-0">
+                                <span className="text-sm font-semibold text-green-600">{formatCurrency(r.valor)}</span>
+                                <button onClick={() => editarReceitaLocal(idxReal)} className="text-gray-400 hover:text-marca" title="Editar">
+                                  <Pencil size={15} />
+                                </button>
+                                <button onClick={() => removerReceitaLocal(idxReal)} className="text-gray-400 hover:text-red-500" title="Remover">
+                                  <Trash2 size={15} />
+                                </button>
+                              </span>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </>
+                  )}
+                </>
               )}
 
               <div className="space-y-2">
