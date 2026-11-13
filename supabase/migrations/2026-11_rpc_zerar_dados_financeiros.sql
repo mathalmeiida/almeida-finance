@@ -172,19 +172,14 @@ console.log(''Dados excluídos com sucesso:'', data) // true
 -- ------------------------------------------------------------
 -- Grant: permite execução por usuários autenticados
 -- ------------------------------------------------------------
--- Não é necessário grant explícito: SECURITY INVOKER + RLS já garantem
--- que apenas o próprio usuário pode excluir seus dados.
--- A função não precisa de privilégios elevados (SECURITY DEFINER).
+-- Revoga primeiro de PUBLIC para garantir segurança máxima
+REVOKE EXECUTE ON FUNCTION public.zerar_dados_financeiros() FROM PUBLIC;
 
--- Opcional: garantir que authenticated role pode executar a função
--- (já é o padrão, mas explicitamos para clareza)
-GRANT EXECUTE ON FUNCTION public.zerar_dados_financeiros() TO authenticated;
-
-
--- ------------------------------------------------------------
--- Revoga: anon (usuários não autenticados) não podem executar
--- ------------------------------------------------------------
+-- Revoga explicitamente de anon (usuários não autenticados)
 REVOKE EXECUTE ON FUNCTION public.zerar_dados_financeiros() FROM anon;
+
+-- Concede execução apenas para usuários autenticados
+GRANT EXECUTE ON FUNCTION public.zerar_dados_financeiros() TO authenticated;
 
 
 -- ------------------------------------------------------------
