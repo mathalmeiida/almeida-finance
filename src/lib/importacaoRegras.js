@@ -12,7 +12,7 @@
 import { semAcentos } from './importacaoLeitura.js'
 import { classificarDespesa } from './classificarDespesa.js'
 
-export const CONTEXTOS = ['extrato', 'fatura', 'investimentos']
+export const CONTEXTOS = ['extrato', 'fatura', 'investimentos', 'beneficios']
 
 export const ROTULOS_TIPO = {
   receita: 'Receita',
@@ -30,22 +30,29 @@ export const ROTULOS_TIPO = {
   amortizacao: 'Amortização',
   taxa: 'Taxa/imposto',
   indefinido: 'Definir tipo',
+  compra_beneficio: 'Compra com VR/VA',
+  recarga: 'Recarga',
+  ajuste: 'Ajuste',
+  estorno_beneficio: 'Estorno/devolução',
 }
 
 export const TIPOS_POR_CONTEXTO = {
   extrato: ['receita', 'despesa', 'transferencia', 'pagamento_fatura', 'investimento', 'estorno'],
   fatura: ['compra', 'pagamento_fatura', 'estorno'],
   investimentos: ['aporte', 'resgate', 'rendimento', 'dividendo', 'juros', 'amortizacao', 'taxa', 'indefinido'],
+  beneficios: ['compra_beneficio', 'recarga', 'ajuste', 'estorno_beneficio'],
 }
 
 const TIPOS_MOV = ['aporte', 'resgate', 'rendimento', 'dividendo', 'juros', 'amortizacao']
-export const TIPOS_IMPORTAVEIS = ['receita', 'despesa', 'compra', ...TIPOS_MOV]
+const TIPOS_BENEFICIOS = ['compra_beneficio', 'recarga', 'ajuste']
+export const TIPOS_IMPORTAVEIS = ['receita', 'despesa', 'compra', ...TIPOS_MOV, ...TIPOS_BENEFICIOS]
 
 export function destinoDoTipo(tipo) {
   if (tipo === 'receita') return 'receitas'
   if (tipo === 'despesa') return 'despesas'
   if (tipo === 'compra') return 'compras_cartao'
   if (TIPOS_MOV.includes(tipo)) return 'investimentos_movimentacoes'
+  if (TIPOS_BENEFICIOS.includes(tipo)) return 'beneficios_movimentacoes'
   return null
 }
 
@@ -56,6 +63,7 @@ export const MOTIVO_NAO_IMPORTAVEL = {
   estorno: 'Estorno não é renda. Se precisar, reclassifique ou ajuste a compra original.',
   taxa: 'O módulo Investimentos não registra taxas e impostos como movimentação. Se o valor atual da posição mudou, ajuste-o em Investimentos.',
   indefinido: 'Escolha o tipo da movimentação para poder importar.',
+  estorno_beneficio: 'Estorno no benefício: ajuste a compra original ou reclassifique como ajuste se necessário.',
 }
 
 export const normalizar = s => semAcentos(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()
@@ -87,6 +95,13 @@ const RE_INV = [
   ['aporte', /aplicacao|aporte|compra|deposito|subscricao/],
 ]
 
+const RE_BENEFICIOS = [
+  ['estorno_beneficio', /\bestorno|\bdevolucao|\bcancelamento|\bchargeback/],
+  ['recarga', /\brecarga|\bcredito|\bdeposito|\baporte|\bcarga/],
+  ['ajuste', /\bajuste|\bcorrecao/],
+  // Compra é o padrão (negativo)
+]
+
 // Sinal que representa COMPRA numa fatura (cada banco usa uma convenção):
 // o sinal mais comum entre as linhas que não são pagamento.
 export function sinalDeCompraNaFatura(transacoes) {
@@ -108,6 +123,18 @@ export function classificar(t, contexto, { sinalCompra = 1 } = {}) {
     const revisar = !!t.parcelaTotal
     if (revisar) avisos.push(`Parcela ${t.parcelaAtual}/${t.parcelaTotal}: confirme se a data é a da compra original`)
     return { tipo: 'compra', incluir: true, revisar, avisos }
+  }
+  if (contexto === 'beneficios') {
+    // Benefícios: recarga (crédito), compra (débito), estorno/ajuste
+    for (const [tipo, re] of RE_BENEFICIOS) {
+      if (!re.test(d)) continue
+      if (tipo === 'estorno_beneficio') return { tipo, incluir: false, revisar: false, avisos: ['Estorno: ajuste a compra original ou reclassifique como ajuste'] }
+      return { tipo, incluir: true, revisar: false, avisos }
+    }
+    // Valor positivo sem match = recarga; negativo = compra
+    if (t.valor > 0) return { tipo: 'recarga', incluir: true, revisar: false, avisos }
+    if (t.valor < 0) return { tipo: 'compra_beneficio', incluir: true, revisar: false, avisos }
+    return { tipo: 'ajuste', incluir: false, revisar: true, avisos: ['Valor zero: escolha o tipo'] }
   }
   if (contexto === 'investimentos') {
     for (const [tipo, re] of RE_INV) {
@@ -242,6 +269,9 @@ export function normalizarExistentes(tabela, linhas = []) {
     if (tabela === 'investimentos_movimentacoes') {
       return { id: r.id, tabela, data: r.data, valores: [centavos(r.valor)], descricao: r.descricao || r.tipo, investimentoId: r.investimento_id, tipo: r.tipo }
     }
+    if (tabela === 'beneficios_movimentacoes') {
+      return { id: r.id, tabela, data: r.data, valores: [centavos(r.valor)], descricao: r.descricao || r.tipo, beneficioId: r.beneficio_id, tipo: r.tipo }
+    }
     return { id: r.id, tabela, data: r.data, valores: [centavos(r.valor)], descricao: r.descricao }
   })
 }
@@ -267,6 +297,7 @@ export function marcarDuplicidades(itens, { existentes = [], chavesImportadas = 
       if (usados.has(e.id) || e.tabela !== destino) continue
       if (e.cartaoId && it.cartaoId && e.cartaoId !== it.cartaoId) continue
       if (e.investimentoId && it.investimentoId && e.investimentoId !== it.investimentoId) continue
+      if (e.beneficioId && it.beneficioId && e.beneficioId !== it.beneficioId) continue
       if (!e.valores.includes(cents)) continue
       const dias = diasEntre(e.data, it.data)
       if (dias > 3) continue
@@ -305,7 +336,7 @@ export function investimentoDoAtivo(ativo, investimentos, padrao) {
   return { id: padrao, incerto: true }
 }
 
-export function prepararItens(transacoes, { contexto, origem, categorias = [], existentes = [], chavesImportadas = new Set(), cartaoId = null, investimentoId = null, investimentos = [] }) {
+export function prepararItens(transacoes, { contexto, origem, categorias = [], existentes = [], chavesImportadas = new Set(), cartaoId = null, investimentoId = null, beneficioId = null, investimentos = [], beneficios = [] }) {
   const sinalCompra = contexto === 'fatura' ? sinalDeCompraNaFatura(transacoes) : 1
   const chaves = chavesDosItens(transacoes, origem)
   const itens = transacoes.map((t, i) => {
@@ -332,6 +363,7 @@ export function prepararItens(transacoes, { contexto, origem, categorias = [], e
       categoriaNome: cat && c.tipo === 'receita' ? cat.nome : null,
       cartaoId,
       investimentoId: inv.id,
+      beneficioId,
       ...chaves[i],
     }
   })
@@ -353,6 +385,7 @@ export function validarItem(it) {
   if (!String(it.descricao || '').trim()) return 'Descrição obrigatória'
   if (it.tipo === 'compra' && !it.cartaoId) return 'Escolha o cartão'
   if (TIPOS_MOV.includes(it.tipo) && !it.investimentoId) return 'Escolha o investimento'
+  if (TIPOS_BENEFICIOS.includes(it.tipo) && !it.beneficioId) return 'Escolha o benefício'
   return null
 }
 
@@ -360,7 +393,7 @@ const r2 = v => Math.round((Number(v) + Number.EPSILON) * 100) / 100
 
 export function montarRegistros(itens, { categorias = [] } = {}) {
   const porId = Object.fromEntries(categorias.map(c => [c.id, c]))
-  const out = { receitas: [], despesas: [], compras_cartao: [], investimentos_movimentacoes: [], erros: [] }
+  const out = { receitas: [], despesas: [], compras_cartao: [], investimentos_movimentacoes: [], beneficios_movimentacoes: [], erros: [] }
   for (const it of itens) {
     if (!it.incluir) continue
     const problema = validarItem(it)
@@ -383,6 +416,18 @@ export function montarRegistros(itens, { categorias = [] } = {}) {
       out.compras_cartao.push({ ref, dados: {
         cartao_id: it.cartaoId, descricao, data_compra: it.data,
         valor_total: r2(valor * n), numero_parcelas: n, categoria_id: it.categoriaId || null,
+      } })
+    } else if (TIPOS_BENEFICIOS.includes(it.tipo)) {
+      // Mapear tipo do contexto para o tipo do banco
+      const tipoBanco = it.tipo === 'compra_beneficio' ? 'compra' : it.tipo === 'estorno_beneficio' ? 'estorno' : it.tipo
+      out.beneficios_movimentacoes.push({ ref, dados: {
+        beneficio_id: it.beneficioId,
+        tipo: tipoBanco,
+        valor,
+        descricao,
+        data: it.data,
+        competencia: null,
+        automatica: false,
       } })
     } else {
       out.investimentos_movimentacoes.push({ ref, dados: { investimento_id: it.investimentoId, tipo: it.tipo, valor, data: it.data, descricao } })

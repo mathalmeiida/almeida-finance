@@ -11,7 +11,7 @@ const somarDias = (iso, n) => new Date(Date.parse(`${iso}T12:00:00Z`) + n * 8640
 
 // Lançamentos já cadastrados no período do arquivo (±3 dias), para detectar
 // duplicidades antes de gravar.
-export async function buscarExistentes(supabase, { usuarioId, contexto, intervalo, cartaoId, investimentoId }) {
+export async function buscarExistentes(supabase, { usuarioId, contexto, intervalo, cartaoId, investimentoId, beneficioId }) {
   if (!intervalo || !usuarioId) return []
   const ini = somarDias(intervalo.inicio, -3), fim = somarDias(intervalo.fim, 3)
   const ler = async (tabela, campos, campoData, filtros = {}) => {
@@ -29,12 +29,13 @@ export async function buscarExistentes(supabase, { usuarioId, contexto, interval
     return [...r, ...d]
   }
   if (contexto === 'fatura') return ler('compras_cartao', 'id, data_compra, valor_total, numero_parcelas, descricao, cartao_id', 'data_compra', { cartao_id: cartaoId })
+  if (contexto === 'beneficios') return ler('beneficios_movimentacoes', 'id, data, valor, tipo, descricao, beneficio_id', 'data', { beneficio_id: beneficioId })
   return ler('investimentos_movimentacoes', 'id, data, valor, tipo, descricao, investimento_id', 'data', { investimento_id: investimentoId })
 }
 
 // registros: saída de montarRegistros(). Grava em lotes; continua nos outros
 // lotes se um falhar e devolve exatamente o que foi gravado.
-export async function gravarRegistros(supabase, { usuarioId, registros, criarMovimentacao }) {
+export async function gravarRegistros(supabase, { usuarioId, registros, criarMovimentacao, criarMovimentacaoBeneficio }) {
   const gravados = [], falhas = []
   for (const tabela of ['receitas', 'despesas', 'compras_cartao']) {
     const lista = registros[tabela] || []
@@ -51,14 +52,34 @@ export async function gravarRegistros(supabase, { usuarioId, registros, criarMov
       lote.forEach((r, j) => gravados.push({ ...r.ref, tabela, id: data[j].id }))
     }
   }
-  // Movimentações: uma a uma, pela regra existente (aporte soma, resgate
-  // não pode passar do valor atual etc.).
+  // Movimentações de investimentos: uma a uma, pela regra existente
   for (const r of registros.investimentos_movimentacoes || []) {
     try {
       const m = await criarMovimentacao(r.dados)
       gravados.push({ ...r.ref, tabela: 'investimentos_movimentacoes', id: m?.id ?? null })
     } catch (e) {
       falhas.push({ tabela: 'investimentos_movimentacoes', quantidade: 1, uid: r.ref.uid, mensagem: e?.message || 'Falha ao registrar a movimentação.' })
+    }
+  }
+  // Movimentações de benefícios: usar hook se disponível, senão inserir direto
+  for (const r of registros.beneficios_movimentacoes || []) {
+    try {
+      let m
+      if (criarMovimentacaoBeneficio) {
+        m = await criarMovimentacaoBeneficio(r.dados)
+      } else {
+        // Fallback: inserir direto no banco
+        const { data, error } = await supabase
+          .from('beneficios_movimentacoes')
+          .insert([{ ...r.dados, usuario_id: usuarioId }])
+          .select('id')
+          .single()
+        if (error) throw error
+        m = data
+      }
+      gravados.push({ ...r.ref, tabela: 'beneficios_movimentacoes', id: m?.id ?? null })
+    } catch (e) {
+      falhas.push({ tabela: 'beneficios_movimentacoes', quantidade: 1, uid: r.ref.uid, mensagem: e?.message || 'Falha ao registrar a movimentação do benefício.' })
     }
   }
   return { gravados, falhas }

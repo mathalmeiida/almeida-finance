@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useCartoes } from '../hooks/useCartoes'
 import { useInvestimentos } from '../hooks/useInvestimentos'
+import { useBeneficios } from '../hooks/useBeneficios'
 import { useCategorias } from '../hooks/useCategorias'
 import { useImportacoes } from '../hooks/useImportacoes'
 import InputMoeda from '../components/InputMoeda'
@@ -33,6 +34,7 @@ const CONTEXTOS = [
   { id: 'extrato', titulo: 'Extrato bancário', texto: 'Receitas, despesas e transferências', icone: Landmark },
   { id: 'fatura', titulo: 'Fatura de cartão', texto: 'Compras, parcelas e estornos', icone: CreditCard },
   { id: 'investimentos', titulo: 'Investimentos', texto: 'Aportes, resgates, rendimentos', icone: TrendingUp },
+  { id: 'beneficios', titulo: 'VR/VA Benefícios', texto: 'Recargas e compras', icone: FileText },
 ]
 
 const STATUS = {
@@ -80,6 +82,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
   const { usuario, perfilProprio, somenteLeitura } = useAuth()
   const { cartoes, carregando: carregandoCartoes } = useCartoes()
   const { investimentos, criarMovimentacao, carregando: carregandoInv } = useInvestimentos()
+  const { beneficios, criarMovimentacao: criarMovimentacaoBeneficio, carregando: carregandoBeneficios } = useBeneficios()
   const { categorias: catDespesa } = useCategorias('despesa')
   const { categorias: catReceita } = useCategorias('receita')
   const { carregarChaves, registrar } = useImportacoes()
@@ -89,6 +92,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
   const [contaNome, setContaNome] = useState('')
   const [cartaoId, setCartaoId] = useState('')
   const [investimentoId, setInvestimentoId] = useState('')
+  const [beneficioId, setBeneficioId] = useState('')
   const [erro, setErro] = useState('')
   const [arquivo, setArquivo] = useState(null) // { nome, formato }
   const [leitura, setLeitura] = useState(null) // { descartadas, truncado }
@@ -124,7 +128,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
     })
   }, [todasCategorias])
 
-  const origemValida = contexto === 'extrato' || (contexto === 'fatura' ? !!cartaoId : !!investimentoId)
+  const origemValida = contexto === 'extrato' || (contexto === 'fatura' ? !!cartaoId : contexto === 'investimentos' ? !!investimentoId : !!beneficioId)
 
   // PDF protegido: a senha fica só neste estado, é usada na leitura e descartada.
   const [pendenteSenha, setPendenteSenha] = useState(null) // { file, incorreta }
@@ -211,10 +215,11 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
       const intervalo = intervaloDatas(r.transacoes)
       const origem = contexto === 'fatura' ? `cartao:${cartaoId}`
         : contexto === 'investimentos' ? `inv:${investimentoId}`
+        : contexto === 'beneficios' ? `beneficio:${beneficioId}`
         : r.conta?.conta ? `extrato:${normalizar(r.conta.banco || '')}:${normalizar(r.conta.conta)}`
         : `extrato:${normalizar(contaNome) || 'principal'}`
       const [existentes, hist] = await Promise.all([
-        buscarExistentes(supabase, { usuarioId: usuario?.id, contexto, intervalo, cartaoId, investimentoId }),
+        buscarExistentes(supabase, { usuarioId: usuario?.id, contexto, intervalo, cartaoId, investimentoId, beneficioId }),
         carregarChaves(),
       ])
       setHistoricoDisponivel(hist.disponivel)
@@ -224,7 +229,9 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
         contexto, origem, categorias: categoriasRef.current, existentes, chavesImportadas: hist.chaves,
         cartaoId: contexto === 'fatura' ? cartaoId : null,
         investimentoId: contexto === 'investimentos' ? investimentoId : null,
+        beneficioId: contexto === 'beneficios' ? beneficioId : null,
         investimentos,
+        beneficios,
       })
       
       // Aplicar conciliação inteligente (Fase 3)
@@ -260,12 +267,12 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
     if (emGravacao.current || somenteLeitura) return
     const registros = montarRegistros(itens, { categorias: todasCategorias })
     if (registros.erros.length) { setErro('Corrija os lançamentos marcados antes de confirmar.'); setFiltro('revisar'); return }
-    const total = registros.receitas.length + registros.despesas.length + registros.compras_cartao.length + registros.investimentos_movimentacoes.length
+    const total = registros.receitas.length + registros.despesas.length + registros.compras_cartao.length + registros.investimentos_movimentacoes.length + registros.beneficios_movimentacoes.length
     if (!total) return
     emGravacao.current = true
     setErro(''); setEtapa('gravando')
     try {
-      const { gravados, falhas } = await gravarRegistros(supabase, { usuarioId: usuario.id, registros, criarMovimentacao })
+      const { gravados, falhas } = await gravarRegistros(supabase, { usuarioId: usuario.id, registros, criarMovimentacao, criarMovimentacaoBeneficio })
       let hist = { registrado: false }
       if (gravados.length) {
         hist = await registrar({
@@ -273,6 +280,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
             contexto, formato: arquivo.formato,
             origem: (contexto === 'fatura' ? cartoes.find(c => c.id === cartaoId)?.nome
               : contexto === 'investimentos' ? investimentos.find(i => i.id === investimentoId)?.nome
+              : contexto === 'beneficios' ? beneficios.find(b => b.id === beneficioId)?.nome
               : contaNome || 'Conta principal')?.slice(0, 120) || null,
             periodo_inicio: leitura.intervalo?.inicio || null, periodo_fim: leitura.intervalo?.fim || null,
             qtd_lidas: itens.length, qtd_importadas: gravados.length, qtd_ignoradas: itens.length - gravados.length,
@@ -413,6 +421,27 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
               {!carregandoInv && investimentos.length === 0 && (
                 <p className="text-xs text-gray-500 mt-1.5">
                   {embutido ? 'Nenhum investimento. Pule e cadastre depois.' : <><button type="button" className="text-marca underline font-medium" onClick={() => navigate('/investimentos?novo=1')}>Cadastrar investimento</button> ou pule esta etapa.</>}
+                </p>
+              )}
+            </div>
+          )}
+          {contexto === 'beneficios' && (
+            <div>
+              <label className="label" htmlFor="imp-beneficio" id="imp-beneficio-label">Benefício VR/VA</label>
+              <SelectCustomizado
+                id="imp-beneficio"
+                value={beneficioId}
+                onChange={setBeneficioId}
+                options={beneficios.map(b => ({
+                  value: b.id,
+                  label: `${b.nome} • ${(b.tipo || '').toUpperCase()}`
+                }))}
+                placeholder="Escolha o benefício (VR, VA, etc.)"
+                disabled={carregandoBeneficios}
+              />
+              {!carregandoBeneficios && beneficios.length === 0 && (
+                <p className="text-xs text-gray-500 mt-1.5">
+                  {embutido ? 'Nenhum benefício. Pule e cadastre depois.' : <><button type="button" className="text-marca underline font-medium" onClick={() => navigate('/beneficios?novo=1')}>Cadastrar benefício</button> ou pule esta etapa.</>}
                 </p>
               )}
             </div>
