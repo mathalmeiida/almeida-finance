@@ -3,15 +3,18 @@ import {
   Wallet, TrendingUp, TrendingDown, ShieldCheck,
   CheckCircle2, ArrowRight, ArrowLeft, Plus, Trash2, Loader2, UtensilsCrossed,
   CreditCard, ShoppingBag, Pencil, Target, PiggyBank,
-  UserRound, Upload, FileSpreadsheet, Palette, SlidersHorizontal, Star,
+  UserRound, Upload, FileSpreadsheet, Palette, SlidersHorizontal, Star, FileCheck,
 } from 'lucide-react'
 import NotificacoesPush from '../components/NotificacoesPush'
 import { useAuth } from '../contexts/AuthContext'
 import { useInvestimentos } from '../hooks/useInvestimentos'
 import { useMetas } from '../hooks/useMetas'
 import { useAtalhosHome } from '../hooks/useAtalhosHome'
+import { useOnboardingAdaptativo } from '../hooks/useOnboardingAdaptativo'
 import ModalPersonalizarAtalhos from '../components/ModalPersonalizarAtalhos'
 import ImportacaoInteligente from './ImportacaoInteligente'
+import IndicadorStatusEtapa, { IndicadorStatusIcone } from '../components/IndicadorStatusEtapa'
+import NavegacaoOnboardingAdaptativo from '../components/NavegacaoOnboardingAdaptativo'
 import { ICONES_ATALHOS } from '../components/iconesAtalhos'
 import { atalhosVisiveis } from '../lib/atalhosHome'
 import { CORES_CARTAO } from '../lib/coresCartao'
@@ -20,6 +23,9 @@ import {
   OBJETIVOS_FINANCEIROS, normalizarObjetivos, alternarObjetivo, validarPerfil,
   acaoPatrimonioInicial, ehPatrimonioInicial, totalInvestido, validarMeta, itensResumoFinal,
 } from '../lib/onboardingFluxo'
+import {
+  analisarDadosImportados, determinarProximaEtapa, gerarResumoImportacao,
+} from '../lib/onboardingAdaptativo'
 import { useReceitas } from '../hooks/useReceitas'
 import { useDespesas } from '../hooks/useDespesas'
 import { useCategorias } from '../hooks/useCategorias'
@@ -147,6 +153,10 @@ function LinhaResumo({ label, valor, cor = 'text-gray-900' }) {
 
 export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   const { usuario, perfil, atualizarPreferenciasLimite, corTema, atualizarCorTema, atualizarPerfilOpcional } = useAuth()
+  
+  // Hook de onboarding adaptativo (gerencia importação inteligente)
+  const adaptativo = useOnboardingAdaptativo()
+  
   // Investimentos e metas: mesmos hooks/tabelas dos módulos do app.
   const {
     investimentos, movimentacoes, carregando: carregandoInvestimentos,
@@ -399,6 +409,8 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
     emGravacao.current = true
     setSalvando(true)
     try {
+      // Limpa dados temporários do onboarding adaptativo
+      adaptativo.limpar()
       await aoConcluir?.()
     } finally {
       setSalvando(false)
@@ -1074,6 +1086,24 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                   <p className="text-xs text-gray-500 mt-0.5">Sua configuração ficou pela metade.</p>
                 </div>
               </div>
+              
+              {/* Resumo de importação (se houver) */}
+              {adaptativo.estatisticas && adaptativo.estatisticas.total > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-start gap-3">
+                    <FileCheck className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-blue-900 mb-1">
+                        Dados importados preservados
+                      </p>
+                      <p className="text-sm text-blue-700">
+                        {gerarResumoImportacao(adaptativo.estatisticas)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <p className="text-sm text-gray-600 mb-5 leading-relaxed">
                 O que você já informou está salvo. Continue de onde parou ou vá para o app e termine depois
                 pelo card <strong>Complete sua configuração</strong>.
@@ -1761,11 +1791,28 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
               {importando ? (
                 <ImportacaoInteligente embutido
                   onCancelar={() => setImportando(false)}
-                  onConcluir={async () => {
+                  onConcluir={async (resultados) => {
                     setImportando(false)
+                    
+                    // Registra dados importados no hook adaptativo
+                    if (resultados?.itens && resultados.itens.length > 0) {
+                      adaptativo.registrarImportacao(resultados.itens)
+                    }
+                    
                     // Atualiza as listas desta tela com o que acabou de ser gravado.
                     await Promise.allSettled([recarregarReceitas?.(), recarregarDespesas?.(), recarregarInvestimentos?.()])
-                    avancar()
+                    
+                    // Determina próxima etapa adaptativa (pula confirmadas)
+                    const proxima = determinarProximaEtapa(
+                      adaptativo.etapasPreenchidas,
+                      'importacao'
+                    )
+                    
+                    if (proxima && CHAVE_PARA_TELA[proxima]) {
+                      setEtapa(CHAVE_PARA_TELA[proxima])
+                    } else {
+                      avancar()
+                    }
                   }} />
               ) : (
                 <>
@@ -1774,6 +1821,25 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                     titulo="Vamos organizar suas finanças?"
                     subtitulo="Importe seus extratos e deixe o Almeida Finance identificar seus lançamentos."
                   />
+                  
+                  {/* Banner de retomada de importação */}
+                  {adaptativo.estatisticas && adaptativo.estatisticas.total > 0 && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                      <div className="flex items-start gap-3">
+                        <FileCheck className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-blue-900 mb-1">
+                            Importação anterior detectada
+                          </p>
+                          <p className="text-sm text-blue-700">
+                            {gerarResumoImportacao(adaptativo.estatisticas)}. 
+                            Continue revisando as etapas ou importe novos arquivos.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
                   <ul className="space-y-2" data-testid="onboarding-importacao-categorias">
                     {[
                       ['Extrato bancário', 'Receitas, despesas e transferências.'],
