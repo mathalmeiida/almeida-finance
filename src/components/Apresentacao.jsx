@@ -48,7 +48,7 @@ function Rotulo({ children }) {
   return <p className="text-[11px] text-white/60 font-semibold uppercase tracking-wide">{children}</p>
 }
 
-// Tela 1 — prévia da Home
+// Tela 1 — Controle financeiro completo e visão do patrimônio
 function VisualControle() {
   return (
     <div className="rounded-2xl overflow-hidden" style={painel}>
@@ -61,25 +61,145 @@ function VisualControle() {
         </div>
       </div>
       <div className="mx-3 mt-3 rounded-xl px-3 py-2.5" style={painelForte}>
-        <p className="text-[11px] text-white/60">Você pode gastar hoje</p>
-        <p className="text-lg font-extrabold text-white">R$ 87</p>
-        <div className="mt-1.5 h-1.5 bg-white/10 rounded-full overflow-hidden">
-          <div className="h-full rounded-full bg-white/70" style={{ width: '38%' }} />
-        </div>
+        <p className="text-[11px] text-white/60">Patrimônio total</p>
+        <p className="text-lg font-extrabold text-white">R$ 24.500</p>
+        <p className="text-[10px] text-white/50 mt-0.5">Saldo + Investimentos + VR/VA</p>
       </div>
       <div className="grid grid-cols-2 gap-2 p-3">
+        <MiniCard icone={TrendingUp} rotulo="Investimentos" valor="R$ 18.500" />
         <MiniCard icone={CreditCard} rotulo="Cartões" valor="R$ 1.200" />
         <MiniCard icone={UtensilsCrossed} rotulo="VR / VA" valor="R$ 850" />
+        <MiniCard icone={PiggyBank} rotulo="Reserva" valor="R$ 5.000" destaque />
       </div>
       <p className="text-[10px] text-white/40 text-center pb-2">Valores ilustrativos</p>
     </div>
   )
 }
 
-// Tela 2 — calendário e metas
-function VisualCalendarioMetas() {
+// Tela 2 — Quanto posso gastar hoje?
+function VisualQuantoPosso() {
+  return (
+    <div className="rounded-2xl overflow-hidden p-3 space-y-3" style={painel}>
+      <div className="rounded-xl px-4 py-4 text-center" style={painelForte}>
+        <p className="text-xs text-white/60 mb-2">Você pode gastar hoje</p>
+        <p className="text-4xl font-extrabold text-white">R$ 87</p>
+        <p className="text-[11px] text-white/50 mt-1">Considerando receitas, despesas e metas</p>
+        <div className="mt-3 h-2 bg-white/10 rounded-full overflow-hidden">
+          <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-white" style={{ width: '38%' }} />
+        </div>
+        <p className="text-[10px] text-white/50 mt-1.5">38% do mês restante</p>
+      </div>
+      <div className="space-y-1.5">
+        <Rotulo>Impacto no orçamento</Rotulo>
+        {[
+          { label: 'Cartão Nubank', valor: 'R$ 1.200', pct: 45 },
+          { label: 'Aluguel em 5 dias', valor: 'R$ 1.200', pct: 35 },
+          { label: 'Meta: Reserva', valor: 'R$ 500', pct: 20 },
+        ].map(i => (
+          <div key={i.label} className="flex items-center justify-between rounded-lg px-2.5 py-1.5" style={{ background: 'rgba(255,255,255,0.06)' }}>
+            <span className="text-xs text-white/80 truncate">{i.label}</span>
+            <span className="text-xs font-semibold text-white flex-shrink-0 ml-2">{i.valor}</span>
+          </div>
+        ))}
+      </div>
+      <p className="text-[10px] text-white/45 text-center">Atualizado em tempo real conforme suas movimentações</p>
+    </div>
+  )
+}
+
+// Tela 3 — Simular compra e parcelamentos
+function VisualSimularCompra() {
+  return (
+    <div className="rounded-2xl overflow-hidden p-3 space-y-2.5" style={painel}>
+      <div className="rounded-xl px-3 py-3" style={painelForte}>
+        <div className="flex items-center gap-1.5 mb-2">
+          <ShoppingCart size={14} className="text-white/70" />
+          <p className="text-xs text-white/70">Simular compra</p>
+        </div>
+        <p className="text-2xl font-bold text-white">R$ 1.500</p>
+        <p className="text-xs text-white/60 mt-0.5">Quanto ficaria em cada opção?</p>
+      </div>
+      <div className="space-y-1.5">
+        {[
+          { parcelas: 'À vista', valor: 'R$ 1.500', delta: 'Sobram R$ 67/dia', ok: true },
+          { parcelas: '3× sem juros', valor: 'R$ 500/mês', delta: 'Sobram R$ 71/dia', ok: true },
+          { parcelas: '6× sem juros', valor: 'R$ 250/mês', delta: 'Sobram R$ 79/dia', ok: true },
+          { parcelas: '12× com juros', valor: 'R$ 145/mês', delta: 'Total R$ 1.740', ok: false },
+        ].map(o => (
+          <div key={o.parcelas} className="rounded-lg px-2.5 py-2" style={{ background: o.ok ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)' }}>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-white">{o.parcelas}</span>
+              <span className={`text-xs font-bold ${o.ok ? 'text-emerald-300' : 'text-red-300'}`}>{o.valor}</span>
+            </div>
+            <p className={`text-[10px] mt-0.5 ${o.ok ? 'text-emerald-200/70' : 'text-red-200/70'}`}>{o.delta}</p>
+          </div>
+        ))}
+      </div>
+      <p className="text-[10px] text-white/45 text-center">Veja o impacto real antes de comprar</p>
+    </div>
+  )
+}
+
+// Tela 4 — Simulador E SE
+function VisualESe() {
+  return (
+    <div className="rounded-2xl overflow-hidden p-3 space-y-2.5" style={painel}>
+      <div className="rounded-xl px-3 py-3 text-center" style={painelForte}>
+        <div className="flex items-center justify-center gap-1.5 mb-2">
+          <Sparkles size={14} className="text-white/70" />
+          <p className="text-xs text-white/70">E se...?</p>
+        </div>
+        <p className="text-xl font-bold text-white">Explore cenários</p>
+        <p className="text-xs text-white/60 mt-1">Veja como mudanças afetam seu orçamento</p>
+      </div>
+      <Rotulo>Cenários simulados</Rotulo>
+      {[
+        { 
+          label: 'Renda extra +R$ 800', 
+          icon: TrendingUp,
+          delta: '+R$ 26/dia', 
+          novoLimite: 'R$ 113/dia',
+          cor: 'rgba(34,197,94,0.15)', 
+          txt: '#86EFAC' 
+        },
+        { 
+          label: 'Nova assinatura -R$ 50', 
+          icon: CreditCard,
+          delta: '-R$ 1,60/dia', 
+          novoLimite: 'R$ 85/dia',
+          cor: 'rgba(239,68,68,0.15)', 
+          txt: '#FCA5A5' 
+        },
+        { 
+          label: 'Aplicar R$ 500 na reserva', 
+          icon: PiggyBank,
+          delta: 'Meta 80%', 
+          novoLimite: 'R$ 70/dia',
+          cor: 'rgba(168,85,247,0.15)', 
+          txt: '#E9D5FF' 
+        },
+      ].map(c => (
+        <div key={c.label} className="rounded-lg px-2.5 py-2" style={{ background: c.cor, border: '1px solid rgba(255,255,255,0.1)' }}>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-white/90 flex items-center gap-1.5">
+              <c.icon size={11} className="text-white/50" />
+              {c.label}
+            </span>
+            <span className="text-xs font-bold" style={{ color: c.txt }}>{c.delta}</span>
+          </div>
+          <p className="text-[10px] text-white/60">Novo limite: {c.novoLimite}</p>
+        </div>
+      ))}
+      <p className="text-[10px] text-white/45 text-center">Simule antes de tomar decisões importantes</p>
+    </div>
+  )
+}
+
+// Tela 8 — Calendário e Projeções Financeiras
+function VisualCalendarioProjecoes() {
   const dias = Array.from({ length: 14 }, (_, i) => i + 1)
   const marcados = { 3: '#22c55e', 5: '#ef4444', 8: '#eab308', 10: '#ef4444', 12: '#a855f7' }
+  
   return (
     <div className="rounded-2xl overflow-hidden p-3 space-y-3" style={painel}>
       <div className="flex items-center gap-2">
@@ -94,122 +214,27 @@ function VisualCalendarioMetas() {
           </div>
         ))}
       </div>
-      <div className="flex items-center justify-between rounded-lg px-2.5 py-1.5" style={{ background: 'rgba(255,255,255,0.06)' }}>
-        <span className="text-xs text-white/80">Aluguel · em 3 dias</span>
-        <span className="text-xs font-semibold text-white">R$ 1.200</span>
-      </div>
+      <Rotulo>Próximos compromissos</Rotulo>
       {[
-        { label: 'Reserva de emergência', pct: 64, cor: 'rgba(34,197,94,0.8)' },
-        { label: 'Viagem', pct: 38, cor: 'rgba(255,255,255,0.8)' },
-      ].map(m => (
-        <div key={m.label} className="rounded-lg px-2.5 py-2" style={{ background: 'rgba(255,255,255,0.06)' }}>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-white/80 flex items-center gap-1"><Target size={11} className="text-white/40" />{m.label}</span>
-            <span className="text-xs font-bold text-white">{m.pct}%</span>
-          </div>
-          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.12)' }}>
-            <div className="h-full rounded-full" style={{ width: `${m.pct}%`, background: m.cor }} />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// Tela 3 — investimentos
-function VisualInvestimentos() {
-  const carteira = [
-    { label: 'Renda fixa', pct: 55, cor: 'rgba(255,255,255,0.85)' },
-    { label: 'FIIs', pct: 25, cor: 'rgba(251,191,36,0.85)' },
-    { label: 'Ações', pct: 20, cor: 'rgba(34,197,94,0.85)' },
-  ]
-  return (
-    <div className="rounded-2xl overflow-hidden p-3 space-y-3" style={painel}>
-      <div className="rounded-xl px-3 py-2.5" style={painelForte}>
-        <p className="text-[11px] text-white/60 flex items-center gap-1.5"><TrendingUp size={12} />Patrimônio investido</p>
-        <p className="text-2xl font-bold text-white">R$ 18.500</p>
-        <p className="text-[10px] text-emerald-300 font-semibold mt-0.5">+ R$ 142 em rendimentos no mês</p>
-      </div>
-      <div>
-        <div className="flex h-2 rounded-full overflow-hidden">
-          {carteira.map(c => <div key={c.label} style={{ width: `${c.pct}%`, background: c.cor }} />)}
-        </div>
-        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-          {carteira.map(c => (
-            <span key={c.label} className="flex items-center gap-1 text-[10px] text-white/70">
-              <span className="w-2 h-2 rounded-full" style={{ background: c.cor }} />{c.label} {c.pct}%
-            </span>
-          ))}
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <MiniCard icone={Landmark} rotulo="Tesouro Selic" valor="R$ 6.200" />
-        <MiniCard icone={PiggyBank} rotulo="Reserva" valor="R$ 5.000" destaque />
-      </div>
-    </div>
-  )
-}
-
-// Tela 4 — importação inteligente (prévia da conferência)
-function VisualImportacao() {
-  return (
-    <div className="rounded-2xl overflow-hidden p-3 space-y-2.5" style={painel}>
-      <div className="flex items-center gap-2.5 rounded-xl px-3 py-2.5" style={painelForte}>
-        <span className="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center flex-shrink-0"><FileText size={15} className="text-white" /></span>
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold text-white truncate">extrato-outubro.ofx</p>
-          <p className="text-[10px] text-white/55">Extrato bancário</p>
-        </div>
-        <Upload size={14} className="text-white/50" />
-      </div>
-      <Rotulo>Conferência antes de salvar</Rotulo>
-      {[
-        { d: 'Supermercado', c: 'Alimentação', v: '- R$ 182,40' },
-        { d: 'Salário', c: 'Receita', v: '+ R$ 4.800,00', pos: true },
-        { d: 'Netflix', c: 'Assinaturas', v: '- R$ 39,90' },
-      ].map(l => (
-        <div key={l.d} className="flex items-center justify-between rounded-lg px-2.5 py-1.5" style={{ background: 'rgba(255,255,255,0.06)' }}>
-          <span className="flex items-center gap-1.5 min-w-0">
-            <CheckCircle2 size={12} className="text-emerald-300 flex-shrink-0" />
-            <span className="text-xs text-white/85 truncate">{l.d}</span>
-            <span className="text-[10px] text-white/45 truncate">· {l.c}</span>
-          </span>
-          <span className={`text-xs font-semibold flex-shrink-0 ${l.pos ? 'text-emerald-300' : 'text-white'}`}>{l.v}</span>
-        </div>
-      ))}
-      <p className="text-[10px] text-white/45">Você revisa tudo. Nada é gravado sem sua confirmação.</p>
-    </div>
-  )
-}
-
-// Tela 5 — Simular compra e E se...?
-function VisualSimular() {
-  return (
-    <div className="rounded-2xl overflow-hidden p-3 space-y-2" style={painel}>
-      <div className="rounded-xl px-3 py-2.5" style={painelForte}>
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <ShoppingCart size={13} className="text-white/70" />
-          <p className="text-[11px] text-white/70">Simular compra</p>
-        </div>
-        <p className="text-xl font-bold text-white">R$ 1.500 <span className="text-xs font-normal text-white/50">6× R$ 250</span></p>
-        <div className="flex flex-wrap gap-2 mt-1.5">
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.25)', color: '#FCA5A5' }}>-R$ 250/mês</span>
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.8)' }}>Novo limite R$ 74/dia</span>
-        </div>
-      </div>
-      <p className="text-[10px] text-white/50 px-0.5">Cenários "E se...?"</p>
-      {[
-        { label: 'Renda extra +R$ 800', delta: '+R$ 26/dia', cor: 'rgba(34,197,94,0.25)', txt: '#86EFAC' },
-        { label: 'Nova despesa -R$ 300', delta: '-R$ 10/dia', cor: 'rgba(239,68,68,0.25)', txt: '#FCA5A5' },
+        { desc: 'Aluguel', dias: 3, valor: 'R$ 1.200', cor: 'rgba(239,68,68,0.8)' },
+        { desc: 'Fatura Nubank', dias: 5, valor: 'R$ 850', cor: 'rgba(251,191,36,0.8)' },
+        { desc: 'Recarga VR', dias: 8, valor: 'R$ 350', cor: 'rgba(34,197,94,0.8)' },
       ].map(c => (
-        <div key={c.label} className="flex items-center justify-between rounded-lg px-2.5 py-1.5" style={{ background: 'rgba(255,255,255,0.06)' }}>
-          <span className="text-xs text-white/80 flex items-center gap-1"><Sparkles size={10} className="text-white/40" />{c.label}</span>
-          <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: c.cor, color: c.txt }}>{c.delta}</span>
+        <div key={c.desc} className="flex items-center justify-between rounded-lg px-2.5 py-1.5" style={{ background: 'rgba(255,255,255,0.06)' }}>
+          <span className="flex items-center gap-2 min-w-0">
+            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: c.cor }} />
+            <span className="text-xs text-white/80 truncate">{c.desc}</span>
+            <span className="text-[10px] text-white/50 flex-shrink-0">· em {c.dias} dias</span>
+          </span>
+          <span className="text-xs font-semibold text-white flex-shrink-0 ml-2">{c.valor}</span>
         </div>
       ))}
-      <div className="flex items-center gap-1.5 pt-1">
-        <BarChart2 size={12} className="text-white/50" />
-        <span className="text-[10px] text-white/50">Veja o impacto antes de decidir</span>
+      <div className="rounded-lg px-2.5 py-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
+        <div className="flex items-center justify-between mb-0.5">
+          <span className="text-xs text-white/70">Projeção de saldo (30 dias)</span>
+          <span className="text-xs font-bold text-emerald-300">R$ 3.840</span>
+        </div>
+        <p className="text-[9px] text-white/50">Baseado em receitas e despesas recorrentes</p>
       </div>
     </div>
   )
@@ -219,34 +244,51 @@ const TELAS = [
   { id: 'capa' },
   {
     id: 'controle',
-    titulo: 'Tudo sob controle.',
-    texto: 'Acompanhe suas receitas, despesas, saldos e descubra quanto pode gastar.',
+    titulo: 'Controle financeiro completo.',
+    texto: 'Acompanhe seu saldo, patrimônio total e todos os seus recursos em um só lugar.',
     Visual: VisualControle,
   },
   {
-    id: 'planejar',
-    titulo: 'Planeje cada conquista.',
-    texto: 'Visualize seus próximos compromissos e organize seus objetivos financeiros.',
-    Visual: VisualCalendarioMetas,
+    id: 'quanto-posso',
+    titulo: 'Quanto você pode gastar hoje?',
+    texto: 'Descubra seu limite diário considerando suas receitas, despesas e objetivos.',
+    Visual: VisualQuantoPosso,
   },
   {
-    id: 'investimentos',
-    titulo: 'Seu patrimônio em evolução.',
-    texto: 'Organize seus investimentos, acompanhe sua carteira e registre seus rendimentos.',
-    Visual: VisualInvestimentos,
+    id: 'simular-compra',
+    titulo: 'Simule antes de comprar.',
+    texto: 'Veja o impacto de cada opção de pagamento no seu orçamento antes de decidir.',
+    Visual: VisualSimularCompra,
+  },
+  {
+    id: 'e-se',
+    titulo: 'E se...? Explore cenários.',
+    texto: 'Simule mudanças no seu orçamento e veja como cada decisão afeta suas finanças.',
+    Visual: VisualESe,
+  },
+  {
+    id: 'custo-vida',
+    titulo: 'Entenda seu custo de vida.',
+    texto: 'Visualize suas despesas essenciais e planeje mudanças com clareza.',
+    Visual: VisualCustoVida,
   },
   {
     id: 'importacao',
-    titulo: 'Menos trabalho. Mais controle.',
-    texto: 'Importe extratos bancários, faturas de cartões e investimentos para facilitar sua organização financeira.',
+    titulo: 'Importação inteligente.',
+    texto: 'Importe extratos bancários, faturas, investimentos e VR/VA. Revise tudo antes de confirmar.',
     Visual: VisualImportacao,
-    emBreve: !IMPORTACAO_DISPONIVEL,
   },
   {
-    id: 'simular',
-    titulo: 'Decisões melhores começam com planejamento.',
-    texto: 'Simule compras, explore cenários e entenda o impacto das suas escolhas.',
-    Visual: VisualSimular,
+    id: 'investimentos',
+    titulo: 'Invista e conquiste suas metas.',
+    texto: 'Organize seus investimentos e acompanhe o progresso dos seus objetivos financeiros.',
+    Visual: VisualInvestimentosMetas,
+  },
+  {
+    id: 'calendario',
+    titulo: 'Planeje com o calendário.',
+    texto: 'Visualize compromissos futuros e projeções do seu saldo para tomar decisões melhores.',
+    Visual: VisualCalendarioProjecoes,
   },
 ]
 
