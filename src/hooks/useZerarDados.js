@@ -13,105 +13,34 @@ export function useZerarDados() {
       throw new Error('Usuário não autenticado.')
     }
 
-    const uid = usuario.id
+    // Chama a função RPC transacional do PostgreSQL.
+    // A exclusão é ATÔMICA: ou exclui TODAS as 17 tabelas + reseta perfil,
+    // ou reverte TUDO em caso de erro (rollback automático).
+    // 
+    // Segurança:
+    // • SECURITY INVOKER: usa auth.uid() do usuário autenticado (RLS aplicado)
+    // • Sem parâmetros: impossível informar ID de outro usuário
+    // • Ordem correta: filhos antes dos pais (respeita foreign keys)
+    // • Preserva: nome, email, tema, sessão, dados não financeiros
+    const { data: sucesso, error: erroRPC } = await supabase
+      .rpc('zerar_dados_financeiros')
 
-    // Ordem de exclusão respeitando dependências (foreign keys).
-    // Filhos ANTES dos pais para evitar violação de integridade.
-    const tabelasEmOrdem = [
-      // Histórico de importações (filhos primeiro)
-      'importacoes_itens',
-      'importacoes',
-      
-      // Metas vinculadas a investimentos
-      'metas_investimentos',
-      
-      // Amortizações de parcelamentos
-      'amortizacoes',
-      
-      // Movimentações de benefícios e investimentos
-      'beneficios_movimentacoes',
-      'investimentos_movimentacoes',
-      
-      // Faturas e exceções (dependem de cartões/despesas)
-      'faturas_cartao',
-      'despesas_tipo_excecoes',
-      
-      // Compras de cartão
-      'compras_cartao',
-      
-      // Entidades principais
-      'beneficios',
-      'parcelamentos',
-      'despesas',
-      'receitas',
-      'investimentos',
-      'metas',
-      'cartoes',
-    ]
-
-    // Exclui tabela por tabela. Cada operação falha se houver erro.
-    for (const tabela of tabelasEmOrdem) {
-      const { error } = await supabase
-        .from(tabela)
-        .delete()
-        .eq('usuario_id', uid)
-
-      if (error) {
-        throw new Error(
-          `Erro ao apagar ${tabela}: ${error.message}`
-        )
-      }
-    }
-
-    // Exclui apenas categorias personalizadas (usuario_id não nulo).
-    // Categorias padrão (usuario_id IS NULL) são preservadas.
-    const { error: erroCategorias } = await supabase
-      .from('categorias')
-      .delete()
-      .eq('usuario_id', uid)
-
-    if (erroCategorias) {
+    if (erroRPC) {
+      // Erro na RPC: rollback automático, nenhum dado foi excluído
       throw new Error(
-        `Erro ao apagar categorias: ${erroCategorias.message}`
+        `Erro ao executar exclusão transacional: ${erroRPC.message}`
       )
     }
 
-    // Reinicia as configurações financeiras no perfil.
-    // Mantém nome, e-mail, tema, papel (role), ativo e outras preferências.
-    const { data: perfilAtualizado, error: erroPerfil } =
-      await supabase
-        .from('perfis')
-        .update({
-          // Zera saldo e patrimônio
-          saldo_base: null,
-          saldo_base_data: null,
-          
-          // Zera reserva financeira
-          reserva_atual: 0,
-          meta_reserva: 0,
-          reserva_percentual: 20,
-          reserva_configurada: false,
-          
-          // Zera limites
-          modo_limite: 'auto',
-          limite_diario: null,
-          
-          // Zera onboarding financeiro
-          onboarding_concluido: false,
-          // objetivos_financeiros: null,  // Descomentar se coluna existir
-          // onboarding_etapa: null,        // Descomentar se coluna existir
-        })
-        .eq('id', uid)
-        .select('id')
-        .single()
-
-    if (erroPerfil || !perfilAtualizado) {
+    if (!sucesso) {
+      // RPC retornou false (não deveria acontecer, mas validamos)
       throw new Error(
-        `Erro ao reiniciar configurações: ${
-          erroPerfil?.message || 'Perfil não atualizado'
-        }`
+        'Falha ao zerar dados financeiros. Operação não foi concluída.'
       )
     }
+
+    // SUCESSO: todos os dados financeiros foram excluídos atomicamente.
+    // Agora limpamos o armazenamento local (só após confirmação de sucesso).
 
     // Limpa localStorage de dados financeiros (preserva tema, sessão, etc.)
     try {
@@ -125,6 +54,7 @@ export function useZerarDados() {
       chavesParaRemover.forEach(k => localStorage.removeItem(k))
     } catch {
       // Ignora erros de localStorage (privacidade, quota, etc.)
+      // Não é crítico: dados já foram excluídos do servidor
     }
 
     return true
