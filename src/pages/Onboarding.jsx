@@ -374,13 +374,53 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
 
   // Navegação em ordem pelas telas (src/lib/onboardingFluxo.js). Como o fluxo
   // pode ter sido iniciado no meio (card da Home), segue sempre a ordem.
+  // ADAPTATIVO: Pula etapas já confirmadas e vai para a primeira pendente/parcial.
   const avancar = () => {
     setErro('')
     setEtapa((e) => {
       const i = TELAS_ONBOARDING.indexOf(e)
-      return i < 0 ? PERFIL : TELAS_ONBOARDING[Math.min(i + 1, TELAS_ONBOARDING.length - 1)]
+      if (i < 0) return PERFIL
+      
+      // Próxima tela na sequência linear
+      const proximaLinear = TELAS_ONBOARDING[Math.min(i + 1, TELAS_ONBOARDING.length - 1)]
+      
+      // Se não há dados importados, segue fluxo linear normal
+      if (!adaptativo.idsImportados || Object.keys(adaptativo.idsImportados).length === 0) {
+        return proximaLinear
+      }
+      
+      // Mapeia telas para chaves de status
+      const mapaTelaStatus = {
+        [RENDA]: 'receitas',
+        [BENEFICIOS]: 'receitas', // VR/VA fazem parte de receitas
+        [DESPESAS]: 'despesas',
+        [CARTOES]: 'cartoes',
+        [SALDO]: 'saldo'
+      }
+      
+      // Procura próxima etapa que precisa atenção (importada/parcial/pendente)
+      for (let j = i + 1; j < TELAS_ONBOARDING.length; j++) {
+        const tela = TELAS_ONBOARDING[j]
+        const chaveStatus = mapaTelaStatus[tela]
+        
+        if (!chaveStatus) {
+          // Telas sem mapeamento (perfil, importação, metas, reserva, etc) sempre mostram
+          return tela
+        }
+        
+        const status = adaptativo.statusEtapas[chaveStatus]
+        
+        // Pula etapas confirmadas, mostra as outras
+        if (status !== 'confirmado') {
+          return tela
+        }
+      }
+      
+      // Se todas confirmadas, segue fluxo linear
+      return proximaLinear
     })
   }
+  
   const voltar = () => {
     setErro('')
     setEtapa((e) => {
