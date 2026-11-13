@@ -562,7 +562,7 @@ export default function Investimentos() {
   const proventosMes = proventosNoMes(anoAtual, mesAtual)
 
   // Usa exclusivamente movimentações já disponíveis no hook, sem estimar histórico.
-  const ultimasMovimentacoes = (investimentos || [])
+  const ultimasMovimentacoes = Array.isArray(investimentos) ? investimentos
 
     .flatMap(investimento => (movsDeInvestimento(investimento.id) || []).map(m => ({
 
@@ -570,7 +570,7 @@ export default function Investimentos() {
 
     })))
 
-    .sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')))
+    .sort((a, b) => String(b.data || '').localeCompare(String(a.data || ''))) : []
 
   const movimentosVisiveis = movsAberta ? ultimasMovimentacoes : ultimasMovimentacoes.slice(0, 4)
 
@@ -714,7 +714,7 @@ export default function Investimentos() {
           ) : (
             /* Múltiplas categorias → rosca */
             <div className="flex flex-col sm:flex-row items-center gap-6">
-              <div className="relative w-40 h-40 rounded-full shrink-0" style={{ background: `conic-gradient(${dist.map((d, i) => { const cores = CORES_DISTRIBUICAO; const inicio = dist.slice(0,i).reduce((a, x) => a + Math.max(0,Number(x.pct)||0),0); return `${cores[i % cores.length]} ${inicio}% ${inicio + Math.max(0,Number(d.pct)||0)}%`; }).join(', ')})` }}>
+              <div className="relative w-40 h-40 rounded-full shrink-0" style={{ background: dist && dist.length > 0 ? `conic-gradient(${dist.map((d, i) => { const cores = CORES_DISTRIBUICAO; const inicio = dist.slice(0,i).reduce((a, x) => a + Math.max(0,Number(x.pct)||0),0); return `${cores[i % cores.length]} ${inicio}% ${inicio + Math.max(0,Number(d.pct)||0)}%`; }).join(', ')})` : '#ccc' }}>
                 <div className="absolute inset-6 rounded-full bg-white flex flex-col items-center justify-center">
                   <strong className="text-sm text-gray-900">{exibirMoeda(patrimonioTotal, ocultar)}</strong>
                   <span className="text-[10px] text-gray-500">Carteira</span>
@@ -783,7 +783,7 @@ export default function Investimentos() {
 
         <div className="grid grid-cols-1 gap-4">
 
-          {investimentos.map(i => {
+          {Array.isArray(investimentos) && investimentos.map(i => {
 
             const aplicado = Number(i.valor_aplicado) || 0
 
