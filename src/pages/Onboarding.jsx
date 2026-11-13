@@ -1182,9 +1182,15 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
     return <Apresentacao aoConcluir={concluirApresentacao} />
   }
 
+  // Determinar largura maxima baseada na tela atual
+  // Telas que precisam mais espaco (importacao, despesas, cartoes, metas)
+  const telasLargas = [IMPORTACAO, DESPESAS, CARTOES, METAS, PERSONALIZACAO]
+  const isTelaLarga = telasLargas.includes(telaAtual)
+  const maxWidthClass = isTelaLarga ? 'max-w-6xl' : 'max-w-2xl'
+
   return (
     <div className="min-h-[100dvh] bg-gray-50 flex items-start sm:items-center justify-center px-3 py-5 sm:p-8 pb-24 sm:pb-8">
-      <div className="w-full max-w-lg min-w-0">
+      <div className={`w-full ${maxWidthClass} min-w-0`}>
         <div className="card w-full min-w-0 overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-xl p-4 sm:p-7">
           {/* A barra de progresso só aparece nas etapas de configuração. */}
           {/* Barra de progresso: etapas 1 a 8 (oculta na retomada e no final). */}

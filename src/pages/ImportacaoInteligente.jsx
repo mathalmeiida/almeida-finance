@@ -747,7 +747,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
                 className="btn-primary flex-1 flex items-center justify-center gap-2 py-3 disabled:opacity-50" data-testid="importacao-confirmar">
                 {etapa === 'gravando'
                   ? <><Loader2 size={16} className="animate-spin" /> Gravando...</>
-                  : comErro.length > 0 ? `Corrija ${comErro.length} lançamento(s)` : `Confirmar importação (${resumo.incluidos})`}
+                  : comErro.length > 0 ? `Corrija ${comErro.length} lançamento(s)` : `Confirmar importação (${resumo.incluidos} ${resumo.incluidos === 1 ? 'selecionado' : 'selecionados'})`}
               </button>
             </div>
           </div>
