@@ -290,6 +290,8 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   
   // Rehidrata a lista local com as receitas JÁ salvas (ao voltar à etapa),
   // evitando duplicação: itens com id não são recriados no salvar.
+  // IMPORTANTE: ImportacaoInteligente já grava no banco, então os dados
+  // importados VÊM de receitasExistentes, não do hook adaptativo.
   const [recHidratado, setRecHidratado] = useState(false)
   useEffect(() => {
     if (recHidratado) return
@@ -304,43 +306,13 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
         recorrencia_meses: r.recorrencia_meses ?? null,
         ocorrencias: r.ocorrencias ?? null,
         data_fim: r.data_fim ?? null,
+        // Marca como importado se o ID está na lista de importação recente
+        _importado: adaptativo.idsImportados?.receitas?.includes(r.id) || false,
+        _confirmado: false // Precisa revisar
       })))
       setRecHidratado(true)
     }
-  }, [receitasExistentes, recHidratado])
-  
-  // PRÉ-PREENCHIMENTO ADAPTATIVO: carrega receitas importadas
-  useEffect(() => {
-    if (etapa !== RENDA || !adaptativo.dadosTemp) return
-    
-    const dadosImportados = adaptativo.obterDadosEtapa('receitas')
-    if (dadosImportados && dadosImportados.length > 0) {
-      setReceitas(prev => {
-        // Evita duplicar itens já existentes
-        const existentesIds = new Set(prev.filter(r => r.id).map(r => r.id))
-        const existentesDescs = new Set(prev.map(r => r.descricao?.toLowerCase().trim()))
-        
-        const novas = dadosImportados
-          .filter(r => !r._confirmado && !existentesIds.has(r.id))
-          .filter(r => !existentesDescs.has(r.descricao?.toLowerCase().trim()))
-          .map(r => ({
-            descricao: r.descricao || '',
-            valor: Math.abs(Number(r.valor)) || 0,
-            categoria: r.categoria || r.categoriaNome || null,
-            data: r.data || hojeISO(),
-            frequencia: 'nao_repete', // NÃO assume recorrência
-            recorrencia_meses: null,
-            ocorrencias: null,
-            data_fim: null,
-            _importado: true,
-            _revisar: r.revisar || false,
-            uid: crypto.randomUUID()
-          }))
-        
-        return [...prev, ...novas]
-      })
-    }
-  }, [etapa, adaptativo])
+  }, [receitasExistentes, recHidratado, adaptativo.idsImportados])
 
   // ETAPA Despesas — lista local.
   const [despesas, setDespesas] = useState([]) // { descricao, valor, categoria_id, data, frequencia, recorrenciaMeses }
@@ -366,10 +338,13 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
           (!d.frequencia && d.recorrencia_meses != null)
           ? String(d.recorrencia_meses || '') : '',
         forma_pagamento: d.forma_pagamento || '', cartao_id: d.cartao_id || '',
+        // Marca como importado se o ID está na lista de importação recente
+        _importado: adaptativo.idsImportados?.despesas?.includes(d.id) || false,
+        _editado: false, // Rastreia se foi modificado após importação
       }))
     })
     setDespHidratado(true)
-  }, [carregandoDespesas, erroCarregamentoDespesas, despesasExistentes, despHidratado, usuario?.id])
+  }, [carregandoDespesas, erroCarregamentoDespesas, despesasExistentes, despHidratado, usuario?.id, adaptativo.idsImportados])
 
   // ETAPA Cartões — formulário local de um cartão (gravado ao avançar).
   const [cartaoForm, setCartaoForm] = useState({
@@ -645,7 +620,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
 
     if (lista.length === 0) { 
       // Confirma etapa vazia e avança
-      adaptativo.confirmarEtapa && adaptativo.confirmarEtapa('receitas', [])
+      adaptativo.confirmarEtapa && adaptativo.confirmarEtapa('receitas')
       avancar()
       return
     }
@@ -653,7 +628,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
     emGravacao.current = true
     setSalvando(true); setErro('')
     try {
-      // Persiste SEM duplicar: itens com id já existem → UPDATE; sem id → INSERT.
+      // Persiste SEM duplicar: itens com id já existem → UPDATE se necessário; sem id → INSERT.
       const salvos = []
       for (const r of lista) {
         const payload = {
@@ -667,25 +642,35 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
           ocorrencias: r.ocorrencias,
           data_fim: r.data_fim,
         }
+        
         if (r.id) {
-          const atualizado = await atualizarReceita(r.id, payload)
-          salvos.push({ ...r, id: atualizado?.id ?? r.id, _confirmado: true })
+          // Item JÁ EXISTE no banco (pode ser de importação ou cadastro anterior)
+          // Só atualiza se foi editado (não tem _importado ou tem mas foi modificado)
+          if (!r._importado || r._editado) {
+            const atualizado = await atualizarReceita(r.id, payload)
+            salvos.push({ ...r, id: atualizado?.id ?? r.id, _confirmado: true })
+          } else {
+            // Item importado não editado: apenas mantém
+            salvos.push({ ...r, _confirmado: true })
+          }
         } else {
+          // Item NOVO: cria no banco
           const criado = await criarReceita(payload)
           salvos.push({ ...r, id: criado?.id, _confirmado: true })
         }
       }
+      
       // Mantém a lista COM os ids (sem limpar) para que, ao voltar à etapa, os
       // itens reapareçam e não sejam recriados.
       setReceitas(salvos)
       limparRecForm()
       
       // Confirma etapa no adaptativo
-      adaptativo.confirmarEtapa && adaptativo.confirmarEtapa('receitas', salvos)
+      adaptativo.confirmarEtapa && adaptativo.confirmarEtapa('receitas')
       
       // Navegação adaptativa: determina próxima etapa (pula confirmadas)
-      if (typeof determinarProximaEtapa === 'function' && adaptativo.etapasPreenchidas) {
-        const proxima = determinarProximaEtapa(adaptativo.etapasPreenchidas, 'receitas')
+      if (typeof determinarProximaEtapa === 'function' && adaptativo.statusEtapas) {
+        const proxima = determinarProximaEtapa(adaptativo.statusEtapas, 'receitas')
         if (proxima && CHAVE_PARA_TELA[proxima]) {
           setEtapa(CHAVE_PARA_TELA[proxima])
           return
@@ -747,6 +732,12 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
       forma_pagamento: d.forma_pagamento || '', cartao_id: d.cartao_id || '',
     })
     setDespEditIdx(i)
+    // Se item foi importado, marcar como editado quando salvar
+    if (d._importado) {
+      setDespesas(prev => prev.map((item, idx) => 
+        idx === i ? { ...item, _editado: true } : item
+      ))
+    }
     setErro('')
   }
   // Salva cada despesa assim que o usuário toca em Adicionar / Salvar alteração.
@@ -850,32 +841,62 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
     const salvos = []
     try {
       for (const d of lista) {
-        const cat = categoriasDespesa.find(c => c.id === d.categoria_id)
-        const tipo_despesa = classificarDespesa({
-          descricao: d.descricao, categoria: cat?.nome || '',
-        })
-        let freq = d.frequencia
-        let recorrencia_meses = null
-        if (d.frequencia === 'mensal' && Number(d.recorrenciaMeses) > 0) {
-          freq = 'por_meses'
-          recorrencia_meses = Number(d.recorrenciaMeses)
+        if (d.id) {
+          // Item JÁ EXISTE no banco (pode ser de importação ou cadastro anterior)
+          // Só atualiza se foi editado (não tem _importado ou tem mas foi modificado)
+          if (!d._importado || d._editado) {
+            const cat = categoriasDespesa.find(c => c.id === d.categoria_id)
+            const tipo_despesa = classificarDespesa({
+              descricao: d.descricao, categoria: cat?.nome || '',
+            })
+            let freq = d.frequencia
+            let recorrencia_meses = null
+            if (d.frequencia === 'mensal' && Number(d.recorrenciaMeses) > 0) {
+              freq = 'por_meses'
+              recorrencia_meses = Number(d.recorrenciaMeses)
+            }
+            const payload = {
+              descricao: d.descricao, valor: d.valor, data: d.data,
+              recorrente: freq !== 'nao_repete', frequencia: freq,
+              recorrencia_meses, categoria_id: d.categoria_id, subcategoria_id: d.subcategoria_id || null, tipo_despesa,
+              forma_pagamento: d.forma_pagamento || null,
+              cartao_id: d.forma_pagamento === 'cartao_credito' ?
+                (cartaoIdValido(d.cartao_id) || null) : null,
+            }
+            const atualizado = await atualizarDespesa(d.id, payload)
+            salvos.push({ ...d, id: atualizado?.id ?? d.id })
+          } else {
+            // Item importado não modificado — pula atualização
+            salvos.push(d)
+          }
+        } else {
+          // Item NOVO (sem id) — sempre cria
+          const cat = categoriasDespesa.find(c => c.id === d.categoria_id)
+          const tipo_despesa = classificarDespesa({
+            descricao: d.descricao, categoria: cat?.nome || '',
+          })
+          let freq = d.frequencia
+          let recorrencia_meses = null
+          if (d.frequencia === 'mensal' && Number(d.recorrenciaMeses) > 0) {
+            freq = 'por_meses'
+            recorrencia_meses = Number(d.recorrenciaMeses)
+          }
+          const payload = {
+            descricao: d.descricao, valor: d.valor, data: d.data,
+            recorrente: freq !== 'nao_repete', frequencia: freq,
+            recorrencia_meses, categoria_id: d.categoria_id, subcategoria_id: d.subcategoria_id || null, tipo_despesa,
+            forma_pagamento: d.forma_pagamento || null,
+            cartao_id: d.forma_pagamento === 'cartao_credito' ?
+              (cartaoIdValido(d.cartao_id) || null) : null,
+          }
+          const criado = await criarDespesa(payload)
+          salvos.push({ ...d, id: criado?.id })
         }
-        const payload = {
-          descricao: d.descricao, valor: d.valor, data: d.data,
-          recorrente: freq !== 'nao_repete', frequencia: freq,
-          recorrencia_meses, categoria_id: d.categoria_id, subcategoria_id: d.subcategoria_id || null, tipo_despesa,
-          forma_pagamento: d.forma_pagamento || null,
-          cartao_id: d.forma_pagamento === 'cartao_credito' ?
-            (cartaoIdValido(d.cartao_id) || null) : null,
-        }
-        const salvo = d.id
-          ? await atualizarDespesa(d.id, payload)
-          : await criarDespesa(payload)
-        // Salvar ids já criados mesmo se uma operação posterior falhar.
-        salvos.push({ ...d, id: salvo?.id || d.id })
       }
       setDespesas(salvos)
       limparDespForm()
+      // Confirmar etapa no hook adaptativo
+      adaptativo.confirmarEtapa('despesas')
       avancar()
     } catch (e) {
       setDespesas([...salvos, ...lista.slice(salvos.length)])
@@ -1445,6 +1466,24 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                 subtitulo="Aluguel, água, energia, internet, celular, faculdade, assinaturas... A classificação fixa/variável é automática."
               />
 
+              {/* Banner de dados importados */}
+              {despesas.some(d => d._importado) && (
+                <div className="mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <FileCheck size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-blue-900 mb-0.5">
+                        Dados importados!
+                      </p>
+                      <p className="text-sm text-blue-700">
+                        {despesas.filter(d => d._importado).length} despesa{despesas.filter(d => d._importado).length !== 1 ? 's' : ''} {despesas.filter(d => d._importado).length !== 1 ? 'foram identificadas' : 'foi identificada'}.
+                        Revise e complete os campos obrigatórios abaixo.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {carregandoDespesas && !despHidratado && (
                 <p className="text-xs text-gray-400 mb-3" role="status">Carregando despesas salvas...</p>
               )}
@@ -1457,29 +1496,82 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                 </div>
               )}
               {despesas.length > 0 && (
-                <ul className="space-y-2 mb-3">
-                  {despesas.map((d, i) => (
-                    <li key={i} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                      <span className="text-sm text-gray-800 truncate min-w-0">
-                        {d.descricao}
-                        {d.forma_pagamento && (
-                          <span className="block text-[11px] text-gray-400">{labelFormaOnboarding(d.forma_pagamento)}</span>
-                        )}
-                      </span>
-                      <span className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-sm font-semibold text-red-500">{formatCurrency(d.valor)}</span>
-                        <button type="button" onClick={() => editarDespesaLocal(i)}
-                          disabled={salvando} className="text-gray-400 hover:text-marca" title="Editar despesa" aria-label={`Editar ${d.descricao}`}>
-                          <Pencil size={15} />
-                        </button>
-                        <button type="button" onClick={() => removerDespesaLocal(i)}
-                          disabled={salvando} className="text-gray-400 hover:text-red-500" title="Excluir despesa" aria-label={`Excluir ${d.descricao}`}>
-                          <Trash2 size={15} />
-                        </button>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  {/* Separador: Importadas */}
+                  {despesas.some(d => d._importado) && (
+                    <>
+                      <h4 className="text-sm font-semibold text-gray-700 mt-4 mb-2 flex items-center gap-2">
+                        <FileCheck size={16} className="text-blue-600" />
+                        Importadas ({despesas.filter(d => d._importado).length})
+                      </h4>
+                      <ul className="space-y-2 mb-3">
+                        {despesas.filter(d => d._importado).map((d) => {
+                          const idxReal = despesas.indexOf(d)
+                          return (
+                            <li key={idxReal} className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2 border border-blue-200">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <IndicadorStatusIcone status="importado" size={14} />
+                                <span className="text-sm text-gray-800 truncate min-w-0">
+                                  {d.descricao}
+                                  {d.forma_pagamento && (
+                                    <span className="block text-[11px] text-gray-400">{labelFormaOnboarding(d.forma_pagamento)}</span>
+                                  )}
+                                </span>
+                              </div>
+                              <span className="flex items-center gap-2 flex-shrink-0">
+                                <span className="text-sm font-semibold text-red-500">{formatCurrency(d.valor)}</span>
+                                <button type="button" onClick={() => editarDespesaLocal(idxReal)}
+                                  disabled={salvando} className="text-gray-400 hover:text-marca" title="Editar despesa" aria-label={`Editar ${d.descricao}`}>
+                                  <Pencil size={15} />
+                                </button>
+                                <button type="button" onClick={() => removerDespesaLocal(idxReal)}
+                                  disabled={salvando} className="text-gray-400 hover:text-red-500" title="Excluir despesa" aria-label={`Excluir ${d.descricao}`}>
+                                  <Trash2 size={15} />
+                                </button>
+                              </span>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </>
+                  )}
+
+                  {/* Separador: Adicionadas manualmente */}
+                  {despesas.some(d => !d._importado) && (
+                    <>
+                      <h4 className="text-sm font-semibold text-gray-700 mt-4 mb-2 flex items-center gap-2">
+                        <Pencil size={16} className="text-gray-600" />
+                        Adicionadas manualmente ({despesas.filter(d => !d._importado).length})
+                      </h4>
+                      <ul className="space-y-2 mb-3">
+                        {despesas.filter(d => !d._importado).map((d) => {
+                          const idxReal = despesas.indexOf(d)
+                          return (
+                            <li key={idxReal} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                              <span className="text-sm text-gray-800 truncate min-w-0">
+                                {d.descricao}
+                                {d.forma_pagamento && (
+                                  <span className="block text-[11px] text-gray-400">{labelFormaOnboarding(d.forma_pagamento)}</span>
+                                )}
+                              </span>
+                              <span className="flex items-center gap-2 flex-shrink-0">
+                                <span className="text-sm font-semibold text-red-500">{formatCurrency(d.valor)}</span>
+                                <button type="button" onClick={() => editarDespesaLocal(idxReal)}
+                                  disabled={salvando} className="text-gray-400 hover:text-marca" title="Editar despesa" aria-label={`Editar ${d.descricao}`}>
+                                  <Pencil size={15} />
+                                </button>
+                                <button type="button" onClick={() => removerDespesaLocal(idxReal)}
+                                  disabled={salvando} className="text-gray-400 hover:text-red-500" title="Excluir despesa" aria-label={`Excluir ${d.descricao}`}>
+                                  <Trash2 size={15} />
+                                </button>
+                              </span>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </>
+                  )}
+                </>
               )}
 
               <div className="space-y-2">
