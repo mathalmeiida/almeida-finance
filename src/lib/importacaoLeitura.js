@@ -287,6 +287,10 @@ const MES_RE = '(?:jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-zç]*\\.?'
 const DATA_PDF = `(\\d{1,2}[/.-]\\d{1,2}(?:[/.-]\\d{2,4})?|\\d{1,2}\\s*(?:de\\s+)?${MES_RE}(?:\\s*(?:de\\s+|/)?\\d{4})?|\\d{1,2}[/.-]${MES_RE}(?:[/.-]\\d{2,4})?)`
 const VALOR_PDF = '((?:-\\s?)?(?:R\\$\\s?)?\\d{1,3}(?:\\.\\d{3})*,\\d{2}(?:\\s?[-DC])?)'
 const RE_LINHA_PDF = new RegExp(`^${DATA_PDF}\\s+(.+?)\\s+${VALOR_PDF}(?:\\s+${VALOR_PDF})?\\s*$`, 'i')
+// Padrão alternativo: layout com mais espaçamento ou colunas diferentes
+const RE_LINHA_PDF_ALT = new RegExp(`^${DATA_PDF}\\s+(.{3,}?)\\s{2,}${VALOR_PDF}(?:\\s+${VALOR_PDF})?\\s*$`, 'i')
+// Padrão para Bradesco e layouts similares: data + descrição ocupando várias colunas + valor ao final
+const RE_LINHA_PDF_BRADESCO = new RegExp(`^${DATA_PDF}[\\s\\|]+(.+?)\\s+${VALOR_PDF}\\s*$`, 'i')
 const RE_COMECA_COM_DATA = new RegExp(`^${DATA_PDF}\\s+\\S`, 'i')
 const RE_DATA_COMPLETA = /\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})\b/g
 const RE_INFORMATIVA_PDF = /^(vencimento|fechamento|valor (total|da fatura|minimo)|pagamento minimo|total|subtotal|saldo|limite|melhor dia|periodo|data de)/
@@ -371,6 +375,44 @@ export function textoPDFParaTransacoes(linhasTexto, { anoPadrao = null, ocr = fa
     }
     const m = l.match(RE_LINHA_PDF)
     if (!m) {
+      // Tenta padrões alternativos
+      const mAlt = l.match(RE_LINHA_PDF_ALT) || l.match(RE_LINHA_PDF_BRADESCO)
+      if (mAlt) {
+        // Usa match alternativo
+        const descricao = mAlt[2].trim().replace(/^[•*·.xX]{2,}\s*\d{4}\s+/, '')
+        const data = dataDoTrecho(mAlt[1], ref)
+        const valor1 = numeroBR(mAlt[3])
+        const saldoLinha = mAlt[4] != null ? numeroBR(mAlt[4]) : null
+
+        if (RE_INFORMATIVA_PDF.test(norm(descricao))) {
+          if (saldoLinha != null) saldoAnterior = saldoLinha
+          else if (/^saldo/.test(norm(descricao)) && valor1 != null) saldoAnterior = valor1
+          descartadas.push({ linha: i + 1, motivo: 'Linha de saldo/total (informativa)', trecho: l.slice(0, 90) })
+          return
+        }
+        if (!data) { descartadas.push({ linha: i + 1, motivo: 'Data inválida', trecho: l.slice(0, 90) }); return }
+        if (valor1 == null || valor1 === 0) { descartadas.push({ linha: i + 1, motivo: 'Valor ausente ou inválido', trecho: l.slice(0, 90) }); return }
+
+        const avisos = [ocr ? 'Lido por reconhecimento de texto (OCR): confira data, descrição e valor' : 'Lido de PDF: confira data, descrição e valor']
+        let valor = valor1, sinalIncerto = false
+        if (!SINAL_EXPLICITO.test(mAlt[3])) {
+          if (saldoLinha != null && saldoAnterior != null && Math.abs(Math.abs(saldoLinha - saldoAnterior) - Math.abs(valor1)) < 0.015) {
+            valor = (saldoLinha - saldoAnterior) < 0 ? -Math.abs(valor1) : Math.abs(valor1)
+            avisos.push('Entrada/saída deduzida pela variação do saldo')
+          } else sinalIncerto = true
+        }
+        if (saldoLinha != null) saldoAnterior = saldoLinha
+        if (data.semAno) avisos.push(ref.deduzida ? `Data sem ano: usamos ${data.ano}, deduzido das datas do documento` : `Data sem ano no documento: assumimos ${data.ano}`)
+        const parcela = extrairParcela(descricao)
+        transacoes.push({
+          linha: i + 1, data: data.iso, descricao, valor, idOrigem: null,
+          parcelaAtual: parcela?.atual ?? null, parcelaTotal: parcela?.total ?? null,
+          tipoInformado: null, ativo: null, revisar: true, sinalIncerto, avisos,
+        })
+        return
+      }
+
+      // Nenhum padrão funcionou
       if (RE_COMECA_COM_DATA.test(l) && /[a-zA-Z]{3}/.test(l.replace(new RegExp(`^${DATA_PDF}`, 'i'), ''))) {
         descartadas.push({ linha: i + 1, motivo: 'Linha com data, mas sem valor reconhecível (layout diferente?)', trecho: l.slice(0, 90) })
       }
