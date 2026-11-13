@@ -13,6 +13,7 @@ import { useImportacoes } from '../hooks/useImportacoes'
 import InputMoeda from '../components/InputMoeda'
 import ResumoConciliacao from '../components/ResumoConciliacao'
 import ConciliacaoPrevia from '../components/ConciliacaoPrevia'
+import SelectCustomizado from '../components/SelectCustomizado'
 import { formatCurrency, hojeISO } from '../lib/utils'
 import { lerArquivoImportacao } from '../lib/importacaoArquivos'
 import { buscarExistentes, gravarRegistros } from '../lib/importacaoGravar'
@@ -359,11 +360,18 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
           )}
           {contexto === 'fatura' && (
             <div>
-              <label className="label" htmlFor="imp-cartao">Cartão</label>
-              <select id="imp-cartao" className="input" value={cartaoId} onChange={e => setCartaoId(e.target.value)}>
-                <option value="">Escolha o cartão da fatura</option>
-                {cartoes.map(c => <option key={c.id} value={c.id}>{c.nome}{c.banco ? ` • ${c.banco}` : ''}</option>)}
-              </select>
+              <label className="label" htmlFor="imp-cartao" id="imp-cartao-label">Cartão</label>
+              <SelectCustomizado
+                id="imp-cartao"
+                value={cartaoId}
+                onChange={setCartaoId}
+                options={cartoes.map(c => ({
+                  value: c.id,
+                  label: `${c.nome}${c.banco ? ` • ${c.banco}` : ''}`
+                }))}
+                placeholder="Escolha o cartão da fatura"
+                disabled={carregandoCartoes}
+              />
               {!carregandoCartoes && cartoes.length === 0 && (
                 <p className="text-xs text-gray-500 mt-1.5">
                   {embutido ? 'Nenhum cartão. Pule e cadastre depois.' : <><button type="button" className="text-marca underline font-medium" onClick={() => navigate('/cartoes?novo=1')}>Cadastrar cartão</button> ou pule esta etapa.</>}
@@ -373,11 +381,18 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
           )}
           {contexto === 'investimentos' && (
             <div>
-              <label className="label" htmlFor="imp-inv">Investimento</label>
-              <select id="imp-inv" className="input" value={investimentoId} onChange={e => setInvestimentoId(e.target.value)}>
-                <option value="">Escolha o investimento</option>
-                {investimentos.map(i => <option key={i.id} value={i.id}>{i.nome}{i.instituicao ? ` • ${i.instituicao}` : ''}</option>)}
-              </select>
+              <label className="label" htmlFor="imp-inv" id="imp-inv-label">Investimento</label>
+              <SelectCustomizado
+                id="imp-inv"
+                value={investimentoId}
+                onChange={setInvestimentoId}
+                options={investimentos.map(i => ({
+                  value: i.id,
+                  label: `${i.nome}${i.instituicao ? ` • ${i.instituicao}` : ''}`
+                }))}
+                placeholder="Escolha o investimento"
+                disabled={carregandoInv}
+              />
               {!carregandoInv && investimentos.length === 0 && (
                 <p className="text-xs text-gray-500 mt-1.5">
                   {embutido ? 'Nenhum investimento. Pule e cadastre depois.' : <><button type="button" className="text-marca underline font-medium" onClick={() => navigate('/investimentos?novo=1')}>Cadastrar investimento</button> ou pule esta etapa.</>}
