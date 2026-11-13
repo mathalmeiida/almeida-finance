@@ -195,6 +195,152 @@ function VisualESe() {
   )
 }
 
+// Tela 5 — Custo de Vida
+function VisualCustoVida() {
+  const categorias = [
+    { nome: 'Moradia', valor: 'R$ 1.200', pct: 40, cor: '#7d2e4b' },
+    { nome: 'Alimentação', valor: 'R$ 600', pct: 20, cor: '#a855f7' },
+    { nome: 'Transporte', valor: 'R$ 450', pct: 15, cor: '#3b82f6' },
+    { nome: 'Outros', valor: 'R$ 750', pct: 25, cor: '#6b7280' },
+  ]
+  
+  return (
+    <div className="rounded-2xl overflow-hidden p-3 space-y-2.5" style={painel}>
+      <div className="rounded-xl px-3 py-3 text-center" style={painelForte}>
+        <p className="text-xs text-white/60 mb-1">Custo de vida mensal</p>
+        <p className="text-3xl font-extrabold text-white">R$ 3.000</p>
+        <p className="text-[11px] text-white/50 mt-1">Despesas essenciais do mês</p>
+      </div>
+      
+      <Rotulo>Distribuição por categoria</Rotulo>
+      <div className="space-y-1.5">
+        {categorias.map(cat => (
+          <div key={cat.nome} className="rounded-lg overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+            <div className="px-2.5 py-1.5">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-white/80">{cat.nome}</span>
+                <span className="text-xs font-semibold text-white">{cat.valor}</span>
+              </div>
+              <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full rounded-full" style={{ width: `${cat.pct}%`, backgroundColor: cat.cor }} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+      
+      <div className="rounded-lg px-2.5 py-2" style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.2)' }}>
+        <p className="text-[10px] text-blue-200/80 text-center">
+          💡 Reduza custos e aumente sua margem de segurança
+        </p>
+      </div>
+      
+      <p className="text-[10px] text-white/45 text-center">Baseado nas suas despesas recorrentes</p>
+    </div>
+  )
+}
+
+// Tela 6 — Importação Inteligente
+function VisualImportacao() {
+  const formatos = [
+    { ext: 'PDF', cor: '#ef4444' },
+    { ext: 'CSV', cor: '#10b981' },
+    { ext: 'OFX', cor: '#3b82f6' },
+    { ext: 'XLSX', cor: '#8b5cf6' }
+  ]
+  
+  return (
+    <div className="rounded-2xl overflow-hidden p-3 space-y-2.5" style={painel}>
+      <div className="rounded-xl px-3 py-3 text-center" style={painelForte}>
+        <div className="flex items-center justify-center gap-1.5 mb-2">
+          <Upload size={16} className="text-white/70" />
+          <p className="text-xs text-white/70">Importação Inteligente</p>
+        </div>
+        <p className="text-base font-bold text-white">4 formatos suportados</p>
+        <p className="text-xs text-white/60 mt-1">Extratos, faturas, investimentos, VR e VA</p>
+      </div>
+      
+      <div className="grid grid-cols-4 gap-2">
+        {formatos.map(f => (
+          <div key={f.ext} className="aspect-square rounded-lg flex items-center justify-center" 
+               style={{ background: `${f.cor}20`, border: `1px solid ${f.cor}40` }}>
+            <FileText size={16} style={{ color: f.cor }} />
+          </div>
+        ))}
+      </div>
+      
+      <Rotulo>O que você pode importar</Rotulo>
+      <div className="space-y-1">
+        {[
+          'Extratos bancários (Bradesco, Itaú, Nubank...)',
+          'Faturas de cartão de crédito',
+          'Posições de investimentos',
+          'Saldos de VR e VA (Alelo, Sodexo...)'
+        ].map(item => (
+          <div key={item} className="flex items-start gap-2 px-2 py-1">
+            <CheckCircle2 size={12} className="text-emerald-400 flex-shrink-0 mt-0.5" />
+            <p className="text-[11px] text-white/80 leading-snug">{item}</p>
+          </div>
+        ))}
+      </div>
+      
+      <div className="rounded-lg px-2.5 py-2" style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.2)' }}>
+        <p className="text-[10px] text-purple-200/80 text-center">
+          ✨ Revisão inteligente antes de salvar
+        </p>
+      </div>
+      
+      <p className="text-[10px] text-white/45 text-center">Detecta duplicatas automaticamente</p>
+    </div>
+  )
+}
+
+// Tela 7 — Investimentos e Metas
+function VisualInvestimentosMetas() {
+  return (
+    <div className="rounded-2xl overflow-hidden p-3 space-y-2.5" style={painel}>
+      <div className="rounded-xl px-3 py-3" style={painelForte}>
+        <div className="flex items-center gap-1.5 mb-2">
+          <Landmark size={14} className="text-white/70" />
+          <p className="text-xs text-white/60">Investimentos</p>
+        </div>
+        <p className="text-2xl font-bold text-white">R$ 18.500</p>
+        <p className="text-xs text-emerald-300 mt-0.5">+R$ 2.350 (14,5%) no ano</p>
+      </div>
+      
+      <Rotulo>Suas metas</Rotulo>
+      <div className="space-y-1.5">
+        {[
+          { meta: 'Reserva de Emergência', atual: 5000, objetivo: 12000, pct: 42, cor: '#10b981' },
+          { meta: 'Viagem 2027', atual: 2500, objetivo: 8000, pct: 31, cor: '#3b82f6' },
+          { meta: 'Entrada do Carro', atual: 4000, objetivo: 20000, pct: 20, cor: '#f59e0b' },
+        ].map(m => (
+          <div key={m.meta} className="rounded-lg px-2.5 py-2" style={{ background: 'rgba(255,255,255,0.05)' }}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-white/80">{m.meta}</span>
+              <span className="text-xs font-semibold text-white">{m.pct}%</span>
+            </div>
+            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden mb-1">
+              <div className="h-full rounded-full" style={{ width: `${m.pct}%`, backgroundColor: m.cor }} />
+            </div>
+            <p className="text-[10px] text-white/60">
+              R$ {m.atual.toLocaleString('pt-BR')} de R$ {m.objetivo.toLocaleString('pt-BR')}
+            </p>
+          </div>
+        ))}
+      </div>
+      
+      <div className="rounded-lg px-2.5 py-2 text-center" style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.2)' }}>
+        <p className="text-[10px] text-emerald-200/80">
+          🎯 Faltam R$ 600 para bater a meta deste mês
+        </p>
+      </div>
+      
+      <p className="text-[10px] text-white/45 text-center">Acompanhe seu progresso em tempo real</p>
+    </div>
+  )
+}
+
 // Tela 8 — Calendário e Projeções Financeiras
 function VisualCalendarioProjecoes() {
   const dias = Array.from({ length: 14 }, (_, i) => i + 1)
