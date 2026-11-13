@@ -354,7 +354,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
               <label className="label" htmlFor="imp-conta">Conta <span className="text-gray-400 font-normal">(opcional)</span></label>
               <input id="imp-conta" className="input" maxLength={60} placeholder="Ex.: Conta corrente Banco X"
                 value={contaNome} onChange={e => setContaNome(e.target.value)} />
-              <p className="text-xs text-gray-400 mt-1">Separa a detecção de duplicidades quando você tem mais de uma conta.</p>
+              <p className="text-xs text-gray-400 mt-1">Para separar duplicidades entre contas.</p>
             </div>
           )}
           {contexto === 'fatura' && (
@@ -366,7 +366,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
               </select>
               {!carregandoCartoes && cartoes.length === 0 && (
                 <p className="text-xs text-gray-500 mt-1.5">
-                  Nenhum cartão cadastrado. {embutido ? 'Pule esta etapa e cadastre depois em Cartões.' : <><button type="button" className="text-marca underline font-medium" onClick={() => navigate('/cartoes?novo=1')}>Cadastrar agora</button> ou pule e cadastre depois.</>}
+                  {embutido ? 'Nenhum cartão. Pule e cadastre depois.' : <><button type="button" className="text-marca underline font-medium" onClick={() => navigate('/cartoes?novo=1')}>Cadastrar cartão</button> ou pule esta etapa.</>}
                 </p>
               )}
             </div>
@@ -380,10 +380,9 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
               </select>
               {!carregandoInv && investimentos.length === 0 && (
                 <p className="text-xs text-gray-500 mt-1.5">
-                  Nenhum investimento cadastrado. {embutido ? 'Pule esta etapa e cadastre depois em Investimentos.' : <><button type="button" className="text-marca underline font-medium" onClick={() => navigate('/investimentos?novo=1')}>Cadastrar agora</button> ou pule e cadastre depois.</>}
+                  {embutido ? 'Nenhum investimento. Pule e cadastre depois.' : <><button type="button" className="text-marca underline font-medium" onClick={() => navigate('/investimentos?novo=1')}>Cadastrar investimento</button> ou pule esta etapa.</>}
                 </p>
               )}
-              <p className="text-xs text-gray-400 mt-1">Você pode trocar o investimento de cada linha na conferência.</p>
             </div>
           )}
 
@@ -411,7 +410,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
               className="btn-primary w-full flex items-center justify-center gap-2 py-3 disabled:opacity-50">
               {etapa === 'lendo' ? <><Loader2 size={16} className="animate-spin" /> {progressoLeitura || 'Lendo arquivo...'}</> : <><Upload size={16} /> Escolher arquivo</>}
             </button>
-            <p className="text-xs text-gray-500 mt-2">CSV, OFX, XLSX/XLS ou PDF até 5 MB. PDF digitalizado (imagem) é lido por OCR no seu aparelho e pode levar alguns segundos. PDF com senha: você informa a senha na hora e ela não é guardada.</p>
+            <p className="text-xs text-gray-500 mt-2">CSV, OFX, XLSX/XLS ou PDF até 5 MB. PDFs digitalizados são lidos por OCR (pode levar alguns segundos). PDFs com senha pedem a senha na hora (não é guardada).</p>
             {etapa === 'lendo' && progressoLeitura && (
               <button type="button" className="text-xs text-marca underline mt-1" data-testid="importacao-cancelar-leitura" onClick={() => { canceladoRef.current = true }}>Cancelar leitura</button>
             )}
@@ -419,7 +418,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
 
           <p className="flex items-start gap-2 text-xs text-gray-500 bg-gray-50 rounded-xl p-3">
             <ShieldCheck size={15} className="text-emerald-600 flex-shrink-0 mt-0.5" />
-            O arquivo é lido no seu aparelho e não é enviado a nenhum servidor. Só os lançamentos que você confirmar são salvos na sua conta.
+            Lido localmente (não enviado a servidor). Só dados confirmados são salvos.
           </p>
           {embutido && onCancelar && (
             <button type="button" onClick={onCancelar} className="btn-secondary w-full flex items-center justify-center gap-1.5">
