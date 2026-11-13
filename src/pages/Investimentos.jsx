@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-import { TrendingUp, Plus, Pencil, Trash2, Loader2, PiggyBank, Wallet, BarChart2, ArrowDownCircle, Eye, EyeOff, History, Landmark, RefreshCw } from 'lucide-react'
+import { TrendingUp, Plus, Pencil, Trash2, Loader2, PiggyBank, Wallet, BarChart2, ArrowDownCircle, Eye, EyeOff, History, Landmark, RefreshCw, Upload } from 'lucide-react'
 
 import { useInvestimentos, CATEGORIAS_INVESTIMENTO, labelCategoriaInvestimento, TIPOS_MOV_INVESTIMENTO } from '../hooks/useInvestimentos'
 
