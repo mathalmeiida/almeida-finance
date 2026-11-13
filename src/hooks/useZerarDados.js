@@ -15,19 +15,41 @@ export function useZerarDados() {
 
     const uid = usuario.id
 
-    // Exclui registros financeiros da conta autenticada.
-    // Movimentações são removidas antes dos benefícios.
+    // Ordem de exclusão respeitando dependências (foreign keys).
+    // Filhos ANTES dos pais para evitar violação de integridade.
     const tabelasEmOrdem = [
+      // Histórico de importações (filhos primeiro)
+      'importacoes_itens',
+      'importacoes',
+      
+      // Metas vinculadas a investimentos
+      'metas_investimentos',
+      
+      // Amortizações de parcelamentos
+      'amortizacoes',
+      
+      // Movimentações de benefícios e investimentos
       'beneficios_movimentacoes',
-      'beneficios',
+      'investimentos_movimentacoes',
+      
+      // Faturas e exceções (dependem de cartões/despesas)
+      'faturas_cartao',
+      'despesas_tipo_excecoes',
+      
+      // Compras de cartão
       'compras_cartao',
-      'cartoes',
+      
+      // Entidades principais
+      'beneficios',
       'parcelamentos',
       'despesas',
       'receitas',
+      'investimentos',
       'metas',
+      'cartoes',
     ]
 
+    // Exclui tabela por tabela. Cada operação falha se houver erro.
     for (const tabela of tabelasEmOrdem) {
       const { error } = await supabase
         .from(tabela)
@@ -41,7 +63,8 @@ export function useZerarDados() {
       }
     }
 
-    // Exclui apenas categorias personalizadas.
+    // Exclui apenas categorias personalizadas (usuario_id não nulo).
+    // Categorias padrão (usuario_id IS NULL) são preservadas.
     const { error: erroCategorias } = await supabase
       .from('categorias')
       .delete()
@@ -53,21 +76,30 @@ export function useZerarDados() {
       )
     }
 
-    // Reinicia as configurações financeiras.
-    // Mantém nome, e-mail, tema, papel e acesso à conta.
+    // Reinicia as configurações financeiras no perfil.
+    // Mantém nome, e-mail, tema, papel (role), ativo e outras preferências.
     const { data: perfilAtualizado, error: erroPerfil } =
       await supabase
         .from('perfis')
         .update({
-          reserva_percentual: 20,
-          modo_limite: 'auto',
-          limite_diario: null,
+          // Zera saldo e patrimônio
           saldo_base: null,
           saldo_base_data: null,
+          
+          // Zera reserva financeira
           reserva_atual: 0,
           meta_reserva: 0,
+          reserva_percentual: 20,
           reserva_configurada: false,
+          
+          // Zera limites
+          modo_limite: 'auto',
+          limite_diario: null,
+          
+          // Zera onboarding financeiro
           onboarding_concluido: false,
+          // objetivos_financeiros: null,  // Descomentar se coluna existir
+          // onboarding_etapa: null,        // Descomentar se coluna existir
         })
         .eq('id', uid)
         .select('id')
@@ -79,6 +111,20 @@ export function useZerarDados() {
           erroPerfil?.message || 'Perfil não atualizado'
         }`
       )
+    }
+
+    // Limpa localStorage de dados financeiros (preserva tema, sessão, etc.)
+    try {
+      const chavesParaRemover = Object.keys(localStorage).filter(k =>
+        k.startsWith('almeida_saldo_') ||
+        k.startsWith('almeida_limite_') ||
+        k.startsWith('almeida_reserva_') ||
+        k.startsWith('almeida_onboarding_') ||
+        k === 'almeida_refazer_onboarding'
+      )
+      chavesParaRemover.forEach(k => localStorage.removeItem(k))
+    } catch {
+      // Ignora erros de localStorage (privacidade, quota, etc.)
     }
 
     return true
