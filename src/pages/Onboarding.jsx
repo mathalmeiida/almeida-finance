@@ -1241,6 +1241,25 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
                 titulo="Seu dinheiro hoje"
                 subtitulo="Informe separadamente o que está disponível para gastar e o que está investido."
               />
+              
+              {/* Banner de investimentos importados */}
+              {adaptativo.idsImportados?.investimentos_movimentacoes?.length > 0 && !investimentosProprios.length && (
+                <div className="mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <FileCheck size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-blue-900 mb-0.5">
+                        Movimentações de investimentos detectadas!
+                      </p>
+                      <p className="text-sm text-blue-700">
+                        {adaptativo.idsImportados.investimentos_movimentacoes.length} movimentação{adaptativo.idsImportados.investimentos_movimentacoes.length !== 1 ? 'ões' : ''} {adaptativo.idsImportados.investimentos_movimentacoes.length !== 1 ? 'foram importadas' : 'foi importada'}.
+                        Informe seu patrimônio total investido abaixo.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <label className="label" htmlFor="onb-saldo">Saldo disponível em contas</label>
               <p className="text-xs text-gray-500 -mt-0.5 mb-1.5">Quanto dinheiro você tem disponível atualmente? Some contas e carteiras digitais. Não inclua limite de crédito.</p>
               <InputMoeda id="onb-saldo"
