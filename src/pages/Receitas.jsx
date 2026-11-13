@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 
 import { useSearchParams } from 'react-router-dom'
 
-import { TrendingUp, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react'
+import { TrendingUp, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, BarChart3, Upload } from 'lucide-react'
 
 import { useReceitas } from '../hooks/useReceitas'
 
@@ -11,6 +11,8 @@ import { useCategorias } from '../hooks/useCategorias'
 import Modal from '../components/Modal'
 
 import InputMoeda from '../components/InputMoeda'
+
+import ImportacaoInteligente from './ImportacaoInteligente'
 
 import { formatCurrency, formatDate, corCategoria, hojeISO, partesHojeBrasil } from '../lib/utils'
 
@@ -312,6 +314,7 @@ export default function Receitas() {
   const { receitas, recorrentes, total, carregando, erro, criar, atualizar, remover } = useReceitas(ref.mes, ref.ano)
 
   const [modalAberto, setModalAberto] = useState(false)
+  const [modalImportacao, setModalImportacao] = useState(false)
 
   const [salvando, setSalvando] = useState(false)
 
@@ -538,9 +541,14 @@ export default function Receitas() {
               className="text-xs text-marca font-semibold">Hoje</button>}
           </div>
         </div>
-        <button type="button" onClick={handleAbrirNova} className="btn-primary flex items-center gap-2 self-start sm:self-auto">
-          <Plus size={16} /> Nova receita
-        </button>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setModalImportacao(true)} className="btn-secondary flex items-center gap-2">
+            <Upload size={16} /> Importar
+          </button>
+          <button type="button" onClick={handleAbrirNova} className="btn-primary flex items-center gap-2">
+            <Plus size={16} /> Nova receita
+          </button>
+        </div>
       </div>
 
       <section className="card !p-4 sm:!p-5" aria-label="Resumo de receitas">
@@ -660,6 +668,21 @@ export default function Receitas() {
         <FormReceita key={receitaEditando ? receitaEditando.id : 'nova'} onSalvar={handleSalvar} onCancelar={fecharModal}
           carregando={salvando} receitaInicial={receitaEditando} dataPadrao={dataPadraoNova}
           textoBotao={receitaEditando ? 'Salvar alterações' : 'Salvar receita'}/>
+      </Modal>
+
+      {/* Modal de Importação */}
+      <Modal aberto={modalImportacao} onFechar={() => setModalImportacao(false)} titulo="Importar Receitas" tamanho="lg">
+        <ImportacaoInteligente
+          embutido
+          onConcluir={() => {
+            setModalImportacao(false)
+            // Recarrega receitas do mês atual
+            if (ref.mes !== mesAtual || ref.ano !== anoAtual) {
+              setRef({ mes: mesAtual, ano: anoAtual })
+            }
+          }}
+          onCancelar={() => setModalImportacao(false)}
+        />
       </Modal>
     </div>
   )

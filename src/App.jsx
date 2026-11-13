@@ -434,6 +434,7 @@ function Rotas() {
 
                 <Route path="/investimentos" element={<Investimentos />} />
 
+                {/* Importação Inteligente standalone (para testes E2E e acesso direto) */}
                 <Route path="/importacao" element={<ImportacaoInteligente />} />
                 <Route path="/central-importacao" element={<CentralImportacao />} />
 

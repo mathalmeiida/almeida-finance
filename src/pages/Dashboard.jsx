@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Sun, Plus, Pencil,
   CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CalendarDays, PiggyBank, AlertTriangle, MessageCircle, BarChart2,
-  Receipt, ReceiptText, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap, Info, X, MoreHorizontal, Sparkles
+  Receipt, ReceiptText, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap, Info, X, MoreHorizontal, Sparkles, Upload
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useReceitas } from '../hooks/useReceitas'
@@ -28,6 +28,7 @@ import HorizonteFinanceiro from '../components/HorizonteFinanceiro'
 import { gerarHorizonte } from '../lib/horizonteFinanceiro'
 import CalendarioFinanceiroHome from '../components/CalendarioFinanceiroHome'
 import AtalhosHome from '../components/AtalhosHome'
+import ImportacaoInteligente from '../pages/ImportacaoInteligente'
 import { useMetas } from '../hooks/useMetas'
 
 // Chaves lidas em App.jsx (AreaAutenticada) para reabrir o onboarding e saber
@@ -1856,6 +1857,7 @@ export default function Dashboard() {
   }
   const [dataGastoCalendario, setDataGastoCalendario] = useState(null)
   const [modalGasto, setModalGasto] = useState(false)
+  const [modalImportacao, setModalImportacao] = useState(false)
   const [salvandoGasto, setSalvandoGasto] = useState(false)
   const salvamentoGastoEmAndamento = useRef(false)
   const [erroGasto, setErroGasto] = useState('')
@@ -2518,6 +2520,12 @@ const carregandoLimite = carregando
             <p className="text-xs sm:text-sm text-[#D4A8B6] truncate">Vamos cuidar das suas finanças hoje?</p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            {!somenteLeitura && (
+              <button onClick={() => setModalImportacao(true)} aria-label="Importar documentos"
+                className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/10 text-white hover:bg-white/20 transition-colors">
+                <Upload size={18} />
+              </button>
+            )}
             <button onClick={() => setModalNotificacoes(true)} aria-label={temNotificacao ? 'Você tem notificações' : 'Notificações'}
               className="relative w-9 h-9 rounded-xl flex items-center justify-center bg-white/10 text-white hover:bg-white/20 transition-colors">
               <Bell size={18} />
@@ -3046,6 +3054,11 @@ dataReferencia={hojeISO}
         onSalvar={handleSalvarSaldo}
         salvando={salvandoSaldo}
       />
+
+      <Modal aberto={modalImportacao} onFechar={() => setModalImportacao(false)} titulo="Importar Documentos Financeiros" tamanho="lg">
+        <ImportacaoInteligente embutido onConcluir={() => setModalImportacao(false)} onCancelar={() => setModalImportacao(false)} />
+      </Modal>
+
     </div>
   )
 }

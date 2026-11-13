@@ -117,7 +117,9 @@ test('fatura OFX: compras no cartão, parcela com total, sem receita/despesa nem
   await enviar(page, 'fatura.ofx', fx('fatura-cartao.ofx'))
   await expect(page.getByRole('alert')).toContainText('Fatura de cartão')
   await page.getByRole('radio', { name: /Fatura de cartão/ }).click()
-  await page.locator('#imp-cartao').selectOption('c1')
+  // SelectCustomizado: clicar no botão e depois na opção
+  await page.locator('#imp-cartao').click()
+  await page.getByRole('option', { name: 'Cartão Teste' }).click()
   await enviar(page, 'fatura.ofx', fx('fatura-cartao.ofx'))
   await expect(page.getByTestId('importacao-resumo')).toContainText('7 movimentações identificadas')
   await expect(item(page, 'PAGAMENTO RECEBIDO').getByRole('checkbox')).toBeDisabled()
@@ -136,7 +138,9 @@ test('fatura OFX: compras no cartão, parcela com total, sem receita/despesa nem
 test('investimentos CSV: movimentações atualizam a posição, sem tocar receitas/despesas', async ({ page }) => {
   const banco = await abrir(page, { banco: criarBancoMemoria({ investimentos: [{ id: 'i1', usuario_id: U, nome: 'CDB Teste', categoria: 'cdb', valor_aplicado: 500, valor_atual: 500, reserva_valor: 0 }] }) })
   await page.getByRole('radio', { name: /Investimentos/ }).click()
-  await page.locator('#imp-inv').selectOption('i1')
+  // SelectCustomizado: clicar no botão e depois na opção
+  await page.locator('#imp-inv').click()
+  await page.getByRole('option', { name: 'CDB Teste' }).click()
   await enviar(page, 'investimentos.csv', fx('investimentos.csv'), 'text/csv')
   await expect(item(page, 'Evento desconhecido').getByRole('checkbox')).toBeDisabled()
   await expect(page.getByTestId('importacao-qtd-incluidos')).toHaveText('4')
@@ -264,6 +268,7 @@ test('saldo da Home depois da importação = saldo informado + impacto mostrado 
   await enviar(page, 'extrato.csv', fx('extrato-banco.csv'), 'text/csv')
   await expect(page.getByTestId('importacao-impacto')).toContainText('43,69')
   await confirmar(page).click()
+  await expect(page.getByTestId('importacao-concluida')).toContainText('8 lançamentos importados')
   await page.getByRole('button', { name: 'Ir para a Home' }).click()
   await expect(page.getByText('R$ 956,31').filter({ visible: true }).first()).toBeVisible({ timeout: 20_000 }) // 1.000,00 − 43,69
 })
@@ -274,6 +279,7 @@ test('saldo com data de mês anterior: Home conta os lançamentos importados dep
   await enviar(page, 'extrato.csv', fx('extrato-banco.csv'), 'text/csv')
   await expect(page.getByTestId('importacao-impacto')).toContainText('43,69')
   await confirmar(page).click()
+  await expect(page.getByTestId('importacao-concluida')).toContainText('8 lançamentos importados')
   await page.getByRole('button', { name: 'Ir para a Home' }).click()
   await expect(page.getByText('R$ 956,31').filter({ visible: true }).first()).toBeVisible({ timeout: 20_000 })
 })

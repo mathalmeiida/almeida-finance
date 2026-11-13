@@ -88,7 +88,9 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
   const { carregarChaves, registrar } = useImportacoes()
 
   const [etapa, setEtapa] = useState('configurar') // configurar | lendo | previa | gravando | concluido
-  const [contexto, setContexto] = useState('extrato')
+  const [contexto, setContexto] = useState('') // vazio = detecção automática
+  const [contextoDetectado, setContextoDetectado] = useState(null) // resultado da detecção
+  const [contextoConfirmado, setContextoConfirmado] = useState(false) // usuário confirmou
   const [contaNome, setContaNome] = useState('')
   const [cartaoId, setCartaoId] = useState('')
   const [investimentoId, setInvestimentoId] = useState('')
@@ -128,7 +130,11 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
     })
   }, [todasCategorias])
 
-  const origemValida = contexto === 'extrato' || (contexto === 'fatura' ? !!cartaoId : contexto === 'investimentos' ? !!investimentoId : !!beneficioId)
+  // Contexto válido: detectado/manual + origem configurada (quando necessário)
+  const contextoAtual = contexto || contextoDetectado || leitura?.tipoDocumento
+  // Permite upload sem contexto (detecção automática), ou com contexto e origem válida
+  const origemValida = !contextoAtual || contextoAtual === 'extrato' || (contextoAtual === 'fatura' ? !!cartaoId : contextoAtual === 'investimentos' ? !!investimentoId : !!beneficioId)
+  const podeUpload = true // sempre permite upload para detecção automática
 
   // PDF protegido: a senha fica só neste estado, é usada na leitura e descartada.
   const [pendenteSenha, setPendenteSenha] = useState(null) // { file, incorreta }
@@ -139,7 +145,10 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
   function aoEscolherArquivo(e) {
     const files = Array.from(e.target.files || [])
     e.target.value = '' // permite escolher o mesmo arquivo de novo
-    if (!files.length || !origemValida) return
+    if (!files.length) return
+    
+    // Se contexto não foi escolhido, permite upload para detecção automática
+    // A validação de origem será feita após detecção
     setPendenteSenha(null); setSenhaPdf('')
     if (files.length === 1) processarArquivo(files[0])
     else processarVarios(files)
@@ -201,7 +210,27 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
       setPendenteSenha(null); setSenhaPdf('')
       if (canceladoRef.current) { setEtapa('configurar'); return }
       if (r.erro) throw new Error(r.erro)
-      if (r.ehCartao && contexto !== 'fatura') throw new Error('Este OFX é de cartão de crédito. Escolha "Fatura de cartão" e o cartão correspondente.')
+      
+      // DETECÇÃO AUTOMÁTICA DE CONTEXTO (novo)
+      if (!contexto && r.tipoDocumento) {
+        setContextoDetectado(r.tipoDocumento)
+        setContextoConfirmado(false)
+        // Se detectou fatura/investimentos/beneficios e não tem origem, precisa selecionar
+        const ctx = r.tipoDocumento
+        if (ctx === 'fatura' && !cartaoId) {
+          throw new Error('Detectamos uma fatura de cartão. Por favor, selecione o cartão correspondente e faça upload novamente.')
+        }
+        if (ctx === 'investimentos' && !investimentoId) {
+          throw new Error('Detectamos um extrato de investimentos. Por favor, selecione o investimento correspondente e faça upload novamente.')
+        }
+        if (ctx === 'beneficios' && !beneficioId) {
+          throw new Error('Detectamos um extrato de benefícios (VR/VA). Por favor, selecione o benefício correspondente e faça upload novamente.')
+        }
+      }
+      
+      // Validação de contexto (existente, mas agora usa contextoAtual)
+      const ctx = contexto || r.tipoDocumento
+      if (r.ehCartao && ctx !== 'fatura') throw new Error('Este OFX é de cartão de crédito. Escolha "Fatura de cartão" e o cartão correspondente.')
       if (!r.transacoes.length) throw new Error('Nenhum lançamento válido encontrado no arquivo.')
       await montarPrevia(r, { nome: file.name, formato: r.formato }, [])
     } catch (err) {
@@ -212,24 +241,27 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
 
   async function montarPrevia(r, info, puladas) {
     {
+      // Usa contexto manual ou detectado
+      const ctx = contexto || contextoDetectado || r.tipoDocumento || 'extrato'
+      
       const intervalo = intervaloDatas(r.transacoes)
-      const origem = contexto === 'fatura' ? `cartao:${cartaoId}`
-        : contexto === 'investimentos' ? `inv:${investimentoId}`
-        : contexto === 'beneficios' ? `beneficio:${beneficioId}`
+      const origem = ctx === 'fatura' ? `cartao:${cartaoId}`
+        : ctx === 'investimentos' ? `inv:${investimentoId}`
+        : ctx === 'beneficios' ? `beneficio:${beneficioId}`
         : r.conta?.conta ? `extrato:${normalizar(r.conta.banco || '')}:${normalizar(r.conta.conta)}`
         : `extrato:${normalizar(contaNome) || 'principal'}`
       const [existentes, hist] = await Promise.all([
-        buscarExistentes(supabase, { usuarioId: usuario?.id, contexto, intervalo, cartaoId, investimentoId, beneficioId }),
+        buscarExistentes(supabase, { usuarioId: usuario?.id, contexto: ctx, intervalo, cartaoId, investimentoId, beneficioId }),
         carregarChaves(),
       ])
       setHistoricoDisponivel(hist.disponivel)
       
       // Preparar itens com regras existentes
       let itensPreparados = prepararItens(r.transacoes, {
-        contexto, origem, categorias: categoriasRef.current, existentes, chavesImportadas: hist.chaves,
-        cartaoId: contexto === 'fatura' ? cartaoId : null,
-        investimentoId: contexto === 'investimentos' ? investimentoId : null,
-        beneficioId: contexto === 'beneficios' ? beneficioId : null,
+        contexto: ctx, origem, categorias: categoriasRef.current, existentes, chavesImportadas: hist.chaves,
+        cartaoId: ctx === 'fatura' ? cartaoId : null,
+        investimentoId: ctx === 'investimentos' ? investimentoId : null,
+        beneficioId: ctx === 'beneficios' ? beneficioId : null,
         investimentos,
         beneficios,
       })
@@ -246,7 +278,10 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
   }
 
   const atualizar = (uid, mudanca) => setItens(lista => lista.map(i => (i.uid === uid ? { ...i, ...mudanca } : i)))
-  const mudarTipo = (uid, tipo) => setItens(lista => lista.map(i => (i.uid === uid ? alterarTipo(i, tipo) : i)))
+  const mudarTipo = (uid, tipo) => {
+    const ctx = contexto || contextoDetectado || 'extrato'
+    setItens(lista => lista.map(i => (i.uid === uid ? alterarTipo(i, tipo) : i)))
+  }
   const removerItem = uid => { setItens(lista => lista.filter(i => i.uid !== uid)); if (editando === uid) setEditando(null) }
   const marcarTodos = valor => setItens(lista => lista.map(i => (TIPOS_IMPORTAVEIS.includes(i.tipo) ? { ...i, incluir: valor } : i)))
 
@@ -265,6 +300,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
 
   async function confirmar() {
     if (emGravacao.current || somenteLeitura) return
+    const ctx = contexto || contextoDetectado || 'extrato'
     const registros = montarRegistros(itens, { categorias: todasCategorias })
     if (registros.erros.length) { setErro('Corrija os lançamentos marcados antes de confirmar.'); setFiltro('revisar'); return }
     const total = registros.receitas.length + registros.despesas.length + registros.compras_cartao.length + registros.investimentos_movimentacoes.length + registros.beneficios_movimentacoes.length
@@ -277,10 +313,10 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
       if (gravados.length) {
         hist = await registrar({
           resumo: {
-            contexto, formato: arquivo.formato,
-            origem: (contexto === 'fatura' ? cartoes.find(c => c.id === cartaoId)?.nome
-              : contexto === 'investimentos' ? investimentos.find(i => i.id === investimentoId)?.nome
-              : contexto === 'beneficios' ? beneficios.find(b => b.id === beneficioId)?.nome
+            contexto: ctx, formato: arquivo.formato,
+            origem: (ctx === 'fatura' ? cartoes.find(c => c.id === cartaoId)?.nome
+              : ctx === 'investimentos' ? investimentos.find(i => i.id === investimentoId)?.nome
+              : ctx === 'beneficios' ? beneficios.find(b => b.id === beneficioId)?.nome
               : contaNome || 'Conta principal')?.slice(0, 120) || null,
             periodo_inicio: leitura.intervalo?.inicio || null, periodo_fim: leitura.intervalo?.fim || null,
             qtd_lidas: itens.length, qtd_importadas: gravados.length, qtd_ignoradas: itens.length - gravados.length,
@@ -319,6 +355,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
 
   function recomecar() {
     setEtapa('configurar'); setItens([]); setArquivo(null); setLeitura(null); setResultado(null); setErro('')
+    setContextoDetectado(null); setContextoConfirmado(false)
   }
 
   const conteiner = embutido ? 'space-y-4' : 'w-full max-w-none space-y-4 pb-24 md:pb-6'
@@ -356,16 +393,44 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
       {(etapa === 'configurar' || etapa === 'lendo') && (
         <div className="card space-y-4">
           <div>
-            <p className="label">O que você vai importar?</p>
+            <p className="label">O que você vai importar? <span className="text-gray-400 font-normal">(opcional - detectamos automaticamente)</span></p>
+            
+            {/* Badge de detecção automática */}
+            {contextoDetectado && !contextoConfirmado && (
+              <div className="mb-3 rounded-xl border border-blue-200 bg-blue-50 p-3 flex items-start gap-2">
+                <Info size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-blue-900">
+                    Detectamos: {CONTEXTOS.find(c => c.id === contextoDetectado)?.titulo}
+                  </p>
+                  <p className="text-xs text-blue-700 mt-0.5">
+                    Não está correto? Selecione o tipo manualmente abaixo.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setContexto(contextoDetectado); setContextoConfirmado(true) }}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700 whitespace-nowrap"
+                >
+                  Confirmar
+                </button>
+              </div>
+            )}
+            
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" role="radiogroup" aria-label="Tipo de documento">
               {CONTEXTOS.map(c => (
                 <button key={c.id} type="button" role="radio" aria-checked={contexto === c.id}
-                  onClick={() => { setContexto(c.id); setErro('') }}
+                  onClick={() => { setContexto(c.id); setContextoConfirmado(true); setErro('') }}
                   className={`flex items-center sm:flex-col sm:items-start gap-2 rounded-xl border p-3 text-left transition-colors ${
-                    contexto === c.id ? 'border-marca bg-marca-100' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <c.icone size={18} className="text-marca flex-shrink-0" />
+                    contexto === c.id ? 'border-marca bg-marca-100' : contextoDetectado === c.id && !contexto ? 'border-blue-300 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <c.icone size={18} className={contexto === c.id ? 'text-marca' : contextoDetectado === c.id && !contexto ? 'text-blue-600' : 'text-gray-500'} />
                   <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-gray-900">{c.titulo}</span>
+                    <span className="block text-sm font-semibold text-gray-900">
+                      {c.titulo}
+                      {contextoDetectado === c.id && !contexto && (
+                        <span className="ml-1.5 text-[10px] font-normal text-blue-600">(detectado)</span>
+                      )}
+                    </span>
                     <span className="block text-xs text-gray-500">{c.texto}</span>
                   </span>
                 </button>
@@ -466,12 +531,16 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
           <div>
             <input ref={inputRef} type="file" className="sr-only" multiple data-testid="importacao-arquivo"
               accept=".csv,.ofx,.xlsx,.xls,.pdf,.txt,text/csv,application/pdf"
-              onChange={aoEscolherArquivo} disabled={!origemValida || etapa === 'lendo'} />
-            <button type="button" onClick={() => inputRef.current?.click()} disabled={!origemValida || etapa === 'lendo'}
+              onChange={aoEscolherArquivo} disabled={etapa === 'lendo'} />
+            <button type="button" onClick={() => inputRef.current?.click()} disabled={etapa === 'lendo'}
               className="btn-primary w-full flex items-center justify-center gap-2 py-3 disabled:opacity-50">
               {etapa === 'lendo' ? <><Loader2 size={16} className="animate-spin" /> {progressoLeitura || 'Lendo arquivo...'}</> : <><Upload size={16} /> Escolher arquivo</>}
             </button>
-            <p className="text-xs text-gray-500 mt-2">CSV, OFX, XLSX/XLS ou PDF até 5 MB. PDFs digitalizados são lidos por OCR (pode levar alguns segundos). PDFs com senha pedem a senha na hora (não é guardada).</p>
+            <p className="text-xs text-gray-500 mt-2">
+              CSV, OFX, XLSX/XLS ou PDF até 5 MB. 
+              {!contexto && !contextoDetectado && <span className="font-medium text-marca"> Detectamos o tipo automaticamente ao ler o arquivo.</span>}
+              {' '}PDFs digitalizados são lidos por OCR (pode levar alguns segundos). PDFs com senha pedem a senha na hora (não é guardada).
+            </p>
             {etapa === 'lendo' && progressoLeitura && (
               <button type="button" className="text-xs text-marca underline mt-1" data-testid="importacao-cancelar-leitura" onClick={() => { canceladoRef.current = true }}>Cancelar leitura</button>
             )}
@@ -514,7 +583,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
               <div className="rounded-xl bg-gray-50 p-2"><p className="text-[11px] text-gray-500">Entradas</p><p className="text-sm font-bold text-emerald-600">{formatCurrency(resumo.entradas)}</p></div>
               <div className="rounded-xl bg-gray-50 p-2"><p className="text-[11px] text-gray-500">Saídas</p><p className="text-sm font-bold text-rose-600">{formatCurrency(resumo.saidas)}</p></div>
             </div>
-            {contexto === 'extrato' && (
+            {contextoAtual === 'extrato' && (
               <p className="flex items-start gap-2 text-xs text-gray-600 bg-sky-50 rounded-xl p-3" data-testid="importacao-impacto">
                 <Info size={15} className="text-sky-600 flex-shrink-0 mt-0.5" />
                 <span>
@@ -528,11 +597,11 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
                 </span>
               </p>
             )}
-            {contexto === 'fatura' && <p className="text-xs text-gray-500">As compras entram na fatura do cartão (não no saldo disponível). Pagamentos e estornos ficam fora para não contar em dobro.</p>}
-            {contexto === 'investimentos' && <p className="text-xs text-gray-500">As movimentações atualizam o patrimônio investido; o saldo disponível não muda.</p>}
+            {contextoAtual === 'fatura' && <p className="text-xs text-gray-500">As compras entram na fatura do cartão (não no saldo disponível). Pagamentos e estornos ficam fora para não contar em dobro.</p>}
+            {contextoAtual === 'investimentos' && <p className="text-xs text-gray-500">As movimentações atualizam o patrimônio investido; o saldo disponível não muda.</p>}
             {!historicoDisponivel && <p className="text-[11px] text-gray-400">Histórico de importações indisponível no momento: a duplicidade é verificada pelos lançamentos já cadastrados.</p>}
             {leitura?.ocr && <p className="text-xs text-amber-700 bg-amber-50 rounded-xl p-3" data-testid="importacao-aviso-ocr">Este PDF é uma imagem e foi lido por OCR no seu aparelho. O reconhecimento pode errar números e datas: confira cada lançamento antes de confirmar.</p>}
-            {leitura?.tipoDocumento && leitura.tipoDocumento !== contexto && <p className="text-xs text-sky-800 bg-sky-50 rounded-xl p-3" data-testid="importacao-aviso-tipo">Este documento parece ser {{ fatura: 'uma fatura de cartão', extrato: 'um extrato bancário', investimentos: 'um extrato de investimentos' }[leitura.tipoDocumento]}, mas você escolheu "{CONTEXTOS.find(c => c.id === contexto)?.titulo}". Se estiver errado, use Trocar arquivo.</p>}
+            {leitura?.tipoDocumento && leitura.tipoDocumento !== (contexto || contextoDetectado) && <p className="text-xs text-sky-800 bg-sky-50 rounded-xl p-3" data-testid="importacao-aviso-tipo">Este documento parece ser {{ fatura: 'uma fatura de cartão', extrato: 'um extrato bancário', investimentos: 'um extrato de investimentos', beneficios: 'um extrato de benefícios (VR/VA)' }[leitura.tipoDocumento]}, mas você escolheu "{CONTEXTOS.find(c => c.id === (contexto || contextoDetectado))?.titulo}". Se estiver errado, use Trocar arquivo.</p>}
             {leitura?.puladas?.length > 0 && <p className="text-xs text-amber-700 bg-amber-50 rounded-xl p-3" data-testid="importacao-puladas">Avisos da leitura: {leitura.puladas.join('; ')}.</p>}
             {leitura?.truncado && <p className="text-xs text-amber-700">O arquivo tem mais de 2.000 lançamentos; só os primeiros 2.000 foram lidos. Exporte um período menor.</p>}
             {leitura?.descartadas?.length > 0 && (
@@ -613,7 +682,7 @@ export default function ImportacaoInteligente({ embutido = false, onConcluir, on
                           <div>
                             <label className="label" htmlFor={`t-${it.uid}`}>Tipo</label>
                             <select id={`t-${it.uid}`} className="input" value={it.tipo} onChange={e => mudarTipo(it.uid, e.target.value)}>
-                              {TIPOS_POR_CONTEXTO[contexto].map(t => <option key={t} value={t}>{ROTULOS_TIPO[t]}</option>)}
+                              {TIPOS_POR_CONTEXTO[contexto || contextoDetectado || 'extrato'].map(t => <option key={t} value={t}>{ROTULOS_TIPO[t]}</option>)}
                             </select>
                           </div>
                           {['receita', 'despesa', 'compra'].includes(it.tipo) && (

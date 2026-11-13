@@ -538,6 +538,7 @@ export default function Investimentos() {
   } = useInvestimentos()
 
   const [modal, setModal] = useState(false)
+  const [modalImportacao, setModalImportacao] = useState(false)
 
   const [editando, setEditando] = useState(null)
 
@@ -631,13 +632,25 @@ export default function Investimentos() {
 
         {!somenteLeitura && (
 
-          <button onClick={() => { setEditando(null); setModal(true) }}
+          <div className="flex items-center gap-2">
 
-            className="btn-primary flex items-center gap-2 flex-shrink-0 text-sm">
+            <button onClick={() => setModalImportacao(true)}
 
-            <Plus size={16} /> Novo
+              className="btn-secondary flex items-center gap-2 flex-shrink-0 text-sm">
 
-          </button>
+              <Upload size={16} /> Importar
+
+            </button>
+
+            <button onClick={() => { setEditando(null); setModal(true) }}
+
+              className="btn-primary flex items-center gap-2 flex-shrink-0 text-sm">
+
+              <Plus size={16} /> Novo
+
+            </button>
+
+          </div>
 
         )}
 
@@ -985,6 +998,12 @@ export default function Investimentos() {
       <Modal aberto={!!movDe} onFechar={() => setMovDe(null)} titulo={`Movimentar — ${movDe?.nome || ''}`}>
 
         {movDe && <FormMovimentacao onSalvar={salvarMov} onCancelar={() => setMovDe(null)} salvando={salvando} />}
+
+      </Modal>
+
+      <Modal aberto={modalImportacao} onFechar={() => setModalImportacao(false)} titulo="Importar Documentos Financeiros" tamanho="lg">
+
+        <ImportacaoInteligente embutido onConcluir={() => setModalImportacao(false)} onCancelar={() => setModalImportacao(false)} />
 
       </Modal>
 

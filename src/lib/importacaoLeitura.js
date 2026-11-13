@@ -194,6 +194,10 @@ export function tabelaParaTransacoes(linhas, { anoPadrao = null } = {}) {
   }
   if (!mapa) return { transacoes: [], descartadas, erro: 'Não encontramos as colunas de data, descrição e valor. Use um arquivo com cabeçalho (ex.: Data; Descrição; Valor).' }
 
+  // Detectar tipo de documento pelo cabeçalho
+  const cabecalhoTexto = linhas.slice(0, Math.max(inicio, 25)).map(linha => Array.isArray(linha) ? linha.join(' ') : String(linha))
+  const tipoDocumento = detectarTipoDocumento(cabecalhoTexto)
+
   const transacoes = []
   for (let i = inicio + 1; i < linhas.length; i++) {
     const l = linhas[i] || []
@@ -235,7 +239,7 @@ export function tabelaParaTransacoes(linhas, { anoPadrao = null } = {}) {
       avisos: [...(descricao ? [] : ['Sem descrição no arquivo']), ...(semAno ? [`Data sem ano no arquivo: assumimos ${anoPadrao}`] : [])],
     })
   }
-  return { transacoes, descartadas, erro: null }
+  return { transacoes, descartadas, tipoDocumento: tipoDocumento || null, erro: null }
 }
 
 // ── OFX (SGML 1.x e XML 2.x) ────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import {
-  CreditCard, Plus, Pencil, Trash2, Loader2, ArrowLeft, Calendar, Receipt, FileText, CheckCircle2, ShoppingCart, Layers3, Settings2
+  CreditCard, Plus, Pencil, Trash2, Loader2, ArrowLeft, Calendar, Receipt, FileText, CheckCircle2, ShoppingCart, Layers3, Settings2, Upload
 } from 'lucide-react'
 import { useCartoes } from '../hooks/useCartoes'
 import { useComprasCartao } from '../hooks/useComprasCartao'
@@ -9,6 +9,7 @@ import { useCategorias } from '../hooks/useCategorias'
 import SeletorCategoriaModerno from '../components/SeletorCategoriaModerno'
 import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
+import ImportacaoInteligente from './ImportacaoInteligente'
 import { CORES_CARTAO } from '../lib/coresCartao'
 import { formatCurrency, formatDate, labelMes, hojeISO } from '../lib/utils'
 
@@ -974,6 +975,7 @@ export default function Cartoes() {
   const { faturas: faturasInformadas } = useFaturasCartao() //totais informados
   const [faturaAberta, setFaturaAberta] = useState(null) //cartão em visão de fatura
   const [modalCartao, setModalCartao] = useState(false)
+  const [modalImportacao, setModalImportacao] = useState(false)
   const [cartaoEditando, setCartaoEditando] = useState(null)
   const [salvando, setSalvando] = useState(false)
   const [removendo, setRemovendo] = useState(null)
@@ -1023,9 +1025,14 @@ export default function Cartoes() {
           <h1 className="text-2xl font-bold text-gray-900">Cartões de crédito</h1>
           <p className="text-sm text-gray-500 mt-1">Acompanhe suas faturas e limites</p>
         </div>
-        <button onClick={abrirNovo} className="btn-primary flex items-center gap-2 self-start sm:self-auto">
-          <Plus size={16} /> Adicionar cartão
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setModalImportacao(true)} className="btn-secondary flex items-center gap-2">
+            <Upload size={16} /> Importar
+          </button>
+          <button onClick={abrirNovo} className="btn-primary flex items-center gap-2">
+            <Plus size={16} /> Adicionar cartão
+          </button>
+        </div>
       </div>
       {/* Resumo */}
       {/* Indicadores: no celular, "Faturas do mês" e "Limite total" em 2 colunas
@@ -1081,6 +1088,15 @@ export default function Cartoes() {
           carregando={salvando}
           cartaoInicial={cartaoEditando}
           textoBotao={cartaoEditando ? 'Salvar alterações' : 'Salvar cartão'}
+        />
+      </Modal>
+
+      {/* Modal: Importação de Faturas */}
+      <Modal aberto={modalImportacao} onFechar={() => setModalImportacao(false)} titulo="Importar Fatura" tamanho="lg">
+        <ImportacaoInteligente
+          embutido
+          onConcluir={() => setModalImportacao(false)}
+          onCancelar={() => setModalImportacao(false)}
         />
       </Modal>
     </div>

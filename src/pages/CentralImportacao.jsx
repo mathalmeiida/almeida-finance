@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Upload, History, FileText, CreditCard, TrendingUp, 
   Calendar, AlertCircle, CheckCircle2, XCircle, ChevronRight,
-  ArrowUpCircle, ArrowDownCircle, Filter
+  ArrowUpCircle, ArrowDownCircle, Filter, Gift
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useImportacoes } from '../hooks/useImportacoes'
@@ -13,6 +13,7 @@ const CONTEXTOS = {
   extrato: { label: 'Extrato bancário', icone: FileText, cor: 'text-blue-500', bg: 'bg-blue-100' },
   fatura: { label: 'Fatura de cartão', icone: CreditCard, cor: 'text-purple-500', bg: 'bg-purple-100' },
   investimentos: { label: 'Investimentos', icone: TrendingUp, cor: 'text-green-500', bg: 'bg-green-100' },
+  beneficios: { label: 'VR/VA Benefícios', icone: Gift, cor: 'text-orange-500', bg: 'bg-orange-100' },
 }
 
 const STATUS_VISUAL = {
@@ -105,11 +106,20 @@ export default function CentralImportacao() {
   const { usuario } = useAuth()
   const { listar } = useImportacoes()
   
-  const [aba, setAba] = useState('historico') // historico | nova
+  const [aba, setAba] = useState('nova') // historico | nova (padrão: nova importação)
   const [historico, setHistorico] = useState({ disponivel: false, lista: [] })
   const [carregando, setCarregando] = useState(true)
   const [filtroContexto, setFiltroContexto] = useState('todos')
   const [filtroStatus, setFiltroStatus] = useState('todos')
+
+  // Detecta largura da tela para layout desktop (>= 1366px = 2 colunas)
+  const [layoutDesktop, setLayoutDesktop] = useState(window.innerWidth >= 1366)
+  
+  useEffect(() => {
+    const handleResize = () => setLayoutDesktop(window.innerWidth >= 1366)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   useEffect(() => {
     if (!usuario?.id) return
@@ -129,8 +139,19 @@ export default function CentralImportacao() {
   }
 
   function abrirDetalhes(importacao) {
-    // TODO: Implementar página de detalhes
-    console.log('Detalhes da importação:', importacao)
+    // Modal de detalhes da importação
+    alert(`📄 Importação #${importacao.id.slice(0, 8)}
+
+📅 Data: ${new Date(importacao.criado_em).toLocaleDateString('pt-BR')}
+📊 Tipo: ${CONTEXTOS[importacao.contexto]?.label || importacao.contexto}
+📂 Origem: ${importacao.origem || 'Não informada'}
+📆 Período: ${importacao.periodo_inicio} até ${importacao.periodo_fim}
+
+✅ Importadas: ${importacao.qtd_importadas}
+⏭️ Ignoradas: ${importacao.qtd_ignoradas}
+📋 Total lidas: ${importacao.qtd_lidas}
+
+Status: ${importacao.status === 'concluida' ? '✅ Concluída' : '⚠️ Parcial'}`)
   }
 
   const listaFiltrada = historico.lista.filter(imp => {
@@ -147,6 +168,164 @@ export default function CentralImportacao() {
     return acc
   }, { total: 0, importadas: 0, ignoradas: 0, concluidas: 0 })
 
+  // Componente de Histórico (reutilizável para desktop/mobile)
+  const ConteudoHistorico = () => (
+    <div className="space-y-4">
+      {/* Estatísticas */}
+      {historico.disponivel && historico.lista.length > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <CardEstatistica
+            label="Total"
+            valor={estatisticas.total}
+            icone={FileText}
+            cor="text-marca"
+            bgCor="bg-marca-100"
+          />
+          <CardEstatistica
+            label="Importadas"
+            valor={estatisticas.importadas}
+            icone={CheckCircle2}
+            cor="text-green-600"
+            bgCor="bg-green-100"
+          />
+          <CardEstatistica
+            label="Ignoradas"
+            valor={estatisticas.ignoradas}
+            icone={XCircle}
+            cor="text-gray-500"
+            bgCor="bg-gray-100"
+          />
+          <CardEstatistica
+            label="Concluídas"
+            valor={estatisticas.concluidas}
+            icone={CheckCircle2}
+            cor="text-blue-600"
+            bgCor="bg-blue-100"
+          />
+        </div>
+      )}
+
+      {/* Filtros */}
+      {historico.disponivel && historico.lista.length > 0 && (
+        <div className="card">
+          <div className="flex items-center gap-2 mb-2">
+            <Filter size={16} className="text-gray-500" />
+            <span className="text-sm font-medium text-gray-700">Filtros</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select
+              value={filtroContexto}
+              onChange={(e) => setFiltroContexto(e.target.value)}
+              className="text-sm border border-gray-300 rounded-lg px-3 py-1.5"
+            >
+              <option value="todos">Todos os tipos</option>
+              <option value="extrato">Extrato bancário</option>
+              <option value="fatura">Fatura de cartão</option>
+              <option value="investimentos">Investimentos</option>
+              <option value="beneficios">VR/VA Benefícios</option>
+            </select>
+            <select
+              value={filtroStatus}
+              onChange={(e) => setFiltroStatus(e.target.value)}
+              className="text-sm border border-gray-300 rounded-lg px-3 py-1.5"
+            >
+              <option value="todos">Todos os status</option>
+              <option value="concluida">Concluída</option>
+              <option value="parcial">Parcial</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* Lista de importações */}
+      {carregando && (
+        <div className="card text-center py-8">
+          <p className="text-sm text-gray-500">Carregando histórico...</p>
+        </div>
+      )}
+
+      {!carregando && !historico.disponivel && (
+        <div className="card text-center py-8">
+          <AlertCircle size={40} className="text-amber-500 mx-auto mb-3" />
+          <p className="text-sm font-medium text-gray-700 mb-1">Histórico indisponível</p>
+          <p className="text-xs text-gray-500 max-w-md mx-auto">
+            O histórico de importações requer uma atualização do banco de dados. 
+            A importação continua funcionando normalmente, apenas o histórico não será registrado.
+          </p>
+        </div>
+      )}
+
+      {!carregando && historico.disponivel && historico.lista.length === 0 && (
+        <div className="card text-center py-8">
+          <History size={40} className="text-gray-300 mx-auto mb-3" />
+          <p className="text-sm font-medium text-gray-700 mb-1">Nenhuma importação ainda</p>
+          <p className="text-xs text-gray-500 mb-4">Comece importando seus arquivos financeiros.</p>
+          {!layoutDesktop && (
+            <button
+              onClick={() => setAba('nova')}
+              className="btn-primary inline-flex items-center gap-2"
+            >
+              <Upload size={16} />
+              Importar agora
+            </button>
+          )}
+        </div>
+      )}
+
+      {!carregando && historico.disponivel && listaFiltrada.length > 0 && (
+        <div className="space-y-2">
+          {listaFiltrada.map((imp) => (
+            <CardImportacao key={imp.id} importacao={imp} onClick={abrirDetalhes} />
+          ))}
+        </div>
+      )}
+
+      {!carregando && historico.disponivel && historico.lista.length > 0 && listaFiltrada.length === 0 && (
+        <div className="card text-center py-8">
+          <Filter size={40} className="text-gray-300 mx-auto mb-3" />
+          <p className="text-sm font-medium text-gray-700 mb-1">Nenhuma importação com esses filtros</p>
+          <p className="text-xs text-gray-500">Ajuste os filtros para ver mais resultados.</p>
+        </div>
+      )}
+    </div>
+  )
+
+  // Layout desktop: 2 colunas lado a lado (>= 1366px)
+  if (layoutDesktop) {
+    return (
+      <div className="w-full max-w-none pb-6" data-testid="central-importacao">
+        <header className="mb-4">
+          <h1 className="text-xl font-bold text-gray-900">Central de Importação</h1>
+          <p className="text-sm text-gray-500">Importe arquivos financeiros e acompanhe todo o histórico.</p>
+        </header>
+
+        <div className="grid grid-cols-2 gap-6">
+          {/* Coluna esquerda: Histórico */}
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <History size={20} className="text-marca" />
+              Histórico
+            </h2>
+            <ConteudoHistorico />
+          </div>
+
+          {/* Coluna direita: Nova Importação */}
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <Upload size={20} className="text-marca" />
+              Nova Importação
+            </h2>
+            <ImportacaoInteligente
+              embutido={true}
+              onConcluir={() => carregarHistorico()}
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Layout mobile/tablet: Abas (< 1366px)
   return (
     <div className="w-full max-w-none space-y-4 pb-24 md:pb-6" data-testid="central-importacao">
       <header>
@@ -154,7 +333,7 @@ export default function CentralImportacao() {
         <p className="text-sm text-gray-500">Importe arquivos financeiros e acompanhe todo o histórico.</p>
       </header>
 
-      {/* Abas */}
+      {/* Abas (mobile/tablet) */}
       <div className="flex gap-2 border-b border-gray-200">
         <button
           onClick={() => setAba('historico')}
@@ -185,135 +364,17 @@ export default function CentralImportacao() {
       </div>
 
       {/* Aba: Histórico */}
-      {aba === 'historico' && (
-        <div className="space-y-4">
-          {/* Estatísticas */}
-          {historico.disponivel && historico.lista.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <CardEstatistica
-                label="Total"
-                valor={estatisticas.total}
-                icone={FileText}
-                cor="text-marca"
-                bgCor="bg-marca-100"
-              />
-              <CardEstatistica
-                label="Importadas"
-                valor={estatisticas.importadas}
-                icone={CheckCircle2}
-                cor="text-green-600"
-                bgCor="bg-green-100"
-              />
-              <CardEstatistica
-                label="Ignoradas"
-                valor={estatisticas.ignoradas}
-                icone={XCircle}
-                cor="text-gray-500"
-                bgCor="bg-gray-100"
-              />
-              <CardEstatistica
-                label="Concluídas"
-                valor={estatisticas.concluidas}
-                icone={CheckCircle2}
-                cor="text-blue-600"
-                bgCor="bg-blue-100"
-              />
-            </div>
-          )}
-
-          {/* Filtros */}
-          {historico.disponivel && historico.lista.length > 0 && (
-            <div className="card">
-              <div className="flex items-center gap-2 mb-2">
-                <Filter size={16} className="text-gray-500" />
-                <span className="text-sm font-medium text-gray-700">Filtros</span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <select
-                  value={filtroContexto}
-                  onChange={(e) => setFiltroContexto(e.target.value)}
-                  className="text-sm border border-gray-300 rounded-lg px-3 py-1.5"
-                >
-                  <option value="todos">Todos os tipos</option>
-                  <option value="extrato">Extrato bancário</option>
-                  <option value="fatura">Fatura de cartão</option>
-                  <option value="investimentos">Investimentos</option>
-                </select>
-                <select
-                  value={filtroStatus}
-                  onChange={(e) => setFiltroStatus(e.target.value)}
-                  className="text-sm border border-gray-300 rounded-lg px-3 py-1.5"
-                >
-                  <option value="todos">Todos os status</option>
-                  <option value="concluida">Concluída</option>
-                  <option value="parcial">Parcial</option>
-                </select>
-              </div>
-            </div>
-          )}
-
-          {/* Lista de importações */}
-          {carregando && (
-            <div className="card text-center py-8">
-              <p className="text-sm text-gray-500">Carregando histórico...</p>
-            </div>
-          )}
-
-          {!carregando && !historico.disponivel && (
-            <div className="card text-center py-8">
-              <AlertCircle size={40} className="text-amber-500 mx-auto mb-3" />
-              <p className="text-sm font-medium text-gray-700 mb-1">Histórico indisponível</p>
-              <p className="text-xs text-gray-500 max-w-md mx-auto">
-                O histórico de importações requer uma atualização do banco de dados. 
-                A importação continua funcionando normalmente, apenas o histórico não será registrado.
-              </p>
-            </div>
-          )}
-
-          {!carregando && historico.disponivel && historico.lista.length === 0 && (
-            <div className="card text-center py-8">
-              <History size={40} className="text-gray-300 mx-auto mb-3" />
-              <p className="text-sm font-medium text-gray-700 mb-1">Nenhuma importação ainda</p>
-              <p className="text-xs text-gray-500 mb-4">Comece importando seus arquivos financeiros.</p>
-              <button
-                onClick={() => setAba('nova')}
-                className="btn-primary inline-flex items-center gap-2"
-              >
-                <Upload size={16} />
-                Importar agora
-              </button>
-            </div>
-          )}
-
-          {!carregando && historico.disponivel && listaFiltrada.length > 0 && (
-            <div className="space-y-2">
-              {listaFiltrada.map((imp) => (
-                <CardImportacao key={imp.id} importacao={imp} onClick={abrirDetalhes} />
-              ))}
-            </div>
-          )}
-
-          {!carregando && historico.disponivel && historico.lista.length > 0 && listaFiltrada.length === 0 && (
-            <div className="card text-center py-8">
-              <Filter size={40} className="text-gray-300 mx-auto mb-3" />
-              <p className="text-sm font-medium text-gray-700 mb-1">Nenhuma importação com esses filtros</p>
-              <p className="text-xs text-gray-500">Ajuste os filtros para ver mais resultados.</p>
-            </div>
-          )}
-        </div>
-      )}
+      {aba === 'historico' && (<ConteudoHistorico />)}
 
       {/* Aba: Nova Importação */}
       {aba === 'nova' && (
-        <div>
-          <ImportacaoInteligente
-            embutido={false}
-            onConcluir={() => {
-              setAba('historico')
-              carregarHistorico()
-            }}
-          />
-        </div>
+        <ImportacaoInteligente
+          embutido={true}
+          onConcluir={() => {
+            setAba('historico')
+            carregarHistorico()
+          }}
+        />
       )}
     </div>
   )
