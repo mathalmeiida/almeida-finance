@@ -2508,36 +2508,40 @@ const carregandoLimite = carregando
   return (
     <div className="af-home-premium w-full max-w-none min-w-0 flex flex-col gap-0 md:pb-0" style={variaveisHome}>
       <FundoCorpoHome cor={variaveisHome['--af-home-bg']} />
-      {/* SAUDAÇÃO */}
-      <div className="af-home-header relative overflow-hidden mb-2">
-        {ehNoite && <span className="sky-stars" aria-hidden="true" />}
-        <div className="flex items-center justify-between gap-3 relative">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 min-w-0">
-              <h1 className="text-xl sm:text-2xl font-bold text-white truncate leading-tight">{saudacao}</h1>
-              {aparenciaDinamica && (ehNoite ? <Moon size={16} className="text-[#D4A8B6] flex-shrink-0" aria-hidden="true" /> : <Sun size={16} className="text-amber-300 flex-shrink-0" aria-hidden="true" />)}
-            </div>
-            <p className="text-xs sm:text-sm text-[#D4A8B6] truncate">Vamos cuidar das suas finanças hoje?</p>
+      
+      {/* HEADER COM LOGO E SAUDAÇÃO */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-marca rounded-lg flex items-center justify-center text-white font-bold text-sm sm:text-base">
+            AF
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {!somenteLeitura && (
-              <button onClick={() => setModalImportacao(true)} aria-label="Importar documentos"
-                className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/10 text-white hover:bg-white/20 transition-colors">
-                <Upload size={18} />
-              </button>
-            )}
-            <button onClick={() => setModalNotificacoes(true)} aria-label={temNotificacao ? 'Você tem notificações' : 'Notificações'}
-              className="relative w-9 h-9 rounded-xl flex items-center justify-center bg-white/10 text-white hover:bg-white/20 transition-colors">
-              <Bell size={18} />
-              {temNotificacao && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#C4507A] ring-1 ring-[#5a1224]" />}
-            </button>
-            <button onClick={alternar} aria-label={ocultar ? 'Mostrar valores' : 'Ocultar valores'}
-              className="w-9 h-9 rounded-xl flex items-center justify-center bg-white/10 text-white hover:bg-white/20 transition-colors">
-              {ocultar ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
+          <div>
+            <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">Almeida Finance</h1>
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+              {saudacao}, {usuario?.nome?.split(' ')[0] || 'Usuário'}
+            </p>
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          {!somenteLeitura && (
+            <button onClick={() => setModalImportacao(true)} aria-label="Importar documentos"
+              className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+              <Upload size={18} className="text-gray-600 dark:text-gray-400" />
+            </button>
+          )}
+          <button onClick={() => setModalNotificacoes(true)} aria-label={temNotificacao ? 'Você tem notificações' : 'Notificações'}
+            className="relative w-9 h-9 rounded-xl flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+            <Bell size={18} className="text-gray-600 dark:text-gray-400" />
+            {temNotificacao && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500" />}
+          </button>
+        </div>
       </div>
+
+      {/* SAUDAÇÃO ANTIGA - REMOVIDA */}
+      {/* SAUDAÇÃO ANTIGA - REMOVIDA */}
+      {/* <div className="af-home-header relative overflow-hidden mb-2">
+        ... código antigo de saudação removido ...
+      </div> */}
 
       {mostrarComecePorAqui && !somenteLeitura && (
         <div className="mb-2"><CardComecePorAqui itens={onboardingItens} totalConcluidos={totalConcluidos} onIrPara={(item) => continuarConfiguracao(item?.chave)} onContinuar={() => continuarConfiguracao(primeiroPendente?.chave)} onDispensar={handleDispensarComece} /></div>
