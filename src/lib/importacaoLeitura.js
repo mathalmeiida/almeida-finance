@@ -1,488 +1,1148 @@
-// ─── Importação Inteligente: leitura de arquivos (funções puras) ─────────────
-// Sem React, sem Supabase, sem rede. Tudo roda no navegador do usuário: o
-// arquivo nunca é enviado a servidores. Testável em Node.
-//
-// Saída comum de todos os leitores: lista de "transações brutas"
-//   { linha, data: 'AAAA-MM-DD', descricao, valor (com sinal: < 0 = saída),
-//     idOrigem (FITID/identificador do banco ou null), parcelaAtual,
-//     parcelaTotal, tipoInformado, ativo, revisar (bool), avisos: [] }
-// Nada é inventado: linhas sem data OU sem valor válidos são descartadas e
-// contadas em `descartadas`, com o motivo.
 
-export const TAMANHO_MAXIMO_BYTES = 5 * 1024 * 1024 // 5 MB
+/**
+ * ALMEIDA FINANCE — IMPORTAÇÃO INTELIGENTE
+ * Leitura e interpretação de CSV, OFX, XLS/XLSX e PDF.
+ *
+ * Processamento local, sem React e sem Supabase.
+ * Nenhum registro é gravado por este arquivo.
+ *
+ * Suporte especial para faturas Bradesco:
+ * - Datas divididas entre dia e mês
+ * - Compras que reutilizam a última data
+ * - Valores brasileiros
+ * - Parcelamentos
+ * - Estornos e créditos
+ * - Cabeçalhos e totais ignorados
+ */
+
+export const TAMANHO_MAXIMO_BYTES = 5 * 1024 * 1024
 export const MAXIMO_TRANSACOES = 2000
-export const FORMATOS_SUPORTADOS = ['csv', 'ofx', 'xlsx', 'xls', 'pdf']
+export const FORMATOS_SUPORTADOS = [
+  'csv', 'ofx', 'xlsx', 'xls', 'pdf'
+]
 
-// ── Texto e normalização ─────────────────────────────────────────────────────
-export function semAcentos(s) {
-  return String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+// ============================================================
+// NORMALIZAÇÃO
+// ============================================================
+
+export function semAcentos(valor) {
+  return String(valor ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
 }
-const norm = s => semAcentos(s).toLowerCase().replace(/\s+/g, ' ').trim()
 
-// Decodifica bytes de texto: UTF-8 (com ou sem BOM); se inválido, Windows-1252
-// (padrão de muitos bancos brasileiros).
+const norm = valor =>
+  semAcentos(valor).toLowerCase().replace(/\s+/g, ' ').trim()
+
 export function decodificarTexto(bytes) {
-  const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
+  const u8 = bytes instanceof Uint8Array
+    ? bytes
+    : new Uint8Array(bytes)
+
   try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(u8).replace(/^\uFEFF/, '')
+    return new TextDecoder('utf-8', {
+      fatal: true
+    }).decode(u8).replace(/^\uFEFF/, '')
   } catch {
     return new TextDecoder('windows-1252').decode(u8)
   }
 }
 
-// ── Números no formato brasileiro (e variações comuns) ───────────────────────
-// "1.234,56" | "-1.234,56" | "R$ 1.234,56" | "(123,45)" | "123,45 D" |
-// "123,45-" | "1234.56" | "1,234.56". Devolve null se não for número.
+// ============================================================
+// VALORES MONETÁRIOS
+// ============================================================
+
 export function numeroBR(entrada) {
-  if (typeof entrada === 'number') return Number.isFinite(entrada) ? Math.round(entrada * 100) / 100 : null
+  if (typeof entrada === 'number') {
+    return Number.isFinite(entrada)
+      ? Math.round(entrada * 100) / 100
+      : null
+  }
+
   let s = String(entrada ?? '').trim()
   if (!s) return null
+
   let negativo = false
-  if (/^\(.*\)$/.test(s)) { negativo = true; s = s.slice(1, -1) }
-  if (/\s*D$/i.test(s)) { negativo = true; s = s.replace(/\s*D$/i, '') }
-  else if (/\s*C$/i.test(s)) s = s.replace(/\s*C$/i, '')
-  s = s.replace(/R\$/gi, '').replace(/\s/g, '')
-  if (/-$/.test(s)) { negativo = true; s = s.slice(0, -1) }
-  if (/^[-−]/.test(s)) { negativo = !negativo; s = s.slice(1) }
-  if (/^\+/.test(s)) s = s.slice(1)
-  if (!/^[\d.,]+$/.test(s) || !/\d/.test(s)) return null
-  const ultPonto = s.lastIndexOf('.')
-  const ultVirgula = s.lastIndexOf(',')
-  let normalizado
-  if (ultPonto >= 0 && ultVirgula >= 0) {
-    normalizado = ultVirgula > ultPonto ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '')
-  } else if (ultVirgula >= 0) {
-    if ((s.match(/,/g) || []).length > 1) return null
-    normalizado = s.replace(',', '.')
-  } else if (ultPonto >= 0) {
-    // "1.234" ou "1.234.567" = milhar; "12.5"/"1234.56" = decimal
-    normalizado = /^\d{1,3}(\.\d{3})+$/.test(s) ? s.replace(/\./g, '') : s
-    if ((normalizado.match(/\./g) || []).length > 1) return null
-  } else normalizado = s
-  const n = Number(normalizado)
-  if (!Number.isFinite(n)) return null
-  return Math.round((negativo ? -n : n) * 100) / 100
-}
 
-// ── Datas ────────────────────────────────────────────────────────────────────
-function isoValida(a, m, d) {
-  const dt = new Date(Date.UTC(a, m - 1, d))
-  if (dt.getUTCFullYear() !== a || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null
-  if (a < 1990 || a > 2100) return null
-  return `${String(a).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-}
-
-// Aceita dd/mm/aaaa, dd/mm/aa, dd-mm-aaaa, dd.mm.aaaa, aaaa-mm-dd, aaaammdd
-// (OFX) e dd/mm (somente com anoPadrao). Objetos Date também.
-export function dataBR(entrada, anoPadrao = null) {
-  if (entrada instanceof Date && !Number.isNaN(entrada.getTime())) {
-    return isoValida(entrada.getFullYear(), entrada.getMonth() + 1, entrada.getDate())
+  if (/^\(.*\)$/.test(s)) {
+    negativo = true
+    s = s.slice(1, -1)
   }
+
+  if (/\s*D$/i.test(s)) {
+    negativo = true
+    s = s.replace(/\s*D$/i, '')
+  } else {
+    s = s.replace(/\s*C$/i, '')
+  }
+
+  s = s.replace(/R\$/gi, '').replace(/\s/g, '')
+
+  if (/-$/.test(s)) {
+    negativo = true
+    s = s.slice(0, -1)
+  }
+
+  if (/^[-−]/.test(s)) {
+    negativo = !negativo
+    s = s.slice(1)
+  }
+
+  s = s.replace(/^\+/, '')
+
+  if (!/^[\d.,]+$/.test(s) || !/\d/.test(s)) {
+    return null
+  }
+
+  const ponto = s.lastIndexOf('.')
+  const virgula = s.lastIndexOf(',')
+
+  if (ponto >= 0 && virgula >= 0) {
+    s = virgula > ponto
+      ? s.replace(/\./g, '').replace(',', '.')
+      : s.replace(/,/g, '')
+  } else if (virgula >= 0) {
+    if ((s.match(/,/g) || []).length > 1) return null
+    s = s.replace(',', '.')
+  } else if (ponto >= 0) {
+    if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+      s = s.replace(/\./g, '')
+    } else if ((s.match(/\./g) || []).length > 1) {
+      return null
+    }
+  }
+
+  const n = Number(s)
+  return Number.isFinite(n)
+    ? Math.round((negativo ? -n : n) * 100) / 100
+    : null
+}
+
+// ============================================================
+// DATAS
+// ============================================================
+
+function isoValida(ano, mes, dia) {
+  const dt = new Date(Date.UTC(ano, mes - 1, dia))
+
+  if (
+    dt.getUTCFullYear() !== ano ||
+    dt.getUTCMonth() + 1 !== mes ||
+    dt.getUTCDate() !== dia ||
+    ano < 1990 ||
+    ano > 2100
+  ) {
+    return null
+  }
+
+  return [
+    String(ano).padStart(4, '0'),
+    String(mes).padStart(2, '0'),
+    String(dia).padStart(2, '0')
+  ].join('-')
+}
+
+export function dataBR(entrada, anoPadrao = null) {
+  if (entrada instanceof Date) {
+    if (Number.isNaN(entrada.getTime())) return null
+    return isoValida(
+      entrada.getFullYear(),
+      entrada.getMonth() + 1,
+      entrada.getDate()
+    )
+  }
+
   const s = String(entrada ?? '').trim()
   let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+
   if (m) return isoValida(+m[1], +m[2], +m[3])
+
   m = s.match(/^(\d{4})(\d{2})(\d{2})/)
-  if (m && s.length >= 8 && /^\d{8}/.test(s)) return isoValida(+m[1], +m[2], +m[3])
-  m = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})\b/)
+
+  if (m) return isoValida(+m[1], +m[2], +m[3])
+
+  m = s.match(
+    /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})\b/
+  )
+
   if (m) {
-    let a = +m[3]
-    if (m[3].length === 2) a += 2000
-    return isoValida(a, +m[2], +m[1])
+    const ano = m[3].length === 2
+      ? 2000 + Number(m[3])
+      : Number(m[3])
+
+    return isoValida(ano, +m[2], +m[1])
   }
+
   m = s.match(/^(\d{1,2})[/.-](\d{1,2})$/)
-  if (m && anoPadrao) return isoValida(+anoPadrao, +m[2], +m[1])
+
+  if (m && anoPadrao) {
+    return isoValida(+anoPadrao, +m[2], +m[1])
+  }
+
   return null
 }
 
-// ── Parcelas na descrição: "PARC 03/10", "3/10", "03 DE 10", "PARCELA 2/6" ──
+// ============================================================
+// PARCELAMENTOS
+// ============================================================
+
 export function extrairParcela(descricao) {
   const s = norm(descricao)
-  const m = s.match(/(?:parc(?:ela)?\.?\s*)?\b(\d{1,2})\s*(?:\/|de)\s*(\d{1,2})\b(?!\/\d)/)
+
+  const m = s.match(
+    /(?:parc(?:ela)?\.?\s*)?\(?\b(\d{1,2})\s*(?:\/|de)\s*(\d{1,2})\b\)?/i
+  )
+
   if (!m) return null
-  const atual = +m[1], total = +m[2]
-  if (!(total >= 2 && total <= 72 && atual >= 1 && atual <= total)) return null
-  // Evita confundir datas "05/11" sem a palavra parcela: só aceita sem o
-  // prefixo quando o total parece de parcelamento e a expressão está no fim.
-  const temPrefixo = /parc/.test(m[0]) || /\bde\b/.test(m[0])
-  const noFim = m.index + m[0].length >= s.length
-  if (!temPrefixo && !noFim) return null
-  return { atual, total, texto: m[0] }
+
+  const atual = Number(m[1])
+  const total = Number(m[2])
+
+  if (
+    total < 2 ||
+    total > 72 ||
+    atual < 1 ||
+    atual > total
+  ) {
+    return null
+  }
+
+  const prefixo = /parc/i.test(m[0])
+  const posicaoFinal = m.index + m[0].length
+  const resto = s.slice(posicaoFinal).trim()
+
+  if (!prefixo && resto && resto !== ')') {
+    return null
+  }
+
+  return {
+    atual,
+    total,
+    texto: m[0]
+  }
 }
 
-// ── CSV ──────────────────────────────────────────────────────────────────────
+// ============================================================
+// CSV
+// ============================================================
+
 function detectarDelimitador(texto) {
-  const amostra = texto.split(/\r?\n/).filter(l => l.trim()).slice(0, 10)
-  let melhor = ';', pontos = -1
-  for (const d of [';', ',', '\t', '|']) {
-    const contagens = amostra.map(l => {
-      let n = 0, aspas = false
-      for (const c of l) { if (c === '"') aspas = !aspas; else if (c === d && !aspas) n++ }
-      return n
+  const linhas = String(texto)
+    .split(/\r?\n/)
+    .filter(l => l.trim())
+    .slice(0, 10)
+
+  let melhor = ';'
+  let pontuacao = -1
+
+  for (const separador of [';', ',', '\t', '|']) {
+    const contagens = linhas.map(linha => {
+      let total = 0
+      let aspas = false
+
+      for (let i = 0; i < linha.length; i++) {
+        const c = linha[i]
+
+        if (c === '"') {
+          if (aspas && linha[i + 1] === '"') {
+            i++
+          } else {
+            aspas = !aspas
+          }
+        } else if (c === separador && !aspas) {
+          total++
+        }
+      }
+
+      return total
     })
-    const consistentes = contagens.filter(n => n > 0 && n === contagens[contagens.length - 1]).length
-    const total = contagens.reduce((a, b) => a + b, 0)
-    const p = consistentes * 1000 + total
-    if (total > 0 && p > pontos) { melhor = d; pontos = p }
+
+    const positivos = contagens.filter(n => n > 0)
+    if (!positivos.length) continue
+
+    const frequencias = new Map()
+    for (const n of positivos) {
+      frequencias.set(n, (frequencias.get(n) || 0) + 1)
+    }
+
+    const consistente = Math.max(...frequencias.values())
+    const pontos = consistente * 1000 +
+      positivos.reduce((a, b) => a + b, 0)
+
+    if (pontos > pontuacao) {
+      melhor = separador
+      pontuacao = pontos
+    }
   }
+
   return melhor
 }
 
 export function parseCSV(texto) {
   const t = String(texto ?? '').replace(/^\uFEFF/, '')
-  const d = detectarDelimitador(t)
+  const delimitador = detectarDelimitador(t)
+
   const linhas = []
-  let campo = '', linha = [], aspas = false
+  let campo = ''
+  let linha = []
+  let aspas = false
+
   for (let i = 0; i < t.length; i++) {
     const c = t[i]
+
     if (aspas) {
       if (c === '"') {
-        if (t[i + 1] === '"') { campo += '"'; i++ } else aspas = false
-      } else campo += c
-    } else if (c === '"') aspas = true
-    else if (c === d) { linha.push(campo); campo = '' }
-    else if (c === '\n' || c === '\r') {
+        if (t[i + 1] === '"') {
+          campo += '"'
+          i++
+        } else {
+          aspas = false
+        }
+      } else {
+        campo += c
+      }
+    } else if (c === '"') {
+      aspas = true
+    } else if (c === delimitador) {
+      linha.push(campo)
+      campo = ''
+    } else if (c === '\n' || c === '\r') {
       if (c === '\r' && t[i + 1] === '\n') i++
-      linha.push(campo); campo = ''
-      if (linha.some(x => x.trim() !== '')) linhas.push(linha)
+
+      linha.push(campo)
+      campo = ''
+
+      if (linha.some(v => v.trim())) linhas.push(linha)
       linha = []
-    } else campo += c
+    } else {
+      campo += c
+    }
   }
+
   linha.push(campo)
-  if (linha.some(x => x.trim() !== '')) linhas.push(linha)
-  return linhas.map(l => l.map(x => x.trim()))
+  if (linha.some(v => v.trim())) linhas.push(linha)
+
+  return linhas.map(l => l.map(v => v.trim()))
 }
 
-// ── Tabela (CSV/XLSX) → transações ──────────────────────────────────────────
+// ============================================================
+// PLANILHAS / TABELAS
+// ============================================================
+
 const SINONIMOS = {
-  data: ['data', 'date', 'dt', 'data lancamento', 'data do lancamento', 'data da compra', 'data movimento', 'data mov', 'data da transacao', 'data operacao'],
-  descricao: ['descricao', 'historico', 'lancamento', 'estabelecimento', 'memo', 'title', 'titulo', 'detalhes', 'descricao do lancamento', 'local', 'identificacao'],
-  valor: ['valor', 'amount', 'valor (r$)', 'valor r$', 'quantia', 'valor em r$', 'valor da transacao', 'valor liquido'],
+  data: [
+    'data', 'date', 'dt', 'data lancamento',
+    'data do lancamento', 'data da compra',
+    'data movimento', 'data mov', 'data da transacao',
+    'data operacao'
+  ],
+  descricao: [
+    'descricao', 'historico', 'lancamento',
+    'estabelecimento', 'memo', 'title', 'titulo',
+    'detalhes', 'descricao do lancamento',
+    'local', 'identificacao'
+  ],
+  valor: [
+    'valor', 'amount', 'valor (r$)', 'valor r$',
+    'quantia', 'valor em r$', 'valor da transacao',
+    'valor liquido'
+  ],
   debito: ['debito', 'saida', 'saidas', 'debitos', 'valor debito'],
   credito: ['credito', 'entrada', 'entradas', 'creditos', 'valor credito'],
-  id: ['id', 'identificador', 'documento', 'fitid', 'codigo da transacao', 'id transacao', 'nr documento', 'numero documento', 'n documento'],
+  id: [
+    'id', 'identificador', 'documento', 'fitid',
+    'codigo da transacao', 'id transacao',
+    'nr documento', 'numero documento', 'n documento'
+  ],
   parcela: ['parcela', 'parcelas', 'parcelamento'],
   tipo: ['tipo', 'movimentacao', 'tipo de movimentacao', 'operacao', 'evento'],
-  ativo: ['ativo', 'produto', 'papel', 'codigo', 'ticker', 'investimento'],
+  ativo: ['ativo', 'produto', 'papel', 'codigo', 'ticker', 'investimento']
 }
 
 export function detectarColunas(cabecalho) {
-  const nomes = cabecalho.map(c => norm(c).replace(/[:*]/g, '').trim())
+  const nomes = cabecalho.map(c =>
+    norm(c).replace(/[:*]/g, '').trim()
+  )
+
   const mapa = {}
-  for (const [chave, lista] of Object.entries(SINONIMOS)) {
-    let i = nomes.findIndex(n => lista.includes(n))
-    if (i < 0) i = nomes.findIndex(n => n && lista.some(s => s.length >= 4 && n.startsWith(s)))
-    if (i >= 0 && !Object.values(mapa).includes(i)) mapa[chave] = i
+
+  for (const [chave, sinonimos] of Object.entries(SINONIMOS)) {
+    let indice = nomes.findIndex(n => sinonimos.includes(n))
+
+    if (indice < 0) {
+      indice = nomes.findIndex(n =>
+        n && sinonimos.some(s => s.length >= 4 && n.startsWith(s))
+      )
+    }
+
+    if (indice >= 0 && !Object.values(mapa).includes(indice)) {
+      mapa[chave] = indice
+    }
   }
+
   return mapa
 }
 
-// Descrição pode vir de "Descrição" ou, em extratos de investimento, de
-// "Tipo"/"Ativo" (ex.: Data, Tipo, Ativo, Valor).
 function colunasValidas(m) {
-  return m.data != null && (m.descricao != null || m.tipo != null || m.ativo != null) &&
+  return m.data != null &&
+    (m.descricao != null || m.tipo != null || m.ativo != null) &&
     (m.valor != null || m.debito != null || m.credito != null)
 }
 
-const DESCRICOES_INFORMATIVAS = /^(saldo( anterior| do dia| final| inicial| disponivel| em conta)?|s a l d o|total( da fatura| geral)?|subtotal|limite)\b/
+const LINHA_INFORMATIVA =
+  /^(saldo( anterior| do dia| final| inicial| disponivel| em conta)?|s a l d o|total( da fatura| geral)?|subtotal|limite)\b/
 
-export function tabelaParaTransacoes(linhas, { anoPadrao = null } = {}) {
+export function tabelaParaTransacoes(
+  linhas,
+  { anoPadrao = null } = {}
+) {
   const descartadas = []
-  let inicio = -1, mapa = null
-  for (let i = 0; i < Math.min(linhas.length, 25); i++) {
-    const m = detectarColunas(linhas[i] || [])
-    if (colunasValidas(m)) { inicio = i; mapa = m; break }
-  }
-  if (!mapa) return { transacoes: [], descartadas, erro: 'Não encontramos as colunas de data, descrição e valor. Use um arquivo com cabeçalho (ex.: Data; Descrição; Valor).' }
+  let inicio = -1
+  let mapa = null
 
-  // Detectar tipo de documento pelo cabeçalho
-  const cabecalhoTexto = linhas.slice(0, Math.max(inicio, 25)).map(linha => Array.isArray(linha) ? linha.join(' ') : String(linha))
-  const tipoDocumento = detectarTipoDocumento(cabecalhoTexto)
+  for (let i = 0; i < Math.min(linhas.length, 25); i++) {
+    const candidato = detectarColunas(linhas[i] || [])
+
+    if (colunasValidas(candidato)) {
+      inicio = i
+      mapa = candidato
+      break
+    }
+  }
+
+  if (!mapa) {
+    return {
+      transacoes: [],
+      descartadas,
+      erro: 'Não encontramos as colunas de data, descrição e valor.'
+    }
+  }
+
+  const tipoDocumento = detectarTipoDocumento(
+    linhas.slice(0, Math.max(inicio, 25))
+      .map(l => Array.isArray(l) ? l.join(' ') : String(l))
+  )
 
   const transacoes = []
+
   for (let i = inicio + 1; i < linhas.length; i++) {
-    const l = linhas[i] || []
-    const celula = k => (mapa[k] != null ? l[mapa[k]] : undefined)
-    const descricao = (mapa.descricao != null
-      ? String(celula('descricao') ?? '')
-      : [celula('tipo'), celula('ativo')].filter(x => String(x ?? '').trim()).join(' - ')).trim()
+    const linha = linhas[i] || []
+    const celula = chave =>
+      mapa[chave] != null ? linha[mapa[chave]] : undefined
+
+    const descricao = (
+      mapa.descricao != null
+        ? String(celula('descricao') ?? '')
+        : [celula('tipo'), celula('ativo')]
+          .filter(v => String(v ?? '').trim())
+          .join(' - ')
+    ).trim()
+
     const data = dataBR(celula('data'), anoPadrao)
-    const semAno = /^\s*\d{1,2}[/.-]\d{1,2}\s*$/.test(String(celula('data') ?? ''))
-    let valor = null
-    if (mapa.valor != null) valor = numeroBR(celula('valor'))
-    if (valor == null && (mapa.debito != null || mapa.credito != null)) {
-      const deb = numeroBR(celula('debito'))
-      const cred = numeroBR(celula('credito'))
-      if (deb) valor = -Math.abs(deb)
-      else if (cred) valor = Math.abs(cred)
+
+    const semAno = /^\s*\d{1,2}[/.-]\d{1,2}\s*$/.test(
+      String(celula('data') ?? '')
+    )
+
+    let valor = mapa.valor != null
+      ? numeroBR(celula('valor'))
+      : null
+
+    if (valor == null) {
+      const debito = numeroBR(celula('debito'))
+      const credito = numeroBR(celula('credito'))
+
+      if (debito != null && debito !== 0) {
+        valor = -Math.abs(debito)
+      } else if (credito != null && credito !== 0) {
+        valor = Math.abs(credito)
+      }
     }
-    if (!descricao && data == null && valor == null) continue // linha vazia
-    if (DESCRICOES_INFORMATIVAS.test(norm(descricao))) { descartadas.push({ linha: i + 1, motivo: 'Linha de saldo/total (informativa)' }); continue }
-    if (!data) { descartadas.push({ linha: i + 1, motivo: 'Data ausente ou inválida' }); continue }
-    if (valor == null || valor === 0) { descartadas.push({ linha: i + 1, motivo: 'Valor ausente ou inválido' }); continue }
-    let parcela = extrairParcela(descricao)
-    const colParcela = celula('parcela')
-    if (colParcela) {
-      const m = String(colParcela).match(/(\d{1,2})\s*(?:\/|de)\s*(\d{1,2})/i)
-      if (m && +m[2] >= 2 && +m[1] <= +m[2]) parcela = { atual: +m[1], total: +m[2] }
+
+    if (!descricao && data == null && valor == null) continue
+
+    if (LINHA_INFORMATIVA.test(norm(descricao))) {
+      descartadas.push({
+        linha: i + 1,
+        motivo: 'Linha de saldo ou total'
+      })
+      continue
     }
+
+    if (!data || valor == null || valor === 0) {
+      descartadas.push({
+        linha: i + 1,
+        motivo: !data ? 'Data inválida' : 'Valor inválido'
+      })
+      continue
+    }
+
+    const parcelaColuna = String(celula('parcela') ?? '')
+    const parcela = extrairParcela(parcelaColuna) ||
+      extrairParcela(descricao)
+
     transacoes.push({
       linha: i + 1,
       data,
       descricao: descricao || '(sem descrição)',
       valor,
-      idOrigem: celula('id') ? String(celula('id')).trim() || null : null,
+      idOrigem: celula('id')
+        ? String(celula('id')).trim()
+        : null,
       parcelaAtual: parcela?.atual ?? null,
       parcelaTotal: parcela?.total ?? null,
-      tipoInformado: celula('tipo') ? String(celula('tipo')).trim() : null,
-      ativo: celula('ativo') ? String(celula('ativo')).trim() : null,
+      tipoInformado: celula('tipo')
+        ? String(celula('tipo')).trim()
+        : null,
+      ativo: celula('ativo')
+        ? String(celula('ativo')).trim()
+        : null,
       revisar: !descricao || semAno,
-      avisos: [...(descricao ? [] : ['Sem descrição no arquivo']), ...(semAno ? [`Data sem ano no arquivo: assumimos ${anoPadrao}`] : [])],
+      avisos: semAno
+        ? ['Data sem ano: confira o ano utilizado']
+        : []
     })
   }
-  return { transacoes, descartadas, tipoDocumento: tipoDocumento || null, erro: null }
+
+  return {
+    transacoes,
+    descartadas,
+    tipoDocumento,
+    erro: null
+  }
 }
 
-// ── OFX (SGML 1.x e XML 2.x) ────────────────────────────────────────────────
+// ============================================================
+// OFX
+// ============================================================
+
 function tagOFX(bloco, tag) {
-  const m = bloco.match(new RegExp(`<${tag}>([^<\\r\\n]*)`, 'i'))
-  return m ? m[1].trim() : null
+  const re = new RegExp(
+    `<${tag}(?:\\s[^>]*)?>\\s*([^<\\r\\n]*)`,
+    'i'
+  )
+
+  return bloco.match(re)?.[1]?.trim() || null
 }
 
 export function parseOFX(texto) {
   const t = String(texto ?? '')
-  if (!/<OFX>/i.test(t)) return { transacoes: [], descartadas: [], erro: 'Arquivo OFX inválido (sem o bloco <OFX>).' }
+
+  if (!/<OFX(?:\s[^>]*)?>/i.test(t)) {
+    return {
+      transacoes: [],
+      descartadas: [],
+      erro: 'Arquivo OFX inválido.'
+    }
+  }
+
   const ehCartao = /<CCSTMTRS>/i.test(t)
   const conta = {
     banco: tagOFX(t, 'ORG') || tagOFX(t, 'BANKID'),
-    conta: tagOFX(t, 'ACCTID'),
+    conta: tagOFX(t, 'ACCTID')
   }
-  const blocos = t.split(/<STMTTRN>/i).slice(1).map(b => b.split(/<\/STMTTRN>/i)[0])
-  const transacoes = [], descartadas = []
-  blocos.forEach((b, i) => {
-    const data = dataBR(tagOFX(b, 'DTPOSTED') || tagOFX(b, 'DTUSER'))
-    const valor = numeroBR(tagOFX(b, 'TRNAMT'))
-    const descricao = [tagOFX(b, 'NAME'), tagOFX(b, 'MEMO')].filter(Boolean)
-      .filter((v, j, a) => a.indexOf(v) === j).join(' - ').trim()
-    if (!data) { descartadas.push({ linha: i + 1, motivo: 'Data ausente ou inválida' }); return }
-    if (valor == null || valor === 0) { descartadas.push({ linha: i + 1, motivo: 'Valor ausente ou inválido' }); return }
+
+  const blocos = t.split(/<STMTTRN>/i)
+    .slice(1)
+    .map(b => b.split(/<\/STMTTRN>/i)[0])
+
+  const transacoes = []
+  const descartadas = []
+
+  blocos.forEach((bloco, i) => {
+    const data = dataBR(
+      tagOFX(bloco, 'DTPOSTED') ||
+      tagOFX(bloco, 'DTUSER')
+    )
+
+    const valor = numeroBR(tagOFX(bloco, 'TRNAMT'))
+
+    const descricao = [
+      tagOFX(bloco, 'NAME'),
+      tagOFX(bloco, 'MEMO')
+    ].filter(Boolean).filter((v, j, a) =>
+      a.indexOf(v) === j
+    ).join(' - ')
+
+    if (!data || valor == null || valor === 0) {
+      descartadas.push({
+        linha: i + 1,
+        motivo: !data ? 'Data inválida' : 'Valor inválido'
+      })
+      return
+    }
+
     const parcela = extrairParcela(descricao)
+
     transacoes.push({
-      linha: i + 1, data, valor,
+      linha: i + 1,
+      data,
       descricao: descricao || '(sem descrição)',
-      idOrigem: tagOFX(b, 'FITID') || null,
+      valor,
+      idOrigem: tagOFX(bloco, 'FITID'),
       parcelaAtual: parcela?.atual ?? null,
       parcelaTotal: parcela?.total ?? null,
-      tipoInformado: tagOFX(b, 'TRNTYPE'),
+      tipoInformado: tagOFX(bloco, 'TRNTYPE'),
       ativo: null,
       revisar: !descricao,
-      avisos: descricao ? [] : ['Sem descrição no arquivo'],
+      avisos: descricao ? [] : ['Descrição ausente']
     })
   })
-  if (blocos.length === 0) return { transacoes, descartadas, erro: 'Nenhuma transação encontrada no OFX.', conta, ehCartao }
-  return { transacoes, descartadas, erro: null, conta, ehCartao }
+
+  return {
+    transacoes,
+    descartadas,
+    erro: blocos.length ? null : 'Nenhuma transação encontrada no OFX.',
+    conta,
+    ehCartao
+  }
 }
 
-// ── Texto extraído de PDF (ou de OCR) → transações ───────────────────────────
-// PDF não tem estrutura padronizada entre bancos. Aceitamos linhas que
-// COMEÇAM com uma data e TERMINAM com um valor ("data  descrição  valor",
-// opcionalmente seguido do saldo). Tudo fica marcado para revisão e nada é
-// inventado: o que não bate com esse formato vai para "não reconhecidas".
-const MES_RE = '(?:jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-zç]*\\.?'
-const DATA_PDF = `(\\d{1,2}[/.-]\\d{1,2}(?:[/.-]\\d{2,4})?|\\d{1,2}\\s*(?:de\\s+)?${MES_RE}(?:\\s*(?:de\\s+|/)?\\d{4})?|\\d{1,2}[/.-]${MES_RE}(?:[/.-]\\d{2,4})?)`
-const VALOR_PDF = '((?:-\\s?)?(?:R\\$\\s?)?\\d{1,3}(?:\\.\\d{3})*,\\d{2}(?:\\s?[-DC])?)'
-const RE_LINHA_PDF = new RegExp(`^${DATA_PDF}\\s+(.+?)\\s+${VALOR_PDF}(?:\\s+${VALOR_PDF})?\\s*$`, 'i')
-// Padrão alternativo: layout com mais espaçamento ou colunas diferentes
-const RE_LINHA_PDF_ALT = new RegExp(`^${DATA_PDF}\\s+(.{3,}?)\\s{2,}${VALOR_PDF}(?:\\s+${VALOR_PDF})?\\s*$`, 'i')
-// Padrão para Bradesco e layouts similares: data + descrição ocupando várias colunas + valor ao final
-const RE_LINHA_PDF_BRADESCO = new RegExp(`^${DATA_PDF}[\\s\\|]+(.+?)\\s+${VALOR_PDF}\\s*$`, 'i')
-const RE_COMECA_COM_DATA = new RegExp(`^${DATA_PDF}\\s+\\S`, 'i')
-const RE_DATA_COMPLETA = /\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})\b/g
-const RE_INFORMATIVA_PDF = /^(vencimento|fechamento|valor (total|da fatura|minimo)|pagamento minimo|total|subtotal|saldo|limite|melhor dia|periodo|data de)/
-const MESES = { jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6, jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12 }
+// ============================================================
+// IDENTIFICAÇÃO DE INSTITUIÇÃO E TIPO
+// ============================================================
 
-// Regras reutilizáveis por instituição (começam pelos nomes mais comuns; para
-// incluir outra, basta acrescentar uma linha).
 const INSTITUICOES = [
-  ['Nubank', /nubank|nu pagamentos/], ['Itaú', /\bitau\b|itau unibanco/], ['Bradesco', /bradesco/],
-  ['Santander', /santander/], ['Banco do Brasil', /banco do brasil/], ['Caixa', /caixa economica/],
-  ['Inter', /banco inter\b/], ['C6 Bank', /\bc6 bank\b/], ['XP Investimentos', /\bxp (investimentos|inc)/],
-  ['BTG Pactual', /btg pactual/], ['Mercado Pago', /mercado pago/], ['PicPay', /picpay/],
-  ['Sicredi', /sicredi/], ['Sicoob', /sicoob/], ['Neon', /\bneon\b/], ['BS2', /\bbs2\b/],
+  ['Bradesco', /bradesco/i],
+  ['Nubank', /nubank|nu pagamentos/i],
+  ['Itaú', /ita[uú]/i],
+  ['Santander', /santander/i],
+  ['Banco do Brasil', /banco do brasil/i],
+  ['Caixa', /caixa economica/i],
+  ['Inter', /banco inter/i],
+  ['C6 Bank', /c6 bank/i],
+  ['XP Investimentos', /xp investimentos/i],
+  ['BTG Pactual', /btg pactual/i],
+  ['Mercado Pago', /mercado pago/i],
+  ['PicPay', /picpay/i],
+  ['Sicredi', /sicredi/i],
+  ['Sicoob', /sicoob/i],
+  ['Neon', /\bneon\b/i],
+  ['BS2', /\bbs2\b/i]
 ]
 
 export function detectarInstituicao(linhas) {
-  const topo = norm(linhas.slice(0, 60).join(' '))
-  const achada = INSTITUICOES.find(([, re]) => re.test(topo))
-  return achada ? achada[0] : null
+  const topo = (linhas || []).slice(0, 80).join(' ')
+  return INSTITUICOES.find(([, re]) =>
+    re.test(topo)
+  )?.[0] || null
 }
 
-// 'fatura' | 'extrato' | 'investimentos' | null — só uma sugestão ao usuário.
 export function detectarTipoDocumento(linhas) {
-  // Só o cabeçalho (antes do primeiro lançamento): linhas como "PAGAMENTO
-  // FATURA CARTAO" de um extrato não podem fazê-lo parecer uma fatura.
-  const fim = linhas.findIndex(l => RE_COMECA_COM_DATA.test(String(l).trim()))
-  const t = norm(linhas.slice(0, fim < 0 ? 80 : Math.min(fim, 80)).join(' '))
-  if (/\bfatura\b/.test(t) && /(cartao|vencimento|limite|fechamento)/.test(t)) return 'fatura'
-  if (/(posicao consolidada|carteira de investimentos|extrato de investimentos|nota de negociacao|rendimentos?)/.test(t) && /(investiment|cotas|ativos?|renda fixa|fundo)/.test(t)) return 'investimentos'
+  const t = norm((linhas || []).slice(0, 80).join(' '))
+
+  // Investimentos primeiro, pois pode conter "extrato" no nome
+  if (
+    /carteira de investimentos|extrato de investimentos|nota de negociacao|posicao consolidada/.test(t)
+  ) {
+    return 'investimentos'
+  }
+
+  // Extrato bancário
   if (/extrato/.test(t)) return 'extrato'
+
+  // Fatura de cartão
+  if (
+    /\bfatura\b/.test(t) &&
+    /cartao|vencimento|limite|fechamento/.test(t)
+  ) {
+    return 'fatura'
+  }
+
   return null
 }
 
-// Ano de referência: a maior data completa do documento (ex.: vencimento ou
-// fim do período). Datas "dd/mm" ou "05 NOV" sem ano usam esse ano, ou o
-// anterior quando o mês é posterior ao da referência (compra de dezembro numa
-// fatura de janeiro).
-function referenciaDoDocumento(linhas, anoPadrao) {
+// ============================================================
+// RECONHECIMENTO DE PDF
+// ============================================================
+
+const MESES = {
+  jan: 1, fev: 2, mar: 3, abr: 4,
+  mai: 5, jun: 6, jul: 7, ago: 8,
+  set: 9, out: 10, nov: 11, dez: 12
+}
+
+const DATA_PDF =
+  String.raw`(?:\d{1,2}[/.-]\d{1,2}(?:[/.-]\d{2,4})?|\d{1,2}\s*(?:de\s+)?(?:jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-zç]*\.?(?:\s*(?:de\s+)?\d{2,4})?)`
+
+const RE_DATA_INICIO = new RegExp(
+  String.raw`^(${DATA_PDF})(?=\s|\||$)`,
+  'i'
+)
+
+const RE_DATA_COMPLETA =
+  /\b(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})\b/g
+
+const RE_VALOR_FINAL =
+  /(?:\s+|\s*\|\s*)(\(?[-+−]?\s*(?:R\$\s*)?\d[\d.]*,\d{2}(?:\s*[DC])?\)?-?)\s*$/i
+
+const RE_INFORMATIVA =
+  /^(?:saldo\b|total\b|subtotal\b|limite\b|vencimento\b|fechamento\b|valor da fatura\b|pagamento minimo\b|melhor data\b|data de\b|resumo das despesas\b|taxas mensais\b)/i
+
+const RE_PAGAMENTO_FATURA =
+  /^(?:pagto\.?\s+por\s+deb|pagamento\s+(?:da\s+)?fatura|pagamento\s+recebido)/i
+
+function referenciaDocumento(linhas, anoPadrao) {
   let maior = null
+
   for (const l of linhas) {
     for (const m of String(l).matchAll(RE_DATA_COMPLETA)) {
       const iso = dataBR(`${m[1]}/${m[2]}/${m[3]}`)
       if (iso && (!maior || iso > maior)) maior = iso
     }
   }
-  if (maior) return { ano: +maior.slice(0, 4), mes: +maior.slice(5, 7), deduzida: true }
-  return { ano: anoPadrao || new Date().getFullYear(), mes: 12, deduzida: false }
+
+  return maior
+    ? {
+        ano: +maior.slice(0, 4),
+        mes: +maior.slice(5, 7),
+        deduzida: true
+      }
+    : {
+        ano: anoPadrao || new Date().getFullYear(),
+        mes: 12,
+        deduzida: false
+      }
 }
 
-function dataDoTrecho(trecho, ref) {
-  const t = norm(trecho)
-  let m = t.match(/^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2}|\d{4}))?$/)
+function interpretarDataPDF(texto, ref) {
+  const t = norm(texto)
+  let m = t.match(
+    /^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2}|\d{4}))?$/
+  )
+
   let dia, mes, ano
-  if (m) { dia = +m[1]; mes = +m[2]; ano = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : null }
-  else {
-    m = t.match(/^(\d{1,2})[\s/.-]*(?:de\s+)?([a-z]{3})[a-z]*\.?(?:[\s/.-]*(?:de\s+)?(\d{2}|\d{4}))?$/)
+
+  if (m) {
+    dia = +m[1]
+    mes = +m[2]
+    ano = m[3]
+      ? (m[3].length === 2 ? 2000 + +m[3] : +m[3])
+      : null
+  } else {
+    m = t.match(
+      /^(\d{1,2})\s*(?:de\s+)?([a-z]{3})[a-z]*\.?(?:\s*(?:de\s+)?(\d{2}|\d{4}))?$/
+    )
+
     if (!m || !MESES[m[2]]) return null
-    dia = +m[1]; mes = MESES[m[2]]; ano = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : null
+
+    dia = +m[1]
+    mes = MESES[m[2]]
+    ano = m[3]
+      ? (m[3].length === 2 ? 2000 + +m[3] : +m[3])
+      : null
   }
+
   const semAno = ano == null
   if (semAno) ano = mes > ref.mes ? ref.ano - 1 : ref.ano
-  const iso = dataBR(`${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${ano}`)
+
+  const iso = isoValida(ano, mes, dia)
+
   return iso ? { iso, semAno, ano } : null
 }
 
-const SINAL_EXPLICITO = /^\s*-|^\(|-\s*$|\s[DC]$/i
+function extrairValoresFinais(texto) {
+  let restante = texto
+  const valores = []
 
-export function textoPDFParaTransacoes(linhasTexto, { anoPadrao = null, ocr = false } = {}) {
-  const linhas = linhasTexto.map(l => String(l).replace(/\s+/g, ' ').trim()).filter(Boolean)
-  const ref = referenciaDoDocumento(linhas, anoPadrao)
-  const transacoes = [], descartadas = []
-  let saldoAnterior = null
-  const info = { instituicao: detectarInstituicao(linhas), tipoDocumento: detectarTipoDocumento(linhas), ocr }
+  for (let i = 0; i < 2; i++) {
+    const m = restante.match(RE_VALOR_FINAL)
+    if (!m) break
 
-  linhas.forEach((l, i) => {
-    // "Saldo anterior ..." sem data: só serve para deduzir o sinal dos lançamentos.
-    const mSaldo = norm(l).match(/^saldo (anterior|inicial)\b/)
-    if (mSaldo) {
-      const v = [...l.matchAll(new RegExp(VALOR_PDF, 'gi'))].map(x => numeroBR(x[1])).filter(x => x != null)
-      if (v.length) saldoAnterior = v[v.length - 1]
-      return
-    }
-    const m = l.match(RE_LINHA_PDF)
-    if (!m) {
-      // Tenta padrões alternativos
-      const mAlt = l.match(RE_LINHA_PDF_ALT) || l.match(RE_LINHA_PDF_BRADESCO)
-      if (mAlt) {
-        // Usa match alternativo
-        const descricao = mAlt[2].trim().replace(/^[•*·.xX]{2,}\s*\d{4}\s+/, '')
-        const data = dataDoTrecho(mAlt[1], ref)
-        const valor1 = numeroBR(mAlt[3])
-        const saldoLinha = mAlt[4] != null ? numeroBR(mAlt[4]) : null
+    const valor = numeroBR(m[1])
+    if (valor == null) break
 
-        if (RE_INFORMATIVA_PDF.test(norm(descricao))) {
-          if (saldoLinha != null) saldoAnterior = saldoLinha
-          else if (/^saldo/.test(norm(descricao)) && valor1 != null) saldoAnterior = valor1
-          descartadas.push({ linha: i + 1, motivo: 'Linha de saldo/total (informativa)', trecho: l.slice(0, 90) })
-          return
-        }
-        if (!data) { descartadas.push({ linha: i + 1, motivo: 'Data inválida', trecho: l.slice(0, 90) }); return }
-        if (valor1 == null || valor1 === 0) { descartadas.push({ linha: i + 1, motivo: 'Valor ausente ou inválido', trecho: l.slice(0, 90) }); return }
-
-        const avisos = [ocr ? 'Lido por reconhecimento de texto (OCR): confira data, descrição e valor' : 'Lido de PDF: confira data, descrição e valor']
-        let valor = valor1, sinalIncerto = false
-        if (!SINAL_EXPLICITO.test(mAlt[3])) {
-          if (saldoLinha != null && saldoAnterior != null && Math.abs(Math.abs(saldoLinha - saldoAnterior) - Math.abs(valor1)) < 0.015) {
-            valor = (saldoLinha - saldoAnterior) < 0 ? -Math.abs(valor1) : Math.abs(valor1)
-            avisos.push('Entrada/saída deduzida pela variação do saldo')
-          } else sinalIncerto = true
-        }
-        if (saldoLinha != null) saldoAnterior = saldoLinha
-        if (data.semAno) avisos.push(ref.deduzida ? `Data sem ano: usamos ${data.ano}, deduzido das datas do documento` : `Data sem ano no documento: assumimos ${data.ano}`)
-        const parcela = extrairParcela(descricao)
-        transacoes.push({
-          linha: i + 1, data: data.iso, descricao, valor, idOrigem: null,
-          parcelaAtual: parcela?.atual ?? null, parcelaTotal: parcela?.total ?? null,
-          tipoInformado: null, ativo: null, revisar: true, sinalIncerto, avisos,
-        })
-        return
-      }
-
-      // Nenhum padrão funcionou
-      if (RE_COMECA_COM_DATA.test(l) && /[a-zA-Z]{3}/.test(l.replace(new RegExp(`^${DATA_PDF}`, 'i'), ''))) {
-        descartadas.push({ linha: i + 1, motivo: 'Linha com data, mas sem valor reconhecível (layout diferente?)', trecho: l.slice(0, 90) })
-      }
-      return
-    }
-    let descricao = m[2].trim().replace(/^[•*·.xX]{2,}\s*\d{4}\s+/, '')
-    const data = dataDoTrecho(m[1], ref)
-    const valor1 = numeroBR(m[3])
-    const saldoLinha = m[4] != null ? numeroBR(m[4]) : null
-    if (RE_INFORMATIVA_PDF.test(norm(descricao))) {
-      if (saldoLinha != null) saldoAnterior = saldoLinha
-      else if (/^saldo/.test(norm(descricao)) && valor1 != null) saldoAnterior = valor1
-      descartadas.push({ linha: i + 1, motivo: 'Linha de saldo/total (informativa)', trecho: l.slice(0, 90) })
-      return
-    }
-    if (!data) { descartadas.push({ linha: i + 1, motivo: 'Data inválida', trecho: l.slice(0, 90) }); return }
-    if (valor1 == null || valor1 === 0) { descartadas.push({ linha: i + 1, motivo: 'Valor ausente ou inválido', trecho: l.slice(0, 90) }); return }
-
-    const avisos = [ocr ? 'Lido por reconhecimento de texto (OCR): confira data, descrição e valor' : 'Lido de PDF: confira data, descrição e valor']
-    let valor = valor1, sinalIncerto = false
-    if (!SINAL_EXPLICITO.test(m[3])) {
-      // Sem sinal no valor: tenta deduzir pela variação do saldo informado ao lado.
-      if (saldoLinha != null && saldoAnterior != null && Math.abs(Math.abs(saldoLinha - saldoAnterior) - Math.abs(valor1)) < 0.015) {
-        valor = (saldoLinha - saldoAnterior) < 0 ? -Math.abs(valor1) : Math.abs(valor1)
-        avisos.push('Entrada/saída deduzida pela variação do saldo')
-      } else sinalIncerto = true
-    }
-    if (saldoLinha != null) saldoAnterior = saldoLinha
-    if (data.semAno) avisos.push(ref.deduzida ? `Data sem ano: usamos ${data.ano}, deduzido das datas do documento` : `Data sem ano no documento: assumimos ${data.ano}`)
-    const parcela = extrairParcela(descricao)
-    transacoes.push({
-      linha: i + 1, data: data.iso, descricao, valor, idOrigem: null,
-      parcelaAtual: parcela?.atual ?? null, parcelaTotal: parcela?.total ?? null,
-      tipoInformado: null, ativo: null, revisar: true, sinalIncerto, avisos,
+    valores.unshift({
+      valor,
+      original: m[1]
     })
-  })
+
+    restante = restante.slice(0, m.index).trimEnd()
+  }
+
+  let descricao = restante.replace(/[|;\s]+$/, '').trim()
+  
+  // Remove padrões de final do cartão (•••• 1234, Final 1234, etc)
+  descricao = descricao.replace(/[•*]{4,}\s*\d{4}/g, '').trim()
+  descricao = descricao.replace(/\bfinal\s*\d{4}\b/gi, '').trim()
+
   return {
-    transacoes, descartadas: descartadas.slice(0, 200), ...info,
-    erro: transacoes.length ? null
-      : 'Não reconhecemos lançamentos neste PDF (o layout do banco pode ser diferente). Você pode exportar o extrato em CSV, OFX ou planilha, ou cadastrar manualmente em Receitas e Despesas.',
+    descricao,
+    valores
   }
 }
 
-// ── Formato do arquivo (extensão + assinatura dos bytes) ─────────────────────
-export function detectarFormato(nome, bytes) {
-  const ext = String(nome || '').toLowerCase().split('.').pop()
-  const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || [])
-  if (u8.length === 0) return { formato: null, erro: 'O arquivo está vazio.' }
-  if (u8.length > TAMANHO_MAXIMO_BYTES) return { formato: null, erro: 'O arquivo passa de 5 MB. Exporte um período menor.' }
-  const inicio = String.fromCharCode(...u8.slice(0, 8))
-  const ehZip = u8[0] === 0x50 && u8[1] === 0x4b && u8[2] === 0x03 && u8[3] === 0x04
-  const ehOle = u8[0] === 0xd0 && u8[1] === 0xcf && u8[2] === 0x11 && u8[3] === 0xe0
-  if (inicio.startsWith('%PDF-')) return { formato: 'pdf', erro: null }
-  if (ehZip) return ext === 'xlsx' ? { formato: 'xlsx', erro: null } : { formato: null, erro: 'Arquivo compactado não suportado. Envie CSV, OFX, XLSX, XLS ou PDF.' }
-  if (ehOle) return ext === 'xls' ? { formato: 'xls', erro: null } : { formato: null, erro: 'Formato não suportado. Envie CSV, OFX, XLSX, XLS ou PDF.' }
-  // Texto: rejeita binário desconhecido (bytes nulos)
-  if (u8.slice(0, 2048).some(b => b === 0)) return { formato: null, erro: 'Formato não suportado ou arquivo corrompido.' }
-  const texto = decodificarTexto(u8.slice(0, 4096))
-  if (/OFXHEADER|<OFX>/i.test(texto) || ext === 'ofx') return { formato: 'ofx', erro: null }
-  if (ext === 'csv' || ext === 'txt') return { formato: 'csv', erro: null }
-  if (['pdf', 'xlsx', 'xls'].includes(ext)) return { formato: null, erro: 'O conteúdo não corresponde à extensão do arquivo (arquivo corrompido?).' }
-  return { formato: null, erro: 'Formato não suportado. Envie CSV, OFX, XLSX, XLS ou PDF.' }
+function linhaIgnoravel(texto) {
+  const s = norm(texto)
+
+  return !s ||
+    RE_INFORMATIVA.test(s) ||
+    /^data lancamentos/.test(s) ||
+    /^moeda de origem/.test(s) ||
+    /^gastos referentes ao cartao/.test(s) ||
+    /^cartao selecionado/.test(s) ||
+    /^fatura\b/.test(s) ||
+    /^resumo das despesas/.test(s) ||
+    /^extrato em aberto/.test(s) ||
+    /^taxa ao mes/.test(s) ||
+    /^forma de pagamento/.test(s) ||
+    /^matheus\b.*\b(almeida)\b/.test(s) ||
+    /^leticia\b.*\b(almeida)\b/.test(s)
 }
 
-// Limite de segurança do volume processado.
+/**
+ * Recebe linhas já extraídas por PDF.js ou OCR.
+ *
+ * As datas podem estar:
+ * 10 NOV
+ * 10/11
+ * 10/11/2026
+ * 10
+ * NOV
+ *
+ * Também reconhece compras que não repetem a data:
+ * 10 NOV
+ * LOJA A 20,00
+ * LOJA B 35,00
+ */
+
+export function textoPDFParaTransacoes(
+  linhasTexto,
+  { anoPadrao = null, ocr = false } = {}
+) {
+  const linhas = (Array.isArray(linhasTexto) ? linhasTexto : [])
+    .map(v => String(v ?? '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+
+  const ref = referenciaDocumento(linhas, anoPadrao)
+  const transacoes = []
+  const descartadas = []
+
+  const info = {
+    instituicao: detectarInstituicao(linhas),
+    tipoDocumento: detectarTipoDocumento(linhas),
+    ocr
+  }
+
+  const ehFaturaBradesco =
+    info.instituicao === 'Bradesco' &&
+    info.tipoDocumento === 'fatura'
+
+  let dataAtual = null
+  let diaPendente = null
+  let saldoAnterior = null
+  let emLancamentos = !ehFaturaBradesco
+
+  let cartaoAtual = null
+
+  for (let i = 0; i < linhas.length; i++) {
+    let linha = linhas[i]
+
+    // Cabeçalho de um cartão da fatura.
+    const cabecalhoCartao = linha.match(
+      /gastos referentes ao cart[aã]o:?\s*final\s*(\d{4})/i
+    )
+
+    if (cabecalhoCartao) {
+      cartaoAtual = cabecalhoCartao[1]
+      dataAtual = null
+      diaPendente = null
+      emLancamentos = true
+      continue
+    }
+
+    if (!emLancamentos) continue
+
+    // Ao entrar no resumo financeiro, encerra a leitura.
+    if (
+      /^resumo das despesas\b/i.test(norm(linha)) ||
+      /^taxas mensais\b/i.test(norm(linha))
+    ) {
+      emLancamentos = false
+      continue
+    }
+
+    // Data no formato isolado:
+    // "10" seguido de "NOV".
+    if (/^\d{1,2}$/.test(linha)) {
+      const numero = Number(linha)
+
+      if (numero >= 1 && numero <= 31) {
+        diaPendente = numero
+        continue
+      }
+    }
+
+    // Mês isolado depois de um dia.
+    const mesIsolado = norm(linha).match(
+      /^(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)\.?$/
+    )
+
+    if (mesIsolado && diaPendente != null) {
+      const data = interpretarDataPDF(
+        `${diaPendente} ${mesIsolado[1]}`,
+        ref
+      )
+
+      if (data) dataAtual = data
+      diaPendente = null
+      continue
+    }
+
+    // Data no começo da linha.
+    const dataInicio = linha.match(RE_DATA_INICIO)
+
+    if (dataInicio) {
+      const data = interpretarDataPDF(dataInicio[1], ref)
+
+      if (data) {
+        dataAtual = data
+        diaPendente = null
+      }
+
+      linha = linha.slice(dataInicio[0].length).trim()
+      if (!linha) continue
+    }
+
+    if (linhaIgnoravel(linha)) {
+      if (/^saldo anterior\b/i.test(norm(linha))) {
+        const r = extrairValoresFinais(` ${linha}`)
+        if (r.valores.length) {
+          saldoAnterior = r.valores.at(-1).valor
+        }
+      }
+      continue
+    }
+
+    const { descricao, valores } = extrairValoresFinais(
+      ` ${linha}`
+    )
+
+    if (!valores.length) {
+      // Linha com possível descrição mas sem valor
+      if (dataAtual && descricao && /[a-zA-ZÀ-ÿ]/.test(descricao)) {
+        descartadas.push({
+          linha: i + 1,
+          motivo: 'Valor não identificado',
+          trecho: linha.slice(0, 90)
+        })
+      }
+      continue
+    }
+
+    if (
+      !descricao ||
+      !/[a-zA-ZÀ-ÿ]/.test(descricao) ||
+      RE_INFORMATIVA.test(norm(descricao))
+    ) {
+      continue
+    }
+
+    if (!dataAtual) {
+      descartadas.push({
+        linha: i + 1,
+        motivo: 'Data não identificada',
+        trecho: linha.slice(0, 90)
+      })
+      continue
+    }
+
+    let valor = valores[0].valor
+    if (valor === 0) continue
+
+    const saldoLinha = valores.length === 2
+      ? valores[1].valor
+      : null
+
+    const avisos = [
+      ocr
+        ? 'Lido por OCR: confira data, valor e descrição'
+        : 'Lido do PDF: confira data, valor e descrição'
+    ]
+
+    let sinalIncerto = false
+    const sinalExplicito =
+      /^\s*[-−(]/.test(valores[0].original) ||
+      /[-D)]\s*$/i.test(valores[0].original)
+
+    if (!sinalExplicito && !ehFaturaBradesco) {
+      const diferenca =
+        saldoLinha != null && saldoAnterior != null
+          ? saldoLinha - saldoAnterior
+          : null
+
+      if (
+        diferenca != null &&
+        Math.abs(Math.abs(diferenca) - Math.abs(valor)) < 0.015
+      ) {
+        valor = diferenca < 0
+          ? -Math.abs(valor)
+          : Math.abs(valor)
+
+        avisos.push('Sinal deduzido pela variação do saldo')
+      } else {
+        sinalIncerto = true
+        avisos.push('Confirme se é entrada ou saída')
+      }
+    }
+
+    if (saldoLinha != null) saldoAnterior = saldoLinha
+
+    if (dataAtual.semAno) {
+      avisos.push(
+        `Ano ${dataAtual.ano} deduzido da fatura; confira`
+      )
+    }
+
+    if (ehFaturaBradesco) {
+      avisos.push(
+        'Fatura de cartão: confira compras, créditos e estornos'
+      )
+    }
+
+    if (cartaoAtual) {
+      avisos.push(
+        `Cartão final ${cartaoAtual}: confira a vinculação`
+      )
+    }
+
+    const parcela = extrairParcela(descricao)
+
+    transacoes.push({
+      linha: i + 1,
+      data: dataAtual.iso,
+      descricao,
+      valor,
+      idOrigem: null,
+      parcelaAtual: parcela?.atual ?? null,
+      parcelaTotal: parcela?.total ?? null,
+      tipoInformado: ehFaturaBradesco
+        ? 'fatura'
+        : null,
+      ativo: null,
+      revisar: true,
+      sinalIncerto,
+      avisos
+    })
+  }
+
+  return {
+    transacoes,
+    descartadas: descartadas.slice(0, 200),
+    ...info,
+    erro: transacoes.length
+      ? null
+      : 'Nenhum lançamento com data, descrição e valor foi reconhecido neste PDF. Caso necessário, adicione os lançamentos manualmente.'
+  }
+}
+
+// ============================================================
+// FORMATO DO ARQUIVO
+// ============================================================
+
+export function detectarFormato(nome, bytes) {
+  const ext = String(nome || '')
+    .toLowerCase()
+    .split('.')
+    .pop()
+
+  const u8 = bytes instanceof Uint8Array
+    ? bytes
+    : new Uint8Array(bytes || [])
+
+  if (!u8.length) {
+    return { formato: null, erro: 'O arquivo está vazio.' }
+  }
+
+  if (u8.length > TAMANHO_MAXIMO_BYTES) {
+    return {
+      formato: null,
+      erro: 'O arquivo passa de 5 MB. Exporte um período menor.'
+    }
+  }
+
+  const inicio = String.fromCharCode(...u8.slice(0, 8))
+
+  const ehZip =
+    u8[0] === 0x50 &&
+    u8[1] === 0x4b &&
+    u8[2] === 0x03 &&
+    u8[3] === 0x04
+
+  const ehOle =
+    u8[0] === 0xd0 &&
+    u8[1] === 0xcf &&
+    u8[2] === 0x11 &&
+    u8[3] === 0xe0
+
+  if (inicio.startsWith('%PDF-')) {
+    return { formato: 'pdf', erro: null }
+  }
+
+  if (ehZip) {
+    return ext === 'xlsx'
+      ? { formato: 'xlsx', erro: null }
+      : {
+          formato: null,
+          erro: 'Arquivo compactado não suportado.'
+        }
+  }
+
+  if (ehOle) {
+    return ext === 'xls'
+      ? { formato: 'xls', erro: null }
+      : {
+          formato: null,
+          erro: 'Formato não suportado.'
+        }
+  }
+
+  if (u8.slice(0, 2048).some(b => b === 0)) {
+    return {
+      formato: null,
+      erro: 'Arquivo binário não suportado ou corrompido.'
+    }
+  }
+
+  const texto = decodificarTexto(u8.slice(0, 4096))
+
+  if (/OFXHEADER|<OFX>/i.test(texto) || ext === 'ofx') {
+    return { formato: 'ofx', erro: null }
+  }
+
+  if (ext === 'csv' || ext === 'txt') {
+    return { formato: 'csv', erro: null }
+  }
+
+  if (['pdf', 'xlsx', 'xls'].includes(ext)) {
+    return {
+      formato: null,
+      erro: 'O conteúdo não corresponde à extensão do arquivo.'
+    }
+  }
+
+  return {
+    formato: null,
+    erro: 'Formato não suportado. Use CSV, OFX, XLS, XLSX ou PDF.'
+  }
+}
+
+// ============================================================
+// LIMITE DE TRANSAÇÕES
+// ============================================================
+
 export function aplicarLimite(resultado) {
-  if (resultado.transacoes.length <= MAXIMO_TRANSACOES) return resultado
-  return { ...resultado, transacoes: resultado.transacoes.slice(0, MAXIMO_TRANSACOES), erro: null, truncado: true }
+  const transacoes = Array.isArray(resultado?.transacoes)
+    ? resultado.transacoes
+    : []
+
+  if (transacoes.length <= MAXIMO_TRANSACOES) {
+    return { ...resultado, transacoes }
+  }
+
+  return {
+    ...resultado,
+    transacoes: transacoes.slice(0, MAXIMO_TRANSACOES),
+    truncado: true
+  }
 }
