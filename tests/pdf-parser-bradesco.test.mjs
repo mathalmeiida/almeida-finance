@@ -16,6 +16,8 @@ const pdfBradesco = [
   'Vencimento: 15/12/2025',
   'Fechamento: 31/12/2025',
   '',
+  'Gastos referentes ao cartão: Final 1234',
+  '',
   '15/12 Supermercado Central R$ 39,90',
   '16/12 Farmácia Popular R$ 45,30',
   '17/12 Posto de Gasolina R$ 85,50',
