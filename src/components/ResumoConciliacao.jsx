@@ -1,130 +1,116 @@
-// Resumo da Conciliação Financeira (Fase 3)
-// Mostra estatísticas e totais da conciliação de forma visual
+import React, { useState } from 'react'
+import { validarItem as validarResumo } from '../lib/importacaoRegras'
+import {
+  AlertTriangle, CheckCircle2, ChevronDown, ChevronUp,
+  CreditCard, Info, Repeat2, ShieldCheck,
+} from 'lucide-react'
 
-import React from 'react'
-import { CheckCircle2, AlertCircle, Plus, Repeat, CreditCard, XCircle } from 'lucide-react'
+const brl = new Intl.NumberFormat('pt-BR', {
+  style: 'currency', currency: 'BRL',
+})
 
-export default function ResumoConciliacao({ resumo }) {
+const numero = valor => {
+  const n = Number(valor)
+  return Number.isFinite(n) ? n : 0
+}
+
+export default function ResumoConciliacao({ resumo, itens = [], incluidos, revisar }) {
+  const [detalhes, setDetalhes] = useState(false)
   if (!resumo) return null
 
-  const cards = [
-    {
-      label: 'Conciliados',
-      valor: resumo.conciliados,
-      icone: CheckCircle2,
-      cor: 'text-green-600',
-      bg: 'bg-green-50',
-      descricao: 'Correspondências exatas'
-    },
-    {
-      label: 'Novos',
-      valor: resumo.novos,
-      icone: Plus,
-      cor: 'text-blue-600',
-      bg: 'bg-blue-50',
-      descricao: 'Lançamentos inéditos',
-      destaque: true
-    },
-    {
-      label: 'Possíveis duplicatas',
-      valor: resumo.duplicatasProvaveis + resumo.duplicatasPossiveis,
-      icone: AlertCircle,
-      cor: 'text-amber-600',
-      bg: 'bg-amber-50',
-      descricao: 'Revisar antes de importar'
-    },
-    {
-      label: 'Divergentes',
-      valor: resumo.divergentes,
-      icone: XCircle,
-      cor: 'text-orange-600',
-      bg: 'bg-orange-50',
-      descricao: 'Mesmo valor, descrição diferente'
-    }
-  ]
+  // Exibe o que está realmente marcado, e não a soma de candidatos da conciliação.
+  const selecionados = itens.filter(i => i.incluir)
+  const quantidade = selecionados.length
+  const somaSelecionada = selecionados.reduce((total, i) => total + Math.abs(numero(i.valor)), 0)
+  const prontos = selecionados.filter(i => !validarResumo(i)).length
+  const bloqueados = quantidade - prontos
+  const pendentes = typeof revisar === 'number'
+    ? revisar
+    : itens.filter(i => i.revisar || (i.avisos?.length > 0) || (i.incluir && validarResumo(i))).length
+  const duplicados = numero(resumo.duplicatasProvaveis) + numero(resumo.duplicatasPossiveis)
+  const divergentes = numero(resumo.divergentes)
 
-  const excluidos = [
-    {
-      label: 'Transferências',
-      valor: resumo.transferencias,
-      icone: Repeat,
-      descricao: 'Entre suas contas'
-    },
-    {
-      label: 'Pagamentos fatura',
-      valor: resumo.pagamentosFatura,
-      icone: CreditCard,
-      descricao: 'Já contabilizados'
-    },
-    {
-      label: 'Já importados',
-      valor: resumo.jaImportados,
-      icone: CheckCircle2,
-      descricao: 'Anteriormente'
-    }
-  ]
-
-  const temExcluidos = excluidos.some(e => e.valor > 0)
+  const fora = [
+    { rotulo: 'Transferências', quantidade: numero(resumo.transferencias), Icone: Repeat2 },
+    { rotulo: 'Pagamentos de fatura', quantidade: numero(resumo.pagamentosFatura), Icone: CreditCard },
+    { rotulo: 'Já importados', quantidade: numero(resumo.jaImportados), Icone: CheckCircle2 },
+  ].filter(x => x.quantidade > 0)
 
   return (
-    <div className="space-y-4">
-      {/* Cards principais */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {cards.map((card) => (
-          <div
-            key={card.label}
-            className={`rounded-xl border ${card.destaque ? 'border-marca bg-marca-50' : 'border-gray-200 bg-white'} p-4`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className={`w-10 h-10 rounded-lg ${card.bg} flex items-center justify-center flex-shrink-0`}>
-                <card.icone size={20} className={card.cor} />
-              </div>
-              <p className={`text-2xl font-bold ${card.destaque ? 'text-marca' : card.cor}`}>
-                {card.valor}
-              </p>
-            </div>
-            <p className="text-xs font-medium text-gray-700">{card.label}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{card.descricao}</p>
+    <section className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 space-y-4" aria-label="Resumo da seleção">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Sua importação</h2>
+          <p className="mt-1 text-xs text-gray-500">Confira a seleção antes de salvar.</p>
+        </div>
+        <span className="rounded-full bg-[#821C3E]/10 px-3 py-1 text-xs font-medium text-[#821C3E]">
+          {quantidade} {quantidade === 1 ? 'selecionado' : 'selecionados'}
+        </span>
+      </div>
+
+      <div className="rounded-xl bg-[#821C3E]/[0.055] px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs font-medium text-gray-600">Soma dos itens marcados</p>
+            <p className="mt-1 text-[11px] text-gray-500">Inclui itens ainda pendentes; não é o valor pronto para gravar</p>
+          </div>
+          <p className="text-xl font-bold tabular-nums text-[#821C3E] sm:text-2xl">{brl.format(somaSelecionada)}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[
+          ['Identificados', itens.length],
+          ['Prontos', prontos],
+          ['Para revisar', pendentes],
+          ['Duplicidades', duplicados + divergentes],
+        ].map(([rotulo, valor]) => (
+          <div key={rotulo} className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
+            <p  className="text-xl font-semibold tabular-nums text-gray-900">{valor}</p>
+            <p className="mt-1 text-xs text-gray-600">{rotulo}</p>
           </div>
         ))}
       </div>
 
-      {/* Resumo de importação */}
-      {resumo.totalImportar > 0 && (
-        <div className="card bg-marca-50 border-marca">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-700">Total a importar</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {resumo.totalImportar} {resumo.totalImportar === 1 ? 'lançamento' : 'lançamentos'}
-              </p>
-            </div>
-            <p className="text-2xl font-bold text-marca">
-              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(resumo.valorImportar)}
-            </p>
-          </div>
+      {bloqueados > 0 && (
+        <p className="text-xs font-medium text-amber-800" role="alert">
+          {bloqueados} {bloqueados === 1 ? 'selecionado ainda precisa' : 'selecionados ainda precisam'} de correção antes de salvar.
+        </p>
+      )}
+
+      {pendentes > 0 ? (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900" role="status">
+          <AlertTriangle className="mt-0.5 shrink-0" size={17} />
+          <p className="text-xs leading-5">{pendentes} {pendentes === 1 ? 'lançamento precisa' : 'lançamentos precisam'} de conferência. Abra os avisos de cada item e corrija os campos necessários antes de confirmar.</p>
+        </div>
+      ) : (
+        <div className="flex items-start gap-2 rounded-xl bg-emerald-50 p-3 text-emerald-800" role="status">
+          <ShieldCheck className="mt-0.5 shrink-0" size={17} />
+          <p className="text-xs leading-5">Nenhum lançamento marcado para revisão. Confira os dados antes de salvar.</p>
         </div>
       )}
 
-      {/* Itens excluídos (não contabilizados) */}
-      {temExcluidos && (
-        <div className="card bg-gray-50">
-          <p className="text-sm font-medium text-gray-700 mb-3">
-            Não serão contabilizados (evita duplicidade)
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            {excluidos.filter(e => e.valor > 0).map((item) => (
-              <div key={item.label} className="flex items-center gap-2 text-sm">
-                <item.icone size={16} className="text-gray-400" />
-                <span className="text-gray-600">
-                  <span className="font-medium">{item.valor}</span> {item.label.toLowerCase()}
-                </span>
-                <span className="text-xs text-gray-400">({item.descricao})</span>
-              </div>
-            ))}
-          </div>
+      {fora.length > 0 && (
+        <div className="rounded-xl border border-gray-200">
+          <button type="button" aria-expanded={detalhes} onClick={() => setDetalhes(v => !v)}
+            className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left">
+            <span className="flex items-center gap-2 text-xs font-medium text-gray-700">
+              <Info size={16} /> Itens que não entram como novos lançamentos
+            </span>
+            {detalhes ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+          </button>
+          {detalhes && (
+            <ul className="space-y-2 border-t border-gray-100 p-3">
+              {fora.map(({ rotulo, quantidade: qtd, Icone }) => (
+                <li key={rotulo} className="flex items-center justify-between gap-2 text-xs text-gray-600">
+                  <span className="flex items-center gap-2"><Icone size={15} />{rotulo}</span>
+                  <strong>{qtd}</strong>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
-    </div>
+    </section>
   )
 }
