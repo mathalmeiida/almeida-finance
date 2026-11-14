@@ -15,16 +15,24 @@ import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
 
 import { cotacoesDisponiveis } from '../lib/cotacoes'
+import ImportacaoInteligente from './ImportacaoInteligente'
 
 // Cores ligadas ao tema global do Almeida Finance (variável CSS --marca).
 // O mesmo tom é usado no gráfico e na legenda.
 const CORES_DISTRIBUICAO = [
+
   'rgb(var(--marca))',
+
   'color-mix(in srgb, rgb(var(--marca)) 75%, white)',
+
   'color-mix(in srgb, rgb(var(--marca)) 65%, black)',
+
   'color-mix(in srgb, rgb(var(--marca)) 55%, white)',
+
   'color-mix(in srgb, rgb(var(--marca)) 45%, black)',
+
   'color-mix(in srgb, rgb(var(--marca)) 35%, white)',
+
 ]
 
 const mesAtual = new Date().getMonth() + 1
@@ -480,6 +488,7 @@ function FormMovimentacao({ onSalvar, onCancelar, salvando }) {
       <p className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2">
 
         Registre aportes, resgates e rendimentos para manter o histórico da posição.
+
         Atualize o "Valor atual" no cadastro do investimento para refletir o saldo de mercado.
 
       </p>
@@ -533,11 +542,13 @@ export default function Investimentos() {
     patrimonioTotal, totalAplicado, reservaVinculada, rendimentoAcumulado,
 
     aportesNoMes, rendimentoNoMes, distribuicaoPorCategoria, movsDeInvestimento,
+
     proventosDeInvestimento, rentabilidadeDeInvestimento, proventosNoMes,
 
   } = useInvestimentos()
 
   const [modal, setModal] = useState(false)
+
   const [modalImportacao, setModalImportacao] = useState(false)
 
   const [editando, setEditando] = useState(null)
@@ -661,92 +672,173 @@ export default function Investimentos() {
       {erro && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">Erro ao carregar: {erro}</p>}
 
       {/* ── Card herói: patrimônio + indicadores integrados (sem repetição) ── */}
+
       <section className="bg-marca-grad-dark text-white rounded-2xl p-5 sm:p-6 min-w-0 shadow-lg">
+
         <div className="flex justify-between gap-3 items-start">
+
           <div>
+
             <p className="text-xs uppercase tracking-wide text-white/80">Meu patrimônio investido</p>
+
             <p className="text-3xl sm:text-4xl font-extrabold mt-2 break-words">{exibirMoeda(patrimonioTotal, ocultar)}</p>
+
             <p className={`text-sm mt-2 font-medium ${patrimonioTotal - totalAplicado >= 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
+
               {totalAplicado > 0
+
                 ? <>{patrimonioTotal - totalAplicado >= 0 ? '+' : '−'} {exibirMoeda(Math.abs(patrimonioTotal - totalAplicado), ocultar)}{!ocultar && ` (${((patrimonioTotal - totalAplicado) / totalAplicado * 100).toFixed(2)}%)`} vs. aplicado</>
+
                 : 'Cadastre o valor aplicado para comparar'}
+
             </p>
+
           </div>
+
           <span className="rounded-xl bg-white/10 p-3"><PiggyBank size={23}/></span>
+
         </div>
 
         {/* 5 indicadores: aplicado, atual, rendimento mês, proventos mês, reserva */}
+
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mt-5">
+
           <div className="rounded-xl bg-black/15 p-3 min-w-0"><p className="text-xs text-white/75">Aplicado</p><p className="text-base font-bold mt-1 break-words">{exibirMoeda(totalAplicado, ocultar)}</p></div>
+
           <div className="rounded-xl bg-black/15 p-3 min-w-0"><p className="text-xs text-white/75">Valor atual</p><p className="text-base font-bold mt-1 break-words">{exibirMoeda(patrimonioTotal, ocultar)}</p></div>
+
           <div className="rounded-xl bg-black/15 p-3 min-w-0">
+
             <p className="text-xs text-white/75">Rend. no mês</p>
+
             <p className="text-base font-bold mt-1 break-words">{exibirMoeda(rendMes, ocultar)}</p>
+
           </div>
+
           <div className="rounded-xl bg-black/15 p-3 min-w-0">
+
             <p className="text-xs text-white/75">Proventos no mês</p>
+
             <p className="text-base font-bold mt-1 break-words">{exibirMoeda(proventosMes, ocultar)}</p>
+
           </div>
+
           <div className="rounded-xl bg-black/15 p-3 min-w-0"><p className="text-xs text-white/75">Reserva vinculada</p><p className="text-base font-bold mt-1 break-words">{exibirMoeda(reservaVinculada, ocultar)}</p></div>
+
         </div>
+
         <p className="mt-3 text-xs text-white/70">Patrimônio separado do saldo em conta. Reserva vinculada já inclusa — não somada novamente. Proventos = dividendos, juros e rendimentos registrados.</p>
+
       </section>
 
       {/* ── Distribuição da carteira + Evolução (somente quando há dados) ── */}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
         {/* Distribuição: barra quando 1 categoria, rosca quando múltiplas */}
+
         <section className="card min-w-0 !p-5">
+
           <h2 className="text-base font-semibold text-gray-900 mb-4">Distribuição da carteira</h2>
+
           {dist.length === 0 || patrimonioTotal === 0 ? (
+
             <p className="text-sm text-gray-500">Cadastre investimentos para visualizar sua distribuição.</p>
+
           ) : dist.length === 1 ? (
+
             /* Uma categoria → barra horizontal compacta */
+
             <div className="space-y-2">
+
               <div className="flex items-center justify-between text-sm mb-1">
+
                 <span className="font-medium text-gray-800">{labelCategoriaInvestimento(dist[0].categoria)}</span>
+
                 <span className="text-gray-500">{ocultar ? '••••' : '100%'}</span>
+
               </div>
+
               <div className="h-3 rounded-full bg-gray-100 overflow-hidden">
+
                 <div className="h-full rounded-full" style={{ width: '100%', background: CORES_DISTRIBUICAO[0] }} />
+
               </div>
+
               <p className="text-xs text-gray-400 mt-2">{exibirMoeda(patrimonioTotal, ocultar)} em {labelCategoriaInvestimento(dist[0].categoria)}</p>
+
             </div>
+
           ) : (
+
             /* Múltiplas categorias → rosca */
+
             <div className="flex flex-col sm:flex-row items-center gap-6">
+
               <div className="relative w-40 h-40 rounded-full shrink-0" style={{ background: dist && dist.length > 0 ? `conic-gradient(${dist.map((d, i) => { const cores = CORES_DISTRIBUICAO; const inicio = dist.slice(0,i).reduce((a, x) => a + Math.max(0,Number(x.pct)||0),0); return `${cores[i % cores.length]} ${inicio}% ${inicio + Math.max(0,Number(d.pct)||0)}%`; }).join(', ')})` : '#ccc' }}>
+
                 <div className="absolute inset-6 rounded-full bg-white flex flex-col items-center justify-center">
+
                   <strong className="text-sm text-gray-900">{exibirMoeda(patrimonioTotal, ocultar)}</strong>
+
                   <span className="text-[10px] text-gray-500">Carteira</span>
+
                 </div>
+
               </div>
+
               <div className="flex-1 min-w-0 w-full space-y-2">
+
                 {dist.map((d,i) => (
+
                   <div key={d.categoria} className="flex justify-between gap-3 text-sm items-center">
+
                     <div className="flex gap-2 min-w-0 items-center">
+
                       <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{background:CORES_DISTRIBUICAO[i % CORES_DISTRIBUICAO.length]}}/>
+
                       <span className="truncate">{labelCategoriaInvestimento(d.categoria)}</span>
+
                     </div>
+
                     <span className="text-gray-500 shrink-0">{ocultar ? '••••' : `${d.pct.toFixed(0)}%`}</span>
+
                   </div>
+
                 ))}
+
               </div>
+
             </div>
+
           )}
+
         </section>
 
         {/* Evolução: só exibe quando há movimentações; caso contrário, card mínimo */}
+
         <section className="card min-w-0 !p-5">
+
           <h2 className="text-base font-semibold text-gray-900 mb-3 flex items-center gap-2"><BarChart2 size={18} className="text-marca"/> Evolução do patrimônio</h2>
+
           {ultimasMovimentacoes.length > 0 ? (
+
             <p className="text-sm text-gray-500">
+
               {ultimasMovimentacoes.length} movimentação{ultimasMovimentacoes.length !== 1 ? 'ões' : ''} registrada{ultimasMovimentacoes.length !== 1 ? 's' : ''}.
+
               O gráfico histórico estará disponível quando o app armazenar saldos por data.
+
             </p>
+
           ) : (
+
             <p className="text-sm text-gray-500">Registre aportes e rendimentos para acompanhar a evolução.</p>
+
           )}
+
         </section>
+
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 items-start gap-4">
@@ -849,10 +941,15 @@ export default function Investimentos() {
                 )}
 
                 {/* Proventos acumulados — só quando há registros */}
+
                 {proventosAtivo > 0 && (
+
                   <p className="text-xs mt-0.5 text-violet-600">
+
                     Proventos acumulados: {exibirMoeda(proventosAtivo, ocultar)}
+
                   </p>
+
                 )}
 
                 {!somenteLeitura && (
@@ -978,11 +1075,17 @@ export default function Investimentos() {
           <p className="text-[11px] text-gray-500">Valores correspondem aos registros de movimentação, não a uma evolução histórica do patrimônio.</p>
 
           {/* Badge de status de cotações automáticas */}
+
           <p className="text-[11px] mt-1 flex items-center gap-1.5 text-gray-400">
+
             <span className={`w-2 h-2 rounded-full shrink-0 ${cotacoesDisponiveis() ? 'bg-emerald-400' : 'bg-gray-300'}`} />
+
             {cotacoesDisponiveis()
+
               ? 'Cotações automáticas ativas (brapi.dev via Edge Function).'
+
               : 'Cotações manuais — Edge Function inativa ou sem configuração de backend.'}
+
           </p>
 
         </section>
