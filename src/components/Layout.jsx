@@ -32,6 +32,7 @@ import {
   Upload,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import NavegacaoInferior from './NavegacaoInferior'
 import LogoMarca from './LogoMarca'
 import FotoPerfil from './FotoPerfil'
 import MenusMobileAlmeidaFinance from './MenusMobileAlmeidaFinance'
@@ -340,20 +341,10 @@ export default function Layout({ children }) {
           {children}
         </main>
       </div>
-      {/* Navegação mobile: cinco destinos, alinhados e sem botão flutuante. */}
-      <nav ref={navRef} aria-label="Navegação principal" className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 shadow-[0_-1px_12px_rgba(0,0,0,0.06)] flex items-stretch justify-around px-1 pb-safe">
-        <BottomNavItem to="/" label="Início" icon={LayoutDashboard} corIcone="text-marca" />
-        <BottomNavItem to="/consultoria" label="Consultoria" icon={MessagesSquare} corIcone="text-marca" />
-        {somenteLeitura ? (
-          <div className="bottom-nav-item text-gray-400" aria-label="Adicionar indisponível no modo somente leitura">
-            <Plus size={21} /><span>Adicionar</span>
-          </div>
-        ) : (
-          <BottomNavItem label="Adicionar" icon={Plus} onClick={() => setMenuMobile('adicionar')} ativo={menuMobile === 'adicionar'} corIcone="text-marca" />
-        )}
-        <BottomNavItem to="/minha-evolucao" label="Evolução" icon={Activity} corIcone="text-violet-400" />
-        <BottomNavItem label="Mais" icon={MoreHorizontal} onClick={() => setMenuMobile('mais')} ativo={menuMobile === 'mais'} corIcone="text-marca" />
-      </nav>
+      
+      {/* Navegação mobile nova */}
+      <NavegacaoInferior />
+      
       <MenusMobileAlmeidaFinance
         aberto={menuMobile}
         onFechar={() => setMenuMobile(null)}

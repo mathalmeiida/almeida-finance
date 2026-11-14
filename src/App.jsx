@@ -11,6 +11,9 @@ import { useOnboarding } from './hooks/useOnboarding'
 import Layout from './components/Layout'
 
 import Onboarding from './pages/Onboarding'
+import OnboardingNovo from './pages/OnboardingNovo'
+import ApresentacaoNova from './pages/ApresentacaoNova'
+import RegistrarRapido from './pages/RegistrarRapido'
 
 import ErrorBoundary from './components/ErrorBoundary'
 
@@ -367,7 +370,8 @@ function Rotas() {
     <Routes>
 
       {/* Rotas públicas */}
-
+      <Route path="/apresentacao-inicial" element={<RotaPublica><ApresentacaoNova /></RotaPublica>} />
+      <Route path="/onboarding-novo" element={<RotaPrivada><OnboardingNovo /></RotaPrivada>} />
       <Route path="/login" element={<RotaPublica><Login /></RotaPublica>} />
 
       <Route path="/cadastro" element={<RotaPublica><Cadastro /></RotaPublica>} />
@@ -405,9 +409,7 @@ function Rotas() {
             <Routes>
 
               {/* Rever apresentação: fullscreen, FORA do Layout (sem menu em
-
                   volta), como no 1º acesso. Não reinicia o onboarding. */}
-
               <Route path="/apresentacao" element={<ReverApresentacao />} />
 
               <Route path="/*" element={
@@ -417,7 +419,8 @@ function Rotas() {
               <Routes>
 
                 <Route path="/" element={<Dashboard />} />
-
+                <Route path="/registrar" element={<RegistrarRapido />} />
+                <Route path="/calendario" element={<Dashboard />} />
                 <Route path="/e-se" element={<PaginaCenarios />} />
 
                 <Route path="/receitas" element={<Receitas />} />
