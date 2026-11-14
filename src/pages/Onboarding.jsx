@@ -1185,7 +1185,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   // Determinar largura maxima baseada na tela atual
   // Telas que precisam mais espaco (importacao, despesas, cartoes, metas)
   const telasLargas = [IMPORTACAO, DESPESAS, CARTOES, METAS, PERSONALIZACAO]
-  const isTelaLarga = telasLargas.includes(telaAtual)
+  const isTelaLarga = telasLargas.includes(etapa)
   const maxWidthClass = isTelaLarga ? 'max-w-6xl' : 'max-w-2xl'
 
   return (
