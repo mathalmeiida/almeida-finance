@@ -288,11 +288,15 @@ export default function ImportacaoInteligente({
       let mudou = false
 
       const novaLista = lista.map(item => {
+        // Não sobrescrever se já foi editado manualmente
         if (
           item.categoriaEditada ||
           item.categoriaId ||
           item.categoriaNome
         ) return item
+
+        // Sugerir categoria apenas para itens elegíveis
+        if (!TIPOS_IMPORTAVEIS.includes(item.tipo)) return item
 
         const categoria = sugerirCategoria(
           item.descricao,
@@ -306,7 +310,7 @@ export default function ImportacaoInteligente({
 
         return item.tipo === 'receita'
           ? { ...item, categoriaNome: categoria.nome }
-          : { ...item, categoriaId: categoria.id }
+          : { ...item, categoriaId: categoria.id, categoriaNome: categoria.nome }
       })
 
       return mudou ? novaLista : lista
@@ -765,6 +769,8 @@ export default function ImportacaoInteligente({
 
   const selecionados = itens.filter(item => item.incluir)
 
+  const elegiveis = selecionados.filter(elegivelParaLote)
+
   const comErro = selecionados.filter(
     item => Boolean(validarItem(item))
   )
@@ -810,14 +816,7 @@ export default function ImportacaoInteligente({
       categorias: todasCategorias,
     })
 
-    if (registros.erros.length || comErro.length) {
-      setErro(
-        'Existem lançamentos selecionados com informações incompletas.'
-      )
-      setFiltro('revisar')
-      return
-    }
-
+    // Permitir salvar itens válidos mesmo com alguns itens com erro
     const total =
       registros.receitas.length +
       registros.despesas.length +
@@ -826,18 +825,32 @@ export default function ImportacaoInteligente({
       registros.beneficios_movimentacoes.length
 
     if (total === 0) {
-      setErro('Nenhum lançamento válido selecionado.')
+      if (registros.erros.length > 0 || comErro.length > 0) {
+        setErro(
+          `${registros.erros.length || comErro.length} lançamento(s) com pendências. Corrija os avisos ou desmarque-os para salvar os demais.`
+        )
+        setFiltro('revisar')
+      } else {
+        setErro('Nenhum lançamento válido selecionado.')
+      }
       return
     }
 
+    // Verificar duplicidades apenas nos itens que serão salvos
+    const itensSalvaveis = itens.filter(item => {
+      if (!item.incluir) return false
+      if (validarItem(item)) return false
+      return true
+    })
+
     if (
-      selecionados.some(item =>
+      itensSalvaveis.some(item =>
         ESTADOS_BLOQUEADOS.includes(item.estadoConciliacao) ||
         STATUS_BLOQUEADOS.includes(item.status)
       )
     ) {
       setErro(
-        'Existem possíveis duplicidades selecionadas. Revise antes de continuar.'
+        'Existem possíveis duplicidades selecionadas. Desmarque-as ou revise antes de continuar.'
       )
       setFiltro('duplicidades')
       return
@@ -847,7 +860,7 @@ export default function ImportacaoInteligente({
     setErro('')
     setEtapa('gravando')
 
-    try {
+    try{
       const { gravados, falhas } =
         await gravarRegistros(supabase, {
           usuarioId: usuario.id,
@@ -1866,6 +1879,66 @@ export default function ImportacaoInteligente({
             })}
           </ul>
 
+          {/* AÇÕES EM LOTE */}
+          {selecionados.length > 1 && elegiveis.length > 0 && (
+            <section className="card space-y-3">
+              <h3 className="text-sm font-semibold">Ações em lote ({elegiveis.length} elegíveis)</h3>
+              <div className="flex flex-wrap gap-2">
+                {(contextoAtual === 'extrato' || contextoAtual === 'fatura') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const catId = prompt('ID da categoria (deixe vazio para abrir lista):')
+                      if (catId === null) return
+                      if (!catId) {
+                        alert('Funcionalidade de busca de categoria em desenvolvimento. Por enquanto, use o ID da categoria.')
+                        return
+                      }
+                      elegiveis.forEach(item => {
+                        if (item.tipo === 'despesa' || item.tipo === 'compra') {
+                          atualizar(item.uid, { categoriaId: catId })
+                        }
+                      })
+                    }}
+                    className="btn-secondary text-xs"
+                  >
+                    Aplicar categoria
+                  </button>
+                )}
+                {contextoAtual === 'fatura' && cartoes.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cartaoId = prompt(`Escolha:\n${cartoes.map((c, i) => `${i+1}. ${c.nome} (ID: ${c.id})`).join('\n')}`)
+                      if (!cartaoId) return
+                      elegiveis.forEach(item => {
+                        if (item.tipo === 'compra') {
+                          atualizar(item.uid, { cartaoId })
+                        }
+                      })
+                    }}
+                    className="btn-secondary text-xs"
+                  >
+                    Aplicar cartão
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`Desmarcar ${elegiveis.length} lançamento(s)?`)) {
+                      elegiveis.forEach(item => {
+                        atualizar(item.uid, { incluir: false })
+                      })
+                    }
+                  }}
+                  className="btn-secondary text-xs"
+                >
+                  Desmarcar selecionados
+                </button>
+              </div>
+            </section>
+          )}
+
           {/* CONFIRMAÇÃO */}
 
           <section className="rounded-2xl border border-gray-200 bg-white p-4">
@@ -1925,8 +1998,7 @@ export default function ImportacaoInteligente({
                 data-testid="importacao-confirmar"
                 disabled={
                   etapa === 'gravando' ||
-                  quantidadePronta === 0 ||
-                  comErro.length > 0
+                  quantidadePronta === 0
                 }
                 onClick={confirmar}
                 className="btn-primary flex flex-1 items-center justify-center gap-2 py-3 disabled:opacity-50"
@@ -1936,17 +2008,53 @@ export default function ImportacaoInteligente({
                     <Loader2 size={17} className="animate-spin" />
                     Salvando...
                   </>
-                ) : comErro.length > 0 ? (
-                  `Corrigir ${comErro.length} lançamento(s)`
                 ) : (
                   <>
                     <CheckCircle2 size={17} />
-                    Confirmar importação ({quantidadePronta})
+                    Salvar {quantidadePronta} lançamento(s)
+                    {comErro.length > 0 && ` (${comErro.length} ignorado(s))`}
                   </>
                 )}
               </button>
             </div>
           </section>
+
+          {/* BARRA FIXA DE CONFIRMAÇÃO (Mobile) */}
+          <div className="fixed bottom-16 left-0 right-0 z-30 border-t border-gray-200 bg-white p-3 shadow-lg sm:hidden">
+            <div className="flex items-center gap-3">
+              <div className="flex-1 text-xs">
+                <div className="font-semibold">
+                  {quantidadePronta} pronto(s)
+                  {comErro.length > 0 && `, ${comErro.length} pendente(s)`}
+                </div>
+                <div className="text-gray-500">
+                  {formatCurrency(valorMarcado)}
+                </div>
+              </div>
+              <button
+                type="button"
+                data-testid="importacao-confirmar-fixo"
+                disabled={
+                  etapa === 'gravando' ||
+                  quantidadePronta === 0
+                }
+                onClick={confirmar}
+                className="btn-primary flex items-center gap-2 text-sm disabled:opacity-50"
+              >
+                {etapa === 'gravando' ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Salvando
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={16} />
+                    Salvar
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
