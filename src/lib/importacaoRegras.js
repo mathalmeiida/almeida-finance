@@ -886,24 +886,22 @@ export function validarItem(item) {
     return 'Descrição obrigatória'
   }
 
+  // VALIDAÇÕES OBRIGATÓRIAS (bloqueiam salvamento)
   if (item.tipo === 'compra' && !item.cartaoId) {
     return 'Escolha o cartão'
   }
 
-  if (
-    TIPOS_MOV.includes(item.tipo) &&
-    !item.investimentoId
-  ) {
+  if (TIPOS_MOV.includes(item.tipo) && !item.investimentoId) {
     return 'Escolha o investimento'
   }
 
-  if (
-    TIPOS_BENEFICIOS.includes(item.tipo) &&
-    !item.beneficioId
-  ) {
+  if (TIPOS_BENEFICIOS.includes(item.tipo) && !item.beneficioId) {
     return 'Escolha o benefício'
   }
 
+  // Categoria é opcional (schema aceita NULL)
+  // Aviso não-bloqueante é tratado na UI
+  
   return null
 }
 

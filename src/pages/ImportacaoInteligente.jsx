@@ -1885,42 +1885,54 @@ export default function ImportacaoInteligente({
               <h3 className="text-sm font-semibold">Ações em lote ({elegiveis.length} elegíveis)</h3>
               <div className="flex flex-wrap gap-2">
                 {(contextoAtual === 'extrato' || contextoAtual === 'fatura') && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const catId = prompt('ID da categoria (deixe vazio para abrir lista):')
-                      if (catId === null) return
-                      if (!catId) {
-                        alert('Funcionalidade de busca de categoria em desenvolvimento. Por enquanto, use o ID da categoria.')
-                        return
-                      }
+                  <select
+                    onChange={(e) => {
+                      const catId = e.target.value
+                      if (!catId) return
+                      const cat = todasCategorias.find(c => c.id === catId)
+                      if (!cat) return
                       elegiveis.forEach(item => {
-                        if (item.tipo === 'despesa' || item.tipo === 'compra') {
-                          atualizar(item.uid, { categoriaId: catId })
+                        if (item.tipo === 'despesa' || item.tipo === 'receita' || item.tipo === 'compra') {
+                          atualizar(item.uid, { 
+                            categoriaId: catId,
+                            categoriaNome: cat.nome,
+                            categoriaEditada: true
+                          })
                         }
                       })
+                      e.target.value = ''
                     }}
-                    className="btn-secondary text-xs"
+                    className="input text-xs py-1.5"
                   >
-                    Aplicar categoria
-                  </button>
+                    <option value="">Aplicar categoria a {elegiveis.length} itens</option>
+                    {todasCategorias.map(cat => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.nome}
+                      </option>
+                    ))}
+                  </select>
                 )}
                 {contextoAtual === 'fatura' && cartoes.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const cartaoId = prompt(`Escolha:\n${cartoes.map((c, i) => `${i+1}. ${c.nome} (ID: ${c.id})`).join('\n')}`)
+                  <select
+                    onChange={(e) => {
+                      const cartaoId = e.target.value
                       if (!cartaoId) return
                       elegiveis.forEach(item => {
                         if (item.tipo === 'compra') {
                           atualizar(item.uid, { cartaoId })
                         }
                       })
+                      e.target.value = ''
                     }}
-                    className="btn-secondary text-xs"
+                    className="input text-xs py-1.5"
                   >
-                    Aplicar cartão
-                  </button>
+                    <option value="">Aplicar cartão a {elegiveis.length} itens</option>
+                    {cartoes.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.nome} {c.banco ? `• ${c.banco}` : ''}
+                      </option>
+                    ))}
+                  </select>
                 )}
                 <button
                   type="button"
