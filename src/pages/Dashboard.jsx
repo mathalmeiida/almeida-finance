@@ -2509,54 +2509,43 @@ const carregandoLimite = carregando
     <div className="af-home-premium w-full max-w-none min-w-0 flex flex-col gap-0 md:pb-0" style={variaveisHome}>
       <FundoCorpoHome cor={variaveisHome['--af-home-bg']} />
       
-      {/* HEADER COM LOGO E SAUDAÇÃO - CONFORME IMAGEM 1 */}
-      <div className="bg-white border-b border-gray-100 px-4 py-3 mb-4">
-        {/* Linha 1: Logo + Título + Notificação */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{background: '#801D39'}}>
-              <span className="text-white font-bold text-lg">AF</span>
-            </div>
-            <span className="text-lg font-semibold text-gray-900">Almeida Finance</span>
-          </div>
-          
-          <button 
-            onClick={() => setModalNotificacoes(true)} 
-            aria-label={temNotificacao ? 'Você tem notificações' : 'Notificações'}
-            className="relative"
-          >
-            <Bell size={22} className="text-gray-700" />
-            {temNotificacao && (
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500" />
-            )}
-          </button>
-        </div>
-        
-        {/* Linha 2: Foto + Saudação */}
+      {/* HEADER COMPACTO - CONFORME IMAGEM */}
+      <div className="px-4 pt-4 pb-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           {perfil?.foto_url ? (
             <img 
               src={perfil.foto_url} 
               alt={usuario?.nome || 'Foto'} 
-              className="w-12 h-12 rounded-full object-cover"
+              className="w-16 h-16 rounded-full object-cover"
             />
           ) : perfil?.avatar_id ? (
-            <div className="w-12 h-12 rounded-full flex items-center justify-center text-2xl">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center text-3xl">
               {perfil.avatar_id}
             </div>
           ) : (
-            <div className="w-12 h-12 rounded-full bg-marca flex items-center justify-center text-white font-semibold text-lg">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center text-white font-semibold text-xl" style={{background: '#801D39'}}>
               {(usuario?.nome || 'U').charAt(0).toUpperCase()}
             </div>
           )}
           
           <div>
             <p className="text-sm text-gray-600">{saudacao},</p>
-            <p className="text-base font-bold text-gray-900">
+            <p className="text-xl font-bold text-gray-900">
               {usuario?.nome?.split(' ')[0] || 'Usuário'}
             </p>
           </div>
         </div>
+        
+        <button 
+          onClick={() => setModalNotificacoes(true)} 
+          aria-label={temNotificacao ? 'Você tem notificações' : 'Notificações'}
+          className="relative"
+        >
+          <Bell size={24} className="text-gray-700" />
+          {temNotificacao && (
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500" />
+          )}
+        </button>
       </div>
 
       {mostrarComecePorAqui && !somenteLeitura && (
@@ -2571,42 +2560,34 @@ const carregandoLimite = carregando
       )}
 
       {/* MOBILE */}
-      <div className="md:hidden flex flex-col gap-1.5">
+      <div className="md:hidden flex flex-col gap-3 px-4">
         {/* Card vinho único - Saldo disponível + Limite diário */}
-        <div className="rounded-2xl p-4" style={{background: 'linear-gradient(135deg, #801D39 0%, #5a1224 100%)'}}>
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-white/80">Saldo disponível</span>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={alternar} className="text-white/60 hover:text-white">
-                {ocultar ? <EyeOff size={15}/> : <Eye size={15}/>}
-              </button>
-              {!somenteLeitura && (
-                <button type="button" onClick={() => setModalSaldo(true)} className="text-white/60 hover:text-white">
-                  <Pencil size={14}/>
-                </button>
-              )}
-            </div>
-          </div>
-          
-          <p className="text-3xl font-bold text-white mb-4">
-            {carregando ? '...' : saldoConfigurado ? exibirMoeda(saldoDisponivelAgora, ocultar) : 'Não configurado'}
-          </p>
-          
-          <div className="flex items-center justify-between bg-white/10 rounded-xl p-3">
+        <div className="rounded-2xl p-5" style={{background: 'linear-gradient(135deg, #8B1538 0%, #6B0F2A 100%)'}}>
+          <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
             <div>
-              <span className="text-xs font-medium text-white/70 block mb-0.5">Quanto posso gastar hoje?</span>
+              <p className="text-xs font-medium text-white/70 mb-2">Saldo disponível</p>
+              <p className="text-2xl font-bold text-white leading-tight">
+                {carregando ? '...' : saldoConfigurado ? exibirMoeda(saldoDisponivelAgora, ocultar) : 'R$ 0,00'}
+              </p>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="bg-[#4ade80]/20 rounded-lg px-3 py-1">
-                <p className="text-xl font-bold text-[#4ade80] leading-tight">
+            
+            <div className="w-px h-16 bg-white/20"></div>
+            
+            <div className="text-right">
+              <p className="text-xs font-medium text-white/70 mb-2">Quanto posso gastar hoje?</p>
+              <div className="flex items-center justify-end gap-2">
+                <p className="text-2xl font-bold text-white leading-tight">
                   {exibirMoeda(Math.max(0, limiteHoje), ocultar)}
                 </p>
+                <button type="button" onClick={alternar} className="text-white/80 hover:text-white">
+                  {ocultar ? <EyeOff size={18}/> : <Eye size={18}/>}
+                </button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Calendário mensal */}
+        {/* Calendário mensal - estilo limpo conforme imagem */}
         {(() => {
           const ano = mesCalendarioHome.getFullYear(), mes = mesCalendarioHome.getMonth()
           const hoje2 = new Date(); hoje2.setHours(0,0,0,0)
@@ -2624,28 +2605,64 @@ const carregandoLimite = carregando
           for(let i=1;i<=totalDias;i++) cels.push({dia:i,outro:false,iso:`${String(ano).padStart(4,'0')}-${String(mes+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`})
           const resto=(7-(cels.length%7))%7; for(let i=1;i<=resto;i++) cels.push({dia:i,outro:true,iso:new Date(ano,mes+1,i).toISOString().slice(0,10)})
           return (
-            <div className="af-cal-home" style={calEscuro ? {'--af-home-light':'#21121F','--af-home-panel':'#2B171F','--af-home-border':'#502838'} : {'--af-home-light':'#FFFFFF','--af-home-panel':'#FFF5F7','--af-home-border':'#E5BAC4'}}>
+            <div className="bg-white rounded-2xl p-4 shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2"><CalendarDays size={18} className="text-[#C4507A]"/><span className={`font-semibold text-sm ${calEscuro ? 'text-white' : 'text-[#25141B]'}`}>Calendário financeiro</span></div>
-                <div className="flex items-center gap-1">
-                  <button type="button" onClick={()=>setMesCalendarioHome(new Date(ano,mes-1,1,12))} className={`w-7 h-7 rounded-lg flex items-center justify-center hover:bg-[#3d1528] ${calEscuro ? 'text-[#D4A8B6]' : 'text-[#643F4F]'}`}><ChevronLeft size={16}/></button>
-                  <span className="text-xs text-[#D4A8B6] capitalize truncate max-w-[120px] text-center">{nomeMes}</span>
-                  <button type="button" onClick={()=>setMesCalendarioHome(new Date(ano,mes+1,1,12))} className={`w-7 h-7 rounded-lg flex items-center justify-center hover:bg-[#3d1528] ${calEscuro ? 'text-[#D4A8B6]' : 'text-[#643F4F]'}`}><ChevronRight size={16}/></button>
+                <div className="flex items-center gap-2">
+                  <CalendarDays size={20} style={{color: '#801D39'}} />
+                  <span className="font-semibold text-gray-900">Calendário financeiro</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={()=>setMesCalendarioHome(new Date(ano,mes-1,1,12))} className="text-marca hover:opacity-70">
+                    <ChevronLeft size={20}/>
+                  </button>
+                  <span className="text-sm font-medium capitalize min-w-[140px] text-center" style={{color: '#801D39'}}>
+                    {nomeMes.split(' ')[0]} de {ano}
+                  </span>
+                  <button type="button" onClick={()=>setMesCalendarioHome(new Date(ano,mes+1,1,12))} className="text-marca hover:opacity-70">
+                    <ChevronRight size={20}/>
+                  </button>
                 </div>
               </div>
-              <div className="grid grid-cols-7 gap-1 mb-1">{['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(d=><span key={d} className={`text-center text-[10px] ${calEscuro ? 'text-[#D4A8B6]' : 'text-[#643F4F]'}`}>{d}</span>)}</div>
+              
+              <div className="grid grid-cols-7 gap-1 mb-2">
+                {['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(d=>(
+                  <div key={d} className="text-center text-xs font-medium text-gray-500 py-1">{d}</div>
+                ))}
+              </div>
+              
               <div className="grid grid-cols-7 gap-1">
                 {cels.map((c,i)=>{
                   const isHoje=c.iso===hojeISO2, dots=dotsMapa[c.iso]?[...dotsMapa[c.iso]]:[]
-                  return <button key={i} type="button" onClick={()=>{if(!c.outro){setDiaSelecionadoHome(c.dia);setModalCalendario(true)}}} className={`af-cal-day${isHoje?' hoje':''}${c.outro?' outro-mes':''}`}>
-                    <span className={`text-xs font-semibold leading-none ${isHoje?'text-white':c.outro?'text-[#6b3050]':calEscuro?'text-[#FAF7F8]':'text-[#25141B]'}`}>{c.dia}</span>
-                    {dots.length>0&&<div className="af-cal-dots">{dots.slice(0,3).map((cor,di)=><span key={di} className="af-cal-dot" style={{background:cor}}/>)}</div>}
-                  </button>
+                  return (
+                    <button 
+                      key={i} 
+                      type="button" 
+                      onClick={()=>{if(!c.outro){navigate('/calendario')}}}
+                      className={`
+                        min-h-[44px] rounded-xl flex flex-col items-center justify-center gap-0.5 py-1
+                        ${isHoje ? 'font-bold text-white' : c.outro ? 'text-gray-300' : 'text-gray-900 hover:bg-gray-50'}
+                      `}
+                      style={isHoje ? {background: '#801D39'} : {}}
+                    >
+                      <span className="text-sm">{c.dia}</span>
+                      {dots.length>0&&(
+                        <div className="flex gap-0.5">
+                          {dots.slice(0,4).map((cor,di)=>(
+                            <span key={di} className="w-1 h-1 rounded-full" style={{background:cor}}/>
+                          ))}
+                        </div>
+                      )}
+                    </button>
+                  )
                 })}
               </div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pt-3 border-t border-[#3d1528]">
+              
+              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-3 pt-3 border-t border-gray-100">
                 {[['#22c55e','Receita'],['#ef4444','Despesa'],['#eab308','Fatura'],['#a855f7','Planejado']].map(([cor,label])=>(
-                  <span key={label} className="flex items-center gap-1 text-[10px] text-[#D4A8B6]"><span className="w-2 h-2 rounded-full" style={{background:cor}}/>{label}</span>
+                  <span key={label} className="flex items-center gap-1.5 text-xs text-gray-600">
+                    <span className="w-2 h-2 rounded-full" style={{background:cor}}/>
+                    {label}
+                  </span>
                 ))}
               </div>
             </div>
