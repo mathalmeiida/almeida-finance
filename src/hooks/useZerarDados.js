@@ -49,7 +49,8 @@ export function useZerarDados() {
         k.startsWith('almeida_limite_') ||
         k.startsWith('almeida_reserva_') ||
         k.startsWith('almeida_onboarding_') ||
-        k === 'almeida_refazer_onboarding'
+        k === 'almeida_refazer_onboarding' ||
+        k === 'almeida_configurando_onboarding'
       )
       chavesParaRemover.forEach(k => localStorage.removeItem(k))
     } catch {

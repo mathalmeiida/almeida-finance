@@ -886,7 +886,7 @@ function PrivacidadeExibicao() {
 
 export default function Configuracoes() {
 
-  const { usuario, perfil, ehAdmin, encerrarMinhaConta } = useAuth()
+  const { usuario, perfil, ehAdmin, encerrarMinhaConta, recarregarPerfil } = useAuth()
 
   const { zerarDados } = useZerarDados()
 
@@ -968,8 +968,11 @@ export default function Configuracoes() {
 
       await zerarDados()
 
-      // Recarrega o app inteiro: todos os hooks releem o banco (agora vazio),
-      // o Dashboard aparece zerado e a sessão/login permanece ativa.
+      // Recarrega o perfil para obter onboarding_concluido = false do banco
+      await recarregarPerfil()
+
+      // Redireciona para a raiz: o App.jsx detecta onboarding_concluido = false
+      // e abre automaticamente a tela de boas-vindas do OnboardingSimples.
       window.location.assign('/')
 
     } catch (err) {
