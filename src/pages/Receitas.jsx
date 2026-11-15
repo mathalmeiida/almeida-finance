@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, Link } from 'react-router-dom'
 
 import { TrendingUp, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, BarChart3, Upload } from 'lucide-react'
 
@@ -576,6 +576,27 @@ export default function Receitas() {
           </div>
         )}
       </section>
+
+      {origemOnboarding && (
+        <div className="card !p-4 bg-[#FFF5F7] border-2 border-[#821C3E]/20">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">
+                Configurando suas finanças
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                Salve suas receitas e retorne para continuar
+              </p>
+            </div>
+            <Link
+              to="/onboarding"
+              className="btn-primary text-sm whitespace-nowrap"
+            >
+              Voltar à configuração
+            </Link>
+          </div>
+        </div>
+      )}
 
       {(erro || erroAcao) && <div role="alert" className="rounded-xl bg-red-500/10 text-red-500 p-3 text-sm">{erroAcao || erro}</div>}
 

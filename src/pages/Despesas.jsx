@@ -1370,6 +1370,10 @@ export default function Despesas() {
   // despesa; ?novo=parcelado abre o modal e já posiciona na aba Parceladas.
   // Usa o fluxo/modal JÁ existente — sem formulário novo.
   const [searchParams, setSearchParams] = useSearchParams()
+  
+  // Retorno ao onboarding
+  const origemOnboarding = searchParams.get('origem') === 'onboarding'
+  
   useEffect(() => {
     const novo = searchParams.get('novo')
     if (novo === '1' || novo === 'parcelado') {
@@ -1625,6 +1629,27 @@ export default function Despesas() {
           </div>
         )}
       </section>
+
+      {origemOnboarding && (
+        <div className="card !p-4 bg-[#FFF5F7] border-2 border-[#821C3E]/20">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">
+                Configurando suas finanças
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                Salve suas despesas e retorne para continuar
+              </p>
+            </div>
+            <Link
+              to="/onboarding"
+              className="btn-primary text-sm whitespace-nowrap"
+            >
+              Voltar à configuração
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Abas sem duplicar a lista; áreas menos utilizadas ficam no seletor. */}
       <nav aria-label="Seções de despesas" className="card !p-2 flex items-center gap-2 flex-wrap">

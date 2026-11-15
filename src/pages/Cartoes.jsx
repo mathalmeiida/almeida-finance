@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useSearchParams, Link } from 'react-router-dom'
 import {
   CreditCard, Plus, Pencil, Trash2, Loader2, ArrowLeft, Calendar, Receipt, FileText, CheckCircle2, ShoppingCart, Layers3, Settings2, Upload
 } from 'lucide-react'
@@ -980,6 +981,10 @@ export default function Cartoes() {
   const [salvando, setSalvando] = useState(false)
   const [removendo, setRemovendo] = useState(null)
   const [erro, setErro] = useState('')
+  
+  // Retorno ao onboarding
+  const [searchParams] = useSearchParams()
+  const origemOnboarding = searchParams.get('origem') === 'onboarding'
 // Compras agrupadas por cartão (para passar a cada card sem refazer query)
   const comprasPorCartao = (cartaoId) => compras.filter(c => c.cartao_id === cartaoId)
   const parcelamentosPorCartao = (cartaoId) => parcelamentos.filter(p => p.cartao_id === cartaoId)

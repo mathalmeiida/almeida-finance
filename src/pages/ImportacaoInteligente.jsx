@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Upload, Landmark, CreditCard, TrendingUp, FileText,
   AlertTriangle, CheckCircle2, Loader2, Pencil, Trash2,
-  ShieldCheck, ArrowLeft, RotateCcw, Info, X,
+  ShieldCheck, ArrowLeft, RotateCcw, Info, X, Plus,
 } from 'lucide-react'
 
 import { supabase } from '../lib/supabase'
@@ -16,6 +16,7 @@ import { useCategorias } from '../hooks/useCategorias'
 import { useImportacoes } from '../hooks/useImportacoes'
 
 import InputMoeda from '../components/InputMoeda'
+import Modal from '../components/Modal'
 import ResumoConciliacao from '../components/ResumoConciliacao'
 import SelectCustomizado from '../components/SelectCustomizado'
 
@@ -120,6 +121,175 @@ const FILTROS = [
 
 const PASSOS = ['Tipo e arquivo', 'Revisar', 'Resultado']
 
+// Cores disponíveis para cartões
+const CORES_CARTAO = [
+  { valor: '#6366f1', nome: 'Azul' },
+  { valor: '#8b5cf6', nome: 'Roxo' },
+  { valor: '#ec4899', nome: 'Rosa' },
+  { valor: '#f43f5e', nome: 'Vermelho' },
+  { valor: '#f97316', nome: 'Laranja' },
+  { valor: '#eab308', nome: 'Amarelo' },
+  { valor: '#22c55e', nome: 'Verde' },
+  { valor: '#14b8a6', nome: 'Turquesa' },
+  { valor: '#3b82f6', nome: 'Azul claro' },
+  { valor: '#64748b', nome: 'Cinza' },
+]
+
+// Formulário inline de cartão (reutiliza lógica do Cartoes.jsx)
+function FormCartaoInline({ onSalvar, onCancelar, carregando }) {
+  const [form, setForm] = useState({
+    nome: '',
+    banco: '',
+    limite_total: '',
+    dia_fechamento: '',
+    dia_vencimento: '',
+    cor: '#6366f1',
+  })
+
+  function handleChange(e) {
+    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    if (!form.nome.trim()) {
+      alert('Informe o nome do cartão')
+      return
+    }
+    if (!form.dia_fechamento || !form.dia_vencimento) {
+      alert('Informe os dias de fechamento e vencimento')
+      return
+    }
+    
+    onSalvar({
+      nome: form.nome,
+      banco: form.banco || null,
+      limite_total: Number(form.limite_total) || 0,
+      dia_fechamento: parseInt(form.dia_fechamento),
+      dia_vencimento: parseInt(form.dia_vencimento),
+      cor: form.cor,
+    })
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="label">Nome do cartão</label>
+        <input
+          name="nome"
+          value={form.nome}
+          onChange={handleChange}
+          className="input"
+          placeholder="Ex: Bradesco Visa, Nubank"
+          required
+          autoFocus
+        />
+      </div>
+
+      <div>
+        <label className="label">
+          Banco / Instituição <span className="text-gray-400">(opcional)</span>
+        </label>
+        <input
+          name="banco"
+          value={form.banco}
+          onChange={handleChange}
+          className="input"
+          placeholder="Ex: Bradesco, Nubank"
+        />
+      </div>
+
+      <div>
+        <label className="label">Limite total (R$)</label>
+        <InputMoeda
+          valor={form.limite_total}
+          onChangeValor={(n) => setForm(prev => ({ ...prev, limite_total: n }))}
+          className="input"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Dia de fechamento</label>
+          <input
+            name="dia_fechamento"
+            value={form.dia_fechamento}
+            onChange={handleChange}
+            type="number"
+            min="1"
+            max="31"
+            className="input"
+            placeholder="Ex: 20"
+            required
+          />
+        </div>
+        <div>
+          <label className="label">Dia de vencimento</label>
+          <input
+            name="dia_vencimento"
+            value={form.dia_vencimento}
+            onChange={handleChange}
+            type="number"
+            min="1"
+            max="31"
+            className="input"
+            placeholder="Ex: 28"
+            required
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="label">Cor do cartão</label>
+        <div className="flex flex-wrap gap-2 mt-1">
+          {CORES_CARTAO.map(c => (
+            <button
+              key={c.valor}
+              type="button"
+              title={c.nome}
+              onClick={() => setForm(prev => ({ ...prev, cor: c.valor }))}
+              className={`w-8 h-8 rounded-lg transition-all ${
+                form.cor === c.valor
+                  ? 'ring-2 ring-offset-2 ring-gray-900 scale-110'
+                  : 'hover:scale-105'
+              }`}
+              style={{ backgroundColor: c.valor }}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="flex gap-3 pt-2">
+        <button
+          type="button"
+          onClick={onCancelar}
+          disabled={carregando}
+          className="btn-secondary flex-1"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          disabled={carregando}
+          className="btn-primary flex-1 flex items-center justify-center gap-2"
+        >
+          {carregando ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              Salvando...
+            </>
+          ) : (
+            <>
+              <CheckCircle2 size={16} />
+              Salvar cartão
+            </>
+          )}
+        </button>
+      </div>
+    </form>
+  )
+}
+
 function mensagemErro(erro, padrao) {
   const mensagem = String(erro?.message || '')
   if (/failed to fetch|network|load failed|fetch/i.test(mensagem)) {
@@ -218,6 +388,7 @@ export default function ImportacaoInteligente({
   const {
     cartoes = [],
     carregando: carregandoCartoes,
+    criar: criarCartao,
   } = useCartoes()
 
   const {
@@ -259,6 +430,9 @@ export default function ImportacaoInteligente({
   const [pendenteSenha, setPendenteSenha] = useState(null)
   const [senhaPdf, setSenhaPdf] = useState('')
   const [progressoLeitura, setProgressoLeitura] = useState('')
+
+  const [modalCadastroCartao, setModalCadastroCartao] = useState(false)
+  const [salvandoCartao, setSalvandoCartao] = useState(false)
 
   const emGravacao = useRef(false)
   const inputRef = useRef(null)
@@ -966,6 +1140,37 @@ export default function ImportacaoInteligente({
     setSenhaPdf('')
   }
 
+  // CADASTRO DE CARTÃO (inline na importação)
+
+  async function handleCadastrarCartao(dados) {
+    setSalvandoCartao(true)
+    setErro('')
+    
+    try {
+      const novoCartao = await criarCartao(dados)
+      
+      // Seleciona automaticamente o cartão criado
+      setCartaoId(novoCartao.id)
+      setModalCadastroCartao(false)
+      
+      // Atualiza a prévia com o cartão selecionado se já havia arquivo carregado
+      if (ultimaLeituraRef.current) {
+        await montarPrevia(
+          ultimaLeituraRef.current.dados,
+          ultimaLeituraRef.current.informacoes,
+          ultimaLeituraRef.current.arquivosIgnorados,
+          { contexto: 'fatura', cartaoId: novoCartao.id }
+        )
+      }
+    } catch (falha) {
+      setErro(
+        mensagemErro(falha, 'Não foi possível cadastrar o cartão.')
+      )
+    } finally {
+      setSalvandoCartao(false)
+    }
+  }
+
   const conteiner = embutido
     ? 'w-full min-w-0 space-y-4'
     : 'w-full min-w-0 space-y-4 pb-24 md:pb-6'
@@ -992,6 +1197,21 @@ export default function ImportacaoInteligente({
             Revise tudo antes de salvar.
           </p>
         </header>
+      )}
+
+      {/* Modal de cadastro de cartão */}
+      {modalCadastroCartao && (
+        <Modal
+          aberto={modalCadastroCartao}
+          onFechar={() => !salvandoCartao && setModalCadastroCartao(false)}
+          titulo="Cadastrar cartão"
+        >
+          <FormCartaoInline
+            onSalvar={handleCadastrarCartao}
+            onCancelar={() => setModalCadastroCartao(false)}
+            carregando={salvandoCartao}
+          />
+        </Modal>
       )}
 
       <Passos etapa={etapa} />
@@ -1117,10 +1337,19 @@ export default function ImportacaoInteligente({
                   disabled={carregandoCartoes}
                 />
                 {!carregandoCartoes && !cartoes.length && (
-                  <p className="mt-2 text-xs text-amber-700">
-                    Cadastre um cartão antes de confirmar
-                    a importação da fatura.
-                  </p>
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs text-amber-700">
+                      Nenhum cartão cadastrado ainda.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setModalCadastroCartao(true)}
+                      className="btn-secondary w-full flex items-center justify-center gap-2 text-sm"
+                    >
+                      <Plus size={16} />
+                      Cadastrar cartão
+                    </button>
+                  </div>
                 )}
               </div>
             )}

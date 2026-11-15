@@ -318,7 +318,7 @@ export default function OnboardingSimples({ aoConcluir }) {
             </button>
 
             <a
-              href="/receitas"
+              href="/receitas?origem=onboarding"
               className="bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group block"
             >
               <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center mb-3">
@@ -329,7 +329,7 @@ export default function OnboardingSimples({ aoConcluir }) {
             </a>
 
             <a
-              href="/despesas"
+              href="/despesas?origem=onboarding"
               className="bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group block"
             >
               <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center mb-3">
@@ -340,7 +340,7 @@ export default function OnboardingSimples({ aoConcluir }) {
             </a>
 
             <a
-              href="/cartoes"
+              href="/cartoes?origem=onboarding"
               className="bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group block"
             >
               <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-3">
@@ -351,7 +351,7 @@ export default function OnboardingSimples({ aoConcluir }) {
             </a>
 
             <a
-              href="/beneficios"
+              href="/beneficios?origem=onboarding"
               className="bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group block"
             >
               <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center mb-3">
@@ -362,7 +362,7 @@ export default function OnboardingSimples({ aoConcluir }) {
             </a>
 
             <a
-              href="/investimentos"
+              href="/investimentos?origem=onboarding"
               className="bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group block"
             >
               <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center mb-3">
