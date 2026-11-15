@@ -14,6 +14,7 @@ import Onboarding from './pages/Onboarding'
 import OnboardingNovo from './pages/OnboardingNovo'
 import ApresentacaoNova from './pages/ApresentacaoNova'
 import RegistrarRapido from './pages/RegistrarRapido'
+import Calendario from './pages/Calendario'
 
 import ErrorBoundary from './components/ErrorBoundary'
 
@@ -420,7 +421,7 @@ function Rotas() {
 
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/registrar" element={<RegistrarRapido />} />
-                <Route path="/calendario" element={<Dashboard />} />
+                <Route path="/calendario" element={<Calendario />} />
                 <Route path="/e-se" element={<PaginaCenarios />} />
 
                 <Route path="/receitas" element={<Receitas />} />

@@ -13,8 +13,8 @@ import { hojeISO as hojeISOBrasil, FORMAS_PAGAMENTO } from '../lib/utils'
 
 export default function RegistrarRapido() {
   const navigate = useNavigate()
-  const { adicionar: adicionarDespesa, carregando: salvandoDespesa } = useDespesas()
-  const { adicionar: adicionarReceita, carregando: salvandoReceita } = useReceitas()
+  const { criar: adicionarDespesa, carregando: salvandoDespesa } = useDespesas()
+  const { criar: adicionarReceita, carregando: salvandoReceita } = useReceitas()
   const { categorias: categoriasDespesa } = useCategorias('despesa')
   const { categorias: categoriasReceita } = useCategorias('receita')
   const { cartoes } = useCartoes()
@@ -31,6 +31,7 @@ export default function RegistrarRapido() {
     cartao_id: '',
     beneficio_id: '',
     parcelas: '1',
+    frequencia: 'nao_repete',
   })
   const [salvando, setSalvando] = useState(false)
   const [sucesso, setSucesso] = useState(false)
@@ -62,7 +63,6 @@ export default function RegistrarRapido() {
   async function handleSalvar() {
     const valorNum = Number(form.valor)
     if (!Number.isFinite(valorNum) || valorNum <= 0) return
-    if (!form.forma_pagamento && tipo === 'despesa') return
     if (ehCartao && !form.cartao_id) return
     if (ehBeneficio && !form.beneficio_id) return
 
@@ -79,7 +79,8 @@ export default function RegistrarRapido() {
           descricao,
           valor: valorNum,
           data: form.data,
-          recorrente: false,
+          recorrente: form.frequencia !== 'nao_repete',
+          frequencia: form.frequencia,
           categoria_id: form.categoria_id || null,
           subcategoria_id: form.subcategoria_id || null,
           tipo_despesa,
@@ -94,7 +95,8 @@ export default function RegistrarRapido() {
           descricao,
           valor: valorNum,
           data: form.data,
-          recorrente: false,
+          recorrente: form.frequencia !== 'nao_repete',
+          frequencia: form.frequencia,
           categoria_id: form.categoria_id || null,
         })
       }
@@ -111,6 +113,7 @@ export default function RegistrarRapido() {
           cartao_id: '',
           beneficio_id: '',
           parcelas: '1',
+          frequencia: 'nao_repete',
         })
         setSucesso(false)
       }, 1500)
@@ -206,6 +209,22 @@ export default function RegistrarRapido() {
             onSubcategoriaChange={(subId) => handleChange('subcategoria_id', subId)}
           />
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              {tipo === 'despesa' ? 'Essa despesa se repete?' : 'Essa receita se repete?'}
+            </label>
+            <select
+              value={form.frequencia}
+              onChange={(e) => handleChange('frequencia', e.target.value)}
+              className="input w-full"
+            >
+              <option value="nao_repete">Não</option>
+              <option value="mensal">Mensalmente</option>
+              <option value="semanal">Semanalmente</option>
+              <option value="diaria">Diariamente</option>
+            </select>
+          </div>
+
           {tipo === 'despesa' && (
             <>
               <div>
@@ -217,12 +236,12 @@ export default function RegistrarRapido() {
                   onChange={(e) => handleChange('forma_pagamento', e.target.value)}
                   className="input w-full"
                 >
-                  <option value="">Selecione...</option>
+                  <option value="">⚪ Não informado</option>
                   {FORMAS_PAGAMENTO.map(f => (
-                    <option key={f.value} value={f.value}>{f.label}</option>
+                    <option key={f.value} value={f.value}>{f.icone} {f.label}</option>
                   ))}
-                  <option value="vr">Vale-refeição (VR)</option>
-                  <option value="va">Vale-alimentação (VA)</option>
+                  <option value="vr">🍽 Vale-refeição (VR)</option>
+                  <option value="va">🛒 Vale-alimentação (VA)</option>
                 </select>
               </div>
 
@@ -291,7 +310,7 @@ export default function RegistrarRapido() {
           <div className="flex gap-3 pt-4">
             <button
               onClick={handleSalvar}
-              disabled={salvando || !form.valor || (tipo === 'despesa' && !form.forma_pagamento)}
+              disabled={salvando || !form.valor}
               className="flex-1 btn-primary"
             >
               {salvando ? (
