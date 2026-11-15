@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Sun, Plus, Pencil,
   CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CalendarDays, PiggyBank, AlertTriangle, MessageCircle, BarChart2,
-  Receipt, ReceiptText, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap, Info, X, MoreHorizontal, Sparkles, Upload, Camera, UserRound
+  Receipt, ReceiptText, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap, Info, X, MoreHorizontal, Sparkles, Upload, Camera, UserRound, Settings
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useReceitas } from '../hooks/useReceitas'
@@ -1140,8 +1140,6 @@ function ModalSaldo({ aberto, onFechar, valorAtual, onSalvar, salvando }) {
     if (valor < 0) return
     setErro('')
     try {
-      // onSalvar pode ser assíncrono e lançar erro (ex.: coluna ausente no
-      // banco). Nesse caso mostramos a mensagem em vez de um clique "morto".
       await onSalvar(valor)
     } catch (err) {
       setErro(err?.message || 'Não foi possível salvar o saldo. Tente novamente.')
@@ -1174,6 +1172,147 @@ function ModalSaldo({ aberto, onFechar, valorAtual, onSalvar, salvando }) {
           <button type="submit" disabled={salvando}
             className="btn-primary flex-1 flex items-center justify-center gap-2">
             {salvando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : 'Salvar saldo'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+// ─── Modal para editar saldo disponível pela Home ─────────────────────────────
+function ModalEditarSaldoHome({ aberto, onFechar, valorAtual, onSalvar, salvando }) {
+  const [valor, setValor] = useState(0)
+  const [erro, setErro] = useState('')
+
+  useEffect(() => {
+    if (aberto) { setValor(Number(valorAtual) || 0); setErro('') }
+  }, [aberto, valorAtual])
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (valor < 0) return
+    setErro('')
+    try {
+      await onSalvar(valor)
+    } catch (err) {
+      setErro(err?.message || 'Não foi possível salvar o saldo.')
+    }
+  }
+
+  return (
+    <Modal aberto={aberto} onFechar={onFechar} titulo="Editar saldo disponível" tamanho="sm">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="label">Novo saldo</label>
+          <InputMoeda
+            valor={valor}
+            onChangeValor={setValor}
+            className="input text-xl font-bold text-center py-2.5"
+            autoFocus
+          />
+          <p className="text-xs text-gray-500 mt-1.5">
+            Atualize o saldo disponível atual.
+          </p>
+        </div>
+
+        {erro && (
+          <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{erro}</p>
+        )}
+        
+        <div className="flex gap-2.5 pt-1">
+          <button type="button" onClick={onFechar} className="btn-secondary flex-1">Cancelar</button>
+          <button type="submit" disabled={salvando} className="btn-primary flex-1 flex items-center justify-center gap-2">
+            {salvando ? <><Loader2 size={14} className="animate-spin" /> Salvando...</> : 'Salvar'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+// ─── Modal para configurar limite diário (automático ou manual) ────────────────
+function ModalConfigurarLimiteHome({ aberto, onFechar, modoAtual, limiteAtual, onSalvar, salvando }) {
+  const [modo, setModo] = useState('automatico')
+  const [limite, setLimite] = useState(0)
+  const [erro, setErro] = useState('')
+
+  useEffect(() => {
+    if (aberto) {
+      setModo(modoAtual || 'automatico')
+      setLimite(Number(limiteAtual) || 0)
+      setErro('')
+    }
+  }, [aberto, modoAtual, limiteAtual])
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (modo === 'manual' && limite <= 0) {
+      setErro('Informe um limite diário válido.')
+      return
+    }
+    setErro('')
+    try {
+      await onSalvar({ modo_limite: modo, limite_diario: modo === 'manual' ? limite : null })
+    } catch (err) {
+      setErro(err?.message || 'Não foi possível salvar a configuração.')
+    }
+  }
+
+  return (
+    <Modal aberto={aberto} onFechar={onFechar} titulo="Configurar limite diário" tamanho="sm">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-3">
+          <label className="flex items-start gap-3 p-3 border-2 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors" style={{borderColor: modo === 'automatico' ? '#801D39' : '#e5e7eb'}}>
+            <input
+              type="radio"
+              name="modo"
+              value="automatico"
+              checked={modo === 'automatico'}
+              onChange={(e) => setModo(e.target.value)}
+              className="mt-0.5"
+            />
+            <div className="flex-1">
+              <p className="font-semibold text-gray-900 text-sm">Automático</p>
+              <p className="text-xs text-gray-500 mt-0.5">Calculado com base no saldo e compromissos</p>
+            </div>
+          </label>
+
+          <label className="flex items-start gap-3 p-3 border-2 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors" style={{borderColor: modo === 'manual' ? '#801D39' : '#e5e7eb'}}>
+            <input
+              type="radio"
+              name="modo"
+              value="manual"
+              checked={modo === 'manual'}
+              onChange={(e) => setModo(e.target.value)}
+              className="mt-0.5"
+            />
+            <div className="flex-1">
+              <p className="font-semibold text-gray-900 text-sm">Manual</p>
+              <p className="text-xs text-gray-500 mt-0.5">Defina um limite fixo por dia</p>
+            </div>
+          </label>
+        </div>
+
+        {modo === 'manual' && (
+          <div>
+            <label className="label">Limite diário</label>
+            <InputMoeda
+              valor={limite}
+              onChangeValor={setLimite}
+              className="input text-lg font-semibold text-center py-2"
+              autoFocus
+            />
+          </div>
+        )}
+
+        {erro && (
+          <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{erro}</p>
+        )}
+        
+        <div className="flex gap-2.5 pt-1">
+          <button type="button" onClick={onFechar} className="btn-secondary flex-1">Cancelar</button>
+          <button type="submit" disabled={salvando} className="btn-primary flex-1 flex items-center justify-center gap-2">
+            {salvando ? <><Loader2 size={14} className="animate-spin" /> Salvando...</> : 'Salvar'}
           </button>
         </div>
       </form>
@@ -1897,6 +2036,10 @@ export default function Dashboard() {
   const [modalCalendario, setModalCalendario] = useState(false) // calendário financeiro (abre pela linha "Calendário")
   const [menuFoto, setMenuFoto] = useState(false) // menu de edição da foto (Home)
   const [modalEditarFoto, setModalEditarFoto] = useState(false) // seletor de foto
+  const [modalEditarSaldo, setModalEditarSaldo] = useState(false) // editar saldo disponível
+  const [modalConfigurarLimite, setModalConfigurarLimite] = useState(false) // configurar limite diário
+  const [salvandoSaldoHome, setSalvandoSaldoHome] = useState(false)
+  const [salvandoLimiteHome, setSalvandoLimiteHome] = useState(false)
   // Cards móveis: fechados por padrão, cada um expande independentemente.
   const [cardsMobileAbertos, setCardsMobileAbertos] = useState({})
   const alternarCardMobile = (chave) => setCardsMobileAbertos(anterior => ({ ...anterior, [chave]: !anterior[chave] }))
@@ -2383,6 +2526,35 @@ const carregandoLimite = carregando
     }
   }
 
+  // Salva saldo disponível pela Home (reutiliza a mesma lógica)
+  async function handleSalvarSaldoHome(valor) {
+    setSalvandoSaldoHome(true)
+    try {
+      await atualizarPreferenciasLimite({
+        saldo_base: valor,
+        saldo_base_data: hojeISOBrasil(),
+      })
+      setModalEditarSaldo(false)
+    } catch (err) {
+      throw err
+    } finally {
+      setSalvandoSaldoHome(false)
+    }
+  }
+
+  // Salva preferências de limite diário (modo automático ou manual)
+  async function handleSalvarLimiteHome({ modo_limite, limite_diario }) {
+    setSalvandoLimiteHome(true)
+    try {
+      await atualizarPreferenciasLimite({ modo_limite, limite_diario })
+      setModalConfigurarLimite(false)
+    } catch (err) {
+      throw err
+    } finally {
+      setSalvandoLimiteHome(false)
+    }
+  }
+
   // Salva o valor JÁ guardado e a META da reserva (ambos patrimônio/objetivo).
   // Não afetam nenhum cálculo financeiro — são apenas informativos.
   async function handleSalvarReservaAtual({ reserva_atual, meta_reserva }) {
@@ -2611,7 +2783,18 @@ const carregandoLimite = carregando
         <div className="rounded-2xl p-4" style={{background: 'linear-gradient(135deg, #8B1538 0%, #6B0F2A 100%)'}}>
           <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
             <div>
-              <p className="text-[11px] font-medium text-white/70 mb-1.5">Saldo disponível</p>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[11px] font-medium text-white/70">Saldo disponível</p>
+                {!somenteLeitura && (
+                  <button
+                    onClick={() => setModalEditarSaldo(true)}
+                    className="text-white/60 hover:text-white transition-colors"
+                    aria-label="Editar saldo"
+                  >
+                    <Pencil size={12} />
+                  </button>
+                )}
+              </div>
               <p className="text-xl font-bold text-white leading-tight">
                 {carregando ? '...' : saldoConfigurado ? exibirMoeda(saldoDisponivelAgora, ocultar) : 'R$ 0,00'}
               </p>
@@ -2620,7 +2803,18 @@ const carregandoLimite = carregando
             <div className="w-px h-12 bg-white/20"></div>
             
             <div className="text-right">
-              <p className="text-[11px] font-medium text-white/70 mb-1.5">Posso gastar hoje?</p>
+              <div className="flex items-center justify-end gap-1.5 mb-1.5">
+                <p className="text-[11px] font-medium text-white/70">Posso gastar hoje?</p>
+                {!somenteLeitura && (
+                  <button
+                    onClick={() => setModalConfigurarLimite(true)}
+                    className="text-white/60 hover:text-white transition-colors"
+                    aria-label="Configurar limite"
+                  >
+                    <Settings size={12} />
+                  </button>
+                )}
+              </div>
               <div className="flex items-center justify-end gap-2">
                 <p className="text-xl font-bold text-white leading-tight">
                   {exibirMoeda(Math.max(0, limiteHoje), ocultar)}
@@ -3210,6 +3404,25 @@ dataReferencia={hojeISO}
           />
         </Modal>
       )}
+
+      {/* Modal de editar saldo pela Home */}
+      <ModalEditarSaldoHome
+        aberto={modalEditarSaldo}
+        onFechar={() => setModalEditarSaldo(false)}
+        valorAtual={perfil?.saldo_base}
+        onSalvar={handleSalvarSaldoHome}
+        salvando={salvandoSaldoHome}
+      />
+
+      {/* Modal de configurar limite diário */}
+      <ModalConfigurarLimiteHome
+        aberto={modalConfigurarLimite}
+        onFechar={() => setModalConfigurarLimite(false)}
+        modoAtual={perfil?.modo_limite}
+        limiteAtual={perfil?.limite_diario}
+        onSalvar={handleSalvarLimiteHome}
+        salvando={salvandoLimiteHome}
+      />
 
     </div>
   )
