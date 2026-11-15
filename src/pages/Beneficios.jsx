@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react'
+import { useSearchParams, Link } from 'react-router-dom'
 import {
   UtensilsCrossed, ShoppingBag, Plus, Pencil, Trash2, Loader2, ArrowLeft,
   ArrowDownCircle, ArrowUpCircle, RotateCcw, SlidersHorizontal, Upload,
@@ -387,6 +388,11 @@ export default function Beneficios() {
     criarMovimentacao, removerMovimentacao, aplicarRecargasDoMes, registrarGastoRapido,
     saldoDoBeneficio, totalGastoNoMes, movsDeBeneficio, proximaRecarga,
   } = useBeneficios()
+  
+  // Retorno ao onboarding
+  const [searchParams] = useSearchParams()
+  const origemOnboarding = searchParams.get('origem') === 'onboarding'
+  
   const [cestaBeneficio, setCestaBeneficio] = useState(null)
   const [cestas, setCestas] = useState({})
   const [limites, setLimites] = useState({})
@@ -542,6 +548,28 @@ export default function Beneficios() {
       </div>
       {erroAcao && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{erroAcao}</p>}
       {erro && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">Erro ao carregar: {erro}</p>}
+      
+      {origemOnboarding && (
+        <div className="card !p-4 bg-[#FFF5F7] border-2 border-[#821C3E]/20">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">
+                Configurando suas finanças
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                Configure seus benefícios VR/VA e retorne para continuar
+              </p>
+            </div>
+            <Link
+              to="/onboarding"
+              className="btn-primary text-sm whitespace-nowrap"
+            >
+              Voltar à configuração
+            </Link>
+          </div>
+        </div>
+      )}
+      
       {carregando ? (
         <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-marca" /></div>
       ) : beneficios.length === 0 ? (

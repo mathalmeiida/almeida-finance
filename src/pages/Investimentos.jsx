@@ -546,7 +546,11 @@ export default function Investimentos() {
     proventosDeInvestimento, rentabilidadeDeInvestimento, proventosNoMes,
 
   } = useInvestimentos()
-
+  
+  // Retorno ao onboarding
+  const [searchParams] = useSearchParams()
+  const origemOnboarding = searchParams.get('origem') === 'onboarding'
+  
   const [modal, setModal] = useState(false)
 
   const [modalImportacao, setModalImportacao] = useState(false)
@@ -670,6 +674,50 @@ export default function Investimentos() {
       {erroAcao && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{erroAcao}</p>}
 
       {erro && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">Erro ao carregar: {erro}</p>}
+
+      {origemOnboarding && (
+        <div className="card !p-4 bg-[#FFF5F7] border-2 border-[#821C3E]/20">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">
+                Configurando suas finanças
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                Configure seus investimentos e retorne para continuar
+              </p>
+            </div>
+            <Link
+              to="/onboarding"
+              className="btn-primary text-sm whitespace-nowrap"
+            >
+              Voltar à configuração
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* 
+
+      {origemOnboarding && (
+        <div className="card !p-4 bg-[#FFF5F7] border-2 border-[#821C3E]/20">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">
+                Configurando suas finanças
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                Configure seus investimentos e retorne para continuar
+              </p>
+            </div>
+            <Link
+              to="/onboarding"
+              className="btn-primary text-sm whitespace-nowrap"
+            >
+              Voltar à configuração
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* â”€â”€ Card herÃ³i: patrimÃ´nio + indicadores integrados (sem repetiÃ§Ã£o) â”€â”€ */}
 

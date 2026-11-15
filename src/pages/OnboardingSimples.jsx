@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { FileText, Wallet, ArrowRight, CheckCircle2, Upload, Loader2, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useCategorias } from '../hooks/useCategorias'
@@ -29,6 +30,8 @@ export default function OnboardingSimples({ aoConcluir }) {
   const { beneficios } = useBeneficios()
   const { investimentos } = useInvestimentos()
   
+  const [searchParams] = useSearchParams()
+  
   // Estados para contadores de resumo
   const [contadores, setContadores] = useState({
     receitas: 0,
@@ -44,6 +47,21 @@ export default function OnboardingSimples({ aoConcluir }) {
   const [renda, setRenda] = useState(0)
   const [despesaFixa, setDespesaFixa] = useState(0)
   const [despesaVariavel, setDespesaVariavel] = useState(0)
+
+  // Abre diretamente na Central se estiver retornando de um módulo
+  useEffect(() => {
+    if (!modo && etapa === ETAPA_BOAS_VINDAS) {
+      // Verifica se está retornando de um módulo externo
+      const url = new URL(window.location.href)
+      const fromModulo = ['receitas', 'despesas', 'cartoes', 'beneficios', 'investimentos'].some(
+        modulo => url.search.includes(modulo) || document.referrer.includes(`/${modulo}`)
+      )
+      if (fromModulo) {
+        setModo('manual')
+        setEtapa(ETAPA_CENTRAL)
+      }
+    }
+  }, [modo, etapa])
 
   // Carrega dados existentes
   useEffect(() => {

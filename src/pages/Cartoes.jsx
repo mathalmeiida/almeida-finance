@@ -1058,6 +1058,28 @@ export default function Cartoes() {
           <p className="text-lg font-bold text-green-600 leading-tight break-words">{formatCurrency(limiteDisponivel)}</p>
         </div>
       </div>
+
+      {origemOnboarding && (
+        <div className="card !p-4 bg-[#FFF5F7] border-2 border-[#821C3E]/20">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">
+                Configurando suas finanças
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                Cadastre seus cartões e retorne para continuar
+              </p>
+            </div>
+            <Link
+              to="/onboarding"
+              className="btn-primary text-sm whitespace-nowrap"
+            >
+              Voltar à configuração
+            </Link>
+          </div>
+        </div>
+      )}
+
       {erro && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">{erro}</p>}
       {carregando ? (
         <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-marca" /></div>
