@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { FileText, Wallet, ArrowRight, CheckCircle2, Upload, Loader2, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useCategorias } from '../hooks/useCategorias'
@@ -31,6 +31,7 @@ export default function OnboardingSimples({ aoConcluir }) {
   const { investimentos } = useInvestimentos()
   
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   
   // Estados para contadores de resumo
   const [contadores, setContadores] = useState({
@@ -308,7 +309,7 @@ export default function OnboardingSimples({ aoConcluir }) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center p-4">
         <div className="w-full max-w-2xl">
-          <div className="text-center mb-8">
+          <div className="text-center mb-6">
             <button
               onClick={() => setEtapa(ETAPA_BOAS_VINDAS)}
               className="text-sm text-gray-600 hover:text-gray-900 mb-4"
@@ -318,80 +319,104 @@ export default function OnboardingSimples({ aoConcluir }) {
             <h2 className="text-2xl font-bold text-gray-900 mb-2">
               Configure suas finanças
             </h2>
-            <p className="text-gray-600">
+            <p className="text-gray-600 text-sm">
               Escolha os módulos que deseja configurar agora
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            {/* Saldo e Contas - Inline */}
             <button
               onClick={() => setEtapa(ETAPA_SALDO)}
-              className="bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group"
+              className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
             >
-              <div className="w-12 h-12 rounded-xl bg-[#FFF5F7] flex items-center justify-center mb-3">
+              <div className="w-12 h-12 rounded-xl bg-[#FFF5F7] flex items-center justify-center flex-shrink-0">
                 <Wallet size={24} style={{color: '#801D39'}} />
               </div>
-              <h3 className="font-bold text-gray-900 mb-1">Saldo e Contas</h3>
-              <p className="text-sm text-gray-600">Seu saldo bancário inicial</p>
+              <div className="flex-1 text-left min-w-0">
+                <h3 className="font-semibold text-gray-900 mb-0.5">Saldo e Contas</h3>
+                <p className="text-xs text-gray-600">Seu saldo bancário inicial</p>
+              </div>
+              <ArrowRight size={20} className="text-gray-400 group-hover:text-marca transition-colors flex-shrink-0" />
             </button>
 
-            <a
-              href="/receitas?origem=onboarding"
-              className="bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group block"
+            {/* Receitas */}
+            <button
+              onClick={() => navigate('/receitas?origem=onboarding')}
+              className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
             >
-              <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center mb-3">
+              <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
                 <ArrowRight size={24} className="text-green-600 rotate-180" />
               </div>
-              <h3 className="font-bold text-gray-900 mb-1">Receitas</h3>
-              <p className="text-sm text-gray-600">Salários, rendas e entradas</p>
-            </a>
+              <div className="flex-1 text-left min-w-0">
+                <h3 className="font-semibold text-gray-900 mb-0.5">Receitas</h3>
+                <p className="text-xs text-gray-600">Salários, rendas e entradas</p>
+              </div>
+              <ArrowRight size={20} className="text-gray-400 group-hover:text-marca transition-colors flex-shrink-0" />
+            </button>
 
-            <a
-              href="/despesas?origem=onboarding"
-              className="bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group block"
+            {/* Despesas */}
+            <button
+              onClick={() => navigate('/despesas?origem=onboarding')}
+              className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
             >
-              <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center mb-3">
+              <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
                 <ArrowRight size={24} className="text-red-600" />
               </div>
-              <h3 className="font-bold text-gray-900 mb-1">Despesas</h3>
-              <p className="text-sm text-gray-600">Gastos fixos e variáveis</p>
-            </a>
+              <div className="flex-1 text-left min-w-0">
+                <h3 className="font-semibold text-gray-900 mb-0.5">Despesas</h3>
+                <p className="text-xs text-gray-600">Gastos fixos e variáveis</p>
+              </div>
+              <ArrowRight size={20} className="text-gray-400 group-hover:text-marca transition-colors flex-shrink-0" />
+            </button>
 
-            <a
-              href="/cartoes?origem=onboarding"
-              className="bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group block"
+            {/* Cartões */}
+            <button
+              onClick={() => navigate('/cartoes?origem=onboarding')}
+              className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
             >
-              <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-3">
+              <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
                 <CheckCircle2 size={24} className="text-blue-600" />
               </div>
-              <h3 className="font-bold text-gray-900 mb-1">Cartões</h3>
-              <p className="text-sm text-gray-600">Cartões de crédito</p>
-            </a>
+              <div className="flex-1 text-left min-w-0">
+                <h3 className="font-semibold text-gray-900 mb-0.5">Cartões</h3>
+                <p className="text-xs text-gray-600">Cartões de crédito</p>
+              </div>
+              <ArrowRight size={20} className="text-gray-400 group-hover:text-marca transition-colors flex-shrink-0" />
+            </button>
 
-            <a
-              href="/beneficios?origem=onboarding"
-              className="bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group block"
+            {/* VR/VA */}
+            <button
+              onClick={() => navigate('/beneficios?origem=onboarding')}
+              className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
             >
-              <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center mb-3">
+              <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
                 <FileText size={24} className="text-amber-600" />
               </div>
-              <h3 className="font-bold text-gray-900 mb-1">VR/VA</h3>
-              <p className="text-sm text-gray-600">Vale refeição e alimentação</p>
-            </a>
+              <div className="flex-1 text-left min-w-0">
+                <h3 className="font-semibold text-gray-900 mb-0.5">VR/VA</h3>
+                <p className="text-xs text-gray-600">Vale refeição e alimentação</p>
+              </div>
+              <ArrowRight size={20} className="text-gray-400 group-hover:text-marca transition-colors flex-shrink-0" />
+            </button>
 
-            <a
-              href="/investimentos?origem=onboarding"
-              className="bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group block"
+            {/* Investimentos */}
+            <button
+              onClick={() => navigate('/investimentos?origem=onboarding')}
+              className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
             >
-              <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center mb-3">
+              <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0">
                 <Upload size={24} className="text-purple-600" />
               </div>
-              <h3 className="font-bold text-gray-900 mb-1">Investimentos</h3>
-              <p className="text-sm text-gray-600">Patrimônio investido</p>
-            </a>
+              <div className="flex-1 text-left min-w-0">
+                <h3 className="font-semibold text-gray-900 mb-0.5">Investimentos</h3>
+                <p className="text-xs text-gray-600">Patrimônio investido</p>
+              </div>
+              <ArrowRight size={20} className="text-gray-400 group-hover:text-marca transition-colors flex-shrink-0" />
+            </button>
           </div>
 
-          <div className="flex gap-3 mt-8">
+          <div className="flex gap-3 mt-6">
             <button
               onClick={() => setEtapa(ETAPA_CONCLUSAO)}
               className="btn-primary w-full flex items-center justify-center gap-2"
