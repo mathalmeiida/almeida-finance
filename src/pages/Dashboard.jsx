@@ -2647,7 +2647,6 @@ const carregandoLimite = carregando
                   <span key={label} className="flex items-center gap-1 text-[10px] text-[#D4A8B6]"><span className="w-2 h-2 rounded-full" style={{background:cor}}/>{label}</span>
                 ))}
               </div>
-              {!somenteLeitura&&<button type="button" onClick={()=>{setDataGastoCalendario(null);setModalGasto(true)}} className="mt-3 w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white" style={{background:'#C4507A'}}><Plus size={16}/> Adicionar lançamento</button>}
             </div>
           )
         })()}

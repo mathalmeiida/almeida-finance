@@ -97,7 +97,7 @@ export default function SeletorFotoPerfil({
 
       const { error: updateError } = await supabase
         .from('perfis')
-        .update({ foto_url: caminhoNovo, avatar_id: null, foto_atualizada_em: new Date().toISOString() })
+        .update({ foto_url: caminhoNovo, avatar_id: null })
         .eq('id', userId)
       if (updateError) throw updateError
       caminhoNovo = null // gravado com sucesso: não apagar
@@ -136,8 +136,7 @@ export default function SeletorFotoPerfil({
         .from('perfis')
         .update({
           foto_url: null,  // Remove foto
-          avatar_id: avatarId,
-          foto_atualizada_em: new Date().toISOString()
+          avatar_id: avatarId
         })
         .eq('id', userId)
 
@@ -179,8 +178,7 @@ export default function SeletorFotoPerfil({
         .from('perfis')
         .update({
           foto_url: null,
-          avatar_id: null,
-          foto_atualizada_em: new Date().toISOString()
+          avatar_id: null
         })
         .eq('id', userId)
 
@@ -219,8 +217,7 @@ export default function SeletorFotoPerfil({
       const { error: updateError } = await supabase
         .from('perfis')
         .update({
-          foto_url: null,
-          foto_atualizada_em: new Date().toISOString()
+          foto_url: null
         })
         .eq('id', userId)
 

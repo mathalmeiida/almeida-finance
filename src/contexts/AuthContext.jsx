@@ -176,15 +176,6 @@ export function AuthProvider({ children }) {
       password: senha,
     })
     if (error) throw error
-    // Registra o último acesso (usado no painel admin). Não bloqueia o login
-    // se falhar, e não interfere em nenhum dado financeiro.
-    if (data?.user?.id) {
-      supabase
-        .from('perfis')
-        .update({ ultimo_acesso: new Date().toISOString() })
-        .eq('id', data.user.id)
-        .then(() => {}, () => {})
-    }
     return data
   }
 
