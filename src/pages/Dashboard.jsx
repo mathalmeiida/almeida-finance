@@ -2509,39 +2509,55 @@ const carregandoLimite = carregando
     <div className="af-home-premium w-full max-w-none min-w-0 flex flex-col gap-0 md:pb-0" style={variaveisHome}>
       <FundoCorpoHome cor={variaveisHome['--af-home-bg']} />
       
-      {/* HEADER COM LOGO E SAUDAÇÃO */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-marca rounded-lg flex items-center justify-center text-white font-bold text-sm sm:text-base">
-            AF
+      {/* HEADER COM LOGO E SAUDAÇÃO - CONFORME IMAGEM 1 */}
+      <div className="bg-white border-b border-gray-100 px-4 py-3 mb-4">
+        {/* Linha 1: Logo + Título + Notificação */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{background: '#801D39'}}>
+              <span className="text-white font-bold text-lg">AF</span>
+            </div>
+            <span className="text-lg font-semibold text-gray-900">Almeida Finance</span>
           </div>
+          
+          <button 
+            onClick={() => setModalNotificacoes(true)} 
+            aria-label={temNotificacao ? 'Você tem notificações' : 'Notificações'}
+            className="relative"
+          >
+            <Bell size={22} className="text-gray-700" />
+            {temNotificacao && (
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500" />
+            )}
+          </button>
+        </div>
+        
+        {/* Linha 2: Foto + Saudação */}
+        <div className="flex items-center gap-3">
+          {perfil?.foto_url ? (
+            <img 
+              src={perfil.foto_url} 
+              alt={usuario?.nome || 'Foto'} 
+              className="w-12 h-12 rounded-full object-cover"
+            />
+          ) : perfil?.avatar_id ? (
+            <div className="w-12 h-12 rounded-full flex items-center justify-center text-2xl">
+              {perfil.avatar_id}
+            </div>
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-marca flex items-center justify-center text-white font-semibold text-lg">
+              {(usuario?.nome || 'U').charAt(0).toUpperCase()}
+            </div>
+          )}
+          
           <div>
-            <h1 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">Almeida Finance</h1>
-            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-              {saudacao}, {usuario?.nome?.split(' ')[0] || 'Usuário'}
+            <p className="text-sm text-gray-600">{saudacao},</p>
+            <p className="text-base font-bold text-gray-900">
+              {usuario?.nome?.split(' ')[0] || 'Usuário'}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {!somenteLeitura && (
-            <button onClick={() => setModalImportacao(true)} aria-label="Importar documentos"
-              className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-              <Upload size={18} className="text-gray-600 dark:text-gray-400" />
-            </button>
-          )}
-          <button onClick={() => setModalNotificacoes(true)} aria-label={temNotificacao ? 'Você tem notificações' : 'Notificações'}
-            className="relative w-9 h-9 rounded-xl flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-            <Bell size={18} className="text-gray-600 dark:text-gray-400" />
-            {temNotificacao && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500" />}
-          </button>
-        </div>
       </div>
-
-      {/* SAUDAÇÃO ANTIGA - REMOVIDA */}
-      {/* SAUDAÇÃO ANTIGA - REMOVIDA */}
-      {/* <div className="af-home-header relative overflow-hidden mb-2">
-        ... código antigo de saudação removido ...
-      </div> */}
 
       {mostrarComecePorAqui && !somenteLeitura && (
         <div className="mb-2"><CardComecePorAqui itens={onboardingItens} totalConcluidos={totalConcluidos} onIrPara={(item) => continuarConfiguracao(item?.chave)} onContinuar={() => continuarConfiguracao(primeiroPendente?.chave)} onDispensar={handleDispensarComece} /></div>
@@ -2638,6 +2654,71 @@ const carregandoLimite = carregando
 
         {/* Atalhos — carrossel horizontal personalizável (src/components/AtalhosHome.jsx) */}
         <AtalhosHome onAbrirModal={abrirModalAtalho} somenteLeitura={somenteLeitura} sangria />
+        
+        {/* PLANEJE SUAS DECISÕES - CONFORME IMAGEM 2 */}
+        <div className="px-4 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-gray-900">Planeje suas decisões</h2>
+            <button 
+              onClick={() => navigate('/projecao')}
+              className="text-sm font-semibold flex items-center gap-1"
+              style={{color: '#801D39'}}
+            >
+              Ver todos <ChevronRight size={16} />
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-3">
+            <button
+              onClick={() => navigate('/e-se')}
+              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex flex-col items-center gap-2 hover:shadow-md transition-shadow"
+            >
+              <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{background: '#FFF5F7'}}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#801D39" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="4" y1="21" x2="4" y2="14"></line>
+                  <line x1="4" y1="10" x2="4" y2="3"></line>
+                  <line x1="12" y1="21" x2="12" y2="12"></line>
+                  <line x1="12" y1="8" x2="12" y2="3"></line>
+                  <line x1="20" y1="21" x2="20" y2="16"></line>
+                  <line x1="20" y1="12" x2="20" y2="3"></line>
+                  <line x1="1" y1="14" x2="7" y2="14"></line>
+                  <line x1="9" y1="8" x2="15" y2="8"></line>
+                  <line x1="17" y1="16" x2="23" y2="16"></line>
+                </svg>
+              </div>
+              <span className="text-xs font-bold text-gray-900">E SE?</span>
+            </button>
+            
+            <button
+              onClick={() => navigate('/simular-compra')}
+              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex flex-col items-center gap-2 hover:shadow-md transition-shadow"
+            >
+              <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{background: '#FFF5F7'}}>
+                <ShoppingCart size={24} style={{color: '#801D39'}} />
+              </div>
+              <span className="text-xs font-bold text-gray-900">Simular compra</span>
+            </button>
+            
+            <button
+              onClick={() => navigate('/custo-vida')}
+              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex flex-col items-center gap-2 hover:shadow-md transition-shadow"
+            >
+              <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{background: '#FFF5F7'}}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#801D39" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                </svg>
+              </div>
+              <span className="text-xs font-bold text-gray-900">Custo de vida</span>
+            </button>
+          </div>
+          
+          {/* Indicador de páginas do carrossel */}
+          <div className="flex items-center justify-center gap-1.5 mt-4">
+            <div className="w-2 h-2 rounded-full" style={{background: '#801D39'}}></div>
+            <div className="w-2 h-2 rounded-full bg-gray-300"></div>
+          </div>
+        </div>
       </div>
 
       {/* DESKTOP */}
