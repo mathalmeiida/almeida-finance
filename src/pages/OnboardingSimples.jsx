@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { FileText, Wallet, ArrowRight, CheckCircle2, Upload, Loader2, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { useCategorias } from '../hooks/useCategorias'
@@ -31,7 +31,6 @@ export default function OnboardingSimples({ aoConcluir }) {
   const { investimentos } = useInvestimentos()
   
   const [searchParams] = useSearchParams()
-  const navigate = useNavigate()
   
   // Estados para contadores de resumo
   const [contadores, setContadores] = useState({
@@ -327,7 +326,10 @@ export default function OnboardingSimples({ aoConcluir }) {
           <div className="space-y-3">
             {/* Saldo e Contas - Inline */}
             <button
-              onClick={() => setEtapa(ETAPA_SALDO)}
+              onClick={() => {
+                console.log('Clique em Saldo detectado')
+                setEtapa(ETAPA_SALDO)
+              }}
               className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
             >
               <div className="w-12 h-12 rounded-xl bg-[#FFF5F7] flex items-center justify-center flex-shrink-0">
@@ -342,7 +344,10 @@ export default function OnboardingSimples({ aoConcluir }) {
 
             {/* Receitas */}
             <button
-              onClick={() => navigate('/receitas?origem=onboarding')}
+              onClick={() => {
+                console.log('Clique em Receitas detectado')
+                window.location.href = '/receitas?origem=onboarding'
+              }}
               className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
             >
               <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
@@ -357,7 +362,10 @@ export default function OnboardingSimples({ aoConcluir }) {
 
             {/* Despesas */}
             <button
-              onClick={() => navigate('/despesas?origem=onboarding')}
+              onClick={() => {
+                console.log('Clique em Despesas detectado')
+                window.location.href = '/despesas?origem=onboarding'
+              }}
               className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
             >
               <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
@@ -372,7 +380,10 @@ export default function OnboardingSimples({ aoConcluir }) {
 
             {/* Cartões */}
             <button
-              onClick={() => navigate('/cartoes?origem=onboarding')}
+              onClick={() => {
+                console.log('Clique em Cartões detectado')
+                window.location.href = '/cartoes?origem=onboarding'
+              }}
               className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
             >
               <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
@@ -387,7 +398,10 @@ export default function OnboardingSimples({ aoConcluir }) {
 
             {/* VR/VA */}
             <button
-              onClick={() => navigate('/beneficios?origem=onboarding')}
+              onClick={() => {
+                console.log('Clique em VR/VA detectado')
+                window.location.href = '/beneficios?origem=onboarding'
+              }}
               className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
             >
               <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
@@ -402,7 +416,10 @@ export default function OnboardingSimples({ aoConcluir }) {
 
             {/* Investimentos */}
             <button
-              onClick={() => navigate('/investimentos?origem=onboarding')}
+              onClick={() => {
+                console.log('Clique em Investimentos detectado')
+                window.location.href = '/investimentos?origem=onboarding'
+              }}
               className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
             >
               <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0">
