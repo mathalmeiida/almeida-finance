@@ -11,6 +11,7 @@ import { useOnboarding } from './hooks/useOnboarding'
 import Layout from './components/Layout'
 
 import Onboarding from './pages/Onboarding'
+import OnboardingSimples from './pages/OnboardingSimples'
 import OnboardingNovo from './pages/OnboardingNovo'
 import ApresentacaoNova from './pages/ApresentacaoNova'
 import RegistrarRapido from './pages/RegistrarRapido'
@@ -298,7 +299,7 @@ function AreaAutenticada({ children }) {
 
   if (precisaOnboarding || refazer) {
 
-    return <Onboarding aoConcluir={encerrarOnboarding} etapaInicial={etapaInicial} />
+    return <OnboardingSimples aoConcluir={encerrarOnboarding} />
 
   }
 

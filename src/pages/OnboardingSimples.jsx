@@ -1,0 +1,342 @@
+import React, { useState, useEffect } from 'react'
+import { FileText, Wallet, ArrowRight, CheckCircle2, Upload, Loader2, X } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
+import { useReceitas } from '../hooks/useReceitas'
+import { useDespesas } from '../hooks/useDespesas'
+import { useCategorias } from '../hooks/useCategorias'
+import { useCartoes } from '../hooks/useCartoes'
+import { useBeneficios } from '../hooks/useBeneficios'
+import { useInvestimentos } from '../hooks/useInvestimentos'
+import InputMoeda from '../components/InputMoeda'
+import ImportacaoInteligente from './ImportacaoInteligente'
+import { hojeISO as hojeISOBrasil, formatCurrency } from '../lib/utils'
+
+const ETAPA_BOAS_VINDAS = 'boas-vindas'
+const ETAPA_CONFIGURACAO = 'configuracao'
+const ETAPA_IMPORTACAO = 'importacao'
+const ETAPA_CONCLUSAO = 'conclusao'
+
+export default function OnboardingSimples({ aoConcluir }) {
+  const { usuario, perfil, atualizarPreferenciasLimite } = useAuth()
+  const { receitas } = useReceitas()
+  const { despesas } = useDespesas()
+  const { categorias: categoriasReceita } = useCategorias('receita')
+  const { categorias: categoriasDespesa } = useCategorias('despesa')
+  const { cartoes } = useCartoes()
+  const { beneficios } = useBeneficios()
+  const { investimentos } = useInvestimentos()
+
+  const [etapa, setEtapa] = useState(ETAPA_BOAS_VINDAS)
+  const [modo, setModo] = useState(null) // 'importar' | 'manual'
+  const [salvando, setSalvando] = useState(false)
+  
+  // Estados de configuração manual
+  const [saldo, setSaldo] = useState(0)
+  const [renda, setRenda] = useState(0)
+  const [despesaFixa, setDespesaFixa] = useState(0)
+  const [despesaVariavel, setDespesaVariavel] = useState(0)
+
+  // Carrega dados existentes
+  useEffect(() => {
+    if (perfil?.saldo_base) setSaldo(Number(perfil.saldo_base))
+  }, [perfil])
+
+  async function handleEscolha(escolha) {
+    setModo(escolha)
+    if (escolha === 'importar') {
+      setEtapa(ETAPA_IMPORTACAO)
+    } else {
+      setEtapa(ETAPA_CONFIGURACAO)
+    }
+  }
+
+  async function handlePular() {
+    if (aoConcluir) await aoConcluir()
+  }
+
+  async function handleSalvarConfiguracao() {
+    setSalvando(true)
+    try {
+      // Salva saldo
+      if (saldo > 0) {
+        await atualizarPreferenciasLimite({
+          saldo_base: saldo,
+          saldo_base_data: hojeISOBrasil(),
+        })
+      }
+
+      // TODO: Salvar renda, despesas como lançamentos se necessário
+      // Por ora apenas salva o saldo e permite prosseguir
+
+      setEtapa(ETAPA_CONCLUSAO)
+    } catch (err) {
+      alert(err?.message || 'Erro ao salvar')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  function handleImportacaoConcluida() {
+    setEtapa(ETAPA_CONCLUSAO)
+  }
+
+  async function handleConcluir() {
+    if (aoConcluir) await aoConcluir()
+  }
+
+  // Calcula resumo
+  const resumo = {
+    saldo: perfil?.saldo_base || 0,
+    receitas: receitas.length,
+    despesas: despesas.length,
+    cartoes: cartoes.length,
+    investimentos: investimentos.length,
+  }
+
+  if (etapa === ETAPA_BOAS_VINDAS) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center p-4">
+        <div className="w-full max-w-lg">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-marca rounded-2xl flex items-center justify-center mx-auto mb-4" style={{background: '#801D39'}}>
+              <Wallet size={32} className="text-white" />
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              Vamos organizar suas finanças
+            </h1>
+            <p className="text-gray-600">
+              Escolha como deseja começar. Você pode configurar tudo depois.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <button
+              onClick={() => handleEscolha('importar')}
+              className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:bg-marca/10 transition-colors" style={{background: '#FFF5F7'}}>
+                  <FileText size={24} style={{color: '#801D39'}} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 mb-1">Importar meus dados</h3>
+                  <p className="text-sm text-gray-600">
+                    Anexe extratos bancários, faturas e investimentos
+                  </p>
+                </div>
+                <ArrowRight size={20} className="text-gray-400 group-hover:text-marca transition-colors" />
+              </div>
+            </button>
+
+            <button
+              onClick={() => handleEscolha('manual')}
+              className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:bg-marca/10 transition-colors" style={{background: '#FFF5F7'}}>
+                  <Wallet size={24} style={{color: '#801D39'}} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 mb-1">Configurar manualmente</h3>
+                  <p className="text-sm text-gray-600">
+                    Informe seu saldo, renda e despesas
+                  </p>
+                </div>
+                <ArrowRight size={20} className="text-gray-400 group-hover:text-marca transition-colors" />
+              </div>
+            </button>
+          </div>
+
+          <button
+            onClick={handlePular}
+            className="w-full mt-4 text-sm text-gray-500 hover:text-gray-700 py-3"
+          >
+            Pular por enquanto
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (etapa === ETAPA_CONFIGURACAO) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center p-4">
+        <div className="w-full max-w-lg">
+          <div className="bg-white rounded-2xl shadow-lg p-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Configuração inicial</h2>
+            
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Saldo inicial em conta
+                </label>
+                <InputMoeda
+                  valor={saldo}
+                  onChangeValor={setSaldo}
+                  className="input text-xl font-bold text-center py-3"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Quanto você tem disponível hoje
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Renda mensal (opcional)
+                </label>
+                <InputMoeda
+                  valor={renda}
+                  onChangeValor={setRenda}
+                  className="input text-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Despesas fixas mensais (opcional)
+                </label>
+                <InputMoeda
+                  valor={despesaFixa}
+                  onChangeValor={setDespesaFixa}
+                  className="input text-lg"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Ex: aluguel, condomínio, internet
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Despesas variáveis mensais (opcional)
+                </label>
+                <InputMoeda
+                  valor={despesaVariavel}
+                  onChangeValor={setDespesaVariavel}
+                  className="input text-lg"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Ex: alimentação, transporte, lazer
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-8">
+              <button
+                onClick={() => setEtapa(ETAPA_BOAS_VINDAS)}
+                className="btn-secondary flex-1"
+              >
+                Voltar
+              </button>
+              <button
+                onClick={handleSalvarConfiguracao}
+                disabled={salvando}
+                className="btn-primary flex-1 flex items-center justify-center gap-2"
+              >
+                {salvando ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    Continuar
+                    <ArrowRight size={16} />
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (etapa === ETAPA_IMPORTACAO) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
+        <div className="max-w-4xl mx-auto p-4">
+          <div className="mb-4">
+            <button
+              onClick={() => setEtapa(ETAPA_BOAS_VINDAS)}
+              className="text-sm text-gray-600 hover:text-gray-900"
+            >
+              ← Voltar
+            </button>
+          </div>
+          
+          <ImportacaoInteligente
+            embutido
+            onConcluir={handleImportacaoConcluida}
+            onCancelar={() => setEtapa(ETAPA_BOAS_VINDAS)}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  if (etapa === ETAPA_CONCLUSAO) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center p-4">
+        <div className="w-full max-w-lg">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 size={32} className="text-green-600" />
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              Tudo pronto!
+            </h1>
+            <p className="text-gray-600">
+              Suas finanças estão organizadas
+            </p>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+            <h3 className="font-bold text-gray-900 mb-4">Resumo</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-600">Saldo disponível</span>
+                <span className="font-bold text-gray-900">
+                  {formatCurrency(resumo.saldo)}
+                </span>
+              </div>
+              {resumo.receitas > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Receitas cadastradas</span>
+                  <span className="font-semibold text-green-600">{resumo.receitas}</span>
+                </div>
+              )}
+              {resumo.despesas > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Despesas cadastradas</span>
+                  <span className="font-semibold text-red-600">{resumo.despesas}</span>
+                </div>
+              )}
+              {resumo.cartoes > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Cartões cadastrados</span>
+                  <span className="font-semibold text-blue-600">{resumo.cartoes}</span>
+                </div>
+              )}
+              {resumo.investimentos > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Investimentos</span>
+                  <span className="font-semibold text-purple-600">{resumo.investimentos}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <button
+            onClick={handleConcluir}
+            className="btn-primary w-full flex items-center justify-center gap-2 text-lg py-4"
+          >
+            Ir para minha Home
+            <ArrowRight size={20} />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return null
+}
