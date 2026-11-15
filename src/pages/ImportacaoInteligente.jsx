@@ -1623,6 +1623,19 @@ export default function ImportacaoInteligente({
                         </p>
                       )}
 
+                      {/* BOTÃO EXPANDIR/RECOLHER */}
+                      {importavel && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditando(aberto ? null : item.uid)
+                          }
+                          className="mt-2 text-xs font-medium text-[#821C3E] hover:underline"
+                        >
+                          {aberto ? '▲ Recolher' : '▼ Editar detalhes'}
+                        </button>
+                      )}
+
                       {/* FORMULÁRIO DE EDIÇÃO */}
 
                       {aberto && (
@@ -1853,18 +1866,6 @@ export default function ImportacaoInteligente({
                         <button
                           type="button"
                           disabled={etapa === 'gravando'}
-                          onClick={() =>
-                            setEditando(aberto ? null : item.uid)
-                          }
-                          className="flex items-center gap-1 text-[#821C3E]"
-                        >
-                          <Pencil size={14} />
-                          {aberto ? 'Concluir edição' : 'Editar'}
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={etapa === 'gravando'}
                           onClick={() => removerItem(item.uid)}
                           className="flex items-center gap-1 text-gray-500 hover:text-red-700"
                         >
@@ -2032,7 +2033,7 @@ export default function ImportacaoInteligente({
           </section>
 
           {/* BARRA FIXA DE CONFIRMAÇÃO (Mobile) */}
-          <div className="fixed bottom-16 left-0 right-0 z-30 border-t border-gray-200 bg-white p-3 shadow-lg sm:hidden">
+          <div className="fixed bottom-20 left-0 right-0 z-30 border-t border-gray-200 bg-white p-3 shadow-lg sm:hidden" style={{paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))'}}>
             <div className="flex items-center gap-3">
               <div className="flex-1 text-xs">
                 <div className="font-semibold">
