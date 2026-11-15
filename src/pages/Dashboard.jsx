@@ -2523,7 +2523,7 @@ const carregandoLimite = carregando
           </div>
           
           <p className="text-base font-medium text-gray-900">
-            {saudacao}, <span className="font-bold">{perfil?.nome?.split(' ')[0] || usuario?.email?.split('@')[0] || 'Usuário'}</span>
+            {saudacao || `${periodo}, ${perfil?.nome?.split(' ')[0] || usuario?.email?.split('@')[0] || 'Usuário'}`}
           </p>
         </div>
         
