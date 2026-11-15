@@ -11,6 +11,8 @@ import ImportacaoInteligente from './ImportacaoInteligente'
 import { hojeISO as hojeISOBrasil, formatCurrency } from '../lib/utils'
 import { supabase } from '../lib/supabase'
 
+const CHAVE_CONFIGURANDO = 'almeida_configurando_onboarding'
+
 const ETAPA_BOAS_VINDAS = 'boas-vindas'
 const ETAPA_CENTRAL = 'central'
 const ETAPA_SALDO = 'saldo'
@@ -62,6 +64,13 @@ export default function OnboardingSimples({ aoConcluir }) {
       }
     }
   }, [modo, etapa])
+
+  // Ativa modo configuração quando entra na ETAPA_CENTRAL
+  useEffect(() => {
+    if (etapa === ETAPA_CENTRAL) {
+      localStorage.setItem(CHAVE_CONFIGURANDO, '1')
+    }
+  }, [etapa])
 
   // Carrega dados existentes
   useEffect(() => {
@@ -346,6 +355,7 @@ export default function OnboardingSimples({ aoConcluir }) {
             <button
               onClick={() => {
                 console.log('Clique em Receitas detectado')
+                localStorage.setItem(CHAVE_CONFIGURANDO, '1')
                 window.location.href = '/receitas?origem=onboarding'
               }}
               className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
@@ -364,6 +374,7 @@ export default function OnboardingSimples({ aoConcluir }) {
             <button
               onClick={() => {
                 console.log('Clique em Despesas detectado')
+                localStorage.setItem(CHAVE_CONFIGURANDO, '1')
                 window.location.href = '/despesas?origem=onboarding'
               }}
               className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
@@ -382,6 +393,7 @@ export default function OnboardingSimples({ aoConcluir }) {
             <button
               onClick={() => {
                 console.log('Clique em Cartões detectado')
+                localStorage.setItem(CHAVE_CONFIGURANDO, '1')
                 window.location.href = '/cartoes?origem=onboarding'
               }}
               className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
@@ -400,6 +412,7 @@ export default function OnboardingSimples({ aoConcluir }) {
             <button
               onClick={() => {
                 console.log('Clique em VR/VA detectado')
+                localStorage.setItem(CHAVE_CONFIGURANDO, '1')
                 window.location.href = '/beneficios?origem=onboarding'
               }}
               className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
@@ -418,6 +431,7 @@ export default function OnboardingSimples({ aoConcluir }) {
             <button
               onClick={() => {
                 console.log('Clique em Investimentos detectado')
+                localStorage.setItem(CHAVE_CONFIGURANDO, '1')
                 window.location.href = '/investimentos?origem=onboarding'
               }}
               className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"

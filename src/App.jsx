@@ -173,6 +173,10 @@ const CHAVE_REFAZER = 'almeida_refazer_onboarding'
 
 const CHAVE_ETAPA_ONBOARDING = 'almeida_onboarding_etapa'
 
+// Flag que indica que o usuário está em modo de configuração (acessando módulos
+// durante o onboarding). Permite acesso às páginas sem concluir o onboarding.
+const CHAVE_CONFIGURANDO = 'almeida_configurando_onboarding'
+
 // Decide, para o usuário já autenticado, entre: conta desativada, onboarding
 
 // (primeiro acesso OU refazer) ou o app normal.
@@ -273,6 +277,8 @@ function AreaAutenticada({ children }) {
 
       localStorage.removeItem(CHAVE_ETAPA_ONBOARDING)
 
+      localStorage.removeItem(CHAVE_CONFIGURANDO)
+
     } catch { /* ignore */ }
 
     setRefazer(false)
@@ -296,8 +302,9 @@ function AreaAutenticada({ children }) {
   if (verificando) return <Carregando />
 
   // Onboarding: primeiro acesso (precisaOnboarding) OU refazer manual.
-
-  if (precisaOnboarding || refazer) {
+  // MAS permite acesso aos módulos se está em modo configuração.
+  const estaConfigurando = localStorage.getItem(CHAVE_CONFIGURANDO) === '1'
+  if ((precisaOnboarding || refazer) && !estaConfigurando) {
 
     return <OnboardingSimples aoConcluir={encerrarOnboarding} />
 
