@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { FileText, Wallet, ArrowRight, CheckCircle2, Upload, Loader2, X } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { useReceitas } from '../hooks/useReceitas'
-import { useDespesas } from '../hooks/useDespesas'
 import { useCategorias } from '../hooks/useCategorias'
 import { useCartoes } from '../hooks/useCartoes'
 import { useBeneficios } from '../hooks/useBeneficios'
@@ -10,6 +8,7 @@ import { useInvestimentos } from '../hooks/useInvestimentos'
 import InputMoeda from '../components/InputMoeda'
 import ImportacaoInteligente from './ImportacaoInteligente'
 import { hojeISO as hojeISOBrasil, formatCurrency } from '../lib/utils'
+import { supabase } from '../lib/supabase'
 
 const ETAPA_BOAS_VINDAS = 'boas-vindas'
 const ETAPA_CONFIGURACAO = 'configuracao'
@@ -18,13 +17,17 @@ const ETAPA_CONCLUSAO = 'conclusao'
 
 export default function OnboardingSimples({ aoConcluir }) {
   const { usuario, perfil, atualizarPreferenciasLimite } = useAuth()
-  const { receitas } = useReceitas()
-  const { despesas } = useDespesas()
   const { categorias: categoriasReceita } = useCategorias('receita')
   const { categorias: categoriasDespesa } = useCategorias('despesa')
   const { cartoes } = useCartoes()
   const { beneficios } = useBeneficios()
   const { investimentos } = useInvestimentos()
+  
+  // Estados para contadores de resumo
+  const [contadores, setContadores] = useState({
+    receitas: 0,
+    despesas: 0,
+  })
 
   const [etapa, setEtapa] = useState(ETAPA_BOAS_VINDAS)
   const [modo, setModo] = useState(null) // 'importar' | 'manual'
@@ -56,6 +59,9 @@ export default function OnboardingSimples({ aoConcluir }) {
 
   async function handleSalvarConfiguracao() {
     setSalvando(true)
+    let receitasCriadas = 0
+    let despesasCriadas = 0
+    
     try {
       // Salva saldo
       if (saldo > 0) {
@@ -65,12 +71,60 @@ export default function OnboardingSimples({ aoConcluir }) {
         })
       }
 
-      // TODO: Salvar renda, despesas como lançamentos se necessário
-      // Por ora apenas salva o saldo e permite prosseguir
+      // Salva renda como receita recorrente mensal
+      if (renda > 0 && categoriasReceita.length > 0) {
+        const categoriaRenda = categoriasReceita.find(c => 
+          c.nome === 'Salário' || c.nome === 'Renda'
+        ) || categoriasReceita[0]
 
+        const { error: erroReceita } = await supabase
+          .from('receitas')
+          .insert([{
+            usuario_id: usuario.id,
+            descricao: 'Renda mensal',
+            valor: renda,
+            data: hojeISOBrasil(),
+            recorrente: true,
+            frequencia: 'mensal',
+            categoria_id: categoriaRenda.id,
+          }])
+        
+        if (!erroReceita) receitasCriadas++
+      }
+
+      // Salva despesas fixas como despesa recorrente mensal
+      if (despesaFixa > 0 && categoriasDespesa.length > 0) {
+        const categoriaDespesas = categoriasDespesa.find(c => 
+          c.nome === 'Moradia' || c.nome === 'Contas' || c.nome === 'Despesas Fixas'
+        ) || categoriasDespesa[0]
+
+        const { error: erroDespesa } = await supabase
+          .from('despesas')
+          .insert([{
+            usuario_id: usuario.id,
+            descricao: 'Despesas fixas mensais',
+            valor: despesaFixa,
+            data: hojeISOBrasil(),
+            recorrente: true,
+            frequencia: 'mensal',
+            tipo_despesa: 'fixa',
+            categoria_id: categoriaDespesas.id,
+          }])
+        
+        if (!erroDespesa) despesasCriadas++
+      }
+
+      // Despesas variáveis são apenas estimativa, não cria lançamento
+      // (usuário registra conforme for gastando)
+
+      setContadores({
+        receitas: receitasCriadas,
+        despesas: despesasCriadas,
+      })
+      
       setEtapa(ETAPA_CONCLUSAO)
     } catch (err) {
-      alert(err?.message || 'Erro ao salvar')
+      alert('Erro ao salvar: ' + (err?.message || String(err)))
     } finally {
       setSalvando(false)
     }
@@ -84,14 +138,38 @@ export default function OnboardingSimples({ aoConcluir }) {
     if (aoConcluir) await aoConcluir()
   }
 
-  // Calcula resumo
-  const resumo = {
-    saldo: perfil?.saldo_base || 0,
-    receitas: receitas.length,
-    despesas: despesas.length,
-    cartoes: cartoes.length,
-    investimentos: investimentos.length,
-  }
+  // Carrega resumo real do banco
+  const [resumo, setResumo] = useState({
+    saldo: 0,
+    receitas: 0,
+    despesas: 0,
+    cartoes: 0,
+    investimentos: 0,
+  })
+
+  useEffect(() => {
+    if (etapa === ETAPA_CONCLUSAO && usuario?.id) {
+      async function carregarResumo() {
+        try {
+          const [receitasRes, despesasRes] = await Promise.all([
+            supabase.from('receitas').select('id', { count: 'exact', head: true }).eq('usuario_id', usuario.id),
+            supabase.from('despesas').select('id', { count: 'exact', head: true }).eq('usuario_id', usuario.id),
+          ])
+          
+          setResumo({
+            saldo: perfil?.saldo_base || 0,
+            receitas: contadores.receitas > 0 ? contadores.receitas : (receitasRes.count || 0),
+            despesas: contadores.despesas > 0 ? contadores.despesas : (despesasRes.count || 0),
+            cartoes: cartoes.length,
+            investimentos: investimentos.length,
+          })
+        } catch (err) {
+          console.error('Erro ao carregar resumo:', err)
+        }
+      }
+      carregarResumo()
+    }
+  }, [etapa, usuario, perfil, cartoes, investimentos, contadores])
 
   if (etapa === ETAPA_BOAS_VINDAS) {
     return (
