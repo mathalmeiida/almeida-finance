@@ -24,6 +24,7 @@ export default function RegistrarRapido() {
   const [form, setForm] = useState({
     valor: '',
     descricao: '',
+    data: hojeISOBrasil(),
     categoria_id: '',
     subcategoria_id: '',
     forma_pagamento: '',
@@ -77,7 +78,7 @@ export default function RegistrarRapido() {
         await adicionarDespesa({
           descricao,
           valor: valorNum,
-          data: hojeISOBrasil(),
+          data: form.data,
           recorrente: false,
           categoria_id: form.categoria_id || null,
           subcategoria_id: form.subcategoria_id || null,
@@ -92,7 +93,7 @@ export default function RegistrarRapido() {
         await adicionarReceita({
           descricao,
           valor: valorNum,
-          data: hojeISOBrasil(),
+          data: form.data,
           recorrente: false,
           categoria_id: form.categoria_id || null,
         })
@@ -103,6 +104,7 @@ export default function RegistrarRapido() {
         setForm({
           valor: '',
           descricao: '',
+          data: hojeISOBrasil(),
           categoria_id: '',
           subcategoria_id: '',
           forma_pagamento: '',
@@ -114,7 +116,7 @@ export default function RegistrarRapido() {
       }, 1500)
     } catch (erro) {
       console.error('Erro ao salvar:', erro)
-      alert('Erro ao salvar lançamento')
+      alert(`Erro ao salvar lançamento: ${erro.message || 'Verifique sua conexão e tente novamente.'}`)
     } finally {
       setSalvando(false)
     }
@@ -164,7 +166,7 @@ export default function RegistrarRapido() {
             </label>
             <InputMoeda
               valor={form.valor}
-              onChange={(v) => handleChange('valor', v)}
+              onChangeValor={(v) => handleChange('valor', v)}
               placeholder="R$ 0,00"
               className="w-full text-2xl"
               autoFocus
@@ -184,14 +186,24 @@ export default function RegistrarRapido() {
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Data *
+            </label>
+            <input
+              type="date"
+              value={form.data}
+              onChange={(e) => handleChange('data', e.target.value)}
+              className="input w-full"
+            />
+          </div>
+
           <SeletorCategoriaModerno
-            tipo={tipo}
-            categoriaId={form.categoria_id}
-            subcategoriaId={form.subcategoria_id}
-            onChange={(catId, subId) => {
-              handleChange('categoria_id', catId)
-              if (subId) handleChange('subcategoria_id', subId)
-            }}
+            categorias={categorias}
+            value={form.categoria_id}
+            onChange={(catId) => handleChange('categoria_id', catId)}
+            subcategoriaValue={form.subcategoria_id}
+            onSubcategoriaChange={(subId) => handleChange('subcategoria_id', subId)}
           />
 
           {tipo === 'despesa' && (
