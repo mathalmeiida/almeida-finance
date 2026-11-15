@@ -71,47 +71,91 @@ export default function OnboardingSimples({ aoConcluir }) {
         })
       }
 
-      // Salva renda como receita recorrente mensal
+      // Salva renda como receita recorrente mensal (idempotente)
       if (renda > 0 && categoriasReceita.length > 0) {
         const categoriaRenda = categoriasReceita.find(c => 
           c.nome === 'Salário' || c.nome === 'Renda'
         ) || categoriasReceita[0]
 
-        const { error: erroReceita } = await supabase
+        // Verifica se já existe receita do onboarding
+        const { data: receitaExistente } = await supabase
           .from('receitas')
-          .insert([{
-            usuario_id: usuario.id,
-            descricao: 'Renda mensal',
-            valor: renda,
-            data: hojeISOBrasil(),
-            recorrente: true,
-            frequencia: 'mensal',
-            categoria_id: categoriaRenda.id,
-          }])
-        
-        if (!erroReceita) receitasCriadas++
+          .select('id, valor')
+          .eq('usuario_id', usuario.id)
+          .eq('descricao', 'Renda mensal')
+          .eq('recorrente', true)
+          .eq('frequencia', 'mensal')
+          .maybeSingle()
+
+        if (receitaExistente) {
+          // Atualiza valor se mudou
+          if (Number(receitaExistente.valor) !== renda) {
+            await supabase
+              .from('receitas')
+              .update({ valor: renda, categoria_id: categoriaRenda.id })
+              .eq('id', receitaExistente.id)
+          }
+          receitasCriadas++
+        } else {
+          // Cria nova receita
+          const { error: erroReceita } = await supabase
+            .from('receitas')
+            .insert([{
+              usuario_id: usuario.id,
+              descricao: 'Renda mensal',
+              valor: renda,
+              data: hojeISOBrasil(),
+              recorrente: true,
+              frequencia: 'mensal',
+              categoria_id: categoriaRenda.id,
+            }])
+          
+          if (!erroReceita) receitasCriadas++
+        }
       }
 
-      // Salva despesas fixas como despesa recorrente mensal
+      // Salva despesas fixas como despesa recorrente mensal (idempotente)
       if (despesaFixa > 0 && categoriasDespesa.length > 0) {
         const categoriaDespesas = categoriasDespesa.find(c => 
           c.nome === 'Moradia' || c.nome === 'Contas' || c.nome === 'Despesas Fixas'
         ) || categoriasDespesa[0]
 
-        const { error: erroDespesa } = await supabase
+        // Verifica se já existe despesa do onboarding
+        const { data: despesaExistente } = await supabase
           .from('despesas')
-          .insert([{
-            usuario_id: usuario.id,
-            descricao: 'Despesas fixas mensais',
-            valor: despesaFixa,
-            data: hojeISOBrasil(),
-            recorrente: true,
-            frequencia: 'mensal',
-            tipo_despesa: 'fixa',
-            categoria_id: categoriaDespesas.id,
-          }])
-        
-        if (!erroDespesa) despesasCriadas++
+          .select('id, valor')
+          .eq('usuario_id', usuario.id)
+          .eq('descricao', 'Despesas fixas mensais')
+          .eq('recorrente', true)
+          .eq('frequencia', 'mensal')
+          .maybeSingle()
+
+        if (despesaExistente) {
+          // Atualiza valor se mudou
+          if (Number(despesaExistente.valor) !== despesaFixa) {
+            await supabase
+              .from('despesas')
+              .update({ valor: despesaFixa, categoria_id: categoriaDespesas.id })
+              .eq('id', despesaExistente.id)
+          }
+          despesasCriadas++
+        } else {
+          // Cria nova despesa
+          const { error: erroDespesa } = await supabase
+            .from('despesas')
+            .insert([{
+              usuario_id: usuario.id,
+              descricao: 'Despesas fixas mensais',
+              valor: despesaFixa,
+              data: hojeISOBrasil(),
+              recorrente: true,
+              frequencia: 'mensal',
+              tipo_despesa: 'fixa',
+              categoria_id: categoriaDespesas.id,
+            }])
+          
+          if (!erroDespesa) despesasCriadas++
+        }
       }
 
       // Despesas variáveis são apenas estimativa, não cria lançamento

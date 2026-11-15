@@ -2,7 +2,7 @@
 -- LIMITE DIÁRIO — modo automático e manual
 -- Data: 11/11/2026
 -- ============================================================
--- perfis.modo_limite: 'automatico' ou 'manual'
+-- perfis.modo_limite: 'auto'/'automatico' ou 'manual' (auto é padrão, compatível com RPC)
 -- perfis.limite_diario: teto diário quando modo = 'manual'
 --
 -- Modo automático: cálculo financeiro (saldo - próximos 7 dias) / dias restantes
@@ -16,7 +16,7 @@
 BEGIN;
 
 ALTER TABLE public.perfis
-  ADD COLUMN IF NOT EXISTS modo_limite TEXT DEFAULT 'automatico',
+  ADD COLUMN IF NOT EXISTS modo_limite TEXT DEFAULT 'auto',
   ADD COLUMN IF NOT EXISTS limite_diario NUMERIC;
 
 COMMENT ON COLUMN public.perfis.modo_limite IS
@@ -30,7 +30,7 @@ BEGIN
                  WHERE conname = 'perfis_modo_limite_valido'
                    AND conrelid = 'public.perfis'::regclass) THEN
     ALTER TABLE public.perfis ADD CONSTRAINT perfis_modo_limite_valido CHECK (
-      modo_limite IN ('automatico', 'manual')
+      modo_limite IN ('auto', 'automatico', 'manual')
     );
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint

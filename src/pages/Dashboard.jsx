@@ -1232,13 +1232,15 @@ function ModalEditarSaldoHome({ aberto, onFechar, valorAtual, onSalvar, salvando
 
 // ─── Modal para configurar limite diário (automático ou manual) ────────────────
 function ModalConfigurarLimiteHome({ aberto, onFechar, modoAtual, limiteAtual, onSalvar, salvando }) {
-  const [modo, setModo] = useState('automatico')
+  const [modo, setModo] = useState('auto')
   const [limite, setLimite] = useState(0)
   const [erro, setErro] = useState('')
 
   useEffect(() => {
     if (aberto) {
-      setModo(modoAtual || 'automatico')
+      // Normaliza 'automatico' para 'auto' (compatibilidade)
+      const modoNormalizado = modoAtual === 'automatico' ? 'auto' : (modoAtual || 'auto')
+      setModo(modoNormalizado)
       setLimite(Number(limiteAtual) || 0)
       setErro('')
     }
@@ -1262,12 +1264,12 @@ function ModalConfigurarLimiteHome({ aberto, onFechar, modoAtual, limiteAtual, o
     <Modal aberto={aberto} onFechar={onFechar} titulo="Configurar limite diário" tamanho="sm">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-3">
-          <label className="flex items-start gap-3 p-3 border-2 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors" style={{borderColor: modo === 'automatico' ? '#801D39' : '#e5e7eb'}}>
+          <label className="flex items-start gap-3 p-3 border-2 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors" style={{borderColor: modo === 'auto' ? '#801D39' : '#e5e7eb'}}>
             <input
               type="radio"
               name="modo"
-              value="automatico"
-              checked={modo === 'automatico'}
+              value="auto"
+              checked={modo === 'auto'}
               onChange={(e) => setModo(e.target.value)}
               className="mt-0.5"
             />
