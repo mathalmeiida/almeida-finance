@@ -11,7 +11,13 @@ import { hojeISO as hojeISOBrasil, formatCurrency } from '../lib/utils'
 import { supabase } from '../lib/supabase'
 
 const ETAPA_BOAS_VINDAS = 'boas-vindas'
-const ETAPA_CONFIGURACAO = 'configuracao'
+const ETAPA_CENTRAL = 'central'
+const ETAPA_SALDO = 'saldo'
+const ETAPA_RECEITAS = 'receitas'
+const ETAPA_DESPESAS = 'despesas'
+const ETAPA_CARTOES = 'cartoes'
+const ETAPA_BENEFICIOS = 'beneficios'
+const ETAPA_INVESTIMENTOS = 'investimentos'
 const ETAPA_IMPORTACAO = 'importacao'
 const ETAPA_CONCLUSAO = 'conclusao'
 
@@ -49,7 +55,7 @@ export default function OnboardingSimples({ aoConcluir }) {
     if (escolha === 'importar') {
       setEtapa(ETAPA_IMPORTACAO)
     } else {
-      setEtapa(ETAPA_CONFIGURACAO)
+      setEtapa(ETAPA_CENTRAL)
     }
   }
 
@@ -275,6 +281,182 @@ export default function OnboardingSimples({ aoConcluir }) {
           >
             Pular por enquanto
           </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (etapa === ETAPA_CENTRAL) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center p-4">
+        <div className="w-full max-w-2xl">
+          <div className="text-center mb-8">
+            <button
+              onClick={() => setEtapa(ETAPA_BOAS_VINDAS)}
+              className="text-sm text-gray-600 hover:text-gray-900 mb-4"
+            >
+              ← Voltar
+            </button>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Configure suas finanças
+            </h2>
+            <p className="text-gray-600">
+              Escolha os módulos que deseja configurar agora
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <button
+              onClick={() => setEtapa(ETAPA_SALDO)}
+              className="bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group"
+            >
+              <div className="w-12 h-12 rounded-xl bg-[#FFF5F7] flex items-center justify-center mb-3">
+                <Wallet size={24} style={{color: '#801D39'}} />
+              </div>
+              <h3 className="font-bold text-gray-900 mb-1">Saldo e Contas</h3>
+              <p className="text-sm text-gray-600">Seu saldo bancário inicial</p>
+            </button>
+
+            <a
+              href="/receitas"
+              className="bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group block"
+            >
+              <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center mb-3">
+                <ArrowRight size={24} className="text-green-600 rotate-180" />
+              </div>
+              <h3 className="font-bold text-gray-900 mb-1">Receitas</h3>
+              <p className="text-sm text-gray-600">Salários, rendas e entradas</p>
+            </a>
+
+            <a
+              href="/despesas"
+              className="bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group block"
+            >
+              <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center mb-3">
+                <ArrowRight size={24} className="text-red-600" />
+              </div>
+              <h3 className="font-bold text-gray-900 mb-1">Despesas</h3>
+              <p className="text-sm text-gray-600">Gastos fixos e variáveis</p>
+            </a>
+
+            <a
+              href="/cartoes"
+              className="bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group block"
+            >
+              <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center mb-3">
+                <CheckCircle2 size={24} className="text-blue-600" />
+              </div>
+              <h3 className="font-bold text-gray-900 mb-1">Cartões</h3>
+              <p className="text-sm text-gray-600">Cartões de crédito</p>
+            </a>
+
+            <a
+              href="/beneficios"
+              className="bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group block"
+            >
+              <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center mb-3">
+                <FileText size={24} className="text-amber-600" />
+              </div>
+              <h3 className="font-bold text-gray-900 mb-1">VR/VA</h3>
+              <p className="text-sm text-gray-600">Vale refeição e alimentação</p>
+            </a>
+
+            <a
+              href="/investimentos"
+              className="bg-white border-2 border-gray-200 hover:border-marca rounded-2xl p-6 text-left transition-all hover:shadow-lg group block"
+            >
+              <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center mb-3">
+                <Upload size={24} className="text-purple-600" />
+              </div>
+              <h3 className="font-bold text-gray-900 mb-1">Investimentos</h3>
+              <p className="text-sm text-gray-600">Patrimônio investido</p>
+            </a>
+          </div>
+
+          <div className="flex gap-3 mt-8">
+            <button
+              onClick={() => setEtapa(ETAPA_CONCLUSAO)}
+              className="btn-primary w-full flex items-center justify-center gap-2"
+            >
+              Concluir configuração
+              <ArrowRight size={16} />
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (etapa === ETAPA_SALDO) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center p-4">
+        <div className="w-full max-w-lg">
+          <div className="bg-white rounded-2xl shadow-lg p-8">
+            <button
+              onClick={() => setEtapa(ETAPA_CENTRAL)}
+              className="text-sm text-gray-600 hover:text-gray-900 mb-4"
+            >
+              ← Voltar para central
+            </button>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Saldo e Contas</h2>
+            
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Saldo inicial em conta
+                </label>
+                <InputMoeda
+                  valor={saldo}
+                  onChangeValor={setSaldo}
+                  className="input text-xl font-bold text-center py-3"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Quanto você tem disponível hoje
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-8">
+              <button
+                onClick={() => setEtapa(ETAPA_CENTRAL)}
+                className="btn-secondary flex-1"
+              >
+                Voltar
+              </button>
+              <button
+                onClick={async () => {
+                  setSalvando(true)
+                  try {
+                    if (saldo > 0) {
+                      await atualizarPreferenciasLimite({
+                        saldo_base: saldo,
+                        saldo_base_data: hojeISOBrasil(),
+                      })
+                    }
+                    setEtapa(ETAPA_CENTRAL)
+                  } catch (err) {
+                    alert('Erro ao salvar: ' + (err?.message || String(err)))
+                  } finally {
+                    setSalvando(false)
+                  }
+                }}
+                disabled={salvando}
+                className="btn-primary flex-1 flex items-center justify-center gap-2"
+              >
+                {salvando ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    Salvar
+                    <CheckCircle2 size={16} />
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     )
