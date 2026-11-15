@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Sun, Plus, Pencil,
   CheckCircle2, Circle, Rocket, Eye, EyeOff, Check, CalendarClock, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, CalendarDays, PiggyBank, AlertTriangle, MessageCircle, BarChart2,
-  Receipt, ReceiptText, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap, Info, X, MoreHorizontal, Sparkles, Upload
+  Receipt, ReceiptText, Target, Bell, Moon, UtensilsCrossed, ShoppingBag, Zap, Info, X, MoreHorizontal, Sparkles, Upload, Camera, UserRound
 } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useReceitas } from '../hooks/useReceitas'
@@ -31,6 +31,7 @@ import AtalhosHome from '../components/AtalhosHome'
 import ImportacaoInteligente from '../pages/ImportacaoInteligente'
 import { useMetas } from '../hooks/useMetas'
 import FotoPerfil from '../components/FotoPerfil'
+import SeletorFotoPerfil from '../components/SeletorFotoPerfil'
 
 // Chaves lidas em App.jsx (AreaAutenticada) para reabrir o onboarding e saber
 // em qual etapa começar. Mesmas chaves usadas pela tela de Configurações.
@@ -1894,6 +1895,8 @@ export default function Dashboard() {
     })
   }
   const [modalCalendario, setModalCalendario] = useState(false) // calendário financeiro (abre pela linha "Calendário")
+  const [menuFoto, setMenuFoto] = useState(false) // menu de edição da foto (Home)
+  const [modalEditarFoto, setModalEditarFoto] = useState(false) // seletor de foto
   // Cards móveis: fechados por padrão, cada um expande independentemente.
   const [cardsMobileAbertos, setCardsMobileAbertos] = useState({})
   const alternarCardMobile = (chave) => setCardsMobileAbertos(anterior => ({ ...anterior, [chave]: !anterior[chave] }))
@@ -2513,13 +2516,65 @@ const carregandoLimite = carregando
       {/* HEADER COMPACTO - Foto + Saudação + Sino */}
       <div className="px-4 pt-3 pb-2 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-14 h-14 flex-shrink-0">
-            <FotoPerfil 
-              perfil={perfil} 
-              usuario={usuario}
-              tamanho="md"
-              className="!w-14 !h-14 !text-xl"
-            />
+          <div className="relative w-14 h-14 flex-shrink-0">
+            <button
+              onClick={() => !somenteLeitura && setMenuFoto(true)}
+              className={`w-full h-full ${!somenteLeitura ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+              disabled={somenteLeitura}
+              aria-label="Editar foto de perfil"
+            >
+              <FotoPerfil 
+                perfil={perfil} 
+                usuario={usuario}
+                tamanho="md"
+                className="!w-14 !h-14 !text-xl"
+              />
+            </button>
+            
+            {/* Menu de opções da foto */}
+            {menuFoto && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setMenuFoto(false)}
+                />
+                <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50 overflow-hidden">
+                  <button
+                    onClick={() => { setMenuFoto(false); setModalEditarFoto(true) }}
+                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <Camera size={16} className="text-marca" />
+                    Alterar foto
+                  </button>
+                  {perfil?.foto_url && (
+                    <button
+                      onClick={async () => {
+                        setMenuFoto(false)
+                        if (window.confirm('Deseja remover a foto do perfil?')) {
+                          try {
+                            await atualizarPreferenciasLimite({ foto_url: null })
+                            if (recarregarPerfil) await recarregarPerfil()
+                          } catch (err) {
+                            alert(err?.message || 'Erro ao remover foto')
+                          }
+                        }
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-50 flex items-center gap-2"
+                    >
+                      <X size={16} />
+                      Remover foto
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { setMenuFoto(false); navigate('/mais/perfil') }}
+                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <UserRound size={16} className="text-marca" />
+                    Ver meu perfil
+                  </button>
+                </div>
+              </>
+            )}
           </div>
           
           <p className="text-base font-medium text-gray-900">
@@ -3135,6 +3190,26 @@ dataReferencia={hojeISO}
       <Modal aberto={modalImportacao} onFechar={() => setModalImportacao(false)} titulo="Importar Documentos Financeiros" tamanho="lg">
         <ImportacaoInteligente embutido onConcluir={() => setModalImportacao(false)} onCancelar={() => setModalImportacao(false)} />
       </Modal>
+
+      {/* Modal de editar foto */}
+      {modalEditarFoto && (
+        <Modal 
+          aberto={modalEditarFoto} 
+          onFechar={() => setModalEditarFoto(false)} 
+          titulo="Editar foto de perfil"
+          tamanho="md"
+        >
+          <SeletorFotoPerfil
+            usuario={usuario}
+            perfil={perfil}
+            onAtualizar={async () => {
+              if (recarregarPerfil) await recarregarPerfil()
+              setModalEditarFoto(false)
+            }}
+            onFechar={() => setModalEditarFoto(false)}
+          />
+        </Modal>
+      )}
 
     </div>
   )

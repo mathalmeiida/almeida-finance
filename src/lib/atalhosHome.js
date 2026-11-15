@@ -13,15 +13,15 @@ export const VERSAO_CONFIG_ATALHOS = 2
 // ATALHOS_DESKTOP (o restante fica no menu lateral), na ordem do usuário.
 export const CATALOGO_ATALHOS = [
   { id: 'receitas', label: 'Receitas', rota: '/receitas' },
+  { id: 'investimentos', label: 'Investimentos', rota: '/investimentos' },
   { id: 'despesas', label: 'Despesas', rota: '/despesas' },
+  { id: 'cartoes', label: 'Cartões', rota: '/cartoes' },
   { id: 'registrar-gasto', label: 'Registrar gasto', modal: 'gasto', exigeEscrita: true },
   { id: 'simular-compra', label: 'Simular compra', rota: '/posso-comprar' },
   { id: 'calendario', label: 'Calendário', modal: 'calendario' },
   { id: 'gastar-hoje', label: 'Quanto posso gastar hoje?', modal: 'planejamento' },
   { id: 'consultoria', label: 'Consultoria', rota: '/consultoria' },
-  { id: 'investimentos', label: 'Investimentos', rota: '/investimentos' },
   { id: 'metas', label: 'Metas', rota: '/metas' },
-  { id: 'cartoes', label: 'Cartões', rota: '/cartoes' },
   { id: 'e-se', label: 'E se...?', rota: '/e-se' },
   { id: 'importacao', label: 'Importação Inteligente', rota: '/importacao', exigeEscrita: true },
   { id: 'parcelamentos', label: 'Parcelamentos', rota: '/despesas?aba=parceladas' },
@@ -60,9 +60,13 @@ function listaIdsValidos(lista) {
 export function normalizarConfigAtalhos(bruto) {
   const base = bruto && typeof bruto === 'object' && !Array.isArray(bruto) ? bruto : {}
   let ordem = listaIdsValidos(base.ordem)
-  // Versão 1 (antes de Receitas/Despesas): mantém a ordem do usuário e
-  // coloca os dois atalhos novos no início, como no padrão.
-  if (ordem.length && (Number(base.versao) || 1) < 2) ordem = ['receitas', 'despesas', ...ordem.filter(id => id !== 'receitas' && id !== 'despesas')]
+  // Versão 1 (antes de Receitas/Investimentos/Despesas/Cartões): mantém a ordem
+  // do usuário e coloca os quatro atalhos principais no início, como no padrão.
+  if (ordem.length && (Number(base.versao) || 1) < 2) {
+    const principais = ['receitas', 'investimentos', 'despesas', 'cartoes']
+    const resto = ordem.filter(id => !principais.includes(id))
+    ordem = [...principais, ...resto]
+  }
   for (const a of CATALOGO_ATALHOS) if (!ordem.includes(a.id)) ordem.push(a.id)
   return {
     versao: VERSAO_CONFIG_ATALHOS,
