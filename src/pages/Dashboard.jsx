@@ -2556,54 +2556,39 @@ const carregandoLimite = carregando
 
       {/* MOBILE */}
       <div className="md:hidden flex flex-col gap-1.5">
-        {/* Saldo + Receitas + Compromissos */}
-        <div className="af-hcard">
-          <div className="flex items-center justify-between mb-2">
-            <span className="af-ht2">Saldo disponível</span>
+        {/* Card vinho único - Saldo disponível + Limite diário */}
+        <div className="rounded-2xl p-4" style={{background: 'linear-gradient(135deg, #801D39 0%, #5a1224 100%)'}}>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium text-white/80">Saldo disponível</span>
             <div className="flex items-center gap-2">
-              <button type="button" onClick={alternar} className="text-[#D4A8B6]">{ocultar ? <EyeOff size={15}/> : <Eye size={15}/>}</button>
-              {!somenteLeitura && <button type="button" onClick={() => setModalSaldo(true)} className="text-[#C4507A]"><Pencil size={14}/></button>}
+              <button type="button" onClick={alternar} className="text-white/60 hover:text-white">
+                {ocultar ? <EyeOff size={15}/> : <Eye size={15}/>}
+              </button>
+              {!somenteLeitura && (
+                <button type="button" onClick={() => setModalSaldo(true)} className="text-white/60 hover:text-white">
+                  <Pencil size={14}/>
+                </button>
+              )}
             </div>
           </div>
-          <p className="text-2xl font-bold text-white mb-3">{carregando ? '...' : saldoConfigurado ? exibirMoeda(saldoDisponivelAgora, ocultar) : 'Não configurado'}</p>
-          <div className="grid grid-cols-2 gap-2 border-t border-[#502838] pt-3">
-            <button type="button" onClick={() => navigate('/receitas')} className="text-left">
-              <div className="flex items-center gap-1.5 mb-1"><TrendingUp size={13} className="text-emerald-400"/><span className="af-ht2">Receitas</span></div>
-              <strong className="text-sm text-white">{exibirMoeda(receitaMes, ocultar)}</strong>
-            </button>
-            <button type="button" onClick={() => navigate('/despesas')} className="text-left">
-              <div className="flex items-center gap-1.5 mb-1"><TrendingDown size={13} className="text-rose-400"/><span className="af-ht2">Compromissos</span></div>
-              <strong className="text-sm text-white">{exibirMoeda(compromissosMes, ocultar)}</strong>
-            </button>
+          
+          <p className="text-3xl font-bold text-white mb-4">
+            {carregando ? '...' : saldoConfigurado ? exibirMoeda(saldoDisponivelAgora, ocultar) : 'Não configurado'}
+          </p>
+          
+          <div className="flex items-center justify-between bg-white/10 rounded-xl p-3">
+            <div>
+              <span className="text-xs font-medium text-white/70 block mb-0.5">Quanto posso gastar hoje?</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="bg-[#4ade80]/20 rounded-lg px-3 py-1">
+                <p className="text-xl font-bold text-[#4ade80] leading-tight">
+                  {exibirMoeda(Math.max(0, limiteHoje), ocultar)}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
-
-        {/* Anel */}
-        {(() => {
-          const pct = limiteHoje > 0 ? Math.min(100, Math.max(0, (gastosDeHoje / limiteHoje) * 100)) : 0
-          const corAnel = pct >= 100 ? '#ef4444' : pct >= 70 ? '#f97316' : '#C4507A'
-          const circ = 54, r = 22, stroke = 4, circunf = 2 * Math.PI * r
-          const preenchido = (pct / 100) * circunf
-          return (
-            <button type="button" onClick={() => setModalPlanejamento(true)} className="af-hcard-accent flex items-center justify-between gap-4 w-full text-left">
-              <div className="min-w-0">
-                <span className="af-ht2 block mb-1">Você pode gastar hoje</span>
-                <strong className="text-xl text-white block">{exibirMoeda(Math.max(0, limiteHoje), ocultar)}</strong>
-                <span className="af-hlink mt-1 block">Ver planejamento →</span>
-              </div>
-              <div className="flex-shrink-0 relative" style={{width: circ, height: circ}}>
-                <svg width={circ} height={circ} style={{transform:'rotate(-90deg)'}}>
-                  <circle cx={circ/2} cy={circ/2} r={r} fill="none" stroke="#3d1528" strokeWidth={stroke}/>
-                  <circle cx={circ/2} cy={circ/2} r={r} fill="none" stroke={corAnel} strokeWidth={stroke} strokeDasharray={`${preenchido} ${circunf-preenchido}`} strokeLinecap="round"/>
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-white font-bold text-sm leading-none">{Math.round(pct)}%</span>
-                  <span className="text-[8px] text-[#D4A8B6] leading-tight text-center mt-0.5">do<br/>limite</span>
-                </div>
-              </div>
-            </button>
-          )
-        })()}
 
         {/* Calendário mensal */}
         {(() => {
