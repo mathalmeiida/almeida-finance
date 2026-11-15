@@ -2509,31 +2509,28 @@ const carregandoLimite = carregando
     <div className="af-home-premium w-full max-w-none min-w-0 flex flex-col gap-0 md:pb-0" style={variaveisHome}>
       <FundoCorpoHome cor={variaveisHome['--af-home-bg']} />
       
-      {/* HEADER COMPACTO - CONFORME IMAGEM */}
-      <div className="px-4 pt-4 pb-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      {/* HEADER COMPACTO - Foto + Saudação + Sino */}
+      <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
           {perfil?.foto_url ? (
             <img 
               src={perfil.foto_url} 
               alt={usuario?.nome || 'Foto'} 
-              className="w-16 h-16 rounded-full object-cover"
+              className="w-14 h-14 rounded-full object-cover"
             />
           ) : perfil?.avatar_id ? (
-            <div className="w-16 h-16 rounded-full flex items-center justify-center text-3xl">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center text-2xl">
               {perfil.avatar_id}
             </div>
           ) : (
-            <div className="w-16 h-16 rounded-full flex items-center justify-center text-white font-semibold text-xl" style={{background: '#801D39'}}>
+            <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-semibold text-lg" style={{background: '#801D39'}}>
               {(usuario?.nome || 'U').charAt(0).toUpperCase()}
             </div>
           )}
           
-          <div>
-            <p className="text-sm text-gray-600">{saudacao},</p>
-            <p className="text-xl font-bold text-gray-900">
-              {usuario?.nome?.split(' ')[0] || 'Usuário'}
-            </p>
-          </div>
+          <p className="text-base font-medium text-gray-900">
+            {saudacao}, <span className="font-bold">{usuario?.nome?.split(' ')[0] || 'Usuário'}</span>
+          </p>
         </div>
         
         <button 
@@ -2560,34 +2557,34 @@ const carregandoLimite = carregando
       )}
 
       {/* MOBILE */}
-      <div className="md:hidden flex flex-col gap-3 px-4">
+      <div className="md:hidden flex flex-col gap-2.5 px-4">
         {/* Card vinho único - Saldo disponível + Limite diário */}
-        <div className="rounded-2xl p-5" style={{background: 'linear-gradient(135deg, #8B1538 0%, #6B0F2A 100%)'}}>
-          <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
+        <div className="rounded-2xl p-4" style={{background: 'linear-gradient(135deg, #8B1538 0%, #6B0F2A 100%)'}}>
+          <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
             <div>
-              <p className="text-xs font-medium text-white/70 mb-2">Saldo disponível</p>
-              <p className="text-2xl font-bold text-white leading-tight">
+              <p className="text-[11px] font-medium text-white/70 mb-1.5">Saldo disponível</p>
+              <p className="text-xl font-bold text-white leading-tight">
                 {carregando ? '...' : saldoConfigurado ? exibirMoeda(saldoDisponivelAgora, ocultar) : 'R$ 0,00'}
               </p>
             </div>
             
-            <div className="w-px h-16 bg-white/20"></div>
+            <div className="w-px h-12 bg-white/20"></div>
             
             <div className="text-right">
-              <p className="text-xs font-medium text-white/70 mb-2">Quanto posso gastar hoje?</p>
+              <p className="text-[11px] font-medium text-white/70 mb-1.5">Posso gastar hoje?</p>
               <div className="flex items-center justify-end gap-2">
-                <p className="text-2xl font-bold text-white leading-tight">
+                <p className="text-xl font-bold text-white leading-tight">
                   {exibirMoeda(Math.max(0, limiteHoje), ocultar)}
                 </p>
                 <button type="button" onClick={alternar} className="text-white/80 hover:text-white">
-                  {ocultar ? <EyeOff size={18}/> : <Eye size={18}/>}
+                  {ocultar ? <EyeOff size={16}/> : <Eye size={16}/>}
                 </button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Calendário mensal - estilo limpo conforme imagem */}
+        {/* Calendário mensal - estilo limpo */}
         {(() => {
           const ano = mesCalendarioHome.getFullYear(), mes = mesCalendarioHome.getMonth()
           const hoje2 = new Date(); hoje2.setHours(0,0,0,0)
@@ -2605,32 +2602,32 @@ const carregandoLimite = carregando
           for(let i=1;i<=totalDias;i++) cels.push({dia:i,outro:false,iso:`${String(ano).padStart(4,'0')}-${String(mes+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`})
           const resto=(7-(cels.length%7))%7; for(let i=1;i<=resto;i++) cels.push({dia:i,outro:true,iso:new Date(ano,mes+1,i).toISOString().slice(0,10)})
           return (
-            <div className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
+            <div className="bg-white rounded-2xl p-3 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <CalendarDays size={20} style={{color: '#801D39'}} />
-                  <span className="font-semibold text-gray-900">Calendário financeiro</span>
+                  <CalendarDays size={18} style={{color: '#801D39'}} />
+                  <span className="font-semibold text-sm text-gray-900">Calendário financeiro</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <button type="button" onClick={()=>setMesCalendarioHome(new Date(ano,mes-1,1,12))} className="text-marca hover:opacity-70">
-                    <ChevronLeft size={20}/>
+                    <ChevronLeft size={18}/>
                   </button>
-                  <span className="text-sm font-medium capitalize min-w-[140px] text-center" style={{color: '#801D39'}}>
+                  <span className="text-xs font-medium capitalize min-w-[120px] text-center" style={{color: '#801D39'}}>
                     {nomeMes.split(' ')[0]} de {ano}
                   </span>
                   <button type="button" onClick={()=>setMesCalendarioHome(new Date(ano,mes+1,1,12))} className="text-marca hover:opacity-70">
-                    <ChevronRight size={20}/>
+                    <ChevronRight size={18}/>
                   </button>
                 </div>
               </div>
               
-              <div className="grid grid-cols-7 gap-1 mb-2">
+              <div className="grid grid-cols-7 gap-0.5 mb-1.5">
                 {['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(d=>(
-                  <div key={d} className="text-center text-xs font-medium text-gray-500 py-1">{d}</div>
+                  <div key={d} className="text-center text-[10px] font-medium text-gray-500 py-0.5">{d}</div>
                 ))}
               </div>
               
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-7 gap-0.5">
                 {cels.map((c,i)=>{
                   const isHoje=c.iso===hojeISO2, dots=dotsMapa[c.iso]?[...dotsMapa[c.iso]]:[]
                   return (
@@ -2639,12 +2636,12 @@ const carregandoLimite = carregando
                       type="button" 
                       onClick={()=>{if(!c.outro){navigate('/calendario')}}}
                       className={`
-                        min-h-[44px] rounded-xl flex flex-col items-center justify-center gap-0.5 py-1
+                        min-h-[38px] rounded-lg flex flex-col items-center justify-center gap-0.5 py-1
                         ${isHoje ? 'font-bold text-white' : c.outro ? 'text-gray-300' : 'text-gray-900 hover:bg-gray-50'}
                       `}
                       style={isHoje ? {background: '#801D39'} : {}}
                     >
-                      <span className="text-sm">{c.dia}</span>
+                      <span className="text-xs">{c.dia}</span>
                       {dots.length>0&&(
                         <div className="flex gap-0.5">
                           {dots.slice(0,4).map((cor,di)=>(
@@ -2669,29 +2666,29 @@ const carregandoLimite = carregando
           )
         })()}
 
-        {/* Atalhos — carrossel horizontal personalizável (src/components/AtalhosHome.jsx) */}
+        {/* Atalhos — carrossel horizontal */}
         <AtalhosHome onAbrirModal={abrirModalAtalho} somenteLeitura={somenteLeitura} sangria />
         
-        {/* PLANEJE SUAS DECISÕES - CONFORME IMAGEM 2 */}
-        <div className="px-4 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">Planeje suas decisões</h2>
+        {/* PLANEJE SUAS DECISÕES */}
+        <div className="py-3">
+          <div className="flex items-center justify-between mb-3 px-4">
+            <h2 className="text-base font-bold text-gray-900">Planeje suas decisões</h2>
             <button 
               onClick={() => navigate('/projecao')}
-              className="text-sm font-semibold flex items-center gap-1"
+              className="text-xs font-semibold flex items-center gap-0.5"
               style={{color: '#801D39'}}
             >
-              Ver todos <ChevronRight size={16} />
+              Ver todos <ChevronRight size={14} />
             </button>
           </div>
           
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2.5 px-4">
             <button
               onClick={() => navigate('/e-se')}
-              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex flex-col items-center gap-2 hover:shadow-md transition-shadow"
+              className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 flex flex-col items-center gap-1.5 hover:shadow-md transition-shadow"
             >
-              <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{background: '#FFF5F7'}}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#801D39" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{background: '#FFF5F7'}}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#801D39" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="4" y1="21" x2="4" y2="14"></line>
                   <line x1="4" y1="10" x2="4" y2="3"></line>
                   <line x1="12" y1="21" x2="12" y2="12"></line>
@@ -2703,34 +2700,34 @@ const carregandoLimite = carregando
                   <line x1="17" y1="16" x2="23" y2="16"></line>
                 </svg>
               </div>
-              <span className="text-xs font-bold text-gray-900">E SE?</span>
+              <span className="text-[11px] font-bold text-gray-900 text-center leading-tight">E SE?</span>
             </button>
             
             <button
-              onClick={() => navigate('/simular-compra')}
-              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex flex-col items-center gap-2 hover:shadow-md transition-shadow"
+              onClick={() => navigate('/posso-comprar')}
+              className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 flex flex-col items-center gap-1.5 hover:shadow-md transition-shadow"
             >
-              <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{background: '#FFF5F7'}}>
-                <ShoppingCart size={24} style={{color: '#801D39'}} />
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{background: '#FFF5F7'}}>
+                <ShoppingCart size={20} style={{color: '#801D39'}} />
               </div>
-              <span className="text-xs font-bold text-gray-900">Simular compra</span>
+              <span className="text-[11px] font-bold text-gray-900 text-center leading-tight">Simular compra</span>
             </button>
             
             <button
               onClick={() => navigate('/custo-vida')}
-              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex flex-col items-center gap-2 hover:shadow-md transition-shadow"
+              className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 flex flex-col items-center gap-1.5 hover:shadow-md transition-shadow"
             >
-              <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{background: '#FFF5F7'}}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#801D39" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{background: '#FFF5F7'}}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#801D39" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
                   <polyline points="9 22 9 12 15 12 15 22"></polyline>
                 </svg>
               </div>
-              <span className="text-xs font-bold text-gray-900">Custo de vida</span>
+              <span className="text-[11px] font-bold text-gray-900 text-center leading-tight">Custo de vida</span>
             </button>
           </div>
           
-          {/* Indicador de páginas do carrossel */}
+          {/* Indicador de páginas */}
           <div className="flex items-center justify-center gap-1.5 mt-4">
             <div className="w-2 h-2 rounded-full" style={{background: '#801D39'}}></div>
             <div className="w-2 h-2 rounded-full bg-gray-300"></div>

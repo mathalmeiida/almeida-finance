@@ -299,12 +299,10 @@ export default function Layout({ children }) {
             </button>
           </div>
         )}
-        {/* Header mobile compacto. Na Home: logo à esquerda. Nas telas internas:
-            seta de voltar à esquerda. Avatar sempre à direita. */}
-        <header className="af-header-mobile md:hidden bg-white border-b border-gray-100 px-4 flex items-center justify-between sticky top-0 z-20">
-          {ehHome ? (
-            <LogoMarca imgClassName="h-7 w-auto" padding="px-2.5 py-1.5" />
-          ) : (
+        {/* Header mobile: apenas nas telas internas (seta voltar + avatar).
+            Na Home não renderiza nada pois tem cabeçalho próprio. */}
+        {!ehHome && (
+          <header className="af-header-mobile md:hidden bg-white border-b border-gray-100 px-4 flex items-center justify-between sticky top-0 z-20">
             <button
               onClick={voltar}
               aria-label="Voltar"
@@ -312,16 +310,16 @@ export default function Layout({ children }) {
             >
               <ArrowLeft size={22} />
             </button>
-          )}
-          <button
+            <button
             type="button"
-            onClick={() => setMenuMobile('mais')}
-            aria-label="Abrir mais ações e minha conta"
-            aria-expanded={menuMobile === 'mais'}
-          >
-            <FotoPerfil perfil={perfil} usuario={usuario} tamanho="sm" />
-          </button>
-        </header>
+              onClick={() => setMenuMobile('mais')}
+              aria-label="Abrir mais ações e minha conta"
+              aria-expanded={menuMobile === 'mais'}
+            >
+              <FotoPerfil perfil={perfil} usuario={usuario} tamanho="sm" />
+            </button>
+          </header>
+        )}
         {/* Barra de voltar no DESKTOP (que não tem header). Só fora da Home. */}
         {!ehHome && (
           <div className="hidden md:block px-8 pt-6">
