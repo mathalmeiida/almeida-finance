@@ -30,6 +30,7 @@ import CalendarioFinanceiroHome from '../components/CalendarioFinanceiroHome'
 import AtalhosHome from '../components/AtalhosHome'
 import ImportacaoInteligente from '../pages/ImportacaoInteligente'
 import { useMetas } from '../hooks/useMetas'
+import FotoPerfil from '../components/FotoPerfil'
 
 // Chaves lidas em App.jsx (AreaAutenticada) para reabrir o onboarding e saber
 // em qual etapa começar. Mesmas chaves usadas pela tela de Configurações.
@@ -2512,24 +2513,17 @@ const carregandoLimite = carregando
       {/* HEADER COMPACTO - Foto + Saudação + Sino */}
       <div className="px-4 pt-3 pb-2 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          {perfil?.foto_url ? (
-            <img 
-              src={perfil.foto_url} 
-              alt={usuario?.nome || 'Foto'} 
-              className="w-14 h-14 rounded-full object-cover"
+          <div className="w-14 h-14 flex-shrink-0">
+            <FotoPerfil 
+              perfil={perfil} 
+              usuario={usuario}
+              tamanho="md"
+              className="!w-14 !h-14 !text-xl"
             />
-          ) : perfil?.avatar_id ? (
-            <div className="w-14 h-14 rounded-full flex items-center justify-center text-2xl">
-              {perfil.avatar_id}
-            </div>
-          ) : (
-            <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-semibold text-lg" style={{background: '#801D39'}}>
-              {(usuario?.nome || 'U').charAt(0).toUpperCase()}
-            </div>
-          )}
+          </div>
           
           <p className="text-base font-medium text-gray-900">
-            {saudacao}, <span className="font-bold">{usuario?.nome?.split(' ')[0] || 'Usuário'}</span>
+            {saudacao}, <span className="font-bold">{perfil?.nome?.split(' ')[0] || usuario?.email?.split('@')[0] || 'Usuário'}</span>
           </p>
         </div>
         
