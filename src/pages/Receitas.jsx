@@ -591,7 +591,10 @@ export default function Receitas() {
             </div>
             <button
               onClick={() => {
-                try { localStorage.setItem('almeida_refazer_onboarding', '1') } catch { /* ignore */ }
+                try {
+                  localStorage.removeItem('almeida_configurando_onboarding')
+                  localStorage.setItem('almeida_refazer_onboarding', '1')
+                } catch { /* ignore */ }
                 window.location.assign('/')
               }}
               className="btn-primary text-sm whitespace-nowrap"

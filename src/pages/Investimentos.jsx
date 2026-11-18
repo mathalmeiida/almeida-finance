@@ -704,6 +704,7 @@ export default function Investimentos() {
             <button
               onClick={() => {
                 try {
+                  localStorage.removeItem('almeida_configurando_onboarding')
                   localStorage.setItem('almeida_refazer_onboarding', '1')
                   localStorage.setItem('almeida_onboarding_etapa', 'central')
                 } catch { /* ignore */ }
