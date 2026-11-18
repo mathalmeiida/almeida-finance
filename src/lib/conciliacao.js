@@ -72,7 +72,7 @@ const PALAVRAS_TRANSFERENCIA = [
 
 
 
-const PADRAO_PAGAMENTO_FATURA = /\b(pagamento|pgto|pagto|pag) (de |da |do )?(fatura|cartao)\b|\bfatura (do )?cartao\b|\bpagamento recebido\b|\bcredito de pagamento\b/
+const PADRAO_PAGAMENTO_FATURA = /\b(pagamento|pgto|pagto|pag) (de |da |do )?(fatura|cartao)\b|\bfatura (do )?cartao\b|\bpagamento recebido\b|\bcredito de pagamento\b|\bdebito automatico (de )?(cartao|fatura)\b|\bdebito autom[aá]tico cartao\b/
 
 
 
@@ -556,7 +556,7 @@ export function conciliarTransacoes(itens, existentes, chavesImportadas = new Se
 
         estadoConciliacao: 'duplicata_possivel',
 
-        incluir: false, // Requer confirmação explícita
+        incluir: true, // Usuário decide — incluído por padrão com aviso
 
         duplicataDe: melhor.e.id,
 
@@ -586,7 +586,7 @@ export function conciliarTransacoes(itens, existentes, chavesImportadas = new Se
 
       estadoConciliacao: 'divergente',
 
-      incluir: false,
+      incluir: true,
 
       registroVinculado: melhor.e,
 
@@ -635,10 +635,13 @@ export function resumoConciliacao(itens) {
     if (it.incluir) {
       resumo.selecionados++
       resumo.valorSelecionado += Math.abs(Number(it.valor) || 0)
-      if (validarParaResumo(it)) resumo.comErro++
-      else {
-        resumo.totalImportar++
-        resumo.valorImportar += Math.abs(Number(it.valor) || 0)
+      const estadoExcluiDeImportar = ['conciliado', 'ja_importado', 'transferencia', 'pagamento_fatura', 'duplicata_provavel']
+      if (!estadoExcluiDeImportar.includes(it.estadoConciliacao || 'novo')) {
+        if (validarParaResumo(it)) resumo.comErro++
+        else {
+          resumo.totalImportar++
+          resumo.valorImportar += Math.abs(Number(it.valor) || 0)
+        }
       }
     }
     const estado = it.estadoConciliacao || 'novo'
