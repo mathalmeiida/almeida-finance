@@ -560,7 +560,20 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
 
             <button
 
-              onClick={() => setEtapa(ETAPA_BOAS_VINDAS)}
+              onClick={() => {
+                // Se veio de um refazer (retorno da configuração), volta para a Home
+                // Se veio do fluxo normal (escolha inicial), volta para boas-vindas
+                if (etapaInicialProp === 'central') {
+                  try {
+                    localStorage.removeItem('almeida_refazer_onboarding')
+                    localStorage.removeItem('almeida_onboarding_etapa')
+                    localStorage.removeItem('almeida_configurando_onboarding')
+                  } catch { /* ignore */ }
+                  window.location.assign('/')
+                } else {
+                  setEtapa(ETAPA_BOAS_VINDAS)
+                }
+              }}
 
               className="text-sm text-gray-600 hover:text-gray-900 mb-4"
 

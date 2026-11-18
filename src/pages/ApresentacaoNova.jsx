@@ -77,12 +77,20 @@ export default function ApresentacaoNova() {
             <ChevronLeft className="text-gray-600" />
           </button>
 
-          <div className="flex-1 flex gap-2">
-            <button onClick={pular} className="btn-secondary flex-1">
-              Pular
-            </button>
-            <button onClick={proximo} className="btn-primary flex-1">
-              {slide === slides.length - 1 ? 'Começar' : 'Próximo'}
+          <div className="flex-1 flex flex-col gap-2">
+            <div className="flex gap-2">
+              <button onClick={pular} className="btn-secondary flex-1">
+                Pular
+              </button>
+              <button onClick={proximo} className="btn-primary flex-1">
+                {slide === slides.length - 1 ? 'Começar' : 'Próximo'}
+              </button>
+            </div>
+            <button
+              onClick={() => navigate('/login')}
+              className="text-xs text-gray-500 hover:text-gray-700 text-center py-1"
+            >
+              Já tenho conta
             </button>
           </div>
 
