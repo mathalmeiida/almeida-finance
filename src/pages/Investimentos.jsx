@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 
+import { useSearchParams } from 'react-router-dom'
+
 import { TrendingUp, Plus, Pencil, Trash2, Loader2, PiggyBank, Wallet, BarChart2, ArrowDownCircle, Eye, EyeOff, History, Landmark, RefreshCw, Upload } from 'lucide-react'
 
 import { useInvestimentos, CATEGORIAS_INVESTIMENTO, labelCategoriaInvestimento, TIPOS_MOV_INVESTIMENTO } from '../hooks/useInvestimentos'
@@ -15,6 +17,7 @@ import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
 
 import { cotacoesDisponiveis } from '../lib/cotacoes'
+
 import ImportacaoInteligente from './ImportacaoInteligente'
 
 // Cores ligadas ao tema global do Almeida Finance (variável CSS --marca).
@@ -546,11 +549,12 @@ export default function Investimentos() {
     proventosDeInvestimento, rentabilidadeDeInvestimento, proventosNoMes,
 
   } = useInvestimentos()
-  
+
   // Retorno ao onboarding
   const [searchParams] = useSearchParams()
+
   const origemOnboarding = searchParams.get('origem') === 'onboarding'
-  
+
   const [modal, setModal] = useState(false)
 
   const [modalImportacao, setModalImportacao] = useState(false)
@@ -676,47 +680,44 @@ export default function Investimentos() {
       {erro && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">Erro ao carregar: {erro}</p>}
 
       {origemOnboarding && (
+
         <div className="card !p-4 bg-[#FFF5F7] border-2 border-[#821C3E]/20">
+
           <div className="flex items-center justify-between gap-3">
+
             <div>
+
               <p className="text-sm font-semibold text-gray-900">
-                Configurando suas finan�as
+
+                Configurando suas finanças
+
               </p>
+
               <p className="text-xs text-gray-600 mt-1">
+
                 Configure seus investimentos e retorne para continuar
+
               </p>
+
             </div>
-            <Link
-              to="/onboarding"
+
+            <button
+              onClick={() => {
+                try {
+                  localStorage.setItem('almeida_refazer_onboarding', '1')
+                  localStorage.setItem('almeida_onboarding_etapa', 'central')
+                } catch { /* ignore */ }
+                window.location.assign('/')
+              }}
               className="btn-primary text-sm whitespace-nowrap"
             >
-              Voltar � configura��o
-            </Link>
-          </div>
-        </div>
-      )}
+              Voltar à configuração
+            </button>
 
-      {/* 
-
-      {origemOnboarding && (
-        <div className="card !p-4 bg-[#FFF5F7] border-2 border-[#821C3E]/20">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-gray-900">
-                Configurando suas finan�as
-              </p>
-              <p className="text-xs text-gray-600 mt-1">
-                Configure seus investimentos e retorne para continuar
-              </p>
-            </div>
-            <Link
-              to="/onboarding"
-              className="btn-primary text-sm whitespace-nowrap"
-            >
-              Voltar � configura��o
-            </Link>
           </div>
+
         </div>
+
       )}
 
       {/* ── Card herói: patrimônio + indicadores integrados (sem repetição) ── */}
@@ -950,7 +951,7 @@ export default function Investimentos() {
 
                     <p className="text-sm font-semibold text-gray-900 truncate">{i.nome}</p>
 
-                    <p className="text-xs text-gray-400">{labelCategoriaInvestimento(i.categoria)}{i.instituicao ? ` · ${i.instituicao}` : ''}{Number(i.reserva_valor) > 0 ? ' · reserva' : ''}</p>
+                    <p className="text-xs text-gray-400">{labelCategoriaInvestimento(i.categoria)}{i.instituicao ? ` Â· ${i.instituicao}` : ''}{Number(i.reserva_valor) > 0 ? ' Â· reserva' : ''}</p>
 
                   </div>
 
@@ -1032,7 +1033,7 @@ export default function Investimentos() {
 
                             <ArrowDownCircle size={12} className="text-gray-400" />
 
-                            {TIPO_MOV_LABEL[m.tipo]} · {formatDate(m.data)}
+                            {TIPO_MOV_LABEL[m.tipo]} Â· {formatDate(m.data)}
 
                           </span>
 
@@ -1106,7 +1107,7 @@ export default function Investimentos() {
 
                     <p className="text-sm font-medium text-gray-900">{TIPO_MOV_LABEL[m.tipo] || m.tipo || 'Movimentação'}</p>
 
-                    <p className="text-xs text-gray-500 truncate">{m.nomeInvestimento}{m.instituicao ? ` · ${m.instituicao}` : ''} · {m.data ? formatDate(m.data) : 'Sem data'}</p>
+                    <p className="text-xs text-gray-500 truncate">{m.nomeInvestimento}{m.instituicao ? ` Â· ${m.instituicao}` : ''} Â· {m.data ? formatDate(m.data) : 'Sem data'}</p>
 
                   </div>
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 
-import { useSearchParams, Link } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 
 import { TrendingUp, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, BarChart3, Upload } from 'lucide-react'
 
@@ -406,6 +406,7 @@ export default function Receitas() {
 
   // Atalho do botão "+" (menu inferior mobile): ?novo=1 abre o modal já existente.
   const [searchParams, setSearchParams] = useSearchParams()
+  const origemOnboarding = searchParams.get('origem') === 'onboarding'
 
   useEffect(() => {
 
@@ -588,12 +589,15 @@ export default function Receitas() {
                 Salve suas receitas e retorne para continuar
               </p>
             </div>
-            <Link
-              to="/onboarding"
+            <button
+              onClick={() => {
+                try { localStorage.setItem('almeida_refazer_onboarding', '1') } catch { /* ignore */ }
+                window.location.assign('/')
+              }}
               className="btn-primary text-sm whitespace-nowrap"
             >
               Voltar à configuração
-            </Link>
+            </button>
           </div>
         </div>
       )}

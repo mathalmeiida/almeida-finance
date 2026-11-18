@@ -306,7 +306,7 @@ function AreaAutenticada({ children }) {
   const estaConfigurando = localStorage.getItem(CHAVE_CONFIGURANDO) === '1'
   if ((precisaOnboarding || refazer) && !estaConfigurando) {
 
-    return <OnboardingSimples aoConcluir={encerrarOnboarding} />
+    return <OnboardingSimples aoConcluir={encerrarOnboarding} etapaInicial={etapaInicial} />
 
   }
 

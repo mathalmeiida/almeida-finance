@@ -560,12 +560,18 @@ export default function Beneficios() {
                 Configure seus benefícios VR/VA e retorne para continuar
               </p>
             </div>
-            <Link
-              to="/onboarding"
+            <button
+              onClick={() => {
+                try {
+                  localStorage.setItem('almeida_refazer_onboarding', '1')
+                  localStorage.setItem('almeida_onboarding_etapa', 'central')
+                } catch { /* ignore */ }
+                window.location.assign('/')
+              }}
               className="btn-primary text-sm whitespace-nowrap"
             >
               Voltar à configuração
-            </Link>
+            </button>
           </div>
         </div>
       )}
