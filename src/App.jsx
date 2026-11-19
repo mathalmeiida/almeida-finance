@@ -498,9 +498,10 @@ function Rotas() {
                 <Route path="/familia/:id" element={<GrupoFamiliar />} />
                 <Route path="/planos" element={<Planos />} />
 
-                {/* Importação Inteligente standalone (para testes E2E e acesso direto) */}
-                <Route path="/importacao" element={<ImportacaoInteligente />} />
+                {/* Central de Importação unificada */}
                 <Route path="/central-importacao" element={<CentralImportacao />} />
+                {/* Redirect legado */}
+                <Route path="/importacao" element={<Navigate to="/central-importacao" replace />} />
 
                 <Route path="/projecao" element={<Projecao />} />
                 <Route path="/minha-evolucao" element={<MinhaEvolucao />} />

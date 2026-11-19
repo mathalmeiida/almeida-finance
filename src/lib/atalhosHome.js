@@ -23,7 +23,7 @@ export const CATALOGO_ATALHOS = [
   { id: 'consultoria', label: 'Consultoria', rota: '/consultoria' },
   { id: 'metas', label: 'Metas', rota: '/metas' },
   { id: 'e-se', label: 'E se...?', rota: '/e-se' },
-  { id: 'importacao', label: 'Importação Inteligente', rota: '/importacao', exigeEscrita: true },
+  { id: 'importacao', label: 'Central de Importação', rota: '/central-importacao', exigeEscrita: true },
   { id: 'parcelamentos', label: 'Parcelamentos', rota: '/despesas?aba=parceladas' },
   { id: 'projecao', label: 'Projeção financeira', rota: '/projecao' },
 ]

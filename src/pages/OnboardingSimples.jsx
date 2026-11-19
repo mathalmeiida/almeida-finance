@@ -95,17 +95,10 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
   const [despesaVariavel, setDespesaVariavel] = useState(0)
 
   // Marca que está em modo configuração assim que o onboarding inicia
+  // E mantém durante TODA a configuração até concluir explicitamente
   useEffect(() => {
     localStorage.setItem(CHAVE_CONFIGURANDO, '1')
-    return () => {
-      // Limpa somente se NÃO concluiu (se concluiu, App.jsx já limpou)
-      try {
-        const refazer = localStorage.getItem('almeida_refazer_onboarding')
-        if (refazer !== '1') {
-          localStorage.removeItem(CHAVE_CONFIGURANDO)
-        }
-      } catch {}
-    }
+    // NÃO limpa automaticamente - apenas na conclusão explícita
   }, [])
 
   // O retorno é explícito: prop etapaInicial='central' (via App.jsx/CHAVE_ETAPA_ONBOARDING)
@@ -375,9 +368,12 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
   }
 
   async function handleConcluir() {
-
+    // Limpa a flag de configuração ANTES de marcar como concluído
+    try {
+      localStorage.removeItem(CHAVE_CONFIGURANDO)
+    } catch {}
+    
     if (aoConcluir) await aoConcluir()
-
   }
 
   // Carrega resumo real do banco

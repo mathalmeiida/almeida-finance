@@ -69,47 +69,47 @@ export default function Mais() {
   }
 
   return (
-    <div className="max-w-lg mx-auto space-y-5 pb-mobilenav md:pb-8">
-      {/* Avatar + dados do usuário */}
-      <div className="card flex items-center gap-4">
-        <FotoPerfil perfil={perfil} usuario={usuario} tamanho="md" />
-        <div className="min-w-0">
-          <p className="text-base font-bold text-gray-900 truncate">{nome}</p>
-          <p className="text-xs text-gray-500 truncate">{email}</p>
+    <div className="max-w-7xl mx-auto space-y-6 pb-mobilenav md:pb-8">
+      {/* Cabeçalho com perfil - horizontal no desktop, compacto no mobile */}
+      <div className="card">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
+          <FotoPerfil perfil={perfil} usuario={usuario} tamanho="lg" />
+          <div className="flex-1 text-center sm:text-left">
+            <h1 className="text-2xl font-bold text-gray-900 mb-1">{nome}</h1>
+            <p className="text-sm text-gray-500 mb-3">{email}</p>
+            <button
+              type="button"
+              onClick={handleSair}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 transition-colors"
+            >
+              <LogOut size={16} /> Sair da conta
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Lista de itens */}
-      <div className="card !p-0 divide-y divide-gray-100 overflow-hidden">
+      {/* Grid de opções - 2 colunas no tablet, 3 no desktop */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {ITENS.map(item => (
           <button
             key={item.rota}
             type="button"
             onClick={() => navigate(item.rota)}
-            className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
+            className="card !p-6 text-left transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] group"
           >
-            <span
-              className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${item.bgIcon}`}
-            >
-              <item.Icone size={20} className={item.corIcon} />
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900">{item.titulo}</p>
-              <p className="text-xs text-gray-500">{item.detalhe}</p>
+            <div className="flex items-start gap-4 mb-3">
+              <span
+                className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${item.bgIcon} group-hover:scale-110 transition-transform`}
+              >
+                <item.Icone size={24} className={item.corIcon} />
+              </span>
+              <ChevronRight size={18} className="text-gray-400 group-hover:text-marca transition-colors mt-3" />
             </div>
-            <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />
+            <h3 className="text-base font-semibold text-gray-900 mb-1">{item.titulo}</h3>
+            <p className="text-sm text-gray-500">{item.detalhe}</p>
           </button>
         ))}
       </div>
-
-      {/* Sair */}
-      <button
-        type="button"
-        onClick={handleSair}
-        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 transition-colors"
-      >
-        <LogOut size={18} /> Sair da conta
-      </button>
     </div>
   )
 }

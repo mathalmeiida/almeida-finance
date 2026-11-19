@@ -64,7 +64,6 @@ const navGrupos = [
     { to: '/mais/perfil',   label: 'Meu perfil',     icon: UserRound,     corIcone: 'text-marca'        },
     { to: '/configuracoes', label: 'Configurações',  icon: Settings,      corIcone: 'text-gray-400'     },
     { to: '/mais/funcionalidades', label: 'Funcionalidades', icon: Grid2X2, corIcone: 'text-sky-400'    },
-    { to: '/importacao',    label: 'Importação',     icon: Upload,        corIcone: 'text-sky-400'      },
     { to: '/central-importacao', label: 'Central de Importação', icon: Upload, corIcone: 'text-marca' },
     { to: '/mais/ajuda',    label: 'Ajuda & feedback', icon: CircleHelp,  corIcone: 'text-amber-400'    },
     { to: '/mais/sobre',    label: 'Sobre o app',    icon: Info,          corIcone: 'text-cyan-400'     },
