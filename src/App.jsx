@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 
@@ -199,6 +199,8 @@ function AreaAutenticada({ children }) {
   const { usuario, perfil, contaDesativada, modoConsultoria } = useAuth()
 
   const { verificando, precisaOnboarding, concluir } = useOnboarding()
+  
+  const location = useLocation()
 
   // Solicitações de consultoria direcionadas a ESTE usuário (como cliente).
 
@@ -313,9 +315,15 @@ function AreaAutenticada({ children }) {
   if (verificando) return <Carregando />
 
   // Onboarding: primeiro acesso (precisaOnboarding) OU refazer manual.
-  // A flag CHAVE_CONFIGURANDO permite navegar para módulos durante o onboarding,
-  // mas NÃO bloqueia a renderização do próprio onboarding.
-  if (precisaOnboarding || refazer) {
+  // EXCEÇÃO: Se a flag CHAVE_CONFIGURANDO está ativa E o usuário está navegando
+  // para um módulo específico (não raiz '/'), permite acesso ao módulo.
+  const estaConfigurando = (() => {
+    try { return localStorage.getItem(CHAVE_CONFIGURANDO) === '1' }
+    catch { return false }
+  })()
+  const estaEmModulo = location.pathname !== '/' && location.pathname !== ''
+  
+  if ((precisaOnboarding || refazer) && !(estaConfigurando && estaEmModulo)) {
 
     return <OnboardingSimples aoConcluir={encerrarOnboarding} etapaInicial={etapaInicial} />
 
