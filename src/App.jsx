@@ -73,6 +73,8 @@ import CentralImportacao from './pages/CentralImportacao'
 
 import Admin from './pages/Admin'
 
+import DiagnosticoAuth from './pages/DiagnosticoAuth'
+
 // Páginas públicas (autenticação)
 
 import Login from './pages/auth/Login'
@@ -320,13 +322,19 @@ function AreaAutenticada({ children }) {
   // TIMEOUT: Se demorar mais de 10s, assume erro e permite continuar
   useEffect(() => {
     if (usuario && perfil == null) {
+      console.error('[AreaAutenticada] BLOQUEADO: usuario existe mas perfil == null', {
+        usuarioId: usuario.id?.substring(0, 8),
+        perfil: perfil,
+        perfilType: typeof perfil,
+        verificando
+      })
       const timeout = setTimeout(() => {
         console.error('[AreaAutenticada] Timeout aguardando perfil - possível deadlock')
         // Não podemos forçar navegação aqui, mas ao menos logamos
       }, 10000)
       return () => clearTimeout(timeout)
     }
-  }, [usuario, perfil])
+  }, [usuario, perfil, verificando])
   
   if (usuario && perfil == null) return <Carregando />
 
@@ -439,6 +447,9 @@ function Rotas() {
           para o redirect automático não interromper o processamento. */}
 
       <Route path="/auth/callback" element={<ConfirmarEmail />} />
+      
+      {/* Página de diagnóstico - TEMPORÁRIA */}
+      <Route path="/diagnostico" element={<DiagnosticoAuth />} />
 
       {/* Rotas privadas — todas dentro do Layout */}
 
