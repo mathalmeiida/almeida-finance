@@ -112,6 +112,9 @@ function Carregando() {
 function RotaPrivada({ children }) {
 
   const { autenticado, carregando, erroCarregamento, tentarNovamente } = useAuth()
+  
+  // DEBUG
+  console.log('[RotaPrivada] Estado:', { autenticado, carregando, temErro: !!erroCarregamento })
 
   if (carregando) return <Carregando />
   
@@ -199,6 +202,17 @@ function AreaAutenticada({ children }) {
   const { usuario, perfil, contaDesativada, modoConsultoria } = useAuth()
 
   const { verificando, precisaOnboarding, concluir } = useOnboarding()
+
+  // DEBUG
+  console.log('[AreaAutenticada] Estado:', {
+    temUsuario: !!usuario,
+    perfil: perfil,
+    perfilNull: perfil === null,
+    perfilUndefined: perfil === undefined,
+    perfilType: typeof perfil,
+    verificando,
+    contaDesativada
+  })
 
   // Solicitações de consultoria direcionadas a ESTE usuário (como cliente).
 
