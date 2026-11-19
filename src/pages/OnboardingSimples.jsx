@@ -111,6 +111,11 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
     if (etapa === ETAPA_CENTRAL) {
 
       localStorage.setItem(CHAVE_CONFIGURANDO, '1')
+      
+      // Salva etapa para preservar após reload
+      try {
+        localStorage.setItem('almeida_onboarding_etapa', 'central')
+      } catch { /* ignore */ }
 
     }
 
