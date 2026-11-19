@@ -29,18 +29,19 @@ export default function Modal({ aberto, onFechar, titulo, children, tamanho = 'm
   if (!aberto) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="modal-title">
       {/* Overlay */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onFechar}
+        aria-hidden="true"
       />
       {/* Painel — bottom sheet no mobile, card centralizado no desktop.
           Altura limitada à viewport (com safe-area no mobile) e scroll interno;
           o cabeçalho (título + X) fica fixo no topo. */}
       <div className={`relative bg-white w-full ${LARGURAS[tamanho] || LARGURAS.md} rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90dvh] sm:max-h-[90vh] overflow-y-auto flex flex-col`}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10 flex-shrink-0">
-          <h3 className="text-base font-semibold text-gray-900 pr-2 truncate">{titulo}</h3>
+          <h3 id="modal-title" className="text-base font-semibold text-gray-900 pr-2 truncate">{titulo}</h3>
           <button
             onClick={onFechar}
             className="touch-target -mr-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
