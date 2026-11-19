@@ -53,9 +53,9 @@ export default function AlmeidaFamilia() {
     return (
       <div className="af-container py-8">
         <div className="max-w-2xl mx-auto">
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-8 text-center border border-blue-100">
+          <div className="bg-surface-2 rounded-2xl p-8 text-center border border-border-col">
             <div className="bg-white rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-              <Users className="w-8 h-8 text-blue-600" />
+              <Users className="w-8 h-8 text-marca" />
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-3">Almeida Família</h2>
             <p className="text-gray-600 mb-6 max-w-md mx-auto">
@@ -67,8 +67,8 @@ export default function AlmeidaFamilia() {
               <h3 className="font-semibold text-gray-900 mb-4">Recursos inclusos:</h3>
               <ul className="space-y-3">
                 <li className="flex items-start gap-3">
-                  <div className="bg-blue-100 rounded-full p-1 mt-0.5">
-                    <Users className="w-4 h-4 text-blue-600" />
+                  <div className="bg-surface rounded-full p-1 mt-0.5">
+                    <Users className="w-4 h-4 text-marca" />
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">Grupos familiares ilimitados</p>
@@ -76,8 +76,8 @@ export default function AlmeidaFamilia() {
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
-                  <div className="bg-blue-100 rounded-full p-1 mt-0.5">
-                    <PiggyBank className="w-4 h-4 text-blue-600" />
+                  <div className="bg-surface rounded-full p-1 mt-0.5">
+                    <PiggyBank className="w-4 h-4 text-marca" />
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">Despesas compartilhadas</p>
@@ -85,8 +85,8 @@ export default function AlmeidaFamilia() {
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
-                  <div className="bg-blue-100 rounded-full p-1 mt-0.5">
-                    <TrendingUp className="w-4 h-4 text-blue-600" />
+                  <div className="bg-surface rounded-full p-1 mt-0.5">
+                    <TrendingUp className="w-4 h-4 text-marca" />
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">Metas em grupo</p>
@@ -94,8 +94,8 @@ export default function AlmeidaFamilia() {
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
-                  <div className="bg-blue-100 rounded-full p-1 mt-0.5">
-                    <Calendar className="w-4 h-4 text-blue-600" />
+                  <div className="bg-surface rounded-full p-1 mt-0.5">
+                    <Calendar className="w-4 h-4 text-marca" />
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">Calendário unificado</p>

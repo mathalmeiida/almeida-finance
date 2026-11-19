@@ -294,8 +294,8 @@ export default function OnboardingNovo() {
 
           {etapa === 3 && (
             <div>
-              <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-4">
-                <CreditCard className="text-blue-600" size={22} />
+              <div className="w-12 h-12 bg-surface-2 rounded-xl flex items-center justify-center mb-4">
+                <CreditCard className="text-marca" size={22} />
               </div>
               <h2 className="text-2xl font-bold mb-2">Cartões e benefícios</h2>
               <p className="text-gray-600 mb-6">

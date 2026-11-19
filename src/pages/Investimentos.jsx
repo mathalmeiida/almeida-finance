@@ -681,7 +681,7 @@ export default function Investimentos() {
 
       {origemOnboarding && (
 
-        <div className="card !p-4 bg-[#FFF5F7] border-2 border-[#821C3E]/20">
+        <div className="card !p-4 bg-surface-2 border-2 border-marca/20">
 
           <div className="flex items-center justify-between gap-3">
 

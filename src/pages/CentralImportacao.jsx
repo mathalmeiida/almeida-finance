@@ -10,8 +10,8 @@ import { useImportacoes } from '../hooks/useImportacoes'
 import ImportacaoInteligente from './ImportacaoInteligente'
 
 const CONTEXTOS = {
-  extrato: { label: 'Extrato bancário', icone: FileText, cor: 'text-blue-500', bg: 'bg-blue-100' },
-  fatura: { label: 'Fatura de cartão', icone: CreditCard, cor: 'text-purple-500', bg: 'bg-purple-100' },
+  extrato: { label: 'Extrato bancário', icone: FileText, cor: 'text-marca', bg: 'bg-surface-2' },
+  fatura: { label: 'Fatura de cartão', icone: CreditCard, cor: 'text-marca', bg: 'bg-surface-2' },
   investimentos: { label: 'Investimentos', icone: TrendingUp, cor: 'text-green-500', bg: 'bg-green-100' },
   beneficios: { label: 'VR/VA Benefícios', icone: Gift, cor: 'text-orange-500', bg: 'bg-orange-100' },
 }

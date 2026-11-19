@@ -550,7 +550,7 @@ export default function Beneficios() {
       {erro && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2">Erro ao carregar: {erro}</p>}
       
       {origemOnboarding && (
-        <div className="card !p-4 bg-[#FFF5F7] border-2 border-[#821C3E]/20">
+        <div className="card !p-4 bg-surface-2 border-2 border-marca/20">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-gray-900">

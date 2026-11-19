@@ -623,7 +623,7 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
 
             >
 
-              <div className="w-12 h-12 rounded-xl bg-[#FFF5F7] flex items-center justify-center flex-shrink-0">
+              <div className="w-12 h-12 rounded-xl bg-surface-2 flex items-center justify-center flex-shrink-0">
 
                 <Wallet size={24} style={{color: '#801D39'}} />
 
@@ -722,9 +722,9 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
 
             >
 
-              <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0">
+              <div className="w-12 h-12 rounded-xl bg-surface-2 flex items-center justify-center flex-shrink-0">
 
-                <CheckCircle2 size={24} className="text-blue-600" />
+                <CheckCircle2 size={24} className="text-marca" />
 
               </div>
 
@@ -788,9 +788,9 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
 
             >
 
-              <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center flex-shrink-0">
+              <div className="w-12 h-12 rounded-xl bg-surface-2 flex items-center justify-center flex-shrink-0">
 
-                <Upload size={24} className="text-purple-600" />
+                <Upload size={24} className="text-marca" />
 
               </div>
 
@@ -1098,7 +1098,7 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
 
                   <span className="text-gray-600">Cartões cadastrados</span>
 
-                  <span className="font-semibold text-blue-600">{resumo.cartoes}</span>
+                  <span className="font-semibold text-marca">{resumo.cartoes}</span>
 
                 </div>
 
@@ -1110,7 +1110,7 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
 
                   <span className="text-gray-600">Investimentos</span>
 
-                  <span className="font-semibold text-purple-600">{resumo.investimentos}</span>
+                  <span className="font-semibold text-marca">{resumo.investimentos}</span>
 
                 </div>
 
