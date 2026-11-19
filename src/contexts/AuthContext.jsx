@@ -49,7 +49,14 @@ export function AuthProvider({ children }) {
         .single()
       
       const duracao = Date.now() - inicio
-      console.log(`[buscarPerfil] Query concluída em ${duracao}ms`, { temData: !!data, temError: !!error, errorCode: error?.code })
+      console.log(`[buscarPerfil] Query concluída em ${duracao}ms`, { 
+        temData: !!data, 
+        dataIsNull: data === null,
+        dataIsUndefined: data === undefined,
+        dataKeys: data ? Object.keys(data) : 'N/A',
+        temError: !!error, 
+        errorCode: error?.code 
+      })
       
       // Verifica se o componente ainda está montado antes de atualizar estado
       if (!montadoRef.current) {
@@ -96,6 +103,8 @@ export function AuthProvider({ children }) {
       // Sucesso: perfil carregado
       if (montadoRef.current) {
         setPerfil(data)
+      } else {
+        console.warn('[buscarPerfil] Componente desmontado antes de setPerfil, ignorando')
       }
       return { sucesso: true }
       

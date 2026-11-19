@@ -317,7 +317,17 @@ function AreaAutenticada({ children }) {
   }, [concluir])
 
   // Enquanto o perfil não carrega, não decide nada (evita piscar telas).
-
+  // TIMEOUT: Se demorar mais de 10s, assume erro e permite continuar
+  useEffect(() => {
+    if (usuario && perfil == null) {
+      const timeout = setTimeout(() => {
+        console.error('[AreaAutenticada] Timeout aguardando perfil - possível deadlock')
+        // Não podemos forçar navegação aqui, mas ao menos logamos
+      }, 10000)
+      return () => clearTimeout(timeout)
+    }
+  }, [usuario, perfil])
+  
   if (usuario && perfil == null) return <Carregando />
 
   // Conta desativada tem prioridade sobre qualquer outra tela.
