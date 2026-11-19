@@ -20,19 +20,38 @@ export function useOnboarding() {
   const [precisaOnboarding, setPrecisaOnboarding] = useState(false)
 
   const verificar = useCallback(async () => {
-    if (!usuario) return
+    console.log('[useOnboarding] verificar() chamado', { 
+      temUsuario: !!usuario, 
+      temPerfil: !!perfil,
+      perfilNull: perfil == null 
+    })
+    
+    if (!usuario) {
+      console.log('[useOnboarding] Sem usuario, retornando')
+      return
+    }
     // Aguarda o perfil carregar (o AuthContext busca em "perfis"). Enquanto
     // não chegar, mantém "verificando" para não liberar o app nem piscar o
     // onboarding antes de sabermos o status real.
-    if (perfil == null) { setVerificando(true); return }
+    if (perfil == null) { 
+      console.log('[useOnboarding] perfil == null, setando verificando=true')
+      setVerificando(true); 
+      return 
+    }
 
     // Se já está no onboarding ativo, NÃO reverifica (evita sair prematuramente)
     const configurandoOnboarding = (() => {
       try { return localStorage.getItem('almeida_configurando_onboarding') === '1' }
       catch { return false }
     })()
-    if (configurandoOnboarding) return
+    console.log('[useOnboarding] configurandoOnboarding:', configurandoOnboarding)
+    
+    if (configurandoOnboarding) {
+      console.log('[useOnboarding] Em modo configuração, retornando SEM setar verificando=false')
+      return
+    }
 
+    console.log('[useOnboarding] Iniciando verificação...')
     setVerificando(true)
     try {
       // Fonte principal e ÚNICA: a flag persistida no banco.
@@ -45,11 +64,15 @@ export function useOnboarding() {
       // Importante: NÃO auto-corrigimos mais a flag com base na existência de
       // dados. Fazer isso anulava o "Reiniciar onboarding" do Admin para quem
       // já tinha receitas/despesas (a flag voltava a true e o fluxo não abria).
-      setPrecisaOnboarding(perfil.onboarding_concluido !== true)
-    } catch {
+      const precisa = perfil.onboarding_concluido !== true
+      console.log('[useOnboarding] onboarding_concluido:', perfil.onboarding_concluido, '→ precisaOnboarding:', precisa)
+      setPrecisaOnboarding(precisa)
+    } catch (err) {
+      console.error('[useOnboarding] Erro ao verificar:', err)
       // Em falha de rede, por segurança NÃO interrompe o acesso ao app.
       setPrecisaOnboarding(false)
     } finally {
+      console.log('[useOnboarding] Finalizando verificação, setando verificando=false')
       setVerificando(false)
     }
   }, [usuario, perfil])

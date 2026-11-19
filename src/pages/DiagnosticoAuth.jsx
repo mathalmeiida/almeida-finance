@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { useOnboarding } from '../hooks/useOnboarding'
 
 export default function DiagnosticoAuth() {
   const auth = useAuth()
+  const onboarding = useOnboarding()
   const [historico, setHistorico] = useState([])
   
   useEffect(() => {
@@ -12,11 +14,13 @@ export default function DiagnosticoAuth() {
       autenticado: auth.autenticado,
       usuario: auth.usuario?.id?.substring(0, 8),
       perfil: auth.perfil ? Object.keys(auth.perfil).join(',') : 'null',
-      erroCarregamento: auth.erroCarregamento?.tipo
+      erroCarregamento: auth.erroCarregamento?.tipo,
+      verificando: onboarding.verificando,
+      precisaOnboarding: onboarding.precisaOnboarding
     }
     
     setHistorico(prev => [...prev, log].slice(-20))
-  }, [auth.carregando, auth.autenticado, auth.usuario, auth.perfil, auth.erroCarregamento])
+  }, [auth.carregando, auth.autenticado, auth.usuario, auth.perfil, auth.erroCarregamento, onboarding.verificando, onboarding.precisaOnboarding])
   
   return (
     <div className="min-h-screen bg-gray-100 p-4">
@@ -32,7 +36,10 @@ export default function DiagnosticoAuth() {
             <div>perfil: {auth.perfil ? JSON.stringify(Object.keys(auth.perfil)) : 'null'}</div>
             <div>perfil.id: {auth.perfil?.id?.substring(0, 16) || 'null'}</div>
             <div>perfil.nome: {auth.perfil?.nome || 'null'}</div>
+            <div>perfil.onboarding_concluido: {String(auth.perfil?.onboarding_concluido)}</div>
             <div>erroCarregamento: {auth.erroCarregamento?.tipo || 'null'}</div>
+            <div className={onboarding.verificando ? 'text-red-600 font-bold' : ''}>verificando: {String(onboarding.verificando)}</div>
+            <div>precisaOnboarding: {String(onboarding.precisaOnboarding)}</div>
           </div>
         </div>
         
@@ -43,7 +50,10 @@ export default function DiagnosticoAuth() {
               RotaPrivada: if (carregando) → {auth.carregando ? 'MOSTRA LOADING' : 'passa'}
             </div>
             <div className={auth.usuario && auth.perfil == null ? 'text-red-600 font-bold' : ''}>
-              AreaAutenticada: if (usuario && perfil == null) → {auth.usuario && auth.perfil == null ? 'MOSTRA LOADING' : 'passa'}
+              AreaAutenticada linha 307: if (usuario && perfil == null) → {auth.usuario && auth.perfil == null ? 'MOSTRA LOADING' : 'passa'}
+            </div>
+            <div className={onboarding.verificando ? 'text-red-600 font-bold' : ''}>
+              AreaAutenticada linha 315: if (verificando) → {onboarding.verificando ? 'MOSTRA LOADING' : 'passa'}
             </div>
             <div>
               perfil === null: {String(auth.perfil === null)}
@@ -58,8 +68,8 @@ export default function DiagnosticoAuth() {
           <h2 className="font-bold mb-2">Histórico (últimas 20 mudanças)</h2>
           <div className="space-y-1 text-xs font-mono bg-gray-50 p-2 rounded max-h-96 overflow-y-auto">
             {historico.map((log, i) => (
-              <div key={i} className={log.carregando ? 'text-red-600' : ''}>
-                {log.timestamp} | carregando:{log.carregando ? 'T' : 'F'} | auth:{log.autenticado ? 'T' : 'F'} | user:{log.usuario || 'null'} | perfil:{log.perfil} | erro:{log.erroCarregamento || 'null'}
+              <div key={i} className={log.carregando || log.verificando ? 'text-red-600' : ''}>
+                {log.timestamp} | carregando:{log.carregando ? 'T' : 'F'} | auth:{log.autenticado ? 'T' : 'F'} | user:{log.usuario || 'null'} | perfil:{log.perfil} | verificando:{log.verificando ? 'T' : 'F'} | precisa:{log.precisaOnboarding ? 'T' : 'F'} | erro:{log.erroCarregamento || 'null'}
               </div>
             ))}
           </div>
