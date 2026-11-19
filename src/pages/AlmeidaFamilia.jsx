@@ -15,8 +15,10 @@ export default function AlmeidaFamilia() {
   const [descricaoGrupo, setDescricaoGrupo] = useState('');
   const [salvando, setSalvando] = useState(false);
 
-  // Verifica se usuário tem plano Premium ou Plus
-  const temAcessoFamilia = perfil?.subscription_plan && perfil.subscription_plan !== 'free';
+  // Verifica se usuário tem plano Premium ou Plus (ou override/admin)
+  const temAcessoFamilia = perfil?.subscription_plan && perfil.subscription_plan !== 'free' 
+    || perfil?.plano_override 
+    || false; // ehAdmin verificado via backend
 
   const handleCriarGrupo = async () => {
     if (!nomeGrupo.trim()) return;
@@ -105,7 +107,7 @@ export default function AlmeidaFamilia() {
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button
-                onClick={() => window.location.href = '/configuracoes?tab=assinatura'}
+                onClick={() => window.location.href = '/planos'}
                 className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
               >
                 Ver planos Premium e Plus

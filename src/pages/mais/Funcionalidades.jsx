@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, TrendingUp, TrendingDown, CreditCard, UtensilsCrossed,
   PiggyBank, BarChart2, Activity, Target, ShoppingCart, Sparkles,
-  MessagesSquare, Settings, ShieldCheck, PlayCircle, ChevronRight,
+  MessagesSquare, Settings, ShieldCheck, PlayCircle, ChevronRight, Users,
 } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import PaginaInterna from '../../components/PaginaInterna'
@@ -35,6 +35,7 @@ const CATEGORIAS = [
     itens: [
       { rota: '/investimentos', Icone: PiggyBank, titulo: 'Investimentos', detalhe: 'Aportes, resgates e rentabilidade', cor: '#059669', bg: '#d1fae5' },
       { rota: '/metas', Icone: Target, titulo: 'Metas', detalhe: 'Objetivos financeiros e progresso', cor: '#d97706', bg: '#fef3c7' },
+      { rota: '/familia', Icone: Users, titulo: 'Almeida Família', detalhe: 'Gestão financeira colaborativa (Premium)', cor: '#2563eb', bg: '#dbeafe', premiumOnly: true },
       { rota: '/projecao', Icone: BarChart2, titulo: 'Planejamento e projeção', detalhe: 'Organize hoje e projete os próximos meses', cor: '#7c3aed', bg: '#ede9fe' },
     ],
   },
@@ -64,7 +65,7 @@ const CATEGORIA_ADMIN = {
 
 export default function Funcionalidades() {
   const navigate = useNavigate()
-  const { ehAdmin } = useAuth()
+  const { ehAdmin, perfil } = useAuth()
   const categorias = ehAdmin ? [...CATEGORIAS, CATEGORIA_ADMIN] : CATEGORIAS
 
   return (
@@ -74,7 +75,10 @@ export default function Funcionalidades() {
         <section key={cat.titulo} aria-label={cat.titulo}>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2 px-1">{cat.titulo}</h2>
           <div className="card !p-0 divide-y divide-gray-100 overflow-hidden">
-            {cat.itens.map(item => (
+            {cat.itens.filter(item => {
+              if (item.premiumOnly && perfil?.subscription_plan === 'free') return false;
+              return true;
+            }).map(item => (
               <button
                 key={item.rota}
                 type="button"

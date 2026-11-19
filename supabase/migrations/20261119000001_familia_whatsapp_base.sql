@@ -32,7 +32,8 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- Adiciona coluna aos perfis
 ALTER TABLE public.perfis
-  ADD COLUMN IF NOT EXISTS subscription_plan TEXT;
+  ADD COLUMN IF NOT EXISTS subscription_plan TEXT,
+  ADD COLUMN IF NOT EXISTS plano_override BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- Atualiza default e FK
 UPDATE public.perfis SET subscription_plan = 'free' WHERE subscription_plan IS NULL;
@@ -51,6 +52,31 @@ DO $$ BEGIN
       FOREIGN KEY (subscription_plan) REFERENCES public.subscription_plans(id);
   END IF;
 END $$;
+
+-- Função para verificar se tem acesso Premium (plano OU override OU admin)
+CREATE OR REPLACE FUNCTION public.tem_acesso_premium()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  user_plan TEXT;
+  user_override BOOLEAN;
+  user_admin BOOLEAN;
+BEGIN
+  SELECT subscription_plan, plano_override
+  INTO user_plan, user_override
+  FROM public.perfis
+  WHERE id = auth.uid();
+  
+  -- Verifica se é admin
+  user_admin := public.e_admin();
+  
+  -- Tem acesso se: premium/plus OU override OU admin
+  RETURN (user_plan IN ('premium', 'plus')) OR user_override OR user_admin;
+END;
+$$;
 
 -- 2. GRUPOS FAMILIARES
 -- ============================================================================

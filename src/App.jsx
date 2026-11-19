@@ -64,6 +64,7 @@ import Investimentos from './pages/Investimentos'
 
 import AlmeidaFamilia from './pages/AlmeidaFamilia'
 import GrupoFamiliar from './pages/GrupoFamiliar'
+import Planos from './pages/Planos'
 
 import ImportacaoInteligente from './pages/ImportacaoInteligente'
 import CentralImportacao from './pages/CentralImportacao'
@@ -451,6 +452,7 @@ function Rotas() {
 
                 <Route path="/familia" element={<AlmeidaFamilia />} />
                 <Route path="/familia/:id" element={<GrupoFamiliar />} />
+                <Route path="/planos" element={<Planos />} />
 
                 {/* Importação Inteligente standalone (para testes E2E e acesso direto) */}
                 <Route path="/importacao" element={<ImportacaoInteligente />} />

@@ -30,6 +30,7 @@ import {
   CircleHelp,
   Info,
   Upload,
+  Users,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import NavegacaoInferior from './NavegacaoInferior'
@@ -56,6 +57,7 @@ const navGrupos = [
     { to: '/posso-comprar', label: 'Simular compra', icon: ShoppingCart,  corIcone: 'text-marca'        },
     { to: '/e-se',          label: 'E se...?',       icon: Sparkles,     corIcone: 'text-violet-400' },
     { to: '/metas',         label: 'Metas',          icon: Target,        corIcone: 'text-amber-400'    },
+    { to: '/familia',       label: 'Almeida Família', icon: Users,        corIcone: 'text-blue-400', premiumOnly: true },
     { to: '/consultoria',   label: 'Consultoria',    icon: MessagesSquare, corIcone: 'text-cyan-400' },
   ]},
   { titulo: 'Conta', itens: [
@@ -237,8 +239,12 @@ export default function Layout({ children }) {
         {/* Navegação agrupada em seções */}
         <nav className="flex-1 px-2 py-2 overflow-y-auto overflow-x-hidden">
           {navGrupos.map(grupo => {
-            const itens = grupo.itens.filter(i => !i.adminOnly || ehAdmin)
-            if (itens.length === 0) return null
+            const itens = grupo.itens.filter(i => {
+              if (i.adminOnly && !ehAdmin) return false;
+              if (i.premiumOnly && perfil?.subscription_plan === 'free') return false;
+              return true;
+            });
+            if (itens.length === 0) return null;
             return (
               <div key={grupo.titulo}>
                 {!recolhida && <SecaoLabel>{grupo.titulo}</SecaoLabel>}
