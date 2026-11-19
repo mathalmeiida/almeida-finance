@@ -255,15 +255,20 @@ export function AuthProvider({ children }) {
               if (!resultado.sucesso && resultado.erro) {
                 setErroCarregamento(resultado.erro)
               }
+              
+              // Só agora finaliza o loading após perfil carregar
+              setCarregando(false)
             })
           } else {
             setPerfil(null)
+            setCarregando(false)
           }
+        } else {
+          // Se o id não mudou (ex.: refresh de token), mantém o objeto `usuario`
+          // atual intacto — nenhum efeito dependente é re-disparado.
+          // NÃO altera carregando neste caso (getSession já controlou)
+          console.log('[AuthContext] Token refresh, mantendo estado')
         }
-        // Se o id não mudou (ex.: refresh de token), mantém o objeto `usuario`
-        // atual intacto — nenhum efeito dependente é re-disparado.
-        console.log('[AuthContext] Definindo carregando = false (callback)')
-        setCarregando(false)
       }
     )
 
