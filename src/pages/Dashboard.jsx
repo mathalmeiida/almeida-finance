@@ -412,15 +412,27 @@ function ResumoProjecao({ projecao }) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
         <div className="min-w-0">
           <p className="text-xs text-gray-400">Receitas previstas</p>
-          <p className="text-sm font-bold text-green-600 break-words">{formatCurrency(proximo?.receitas ?? 0)}</p>
+          <p className="text-sm font-bold text-green-600 break-words">
+            {(proximo?.receitas ?? 0) > 0 ? formatCurrency(proximo.receitas) : (
+              <span className="text-gray-400 text-xs">Nenhuma</span>
+            )}
+          </p>
         </div>
         <div className="min-w-0">
           <p className="text-xs text-gray-400">Compromissos previstos</p>
-          <p className="text-sm font-bold text-red-500 break-words">{formatCurrency(proximo?.despesas ?? 0)}</p>
+          <p className="text-sm font-bold text-red-500 break-words">
+            {(proximo?.despesas ?? 0) > 0 ? formatCurrency(proximo.despesas) : (
+              <span className="text-gray-400 text-xs">Nenhum</span>
+            )}
+          </p>
         </div>
         <div className="min-w-0">
           <p className="text-xs text-gray-400">Reserva planejada</p>
-          <p className="text-sm font-bold text-amber-600 break-words">{formatCurrency(proximo?.reserva ?? 0)}</p>
+          <p className="text-sm font-bold text-amber-600 break-words">
+            {(proximo?.reserva ?? 0) > 0 ? formatCurrency(proximo.reserva) : (
+              <span className="text-gray-400 text-xs">Nenhuma</span>
+            )}
+          </p>
         </div>
         <div className="min-w-0">
           <p className="text-xs text-gray-400">Disponível para gastar</p>
@@ -1809,11 +1821,19 @@ function EvolucaoFinanceiraHome({ projecao = [], ocultar }) {
             <div className="grid grid-cols-2 gap-2">
               <div className="min-w-0 rounded-xl bg-emerald-50 p-3">
                 <p className="text-xs text-emerald-800">Receitas previstas</p>
-                <p className="mt-1 font-semibold text-sm text-emerald-800 break-words">{exibirMoeda(numero(atual.receitas), ocultar)}</p>
+                <p className="mt-1 font-semibold text-sm text-emerald-800 break-words">
+                  {numero(atual.receitas) > 0 ? exibirMoeda(numero(atual.receitas), ocultar) : (
+                    <span className="text-emerald-700/50">Nenhuma</span>
+                  )}
+                </p>
               </div>
               <div className="min-w-0 rounded-xl bg-rose-50 p-3">
                 <p className="text-xs text-rose-700">Despesas previstas</p>
-                <p className="mt-1 font-semibold text-sm text-rose-700 break-words">{exibirMoeda(numero(atual.despesas), ocultar)}</p>
+                <p className="mt-1 font-semibold text-sm text-rose-700 break-words">
+                  {numero(atual.despesas) > 0 ? exibirMoeda(numero(atual.despesas), ocultar) : (
+                    <span className="text-rose-600/50">Nenhuma</span>
+                  )}
+                </p>
               </div>
             </div>
           ) : <p className="text-sm text-slate-500">Ainda não há dados de projeção.</p>}
@@ -1833,8 +1853,18 @@ function EvolucaoFinanceiraHome({ projecao = [], ocultar }) {
                   </button>
                   {mesAberto === i && (
                     <div className="px-3 py-3 border-t border-slate-200 bg-slate-50 space-y-2 text-xs">
-                      <div className="flex justify-between gap-2"><span>Receitas previstas</span><strong className="text-emerald-700">{exibirMoeda(numero(m.receitas), ocultar)}</strong></div>
-                      <div className="flex justify-between gap-2"><span>Despesas previstas</span><strong className="text-rose-600">{exibirMoeda(numero(m.despesas), ocultar)}</strong></div>
+                      <div className="flex justify-between gap-2">
+                        <span>Receitas previstas</span>
+                        <strong className="text-emerald-700">
+                          {numero(m.receitas) > 0 ? exibirMoeda(numero(m.receitas), ocultar) : '—'}
+                        </strong>
+                      </div>
+                      <div className="flex justify-between gap-2">
+                        <span>Despesas previstas</span>
+                        <strong className="text-rose-600">
+                          {numero(m.despesas) > 0 ? exibirMoeda(numero(m.despesas), ocultar) : '—'}
+                        </strong>
+                      </div>
                     </div>
                   )}
                 </div>
