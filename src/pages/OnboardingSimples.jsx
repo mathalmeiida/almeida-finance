@@ -141,9 +141,9 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
   }
 
   async function handlePular() {
-
-    if (aoConcluir) await aoConcluir()
-
+    // Apenas avança para a central, NÃO conclui o onboarding
+    setModo('manual')
+    setEtapa(ETAPA_CENTRAL)
   }
 
   async function handleSalvarConfiguracao() {
