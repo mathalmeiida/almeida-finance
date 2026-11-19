@@ -124,7 +124,7 @@ END $$;
 DO $$ BEGIN
   DROP POLICY IF EXISTS "Usuários criam grupos" ON public.family_groups;
   CREATE POLICY "Usuários criam grupos" ON public.family_groups FOR INSERT
-  WITH CHECK (auth.uid() IS NOT NULL);
+  WITH CHECK (auth.uid() IS NOT NULL AND public.tem_acesso_premium());
 END $$;
 
 -- 3. MEMBROS DOS GRUPOS
