@@ -73,8 +73,6 @@ import CentralImportacao from './pages/CentralImportacao'
 
 import Admin from './pages/Admin'
 
-import DiagnosticoAuth from './pages/DiagnosticoAuth'
-
 // Páginas públicas (autenticação)
 
 import Login from './pages/auth/Login'
@@ -114,9 +112,6 @@ function Carregando() {
 function RotaPrivada({ children }) {
 
   const { autenticado, carregando, erroCarregamento, tentarNovamente } = useAuth()
-  
-  // DEBUG
-  console.log('[RotaPrivada] Estado:', { autenticado, carregando, temErro: !!erroCarregamento })
 
   if (carregando) return <Carregando />
   
@@ -204,17 +199,6 @@ function AreaAutenticada({ children }) {
   const { usuario, perfil, contaDesativada, modoConsultoria } = useAuth()
 
   const { verificando, precisaOnboarding, concluir } = useOnboarding()
-
-  // DEBUG
-  console.log('[AreaAutenticada] Estado:', {
-    temUsuario: !!usuario,
-    perfil: perfil,
-    perfilNull: perfil === null,
-    perfilUndefined: perfil === undefined,
-    perfilType: typeof perfil,
-    verificando,
-    contaDesativada
-  })
 
   // Solicitações de consultoria direcionadas a ESTE usuário (como cliente).
 
@@ -318,24 +302,6 @@ function AreaAutenticada({ children }) {
 
   }, [concluir])
 
-  // Enquanto o perfil não carrega, não decide nada (evita piscar telas).
-  // TIMEOUT: Se demorar mais de 10s, assume erro e permite continuar
-  useEffect(() => {
-    if (usuario && perfil == null) {
-      console.error('[AreaAutenticada] BLOQUEADO: usuario existe mas perfil == null', {
-        usuarioId: usuario.id?.substring(0, 8),
-        perfil: perfil,
-        perfilType: typeof perfil,
-        verificando
-      })
-      const timeout = setTimeout(() => {
-        console.error('[AreaAutenticada] Timeout aguardando perfil - possível deadlock')
-        // Não podemos forçar navegação aqui, mas ao menos logamos
-      }, 10000)
-      return () => clearTimeout(timeout)
-    }
-  }, [usuario, perfil, verificando])
-  
   if (usuario && perfil == null) return <Carregando />
 
   // Conta desativada tem prioridade sobre qualquer outra tela.
@@ -447,9 +413,6 @@ function Rotas() {
           para o redirect automático não interromper o processamento. */}
 
       <Route path="/auth/callback" element={<ConfirmarEmail />} />
-      
-      {/* Página de diagnóstico - TEMPORÁRIA */}
-      <Route path="/diagnostico" element={<DiagnosticoAuth />} />
 
       {/* Rotas privadas — todas dentro do Layout */}
 

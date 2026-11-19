@@ -614,9 +614,6 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
             <button
 
               onClick={() => {
-
-                console.log('Clique em Saldo detectado')
-
                 setEtapa(ETAPA_SALDO)
 
               }}
@@ -648,9 +645,6 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
             <button
 
               onClick={() => {
-
-                console.log('Clique em Receitas detectado')
-
                 localStorage.setItem(CHAVE_CONFIGURANDO, '1')
 
                 window.location.href = '/receitas?origem=onboarding'
@@ -684,9 +678,6 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
             <button
 
               onClick={() => {
-
-                console.log('Clique em Despesas detectado')
-
                 localStorage.setItem(CHAVE_CONFIGURANDO, '1')
 
                 window.location.href = '/despesas?origem=onboarding'
@@ -720,9 +711,6 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
             <button
 
               onClick={() => {
-
-                console.log('Clique em Cartões detectado')
-
                 localStorage.setItem(CHAVE_CONFIGURANDO, '1')
 
                 window.location.href = '/cartoes?origem=onboarding'
@@ -756,9 +744,6 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
             <button
 
               onClick={() => {
-
-                console.log('Clique em VR/VA detectado')
-
                 localStorage.setItem(CHAVE_CONFIGURANDO, '1')
 
                 window.location.href = '/beneficios?origem=onboarding'
@@ -792,9 +777,6 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
             <button
 
               onClick={() => {
-
-                console.log('Clique em Investimentos detectado')
-
                 localStorage.setItem(CHAVE_CONFIGURANDO, '1')
 
                 window.location.href = '/investimentos?origem=onboarding'

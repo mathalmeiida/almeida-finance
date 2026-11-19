@@ -20,14 +20,7 @@ export function useOnboarding() {
   const [precisaOnboarding, setPrecisaOnboarding] = useState(false)
 
   const verificar = useCallback(async () => {
-    console.log('[useOnboarding] verificar() chamado', { 
-      temUsuario: !!usuario, 
-      temPerfil: !!perfil,
-      perfilNull: perfil == null 
-    })
-    
     if (!usuario) {
-      console.log('[useOnboarding] Sem usuario, finalizando verificação')
       setVerificando(false)
       setPrecisaOnboarding(false)
       return
@@ -37,7 +30,6 @@ export function useOnboarding() {
     // não chegar, mantém "verificando" para não liberar o app nem piscar o
     // onboarding antes de sabermos o status real.
     if (perfil == null) { 
-      console.log('[useOnboarding] perfil == null, mantendo verificando=true')
       setVerificando(true); 
       return 
     }
@@ -48,16 +40,13 @@ export function useOnboarding() {
       try { return localStorage.getItem('almeida_configurando_onboarding') === '1' }
       catch { return false }
     })()
-    console.log('[useOnboarding] configurandoOnboarding:', configurandoOnboarding)
     
     if (configurandoOnboarding) {
-      console.log('[useOnboarding] Em modo configuração, finalizando verificação')
       setVerificando(false)
       setPrecisaOnboarding(true)
       return
     }
 
-    console.log('[useOnboarding] Iniciando verificação completa...')
     setVerificando(true)
     try {
       // Fonte principal e ÚNICA: a flag persistida no banco.
@@ -71,14 +60,12 @@ export function useOnboarding() {
       // dados. Fazer isso anulava o "Reiniciar onboarding" do Admin para quem
       // já tinha receitas/despesas (a flag voltava a true e o fluxo não abria).
       const precisa = perfil.onboarding_concluido !== true
-      console.log('[useOnboarding] onboarding_concluido:', perfil.onboarding_concluido, '→ precisaOnboarding:', precisa)
       setPrecisaOnboarding(precisa)
     } catch (err) {
       console.error('[useOnboarding] Erro ao verificar:', err)
       // Em falha de rede, por segurança NÃO interrompe o acesso ao app.
       setPrecisaOnboarding(false)
     } finally {
-      console.log('[useOnboarding] Finalizando verificação, setando verificando=false')
       setVerificando(false)
     }
   }, [usuario, perfil])
