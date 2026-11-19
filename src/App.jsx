@@ -19,6 +19,8 @@ import Calendario from './pages/Calendario'
 
 import ErrorBoundary from './components/ErrorBoundary'
 
+import ErroCarregamento from './components/ErroCarregamento'
+
 import Splash from './components/Splash'
 
 import SolicitacaoConsultoria from './components/SolicitacaoConsultoria'
@@ -109,9 +111,16 @@ function Carregando() {
 
 function RotaPrivada({ children }) {
 
-  const { autenticado, carregando } = useAuth()
+  const { autenticado, carregando, erroCarregamento, tentarNovamente } = useAuth()
 
   if (carregando) return <Carregando />
+  
+  if (erroCarregamento) {
+    return <ErroCarregamento 
+      mensagem={erroCarregamento.mensagem} 
+      onTentarNovamente={tentarNovamente} 
+    />
+  }
 
   if (!autenticado) return <Navigate to="/login" replace />
 

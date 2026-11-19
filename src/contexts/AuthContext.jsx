@@ -8,9 +8,11 @@ export function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(undefined) // undefined = ainda verificando
   const [perfil, setPerfil] = useState(null)
   const [carregando, setCarregando] = useState(true)
+  const [erroCarregamento, setErroCarregamento] = useState(null) // {tipo, mensagem}
   // Guarda o ID do usuário atual para comparar entre eventos de auth sem
   // depender da referência do objeto (que muda em cada TOKEN_REFRESHED).
   const usuarioIdRef = useRef(null)
+  const montadoRef = useRef(true)
 
   // ── Modo Consultoria (somente leitura) ──────────────────────────────────────
   // Quando o admin (consultor) ativa "Visualizar como cliente", guardamos aqui
@@ -24,6 +26,7 @@ export function AuthProvider({ children }) {
   const [perfilCliente, setPerfilCliente] = useState(null)
 
   // Busca o perfil complementar do usuário na tabela "perfis"
+  // Retorna: { sucesso: boolean, erro?: {tipo, mensagem} }
   async function buscarPerfil(userId) {
     try {
       const { data, error } = await supabase
@@ -32,23 +35,64 @@ export function AuthProvider({ children }) {
         .eq('id', userId)
         .single()
       
+      // Verifica se o componente ainda está montado antes de atualizar estado
+      if (!montadoRef.current) return { sucesso: false }
+      
       if (error) {
-        console.error('Erro ao buscar perfil:', error)
-        // Se o perfil não existe, cria um básico para não travar o app
-        if (error.code === 'PGRST116') { // not found
-          setPerfil({ id: userId, nome: null, email: null })
-        } else {
-          // Outros erros: define perfil vazio para não travar
-          setPerfil({ id: userId, nome: null, email: null })
+        // Perfil não existe no banco (usuário novo sem perfil criado pelo trigger)
+        if (error.code === 'PGRST116') {
+          console.warn('Perfil não encontrado para usuário:', userId)
+          return {
+            sucesso: false,
+            erro: {
+              tipo: 'perfil_nao_encontrado',
+              mensagem: 'Perfil não encontrado. Entre em contato com o suporte.'
+            }
+          }
         }
-        return
+        
+        // Erro de permissão RLS
+        if (error.code === '42501' || error.message?.includes('permission')) {
+          console.error('Erro de permissão RLS:', error)
+          return {
+            sucesso: false,
+            erro: {
+              tipo: 'permissao',
+              mensagem: 'Sem permissão para acessar o perfil.'
+            }
+          }
+        }
+        
+        // Outros erros do banco
+        console.error('Erro ao buscar perfil:', error)
+        return {
+          sucesso: false,
+          erro: {
+            tipo: 'banco',
+            mensagem: 'Erro ao carregar perfil. Tente novamente.'
+          }
+        }
       }
       
-      setPerfil(data)
+      // Sucesso: perfil carregado
+      if (montadoRef.current) {
+        setPerfil(data)
+      }
+      return { sucesso: true }
+      
     } catch (err) {
-      console.error('Erro ao carregar perfil:', err)
-      // Em caso de falha de rede ou timeout, define perfil básico
-      setPerfil({ id: userId, nome: null, email: null })
+      // Erro de rede, timeout, Supabase indisponível
+      console.error('Erro de conexão ao carregar perfil:', err)
+      
+      if (!montadoRef.current) return { sucesso: false }
+      
+      return {
+        sucesso: false,
+        erro: {
+          tipo: 'rede',
+          mensagem: 'Não foi possível conectar ao servidor. Verifique sua conexão.'
+        }
+      }
     }
   }
 
@@ -119,14 +163,27 @@ export function AuthProvider({ children }) {
   }, [perfil?.cor_tema])
 
   useEffect(() => {
+    montadoRef.current = true
+    
     // 1. Verifica se já existe uma sessão ativa ao carregar o app
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       const user = session?.user ?? null
       usuarioIdRef.current = user ? user.id : null
+      
+      if (!montadoRef.current) return
+      
       setUsuario(user)
+      
       if (user) {
-        await buscarPerfil(user.id)
+        const resultado = await buscarPerfil(user.id)
+        
+        if (!montadoRef.current) return
+        
+        if (!resultado.sucesso && resultado.erro) {
+          setErroCarregamento(resultado.erro)
+        }
       }
+      
       setCarregando(false)
     })
 
@@ -144,10 +201,20 @@ export function AuthProvider({ children }) {
         const mudouUsuario = idAnterior !== idNovo
         usuarioIdRef.current = idNovo
 
+        if (!montadoRef.current) return
+
         if (mudouUsuario) {
           setUsuario(user)
+          setErroCarregamento(null)
+          
           if (user) {
-            await buscarPerfil(user.id)
+            const resultado = await buscarPerfil(user.id)
+            
+            if (!montadoRef.current) return
+            
+            if (!resultado.sucesso && resultado.erro) {
+              setErroCarregamento(resultado.erro)
+            }
           } else {
             setPerfil(null)
           }
@@ -170,6 +237,7 @@ export function AuthProvider({ children }) {
     window.addEventListener('pageshow', aoReexibirPagina)
 
     return () => {
+      montadoRef.current = false
       subscription.unsubscribe()
       window.removeEventListener('pageshow', aoReexibirPagina)
     }
@@ -396,6 +464,22 @@ export function AuthProvider({ children }) {
   // modo consultoria, senão o próprio.
   const perfilEfetivo = modoConsultoria ? perfilCliente : perfil
 
+  // Função para limpar erro e tentar recarregar
+  async function tentarNovamente() {
+    if (!usuario?.id) return
+    
+    setErroCarregamento(null)
+    setCarregando(true)
+    
+    const resultado = await buscarPerfil(usuario.id)
+    
+    if (!resultado.sucesso && resultado.erro) {
+      setErroCarregamento(resultado.erro)
+    }
+    
+    setCarregando(false)
+  }
+
   const valor = {
     usuario,
     perfil: perfilEfetivo,     // no modo consultoria, reflete o perfil do cliente
@@ -431,6 +515,9 @@ export function AuthProvider({ children }) {
     somenteLeitura: modoConsultoria,                  // UI deve bloquear edição
     entrarModoConsultoria,
     sairModoConsultoria,
+    // Erro de carregamento
+    erroCarregamento,
+    tentarNovamente,
   }
 
   return (
