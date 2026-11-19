@@ -316,14 +316,18 @@ function AreaAutenticada({ children }) {
 
   // Onboarding: primeiro acesso (precisaOnboarding) OU refazer manual.
   // EXCEÇÃO: Se a flag CHAVE_CONFIGURANDO está ativa E o usuário está navegando
-  // para um módulo específico (não raiz '/'), permite acesso ao módulo.
+  // para um módulo específico permitido durante a configuração, permite acesso.
+  // Lista explícita de rotas permitidas durante onboarding:
+  const ROTAS_CONFIGURACAO = ['/receitas', '/despesas', '/cartoes', '/beneficios', '/investimentos']
+  
   const estaConfigurando = (() => {
     try { return localStorage.getItem(CHAVE_CONFIGURANDO) === '1' }
     catch { return false }
   })()
-  const estaEmModulo = location.pathname !== '/' && location.pathname !== ''
   
-  if ((precisaOnboarding || refazer) && !(estaConfigurando && estaEmModulo)) {
+  const rotaPermitida = ROTAS_CONFIGURACAO.some(rota => location.pathname.startsWith(rota))
+  
+  if ((precisaOnboarding || refazer) && !(estaConfigurando && rotaPermitida)) {
 
     return <OnboardingSimples aoConcluir={encerrarOnboarding} etapaInicial={etapaInicial} />
 
