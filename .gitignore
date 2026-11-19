@@ -60,3 +60,6 @@ capturas-revisao/
 
 # Arquivos do OCR copiados no build (vite.config.js)
 public/ocr/
+
+# Test credentials
+.env.test
