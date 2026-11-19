@@ -1250,7 +1250,7 @@ export default function ImportacaoInteligente({
             </div>
 
             {contextoDetectado && !contextoConfirmado && (
-              <div className="rounded-xl bg-sky-50 p-3 text-xs text-sky-800">
+              <div className="rounded-xl bg-surface-2 p-3 text-xs text-sec">
                 Tipo identificado:{' '}
                 <strong>
                   {CONTEXTOS.find(
@@ -1278,7 +1278,7 @@ export default function ImportacaoInteligente({
                     }}
                     className={`flex items-start gap-3 rounded-xl border p-3 text-left ${
                       ativo
-                        ? 'border-[#821C3E] bg-[#821C3E]/5'
+                        ? 'border-marca bg-surface-2'
                         : 'border-gray-200 bg-white'
                     }`}
                   >
@@ -1620,7 +1620,7 @@ export default function ImportacaoInteligente({
 
           {contextoAtual === 'fatura' && (
             <section
-              className="rounded-2xl border border-[#821C3E]/20 bg-white p-4 sm:p-5"
+              className="rounded-2xl border border-marca/20 bg-white p-4 sm:p-5"
               data-testid="vincular-cartao-fatura"
             >
               <div className="mb-3 flex items-start gap-3">

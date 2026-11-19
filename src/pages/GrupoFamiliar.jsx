@@ -64,7 +64,7 @@ export default function GrupoFamiliar() {
     return (
       <div className="af-container py-8">
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-marca"></div>
         </div>
       </div>
     );
@@ -110,7 +110,7 @@ export default function GrupoFamiliar() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setModalConvite(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    className="flex items-center gap-2 px-4 py-2 bg-marca text-white rounded-lg hover:bg-marca/90"
                   >
                     <UserPlus className="w-4 h-4" />
                     Convidar
@@ -132,7 +132,7 @@ export default function GrupoFamiliar() {
                 onClick={() => setAbaAtiva('despesas')}
                 className={`flex-1 px-6 py-3 font-medium transition-colors ${
                   abaAtiva === 'despesas'
-                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    ? 'text-marca border-b-2 border-marca'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
@@ -142,7 +142,7 @@ export default function GrupoFamiliar() {
                 onClick={() => setAbaAtiva('metas')}
                 className={`flex-1 px-6 py-3 font-medium transition-colors ${
                   abaAtiva === 'metas'
-                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    ? 'text-marca border-b-2 border-marca'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
