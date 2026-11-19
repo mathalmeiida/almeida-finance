@@ -634,7 +634,7 @@ export default function Admin() {
 
   return (
 
-    <div className="admin-dark space-y-6 text-slate-100">
+    <div className="admin-dark space-y-6 text-slate-100 max-w-7xl mx-auto">
       <style>{`
         .admin-dark .card { background: #1d293b !important; border: 1px solid #344357 !important; box-shadow: none !important; color: #f1f5f9; }
         .admin-dark .text-gray-900, .admin-dark .text-gray-800, .admin-dark .text-gray-700 { color: #f1f5f9 !important; }
