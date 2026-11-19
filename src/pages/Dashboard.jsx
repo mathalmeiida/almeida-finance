@@ -2917,8 +2917,8 @@ const carregandoLimite = carregando
         <AtalhosHome onAbrirModal={abrirModalAtalho} somenteLeitura={somenteLeitura} sangria />
         
         {/* PLANEJE SUAS DECISÕES */}
-        <div className="py-3">
-          <div className="flex items-center justify-between mb-3 px-4">
+        <div className="py-2 pb-4">
+          <div className="flex items-center justify-between mb-2 px-4">
             <h2 className="text-base font-bold text-gray-900">Planeje suas decisões</h2>
             <button 
               onClick={() => navigate('/projecao')}
@@ -3049,7 +3049,7 @@ const carregandoLimite = carregando
             for(let i=1;i<=totalDias;i++)cels.push({dia:i,outro:false,iso:`${String(ano).padStart(4,'0')}-${String(mes+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`})
             const resto=(7-(cels.length%7))%7;for(let i=1;i<=resto;i++)cels.push({dia:i,outro:true,iso:new Date(ano,mes+1,i).toISOString().slice(0,10)})
             return (
-              <div className="af-cal-home af-calendar-wrapper flex flex-col" style={{minHeight:420,...(calEscuro ? {'--af-home-light':'#21121F','--af-home-panel':'#2B171F','--af-home-border':'#502838'} : {'--af-home-light':'#FFFFFF','--af-home-panel':'#FFF5F7','--af-home-border':'#E5BAC4'})}}>
+              <div className="af-cal-home af-calendar-wrapper flex flex-col" style={{minHeight:'clamp(360px, 50vh, 480px)',...(calEscuro ? {'--af-home-light':'#21121F','--af-home-panel':'#2B171F','--af-home-border':'#502838'} : {'--af-home-light':'#FFFFFF','--af-home-panel':'#FFF5F7','--af-home-border':'#E5BAC4'})}}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2"><CalendarDays size={18} className="text-[#C4507A]"/><span className={`font-semibold ${calEscuro ? 'text-white' : 'text-[#25141B]'}`}>Calendário financeiro</span></div>
                   <div className="flex items-center gap-2">

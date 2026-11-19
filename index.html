@@ -16,8 +16,8 @@
     <!-- Apple PWA — apple-touch-icon sem fundo transparente (180px opaco vinho) -->
     <link rel="apple-touch-icon" sizes="180x180" href="/branding/apple-touch-icon.png?v=2" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <!-- default-translucent: barra de status translúcida no iOS standalone (mais espaço útil) -->
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <!-- black-translucent: fundo preto na barra de status iOS (sem blur) -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Almeida Finance" />
     <!-- Previne formatação automática de números de telefone no iOS -->
     <meta name="format-detection" content="telephone=no" />
@@ -41,11 +41,11 @@
 
     <style>
       /* Fundo imediato antes do React carregar — evita flash branco */
-      html, body { margin: 0; background-color: #2d0211; }
+      html, body { margin: 0; background-color: #f8f9fa; }
       #splash-inicial {
         position: fixed; inset: 0; z-index: 2147483647;
         display: flex; align-items: center; justify-content: center;
-        background-color: #2d0211;
+        background-color: #f8f9fa;
       }
       #splash-inicial img {
         width: 130px; height: auto;
