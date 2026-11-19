@@ -648,11 +648,11 @@ export default function Admin() {
 
       <div className="flex items-center gap-2">
 
-        <ShieldCheck size={22} className="text-blue-600" />
+        <ShieldCheck size={22} className="text-blue-400" />
 
         <div>
 
-          <h1 className="text-2xl font-bold text-gray-900">Painel administrativo</h1>
+          <h1 className="text-2xl font-bold text-slate-100">Painel administrativo</h1>
 
           <p className="text-sm text-gray-500">Gestão do Almeida Finance</p>
 
