@@ -189,13 +189,8 @@ export function AuthProvider({ children }) {
 
     // 2. Escuta mudanças de autenticação (login, logout, expiração de token)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      (_event, session) => {
         const user = session?.user ?? null
-        // Estabiliza a identidade do usuário: só troca o objeto no estado quando
-        // o ID realmente muda (login/logout). Eventos como TOKEN_REFRESHED trazem
-        // um NOVO objeto `user` com o MESMO id — se o setássemos, a nova referência
-        // re-dispararia os efeitos [usuario,...] de todos os hooks (receitas,
-        // despesas etc.), fazendo as listas recarregarem e "piscarem" vazias.
         const idAnterior = usuarioIdRef.current
         const idNovo = user ? user.id : null
         const mudouUsuario = idAnterior !== idNovo
@@ -208,13 +203,14 @@ export function AuthProvider({ children }) {
           setErroCarregamento(null)
           
           if (user) {
-            const resultado = await buscarPerfil(user.id)
-            
-            if (!montadoRef.current) return
-            
-            if (!resultado.sucesso && resultado.erro) {
-              setErroCarregamento(resultado.erro)
-            }
+            // Executa buscarPerfil fora do callback para evitar deadlock
+            buscarPerfil(user.id).then(resultado => {
+              if (!montadoRef.current) return
+              
+              if (!resultado.sucesso && resultado.erro) {
+                setErroCarregamento(resultado.erro)
+              }
+            })
           } else {
             setPerfil(null)
           }
