@@ -94,6 +94,20 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
 
   const [despesaVariavel, setDespesaVariavel] = useState(0)
 
+  // Marca que está em modo configuração assim que o onboarding inicia
+  useEffect(() => {
+    localStorage.setItem(CHAVE_CONFIGURANDO, '1')
+    return () => {
+      // Limpa somente se NÃO concluiu (se concluiu, App.jsx já limpou)
+      try {
+        const refazer = localStorage.getItem('almeida_refazer_onboarding')
+        if (refazer !== '1') {
+          localStorage.removeItem(CHAVE_CONFIGURANDO)
+        }
+      } catch {}
+    }
+  }, [])
+
   // O retorno é explícito: prop etapaInicial='central' (via App.jsx/CHAVE_ETAPA_ONBOARDING)
   // ou searchParams ?etapa=central como fallback.
   // Não usamos document.referrer (não funciona de forma confiável em SPA/PWA).

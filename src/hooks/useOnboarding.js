@@ -26,6 +26,13 @@ export function useOnboarding() {
     // onboarding antes de sabermos o status real.
     if (perfil == null) { setVerificando(true); return }
 
+    // Se já está no onboarding ativo, NÃO reverifica (evita sair prematuramente)
+    const configurandoOnboarding = (() => {
+      try { return localStorage.getItem('almeida_configurando_onboarding') === '1' }
+      catch { return false }
+    })()
+    if (configurandoOnboarding) return
+
     setVerificando(true)
     try {
       // Fonte principal e ÚNICA: a flag persistida no banco.
