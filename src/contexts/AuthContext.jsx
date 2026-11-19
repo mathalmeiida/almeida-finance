@@ -13,6 +13,16 @@ export function AuthProvider({ children }) {
   // depender da referência do objeto (que muda em cada TOKEN_REFRESHED).
   const usuarioIdRef = useRef(null)
   const montadoRef = useRef(true)
+  
+  // DEBUG: Log de estados (remover após diagnóstico)
+  useEffect(() => {
+    console.log('[AuthContext] Estado:', {
+      carregando,
+      temUsuario: !!usuario,
+      temPerfil: !!perfil,
+      erroCarregamento: erroCarregamento?.tipo
+    })
+  }, [carregando, usuario, perfil, erroCarregamento])
 
   // ── Modo Consultoria (somente leitura) ──────────────────────────────────────
   // Quando o admin (consultor) ativa "Visualizar como cliente", guardamos aqui
@@ -28,6 +38,9 @@ export function AuthProvider({ children }) {
   // Busca o perfil complementar do usuário na tabela "perfis"
   // Retorna: { sucesso: boolean, erro?: {tipo, mensagem} }
   async function buscarPerfil(userId) {
+    const inicio = Date.now()
+    console.log('[buscarPerfil] Iniciando para userId:', userId?.substring(0, 8))
+    
     try {
       const { data, error } = await supabase
         .from('perfis')
@@ -35,8 +48,14 @@ export function AuthProvider({ children }) {
         .eq('id', userId)
         .single()
       
+      const duracao = Date.now() - inicio
+      console.log(`[buscarPerfil] Query concluída em ${duracao}ms`, { temData: !!data, temError: !!error, errorCode: error?.code })
+      
       // Verifica se o componente ainda está montado antes de atualizar estado
-      if (!montadoRef.current) return { sucesso: false }
+      if (!montadoRef.current) {
+        console.log('[buscarPerfil] Componente desmontado, ignorando resultado')
+        return { sucesso: false }
+      }
       
       if (error) {
         // Perfil não existe no banco (usuário novo sem perfil criado pelo trigger)
@@ -165,8 +184,12 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     montadoRef.current = true
     
+    console.log('[AuthContext] Iniciando verificação de sessão...')
+    
     // 1. Verifica se já existe uma sessão ativa ao carregar o app
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      console.log('[AuthContext] getSession concluído:', { temSessao: !!session })
+      
       const user = session?.user ?? null
       usuarioIdRef.current = user ? user.id : null
       
@@ -175,7 +198,10 @@ export function AuthProvider({ children }) {
       setUsuario(user)
       
       if (user) {
+        console.log('[AuthContext] Buscando perfil para userId:', user.id.substring(0, 8))
         const resultado = await buscarPerfil(user.id)
+        
+        console.log('[AuthContext] buscarPerfil resultado:', resultado.sucesso ? 'sucesso' : `erro: ${resultado.erro?.tipo}`)
         
         if (!montadoRef.current) return
         
@@ -184,12 +210,18 @@ export function AuthProvider({ children }) {
         }
       }
       
+      console.log('[AuthContext] Definindo carregando = false')
+      setCarregando(false)
+    }).catch(err => {
+      console.error('[AuthContext] Erro em getSession:', err)
       setCarregando(false)
     })
 
     // 2. Escuta mudanças de autenticação (login, logout, expiração de token)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
+        console.log('[AuthContext] onAuthStateChange:', _event, { temSessao: !!session })
+        
         const user = session?.user ?? null
         const idAnterior = usuarioIdRef.current
         const idNovo = user ? user.id : null
@@ -199,12 +231,16 @@ export function AuthProvider({ children }) {
         if (!montadoRef.current) return
 
         if (mudouUsuario) {
+          console.log('[AuthContext] Usuário mudou de', idAnterior?.substring(0,8), 'para', idNovo?.substring(0,8))
           setUsuario(user)
           setErroCarregamento(null)
           
           if (user) {
+            console.log('[AuthContext] Buscando perfil (callback)')
             // Executa buscarPerfil fora do callback para evitar deadlock
             buscarPerfil(user.id).then(resultado => {
+              console.log('[AuthContext] buscarPerfil (callback) resultado:', resultado.sucesso ? 'sucesso' : `erro: ${resultado.erro?.tipo}`)
+              
               if (!montadoRef.current) return
               
               if (!resultado.sucesso && resultado.erro) {
@@ -217,6 +253,7 @@ export function AuthProvider({ children }) {
         }
         // Se o id não mudou (ex.: refresh de token), mantém o objeto `usuario`
         // atual intacto — nenhum efeito dependente é re-disparado.
+        console.log('[AuthContext] Definindo carregando = false (callback)')
         setCarregando(false)
       }
     )
