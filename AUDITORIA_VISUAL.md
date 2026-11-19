@@ -2,9 +2,11 @@
 
 ## RESUMO EXECUTIVO
 
-**Status**: Auditoria parcial concluída  
-**Total de ocorrências**: 264 cores hardcoded em 46 arquivos  
-**Correções aplicadas**: Tokens semânticos adicionados ao Tailwind config
+**Status**: Correção parcial concluída (sessão 2)  
+**Total inicial**: 264 cores hardcoded em 46 arquivos  
+**Corrigidas**: 44 ocorrências em 9 componentes principais  
+**Restantes**: 220 ocorrências em 37 arquivos  
+**Progresso total**: ~30% (tokens criados + 11 componentes corrigidos)
 
 ## SISTEMA DE TEMA
 
@@ -74,9 +76,15 @@ Ver `tests/auditoria-cores-hardcoded.mjs` para lista completa
 ### Prioridade Alta (Impacto Visual Imediato)
 1. ✅ Adicionar tokens semânticos ao Tailwind config
 2. ✅ Corrigir AtalhosHome.jsx
-3. ⏳ Corrigir CalendarioFinanceiroHome.jsx
-4. ⏳ Corrigir HorizonteFinanceiro.jsx
-5. ⏳ Padronizar cores do menu (Layout.jsx)
+3. ✅ Corrigir CalendarioFinanceiroHome.jsx
+4. ✅ Corrigir HorizonteFinanceiro.jsx
+5. ✅ Padronizar cores do menu (Layout.jsx)
+6. ✅ Corrigir ConciliacaoPrevia.jsx
+7. ✅ Corrigir ParcelamentosShared.jsx
+8. ✅ Corrigir ResumoConciliacao.jsx
+9. ✅ Corrigir IndicadorStatusEtapa.jsx
+10. ✅ Corrigir NavegacaoOnboardingAdaptativo.jsx
+11. ✅ Corrigir CalendarioCenario.jsx
 
 ### Prioridade Média (Consistência)
 6. ⏳ Substituir `blue-`/`indigo-`/`purple-` → `marca`
@@ -88,8 +96,20 @@ Ver `tests/auditoria-cores-hardcoded.mjs` para lista completa
 10. ⏳ Ajustar tabelas mobile
 11. ⏳ Refinar espaçamentos globais
 
-## ARQUIVOS MODIFICADOS
+## ARQUIVOS MODIFICADOS (Sessão 2)
 
+**Componentes (9 arquivos, 44 correções)**:
+1. `src/components/Layout.jsx` - Menu (7 ícones)
+2. `src/components/CalendarioFinanceiroHome.jsx` - Faturas (3)
+3. `src/components/HorizonteFinanceiro.jsx` - Dia atual (7)
+4. `src/components/ConciliacaoPrevia.jsx` - Vínculos (2)
+5. `src/components/ParcelamentosShared.jsx` - Parcelamentos (6)
+6. `src/components/ResumoConciliacao.jsx` - Resumo (3)
+7. `src/components/IndicadorStatusEtapa.jsx` - Status (1)
+8. `src/components/NavegacaoOnboardingAdaptativo.jsx` - Navegação (4)
+9. `src/components/CalendarioCenario.jsx` - Cenários (2)
+
+**Sessão 1 (5 arquivos)**:
 1. `tailwind.config.js` - Tokens semânticos adicionados
 2. `src/components/AtalhosHome.jsx` - Cores corrigidas (3 linhas)
 3. `src/components/CalendarioCenario.jsx` - Variáveis atualizadas (3 linhas)
@@ -118,5 +138,6 @@ Ver `tests/auditoria-cores-hardcoded.mjs` para lista completa
 
 ---
 **Data**: 2026-11-19  
-**Progresso**: ~15% (tokens criados + 2 componentes corrigidos)  
-**Estimativa para conclusão**: 2-3 sessões adicionais
+**Progresso**: ~30% (tokens criados + 11 componentes corrigidos)  
+**Restantes**: 220 ocorrências em 37 arquivos  
+**Estimativa para conclusão**: 1-2 sessões adicionais
