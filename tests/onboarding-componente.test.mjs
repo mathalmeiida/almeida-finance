@@ -6,9 +6,9 @@ import { readFileSync } from 'fs'
 console.log('🔍 ANÁLISE: Fluxo de onboarding nos componentes React reais\n')
 
 // Lê código fonte dos componentes
-const appCode = readFileSync('posso-comprar/src/App.jsx', 'utf-8')
-const onboardingCode = readFileSync('posso-comprar/src/pages/OnboardingSimples.jsx', 'utf-8')
-const useOnboardingCode = readFileSync('posso-comprar/src/hooks/useOnboarding.js', 'utf-8')
+const appCode = readFileSync('src/App.jsx', 'utf-8')
+const onboardingCode = readFileSync('src/pages/OnboardingSimples.jsx', 'utf-8')
+const useOnboardingCode = readFileSync('src/hooks/useOnboarding.js', 'utf-8')
 
 let problemas = []
 let passes = []

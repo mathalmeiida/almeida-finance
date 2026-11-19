@@ -347,7 +347,8 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
 
       })
 
-      setEtapa(ETAPA_CONCLUSAO)
+      // Volta para a central em vez de concluir automaticamente
+      setEtapa(ETAPA_CENTRAL)
 
     } catch (err) {
 
