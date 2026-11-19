@@ -25,12 +25,31 @@ export function AuthProvider({ children }) {
 
   // Busca o perfil complementar do usuário na tabela "perfis"
   async function buscarPerfil(userId) {
-    const { data } = await supabase
-      .from('perfis')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    setPerfil(data)
+    try {
+      const { data, error } = await supabase
+        .from('perfis')
+        .select('*')
+        .eq('id', userId)
+        .single()
+      
+      if (error) {
+        console.error('Erro ao buscar perfil:', error)
+        // Se o perfil não existe, cria um básico para não travar o app
+        if (error.code === 'PGRST116') { // not found
+          setPerfil({ id: userId, nome: null, email: null })
+        } else {
+          // Outros erros: define perfil vazio para não travar
+          setPerfil({ id: userId, nome: null, email: null })
+        }
+        return
+      }
+      
+      setPerfil(data)
+    } catch (err) {
+      console.error('Erro ao carregar perfil:', err)
+      // Em caso de falha de rede ou timeout, define perfil básico
+      setPerfil({ id: userId, nome: null, email: null })
+    }
   }
 
   // Recarrega o perfil do usuário atual (útil após atualizar foto/avatar)
@@ -101,17 +120,19 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     // 1. Verifica se já existe uma sessão ativa ao carregar o app
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       const user = session?.user ?? null
       usuarioIdRef.current = user ? user.id : null
       setUsuario(user)
-      if (user) buscarPerfil(user.id)
+      if (user) {
+        await buscarPerfil(user.id)
+      }
       setCarregando(false)
     })
 
     // 2. Escuta mudanças de autenticação (login, logout, expiração de token)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      async (_event, session) => {
         const user = session?.user ?? null
         // Estabiliza a identidade do usuário: só troca o objeto no estado quando
         // o ID realmente muda (login/logout). Eventos como TOKEN_REFRESHED trazem
@@ -125,8 +146,11 @@ export function AuthProvider({ children }) {
 
         if (mudouUsuario) {
           setUsuario(user)
-          if (user) buscarPerfil(user.id)
-          else setPerfil(null)
+          if (user) {
+            await buscarPerfil(user.id)
+          } else {
+            setPerfil(null)
+          }
         }
         // Se o id não mudou (ex.: refresh de token), mantém o objeto `usuario`
         // atual intacto — nenhum efeito dependente é re-disparado.
