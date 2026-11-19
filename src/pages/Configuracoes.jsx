@@ -971,9 +971,15 @@ export default function Configuracoes() {
       // Recarrega o perfil para obter onboarding_concluido = false do banco
       await recarregarPerfil()
 
-      // Redireciona para a raiz: o App.jsx detecta onboarding_concluido = false
-      // e abre automaticamente a tela de boas-vindas do OnboardingSimples.
-      window.location.assign('/')
+      // Limpa flags locais do onboarding para forçar reinício
+      try {
+        localStorage.removeItem('almeida_configurando_onboarding')
+        localStorage.removeItem('almeida_refazer_onboarding')
+      } catch { /* ignore */ }
+
+      // Redireciona com cache-bust para garantir que o App detecta a mudança
+      // e abre o onboarding automaticamente
+      window.location.href = '/?_t=' + Date.now()
 
     } catch (err) {
 
