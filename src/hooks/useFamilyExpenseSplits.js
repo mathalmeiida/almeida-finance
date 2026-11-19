@@ -3,13 +3,17 @@ import { supabase } from '../lib/supabase';
 
 export function useFamilyExpenseSplits(groupId) {
   const [divisoes, setDivisoes] = useState([]);
-  const [carregando, setCarregando] = useState(true);
+  const [carregando, setCarregando] = useState(!!groupId);
   const [erro, setErro] = useState(null);
 
   useEffect(() => {
-    if (groupId) {
-      carregarDivisoes();
+    if (!groupId) {
+      setDivisoes([]);
+      setCarregando(false);
+      setErro(null);
+      return;
     }
+    carregarDivisoes();
   }, [groupId]);
 
   const carregarDivisoes = async () => {
@@ -46,6 +50,8 @@ export function useFamilyExpenseSplits(groupId) {
     } catch (err) {
       console.error('Erro ao carregar divisões:', err);
       setErro(err.message);
+      // Em caso de erro (tabela não existe), retorna array vazio
+      setDivisoes([]);
     } finally {
       setCarregando(false);
     }

@@ -3,13 +3,17 @@ import { supabase } from '../lib/supabase';
 
 export function useFamilyGroups(userId) {
   const [grupos, setGrupos] = useState([]);
-  const [carregando, setCarregando] = useState(true);
+  const [carregando, setCarregando] = useState(!!userId);
   const [erro, setErro] = useState(null);
 
   useEffect(() => {
-    if (userId) {
-      carregarGrupos();
+    if (!userId) {
+      setGrupos([]);
+      setCarregando(false);
+      setErro(null);
+      return;
     }
+    carregarGrupos();
   }, [userId]);
 
   const carregarGrupos = async () => {
@@ -45,6 +49,8 @@ export function useFamilyGroups(userId) {
     } catch (err) {
       console.error('Erro ao carregar grupos:', err);
       setErro(err.message);
+      // Em caso de erro (tabela não existe), retorna array vazio
+      setGrupos([]);
     } finally {
       setCarregando(false);
     }

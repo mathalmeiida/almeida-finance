@@ -31,14 +31,15 @@ export default function Calendario() {
   const { cartoes } = useCartoes()
   const { projecao } = useProjecao()
   
-  // Dados familiares
-  const { grupos } = useFamilyGroups(user?.id)
-  const grupoSelecionado = grupos[0]?.id || null
-  const { divisoes } = useFamilyExpenseSplits(modoFamilia ? grupoSelecionado : null)
-  
+  // Verifica acesso Premium ANTES de executar hooks Família
   const temAcessoFamilia = perfil?.subscription_plan && perfil.subscription_plan !== 'free' 
     || perfil?.plano_override 
-    || false;
+    || false
+  
+  // Dados familiares (só executa se tiver acesso Premium)
+  const { grupos } = useFamilyGroups(temAcessoFamilia ? user?.id : null)
+  const grupoSelecionado = grupos?.[0]?.id || null
+  const { divisoes } = useFamilyExpenseSplits(modoFamilia && temAcessoFamilia ? grupoSelecionado : null)
   
   const horizonte = useMemo(() => {
     if (!idEfetivo) return []
