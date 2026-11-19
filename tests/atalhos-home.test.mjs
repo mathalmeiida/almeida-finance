@@ -20,7 +20,7 @@ assert('config antiga (v1): Receitas/Investimentos/Despesas/Cartões no início,
 assert('config v2 não é reordenada', normalizarConfigAtalhos({ versao: 2, ordem: ['metas', 'receitas'] }).ordem.slice(0, 2).join() === 'metas,receitas')
 assert('ids únicos no catálogo', new Set(CATALOGO_ATALHOS.map(a => a.id)).size === CATALOGO_ATALHOS.length)
 assert('todo atalho tem rota OU modal', CATALOGO_ATALHOS.every(a => !!a.rota !== !!a.modal))
-assert('Importação Inteligente aponta para a página existente', CATALOGO_ATALHOS.find(a => a.id === 'importacao')?.rota === '/importacao')
+assert('Central de Importação aponta para a página unificada', CATALOGO_ATALHOS.find(a => a.id === 'importacao')?.rota === '/central-importacao')
 assert('padrão mostra todos', atalhosVisiveis(padrao).length === CATALOGO_ATALHOS.length)
 
 console.log('\n# Normalização de dados vindos do banco')
