@@ -221,12 +221,11 @@ export function useFamilyExpenseSplits(groupId) {
       if (!saldos[divisao.paid_by]) saldos[divisao.paid_by] = 0;
       saldos[divisao.paid_by] += divisao.valor_total;
 
-      // Participantes têm débito
+      // Participantes têm débito (valor devido)
       divisao.family_split_participants?.forEach(p => {
         if (!saldos[p.participant_id]) saldos[p.participant_id] = 0;
-        if (!p.pago) {
-          saldos[p.participant_id] -= p.valor_devido;
-        }
+        // Subtrai valor devido (débito)
+        saldos[p.participant_id] -= p.valor_devido;
       });
     });
 
