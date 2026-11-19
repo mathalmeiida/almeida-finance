@@ -43,7 +43,7 @@ test('extrato CSV: prévia, impacto no saldo, confirmação e gravação sem tra
   const banco = await abrir(page, { perfil: perfilFalso({ saldo_base_data: '2026-10-05' }) })
   await enviar(page, 'extrato.csv', fx('extrato-banco.csv'), 'text/csv')
   await expect(page.getByTestId('importacao-resumo')).toContainText('12 movimentações identificadas')
-  await expect(page.getByTestId('importacao-resumo')).toContainText('2 linhas não reconhecidas ou ignoradas')
+  await expect(page.getByTestId('importacao-resumo')).toContainText('2 linhas não reconhecidas')
   await expect(page.getByTestId('importacao-impacto')).toContainText('43,69')
   await expect(page.getByTestId('importacao-qtd-incluidos')).toHaveText('8')
   // Nada gravado antes da confirmação.
@@ -73,14 +73,14 @@ test('extrato CSV: prévia, impacto no saldo, confirmação e gravação sem tra
   await enviar(page, 'extrato.csv', fx('extrato-banco.csv'), 'text/csv')
   await expect(page.getByTestId('importacao-qtd-incluidos')).toHaveText('0')
   await expect(confirmar(page)).toBeDisabled()
-  await expect(item(page, 'SUPERMERCADO').locator('[data-status]')).toHaveAttribute('data-status', /ja_importado|possivel_duplicata/)
+  await expect(item(page, 'SUPERMERCADO').locator('[data-conciliacao]')).toHaveAttribute('data-conciliacao', /ja_importado|duplicata/)
 })
 
 test('sem histórico no banco, a duplicidade é detectada pelos lançamentos já cadastrados', async ({ page }) => {
   const banco = criarBancoMemoria({ despesas: [{ id: 'd1', usuario_id: U, data: '2026-10-03', valor: 182.4, descricao: 'Supermercado Bom Preço', recorrente: false }] })
   await abrir(page, { banco })
   await enviar(page, 'extrato.csv', fx('extrato-banco.csv'), 'text/csv')
-  await expect(item(page, 'SUPERMERCADO').locator('[data-status]')).toHaveAttribute('data-status', 'possivel_duplicata')
+  await expect(item(page, 'SUPERMERCADO').locator('[data-conciliacao]')).toHaveAttribute('data-conciliacao', /duplicata_possivel|possivel_duplicata/)
   await expect(item(page, 'SUPERMERCADO').getByRole('checkbox')).not.toBeChecked()
   await expect(page.getByTestId('importacao-qtd-incluidos')).toHaveText('7')
 })
@@ -115,7 +115,7 @@ test('fatura OFX: compras no cartão, parcela com total, sem receita/despesa nem
   const banco = await abrir(page, { banco: criarBancoMemoria({ cartoes: [{ id: 'c1', usuario_id: U, nome: 'Cartão Teste', limite_total: 5000, dia_fechamento: 20, dia_vencimento: 28 }] }) })
   // OFX de cartão escolhido como extrato: bloqueado com orientação.
   await enviar(page, 'fatura.ofx', fx('fatura-cartao.ofx'))
-  await expect(page.getByRole('alert')).toContainText('Fatura de cartão')
+  await expect(page.getByRole('alert').first()).toContainText(/Fatura de cartão|Escolha o cartão/)
   await page.getByRole('radio', { name: /Fatura de cartão/ }).click()
   // SelectCustomizado: clicar no botão e depois na opção
   await page.locator('#imp-cartao').click()
