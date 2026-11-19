@@ -313,9 +313,9 @@ function AreaAutenticada({ children }) {
   if (verificando) return <Carregando />
 
   // Onboarding: primeiro acesso (precisaOnboarding) OU refazer manual.
-  // MAS permite acesso aos módulos se está em modo configuração.
-  const estaConfigurando = localStorage.getItem(CHAVE_CONFIGURANDO) === '1'
-  if ((precisaOnboarding || refazer) && !estaConfigurando) {
+  // A flag CHAVE_CONFIGURANDO permite navegar para módulos durante o onboarding,
+  // mas NÃO bloqueia a renderização do próprio onboarding.
+  if (precisaOnboarding || refazer) {
 
     return <OnboardingSimples aoConcluir={encerrarOnboarding} etapaInicial={etapaInicial} />
 

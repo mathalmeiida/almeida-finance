@@ -94,13 +94,6 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
 
   const [despesaVariavel, setDespesaVariavel] = useState(0)
 
-  // Marca que está em modo configuração assim que o onboarding inicia
-  // E mantém durante TODA a configuração até concluir explicitamente
-  useEffect(() => {
-    localStorage.setItem(CHAVE_CONFIGURANDO, '1')
-    // NÃO limpa automaticamente - apenas na conclusão explícita
-  }, [])
-
   // O retorno é explícito: prop etapaInicial='central' (via App.jsx/CHAVE_ETAPA_ONBOARDING)
   // ou searchParams ?etapa=central como fallback.
   // Não usamos document.referrer (não funciona de forma confiável em SPA/PWA).
@@ -142,6 +135,11 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
     } else {
 
       setEtapa(ETAPA_CENTRAL)
+      
+      // Seta flag de configuração ao entrar na central
+      try {
+        localStorage.setItem(CHAVE_CONFIGURANDO, '1')
+      } catch { /* ignore */ }
 
     }
 

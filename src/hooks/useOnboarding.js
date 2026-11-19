@@ -34,19 +34,6 @@ export function useOnboarding() {
       return 
     }
 
-    // Se já está no onboarding ativo, NÃO reverifica (evita sair prematuramente)
-    // mas FINALIZA a verificação para não bloquear o app
-    const configurandoOnboarding = (() => {
-      try { return localStorage.getItem('almeida_configurando_onboarding') === '1' }
-      catch { return false }
-    })()
-    
-    if (configurandoOnboarding) {
-      setVerificando(false)
-      setPrecisaOnboarding(true)
-      return
-    }
-
     setVerificando(true)
     try {
       // Fonte principal e ÚNICA: a flag persistida no banco.
