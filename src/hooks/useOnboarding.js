@@ -27,19 +27,23 @@ export function useOnboarding() {
     })
     
     if (!usuario) {
-      console.log('[useOnboarding] Sem usuario, retornando')
+      console.log('[useOnboarding] Sem usuario, finalizando verificação')
+      setVerificando(false)
+      setPrecisaOnboarding(false)
       return
     }
+    
     // Aguarda o perfil carregar (o AuthContext busca em "perfis"). Enquanto
     // não chegar, mantém "verificando" para não liberar o app nem piscar o
     // onboarding antes de sabermos o status real.
     if (perfil == null) { 
-      console.log('[useOnboarding] perfil == null, setando verificando=true')
+      console.log('[useOnboarding] perfil == null, mantendo verificando=true')
       setVerificando(true); 
       return 
     }
 
     // Se já está no onboarding ativo, NÃO reverifica (evita sair prematuramente)
+    // mas FINALIZA a verificação para não bloquear o app
     const configurandoOnboarding = (() => {
       try { return localStorage.getItem('almeida_configurando_onboarding') === '1' }
       catch { return false }
@@ -47,11 +51,13 @@ export function useOnboarding() {
     console.log('[useOnboarding] configurandoOnboarding:', configurandoOnboarding)
     
     if (configurandoOnboarding) {
-      console.log('[useOnboarding] Em modo configuração, retornando SEM setar verificando=false')
+      console.log('[useOnboarding] Em modo configuração, finalizando verificação')
+      setVerificando(false)
+      setPrecisaOnboarding(true)
       return
     }
 
-    console.log('[useOnboarding] Iniciando verificação...')
+    console.log('[useOnboarding] Iniciando verificação completa...')
     setVerificando(true)
     try {
       // Fonte principal e ÚNICA: a flag persistida no banco.
