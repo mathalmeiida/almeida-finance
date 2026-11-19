@@ -115,7 +115,7 @@ export default function AtalhosHome({ onAbrirModal, somenteLeitura = false, sang
                 data-atalho={a.id}
               >
                 <div className="af-shortcut-icon"><Icone size={22} strokeWidth={1.8} /></div>
-                <span className={`text-center leading-tight text-[#D4A8B6] ${grade ? 'text-xs font-medium' : 'text-[10px]'}`}>{a.label}</span>
+                <span className={`text-center leading-tight text-text-sec ${grade ? 'text-xs font-medium' : 'text-[10px]'}`}>{a.label}</span>
               </button>
             )
           })}
@@ -161,14 +161,14 @@ export default function AtalhosHome({ onAbrirModal, somenteLeitura = false, sang
             </div>
           )}
           {estado.transborda && !dicaVista && (
-            <span className="text-[10px] text-[#D4A8B6] md:hidden truncate" data-testid="atalhos-dica">Deslize para ver mais</span>
+            <span className="text-[10px] text-text-sec md:hidden truncate" data-testid="atalhos-dica">Deslize para ver mais</span>
           )}
         </div>
         {!somenteLeitura && (
           <button
             type="button"
             onClick={() => setPersonalizando(true)}
-            className="flex items-center gap-1 text-[11px] font-semibold text-[#C4507A] hover:underline flex-shrink-0"
+            className="flex items-center gap-1 text-[11px] font-semibold text-marca hover:underline flex-shrink-0"
             data-testid="atalhos-personalizar"
           >
             <SlidersHorizontal size={12} /> Personalizar

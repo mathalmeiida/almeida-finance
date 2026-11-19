@@ -76,9 +76,9 @@ export default function CalendarioCenario({
     verde: '#059669', laranja: '#ea7600', preto: '#B95572',
     claro: '#801D39', escuro: '#B95572', automatico: '#801D39',
   })[corTema] || '#801D39'
-  const texto    = escuro ? 'text-[#FAF7F8]' : 'text-[#25141B]'
-  const secundario = escuro ? 'text-[#D4A8B6]' : 'text-[#643F4F]'
-  const painel   = escuro ? 'bg-[#2B171F] border-[#502838]' : 'bg-[#FFF5F7] border-[#E5BAC4]'
+  const texto    = escuro ? 'text-text-pri' : 'text-text-pri'
+  const secundario = escuro ? 'text-text-sec' : 'text-text-sec'
+  const painel   = escuro ? 'bg-surface-2 border-border-col' : 'bg-surface-2 border-border-col'
 
 
   const mapas = useMemo(() => {

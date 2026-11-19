@@ -52,6 +52,17 @@ export default {
           150:     'rgb(var(--marca) / 0.16)',
           200:     'rgb(var(--marca) / 0.22)',
         },
+        // ─── Tokens semânticos do tema ───
+        // Variáveis definidas em index.css, alternadas por .tema-claro/.tema-escuro/.tema-automatico
+        bg: 'rgb(var(--bg) / <alpha-value>)',
+        surface: {
+          DEFAULT: 'rgb(var(--surface) / <alpha-value>)',
+          2: 'rgb(var(--surface-2) / <alpha-value>)',
+        },
+        'text-pri': 'rgb(var(--text-pri) / <alpha-value>)',
+        'text-sec': 'rgb(var(--text-sec) / <alpha-value>)',
+        'border-col': 'rgb(var(--border-col) / <alpha-value>)',
+        accent: 'rgb(var(--accent) / <alpha-value>)',
       },
       // "bg-white" volta a ser branco de verdade (#FFFFFF) — cards, modais e
       // notificações. textColor "white" segue branco (usado sobre fundos de cor).
