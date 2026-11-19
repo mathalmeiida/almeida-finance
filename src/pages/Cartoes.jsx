@@ -1024,7 +1024,7 @@ export default function Cartoes() {
     return <VerFatura cartao={faturaAberta} onVoltar={() => setFaturaAberta(null)} onEditarCartao={() => { setFaturaAberta(null); abrirEdicao(faturaAberta) }} />
   }
   return (
-    <div className="space-y-6">
+    <div className="af-container space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Cartões de crédito</h1>

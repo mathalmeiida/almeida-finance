@@ -637,7 +637,7 @@ export default function Investimentos() {
 
   return (
 
-    <div className="space-y-5 pb-mobilenav md:pb-0">
+    <div className="af-container space-y-5 pb-mobilenav md:pb-0">
 
       <div className="flex items-center justify-between gap-3">
 

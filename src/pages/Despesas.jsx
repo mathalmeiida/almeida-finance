@@ -1581,7 +1581,7 @@ export default function Despesas() {
   }
 
   return (
-    <div className="space-y-6 pb-mobilenav md:pb-0">
+    <div className="af-container space-y-6 pb-mobilenav md:pb-0">
       {/* Cabeçalho */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

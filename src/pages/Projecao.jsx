@@ -238,7 +238,7 @@ const eventosSelecionados = eventosPorData.get(diaSelecionado) || []
 
   }
 
-  return <div className="w-full min-w-0 max-w-none space-y-5">
+  return <div className="af-container w-full min-w-0 max-w-none space-y-5">
 
     <div className="flex flex-wrap justify-between items-start gap-3">
 

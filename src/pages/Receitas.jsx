@@ -528,7 +528,7 @@ export default function Receitas() {
   const totalPontual = totalExibido - totalRecorrente
 
   return (
-    <div className="space-y-5">
+    <div className="af-container space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Receitas</h1>
