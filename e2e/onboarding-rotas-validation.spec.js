@@ -96,6 +96,36 @@ test.describe('Onboarding - Validação de Rotas', () => {
     }
   })
 
+  test('Subrotas: deve bloquear mesmo com flag', async ({ page }) => {
+    await pularApresentacao(page)
+    
+    await page.addInitScript(() => {
+      localStorage.clear()
+      localStorage.setItem('almeida_apresentacao_publica_vista', '1')
+      localStorage.setItem('almeida_configurando_onboarding', '1')
+    })
+    
+    await isolarSupabase(page, { 
+      autenticado: true, 
+      perfil: perfilFalso({ onboarding_concluido: false })
+    })
+
+    // Tentar acessar subrotas MESMO COM flag (comparação exata deve bloquear)
+    const subrotas = ['/receitas/123', '/despesas/456', '/admin/usuarios']
+    
+    for (const subrota of subrotas) {
+      await page.goto(subrota)
+      await page.waitForLoadState('networkidle')
+      await page.waitForTimeout(500)
+      
+      const texto = await page.locator('body').textContent()
+      const renderizouOnboarding = texto.includes('Vamos organizar suas finanças')
+      
+      expect(renderizouOnboarding, `Subrota ${subrota} DEVE renderizar onboarding`).toBeTruthy()
+      console.log(`✅ Subrota bloqueada: ${subrota}`)
+    }
+  })
+
   test('Rota raiz: deve renderizar onboarding mesmo com flag', async ({ page }) => {
     await pularApresentacao(page)
     
@@ -121,3 +151,4 @@ test.describe('Onboarding - Validação de Rotas', () => {
     console.log('✅ Rota raiz (/) renderiza onboarding corretamente')
   })
 })
+
