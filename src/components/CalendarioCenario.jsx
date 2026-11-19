@@ -107,13 +107,13 @@ export default function CalendarioCenario({
     ? mapas.simulado.get(selecionado) - mapas.atual.get(selecionado) : null
 
   return (
-    <section className={`min-w-0 w-full rounded-2xl border p-3 sm:p-5 space-y-4 ${escuro ? 'bg-[#140B10] border-[#502838]' : 'bg-white border-[#E5BAC4]'} ${texto}`} aria-label={titulo}>
+    <section className={`min-w-0 w-full rounded-2xl border p-3 sm:p-5 space-y-4 ${escuro ? 'bg-bg border-border-col' : 'bg-surface border-border-col'} ${texto}`} aria-label={titulo}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <CalendarDays className="flex-shrink-0" style={{color:cor}} size={20} />
           <div><h3 className="text-base font-semibold">{titulo}</h3><p className={`text-xs ${secundario}`}>Saldo projetado ao final de cada dia</p></div>
         </div>
-        <div className={`flex gap-1 rounded-lg p-1 ${escuro ? 'bg-[#21121F]' : 'bg-slate-100'}`}>
+        <div className={`flex gap-1 rounded-lg p-1 ${escuro ? 'bg-surface' : 'bg-slate-100'}`}>
           {[['atual','Atual'],['simulado','Simulado']].map(([id,label]) => (
             <button key={id} type="button" aria-pressed={tipo===id}
               onClick={()=>setTipo(id)}

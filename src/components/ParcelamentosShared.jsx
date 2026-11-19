@@ -91,12 +91,12 @@ export function FormParcelamento({ onSalvar, onCancelar, carregando, parcelament
         </div>
       </div>
       {parcelaBase > 0 && (
-        <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
-          <p className="text-xs text-blue-700">
+        <div className="bg-marca-50 border border-marca-100 rounded-xl px-3 py-2">
+          <p className="text-xs text-marca">
             Valor de cada parcela: <strong>{formatCurrency(parcelaBase)}/mês</strong>
           </p>
           {temAjuste && (
-            <p className="text-xs text-blue-600 mt-0.5">
+            <p className="text-xs text-marca mt-0.5">
               Última parcela: <strong>{formatCurrency(parcelaUltima)}</strong> (ajuste de centavos)
             </p>
           )}
@@ -130,7 +130,7 @@ export function FormParcelamento({ onSalvar, onCancelar, carregando, parcelament
           {cartoes.length === 0 ? (
             <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-500">
               Você ainda não possui cartões cadastrados.
-              <Link to="/cartoes" className="block mt-2 text-blue-600 font-medium hover:underline">
+              <Link to="/cartoes" className="block mt-2 text-marca font-medium hover:underline">
                 + Cadastrar cartão
               </Link>
             </div>
@@ -158,8 +158,8 @@ export function FormParcelamento({ onSalvar, onCancelar, carregando, parcelament
 // Metadados visuais por tipo de obrigação
 const TIPO_META = {
   parcelado:     { label: 'Parcelado',     classe: 'text-orange-600 bg-orange-50' },
-  financiamento: { label: 'Financiamento', classe: 'text-blue-600 bg-blue-50' },
-  consorcio:     { label: 'Consórcio',     classe: 'text-purple-600 bg-purple-50' },
+  financiamento: { label: 'Financiamento', classe: 'text-marca bg-marca-50' },
+  consorcio:     { label: 'Consórcio',     classe: 'text-marca bg-marca-50' },
 }
 
 // ─── Card de parcelamento ────────────────────────────────────────────────────
@@ -220,7 +220,7 @@ export function CardParcelamento({ p, onQuitar, onRemover, onEditar, onAmortizar
           </div>
           {onEditar && (
             <button onClick={() => onEditar(p)}
-              className="p-1.5 rounded-lg text-gray-300 hover:text-blue-500 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-all mt-0.5"
+              className="p-1.5 rounded-lg text-gray-300 hover:text-marca hover:bg-marca-50 opacity-0 group-hover:opacity-100 transition-all mt-0.5"
               title="Editar parcelamento">
               <Pencil size={14} />
             </button>

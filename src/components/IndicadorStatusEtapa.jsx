@@ -10,7 +10,7 @@ const STATUS_CONFIG = {
   importado: {
     icone: FileCheck,
     label: 'Importado',
-    cor: 'text-blue-600 bg-blue-50',
+    cor: 'text-marca bg-marca-50',
     borda: 'border-blue-200'
   },
   parcial: {

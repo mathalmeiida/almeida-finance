@@ -205,7 +205,7 @@ export default function CalendarioFinanceiroHome({
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-400">
           <span className="h-2 w-2 rounded-full bg-emerald-400" /> Entradas
           <span className="ml-1 h-2 w-2 rounded-full bg-rose-400" /> Saídas
-          <span className="ml-1 h-2 w-2 rounded-full bg-sky-400" /> Faturas
+          <span className="ml-1 h-2 w-2 rounded-full bg-accent" /> Faturas
         </div>
       </header>
       <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-5">
@@ -260,7 +260,7 @@ export default function CalendarioFinanceiroHome({
                   <span className="flex h-1.5 items-center justify-center gap-1">
                     {possuiEntrada && <i aria-label="Receita" className="h-1.5 w-1.5 rounded-full bg-emerald-400" />}
                     {possuiSaida && <i aria-label="Despesa" className="h-1.5 w-1.5 rounded-full bg-rose-400" />}
-                    {possuiFatura && <i aria-label="Fatura de cartão" className="h-1.5 w-1.5 rounded-full bg-sky-400" />}
+                    {possuiFatura && <i aria-label="Fatura de cartão" className="h-1.5 w-1.5 rounded-full bg-accent" />}
                   </span>
                 </button>
               )
@@ -336,7 +336,7 @@ export default function CalendarioFinanceiroHome({
                 const ehEntrada = ev.tipo === 'entrada'
                 const ehCartao = ev.categoria === 'cartao'
                 const estilo = ehCartao
-                  ? 'bg-sky-400/10 text-sky-300'
+                  ? 'bg-accent/10 text-accent'
                   : ehEntrada
                     ? 'bg-emerald-400/10 text-emerald-300'
                     : 'bg-rose-400/10 text-rose-300'

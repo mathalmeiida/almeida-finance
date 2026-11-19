@@ -43,18 +43,18 @@ export default function ResumoConciliacao({ resumo, itens = [], incluidos, revis
           <h2 className="text-base font-semibold text-gray-900">Sua importação</h2>
           <p className="mt-1 text-xs text-gray-500">Confira a seleção antes de salvar.</p>
         </div>
-        <span className="rounded-full bg-[#821C3E]/10 px-3 py-1 text-xs font-medium text-[#821C3E]">
+        <span className="rounded-full bg-marca/10 px-3 py-1 text-xs font-medium text-marca">
           {quantidade} {quantidade === 1 ? 'selecionado' : 'selecionados'}
         </span>
       </div>
 
-      <div className="rounded-xl bg-[#821C3E]/[0.055] px-4 py-3">
+      <div className="rounded-xl bg-marca/[0.055] px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-xs font-medium text-gray-600">Soma dos itens marcados</p>
             <p className="mt-1 text-[11px] text-gray-500">Inclui itens ainda pendentes; não é o valor pronto para gravar</p>
           </div>
-          <p className="text-xl font-bold tabular-nums text-[#821C3E] sm:text-2xl">{brl.format(somaSelecionada)}</p>
+          <p className="text-xl font-bold tabular-nums text-marca sm:text-2xl">{brl.format(somaSelecionada)}</p>
         </div>
       </div>
 

@@ -253,7 +253,7 @@ function ItemConciliacao({ item, expandido, onToggle, categorias, onAprovar, onE
             {podeVincular(item) && (
               <button
                 onClick={handleVincular}
-                className="text-xs px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors flex items-center gap-1"
+                className="text-xs px-3 py-1.5 bg-marca-100 text-marca rounded-lg hover:bg-marca-150 transition-colors flex items-center gap-1"
               >
                 <LinkIcon size={12} />
                 Vincular
@@ -300,7 +300,7 @@ function ItemConciliacao({ item, expandido, onToggle, categorias, onAprovar, onE
 
               {/* Edição */}
               {editando && (
-                <div className="bg-blue-50 rounded-lg p-3 space-y-2">
+                <div className="bg-marca-50 rounded-lg p-3 space-y-2">
                   <p className="text-xs font-medium text-gray-700">Editar item:</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <div>

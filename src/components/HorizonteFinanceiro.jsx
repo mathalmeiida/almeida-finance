@@ -24,7 +24,7 @@ function ColunaMes({ mes }) {
   return (
     <div
       className={`shrink-0 basis-full w-full sm:basis-auto sm:w-44 snap-center rounded-xl border ${
-        mes.ehMesAtual ? 'border-blue-300' : 'border-gray-200'
+        mes.ehMesAtual ? 'border-marca-200' : 'border-gray-200'
       } overflow-hidden`}
     >
       {/* Cabeçalho do mês (destaca o mês atual em azul) */}
@@ -43,10 +43,10 @@ function ColunaMes({ mes }) {
           <div
             key={d.dia}
             className={`flex items-center justify-between gap-2 px-3 py-1.5 ${
-              d.ehHoje ? 'bg-blue-50/60' : ''
+              d.ehHoje ? 'bg-marca-50' : ''
             }`}
           >
-            <span className={`text-xs tabular-nums ${d.ehHoje ? 'font-bold text-blue-700' : 'text-gray-400'}`}>
+            <span className={`text-xs tabular-nums ${d.ehHoje ? 'font-bold text-marca' : 'text-gray-400'}`}>
               {String(d.dia).padStart(2, '0')}
             </span>
             <span className={`text-xs tabular-nums whitespace-nowrap ${
@@ -133,7 +133,7 @@ export default function HorizonteFinanceiro({
           <ResumoItem rotulo="Entradas" valor={mesSel.entradas} cor="text-green-600" />
           <ResumoItem rotulo="Compromissos" valor={mesSel.saidas} cor="text-red-500" />
           <ResumoItem rotulo="Reserva" valor={mesSel.reserva} cor="text-amber-600" />
-          <ResumoItem rotulo="Saldo final" valor={mesSel.saldoFinal} cor={mesSel.saldoFinal >= 0 ? 'text-blue-600' : 'text-red-600'} />
+          <ResumoItem rotulo="Saldo final" valor={mesSel.saldoFinal} cor={mesSel.saldoFinal >= 0 ? 'text-marca' : 'text-red-600'} />
         </div>
       </div>
 
@@ -184,14 +184,14 @@ export default function HorizonteFinanceiro({
           {mesSel.dias.map(d => (
             <div
               key={d.dia}
-              className={`rounded-xl border p-3 ${d.ehHoje ? 'border-blue-300 bg-blue-50/50' : 'border-gray-200 bg-white'}`}
+              className={`rounded-xl border p-3 ${d.ehHoje ? 'border-marca-200 bg-marca-50' : 'border-gray-200 bg-white'}`}
             >
               <div className="flex items-center justify-between mb-1.5">
-                <span className={`text-sm font-semibold ${d.ehHoje ? 'text-blue-700' : 'text-gray-800'}`}>
+                <span className={`text-sm font-semibold ${d.ehHoje ? 'text-marca' : 'text-gray-800'}`}>
                   Dia {String(d.dia).padStart(2, '0')}
                 </span>
                 {d.ehHoje && (
-                  <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full">hoje</span>
+                  <span className="text-[10px] bg-marca-100 text-marca px-1.5 py-0.5 rounded-full">hoje</span>
                 )}
               </div>
               <div className="grid grid-cols-3 gap-x-3">

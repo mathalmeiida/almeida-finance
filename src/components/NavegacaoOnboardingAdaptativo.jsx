@@ -16,7 +16,7 @@ const ICONES_STATUS = {
 }
 
 const CORES_STATUS = {
-  importado: 'text-blue-600 bg-blue-50 border-blue-200',
+  importado: 'text-marca bg-marca-50 border-marca-200',
   parcial: 'text-amber-600 bg-amber-50 border-amber-200',
   pendente: 'text-gray-400 bg-gray-50 border-gray-200',
   confirmado: 'text-green-600 bg-green-50 border-green-200'
@@ -61,7 +61,7 @@ export default function NavegacaoOnboardingAdaptativo({
                 w-full flex items-center gap-3 px-3 py-2.5 rounded-lg
                 transition-all duration-200
                 ${ehAtual 
-                  ? 'bg-[#5D0F26] bg-opacity-5 border-2 border-[#5D0F26] shadow-sm' 
+                  ? 'bg-marca/5 border-2 border-marca shadow-sm' 
                   : 'border border-transparent hover:bg-gray-50'
                 }
                 ${onNavegar ? 'cursor-pointer' : 'cursor-default'}
@@ -89,7 +89,7 @@ export default function NavegacaoOnboardingAdaptativo({
               <div className="flex-1 text-left">
                 <div className={`
                   text-sm font-medium
-                  ${ehAtual ? 'text-[#5D0F26]' : 'text-gray-700'}
+                  ${ehAtual ? 'text-marca' : 'text-gray-700'}
                 `}>
                   {etapa.nome}
                 </div>
@@ -107,7 +107,7 @@ export default function NavegacaoOnboardingAdaptativo({
 
               {/* Indicador visual de etapa atual */}
               {ehAtual && (
-                <div className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-[#5D0F26]" />
+                <div className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-marca" />
               )}
             </button>
           )
