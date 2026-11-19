@@ -2779,7 +2779,9 @@ const carregandoLimite = carregando
         </div>
       )}
 
-      {/* MOBILE */}
+      {/* ══════════════════════════════════════════════════════════════════════
+          LAYOUT MOBILE — Preservado (design aprovado)
+          ══════════════════════════════════════════════════════════════════════ */}
       <div className="md:hidden flex flex-col gap-2.5 px-4">
         {/* Card vinho único - Saldo disponível + Limite diário */}
         <div className="rounded-2xl p-4" style={{background: 'linear-gradient(135deg, #8B1538 0%, #6B0F2A 100%)'}}>
@@ -2981,11 +2983,16 @@ const carregandoLimite = carregando
       </div>
 
       {/* DESKTOP */}
-      <div className="hidden md:flex md:flex-col gap-3">
+      {/* ══════════════════════════════════════════════════════════════════════
+          LAYOUT DESKTOP — Melhorado para telas grandes
+          Grid responsivo: 4 cols summary, 2 cols calendário+resumo, sidebar info
+          ══════════════════════════════════════════════════════════════════════ */}
+      <div className="hidden md:flex md:flex-col gap-3 af-container">
         {/* Atalhos — mesma faixa do mobile, com setas quando houver conteúdo oculto */}
         <AtalhosHome onAbrirModal={abrirModalAtalho} somenteLeitura={somenteLeitura} modo="grade" />
-        {/* 4 cards */}
-        <div className="grid grid-cols-4 gap-3">
+        
+        {/* 4 cards responsivos de resumo — usa novo grid system */}
+        <div className="af-summary-grid af-section-spacing">
           <div className="af-hcard">
             <div className="flex items-center justify-between mb-2"><span className="af-ht2">Saldo disponível</span>
               <div className="flex items-center gap-2"><button type="button" onClick={alternar} className="text-[#D4A8B6]">{ocultar?<EyeOff size={14}/>:<Eye size={14}/>}</button>{!somenteLeitura&&<button type="button" onClick={()=>setModalSaldo(true)} className="text-[#C4507A]"><Pencil size={13}/></button>}</div>
@@ -3024,8 +3031,8 @@ const carregandoLimite = carregando
           })()}
         </div>
 
-        {/* 2 colunas */}
-        <div className="grid grid-cols-[1fr_320px] xl:grid-cols-[1fr_360px] gap-3">
+        {/* Grid 2 colunas: Calendário (esquerda, maior) + Resumo lateral (direita) */}
+        <div className="af-grid-2col af-section-spacing">
           {/* Calendário */}
           {(() => {
             const ano=mesCalendarioHome.getFullYear(),mes=mesCalendarioHome.getMonth()
@@ -3042,7 +3049,7 @@ const carregandoLimite = carregando
             for(let i=1;i<=totalDias;i++)cels.push({dia:i,outro:false,iso:`${String(ano).padStart(4,'0')}-${String(mes+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`})
             const resto=(7-(cels.length%7))%7;for(let i=1;i<=resto;i++)cels.push({dia:i,outro:true,iso:new Date(ano,mes+1,i).toISOString().slice(0,10)})
             return (
-              <div className="af-cal-home flex flex-col" style={{minHeight:420,...(calEscuro ? {'--af-home-light':'#21121F','--af-home-panel':'#2B171F','--af-home-border':'#502838'} : {'--af-home-light':'#FFFFFF','--af-home-panel':'#FFF5F7','--af-home-border':'#E5BAC4'})}}>
+              <div className="af-cal-home af-calendar-wrapper flex flex-col" style={{minHeight:420,...(calEscuro ? {'--af-home-light':'#21121F','--af-home-panel':'#2B171F','--af-home-border':'#502838'} : {'--af-home-light':'#FFFFFF','--af-home-panel':'#FFF5F7','--af-home-border':'#E5BAC4'})}}>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2"><CalendarDays size={18} className="text-[#C4507A]"/><span className={`font-semibold ${calEscuro ? 'text-white' : 'text-[#25141B]'}`}>Calendário financeiro</span></div>
                   <div className="flex items-center gap-2">
