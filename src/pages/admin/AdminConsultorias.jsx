@@ -4,9 +4,9 @@ import { mascararTelefone, linkWhatsApp } from '../../lib/utils'
 
 // Rótulos e cores de cada status do interesse (discreto, sem excesso de cor).
 const STATUS = {
-  novo:      { label: 'Novo interesse', classe: 'bg-blue-50 text-blue-700' },
+  novo:      { label: 'Novo interesse', classe: 'bg-surface-2 text-marca' },
   contatado: { label: 'Contatado',      classe: 'bg-amber-50 text-amber-700' },
-  agendado:  { label: 'Agendado',       classe: 'bg-indigo-50 text-indigo-700' },
+  agendado:  { label: 'Agendado',       classe: 'bg-surface-2 text-marca' },
   concluido: { label: 'Concluído',      classe: 'bg-emerald-50 text-emerald-700' },
   cancelado: { label: 'Cancelado',      classe: 'bg-gray-100 text-gray-500' },
 }
@@ -45,7 +45,7 @@ export default function AdminConsultorias({ interesses = [], carregando, atualiz
   }
 
   if (carregando) {
-    return <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-blue-500" /></div>
+    return <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-marca" /></div>
   }
 
   return (

@@ -30,8 +30,8 @@ export default function SolicitacaoConsultoria({ solicitacao, aoResponder, proce
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="card max-w-md w-full text-center">
-        <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-          <MessageCircle size={28} className="text-blue-600" />
+        <div className="w-16 h-16 bg-surface-2 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <MessageCircle size={28} className="text-marca" />
         </div>
         <h1 className="text-xl font-bold text-gray-900 mb-2">Solicitação de consultoria</h1>
         <p className="text-sm text-gray-600 mb-4">
@@ -40,7 +40,7 @@ export default function SolicitacaoConsultoria({ solicitacao, aoResponder, proce
         </p>
 
         <div className="flex items-start gap-2 text-left bg-gray-100 border border-gray-200 rounded-xl p-3 mb-6">
-          <ShieldCheck size={18} className="text-blue-500 flex-shrink-0 mt-0.5" />
+          <ShieldCheck size={18} className="text-accent flex-shrink-0 mt-0.5" />
           <p className="text-xs text-gray-500">
             O acesso é <strong className="text-gray-700">somente leitura</strong>: o consultor
             não pode alterar nada. Você pode <strong className="text-gray-700">revogar</strong> a

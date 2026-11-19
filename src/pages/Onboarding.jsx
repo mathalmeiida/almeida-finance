@@ -1209,14 +1209,14 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
               
               {/* Resumo de importação (se houver) */}
               {adaptativo.estatisticas && adaptativo.estatisticas.total > 0 && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <div className="bg-surface-2 border border-border-col rounded-lg p-4 mb-4">
                   <div className="flex items-start gap-3">
-                    <FileCheck className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <FileCheck className="h-5 w-5 text-marca flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-blue-900 mb-1">
+                      <p className="text-sm font-semibold text-pri mb-1">
                         Dados importados preservados
                       </p>
-                      <p className="text-sm text-blue-700">
+                      <p className="text-sm text-sec">
                         {gerarResumoImportacao(adaptativo.estatisticas)}
                       </p>
                     </div>
@@ -1290,14 +1290,14 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
               
               {/* Banner de investimentos importados */}
               {adaptativo.idsImportados?.investimentos_movimentacoes?.length > 0 && !investimentosProprios.length && (
-                <div className="mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="mb-3 bg-surface-2 border border-border-col rounded-lg p-3">
                   <div className="flex items-start gap-2">
-                    <FileCheck size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
+                    <FileCheck size={18} className="text-marca flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-blue-900 mb-0.5">
+                      <p className="text-sm font-semibold text-pri mb-0.5">
                         Movimentações de investimentos detectadas!
                       </p>
-                      <p className="text-sm text-blue-700">
+                      <p className="text-sm text-sec">
                         {adaptativo.idsImportados.investimentos_movimentacoes.length} movimentação{adaptativo.idsImportados.investimentos_movimentacoes.length !== 1 ? 'ões' : ''} {adaptativo.idsImportados.investimentos_movimentacoes.length !== 1 ? 'foram importadas' : 'foi importada'}.
                         Informe seu patrimônio total investido abaixo.
                       </p>

@@ -116,7 +116,7 @@ export function labelTipoDespesa(tipo) {
   if (tipo === 'fixa') {
     return {
       label: 'Fixa',
-      classes: 'bg-blue-100 text-blue-700',
+      classes: 'bg-surface-2 text-marca',
       icone: '📌',
     }
   }

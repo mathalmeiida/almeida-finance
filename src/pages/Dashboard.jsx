@@ -163,7 +163,7 @@ function FormGastoRapido({ onSalvar, onCancelar, carregando, onMaisOpcoes, erro,
       </button>
       <div className="flex items-center justify-between gap-2">
         <button type="button" onClick={onCancelar} className="text-xs font-medium text-gray-500 py-1">Cancelar</button>
-        <button type="button" onClick={onMaisOpcoes} className="text-xs font-medium text-blue-600 hover:text-blue-700 py-1">Mais opções</button>
+        <button type="button" onClick={onMaisOpcoes} className="text-xs font-medium text-marca hover:text-marca/80 py-1">Mais opções</button>
       </div>
     </form>
   )
@@ -1727,7 +1727,7 @@ function CardProximos7Dias({ total, itens, onVerTodos }) {
   return (
     <div className="card">
       <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2 min-w-0">
-        <CalendarClock size={18} className="text-blue-500 flex-shrink-0" />
+        <CalendarClock size={18} className="text-marca flex-shrink-0" />
         <span className="truncate">Próximos 7 dias</span>
       </h2>
 
@@ -1758,7 +1758,7 @@ function CardProximos7Dias({ total, itens, onVerTodos }) {
           {onVerTodos && (
             <button
               onClick={onVerTodos}
-              className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700"
+              className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-marca hover:text-marca/80"
             >
               Ver todos os compromissos <ArrowRight size={14} />
             </button>

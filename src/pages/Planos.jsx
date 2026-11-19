@@ -54,17 +54,17 @@ export default function Planos() {
   const getCores = (cor) => {
     const cores = {
       blue: {
-        bg: 'bg-blue-50',
-        border: 'border-blue-200',
-        texto: 'text-blue-900',
-        botao: 'bg-marca hover:bg-[#6b1729]',
-        badge: 'bg-blue-100 text-blue-700',
+        bg: 'bg-surface-2',
+        border: 'border-border-col',
+        texto: 'text-pri',
+        botao: 'bg-marca hover:bg-marca/90',
+        badge: 'bg-surface-2 text-marca',
       },
       violet: {
-        bg: 'bg-violet-50',
-        border: 'border-violet-200',
-        texto: 'text-violet-900',
-        botao: 'bg-violet-600 hover:bg-violet-700',
+        bg: 'bg-surface-2',
+        border: 'border-border-col',
+        texto: 'text-pri',
+        botao: 'bg-marca hover:bg-marca/90',
       },
     };
     return cores[cor] || cores.blue;
@@ -84,10 +84,10 @@ export default function Planos() {
 
       {/* Aviso de Trial */}
       {planoAtual === 'trial' && (
-        <div className="card bg-gradient-to-r from-blue-50 to-violet-50 border-blue-200">
+        <div className="card bg-surface-2 border-border-col">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
-              <Sparkles className="w-5 h-5 text-blue-600" />
+            <div className="w-10 h-10 rounded-xl bg-surface flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-5 h-5 text-marca" />
             </div>
             <div className="flex-1">
               <h3 className="font-semibold text-gray-900 mb-1">Teste grátis ativo</h3>

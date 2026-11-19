@@ -229,7 +229,7 @@ export default function SimuladorFinanciamento() {
             {[{ id: 'sac', nome: 'SAC', desc: 'parcelas diminuem' }, { id: 'price', nome: 'PRICE', desc: 'parcela fixa' }].map(op => (
               <label key={op.id}
                 className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 cursor-pointer transition-all text-center ${
-                  sistema === op.id ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                  sistema === op.id ? 'border-marca bg-surface-2 text-marca' : 'border-gray-200 text-gray-600 hover:border-gray-300'
                 }`}>
                 <input type="radio" name="sistema" value={op.id} checked={sistema === op.id}
                   onChange={(e) => { setSistema(e.target.value); limparResultado() }} className="hidden" />
@@ -284,7 +284,7 @@ export default function SimuladorFinanciamento() {
                 className="mt-0.5" />
               <span className="min-w-0">
                 <span className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
-                  <Landmark size={15} className="text-sky-600" /> Usar FGTS na entrada
+                  <Landmark size={15} className="text-accent" /> Usar FGTS na entrada
                 </span>
                 <span className="block text-xs text-gray-500 mt-0.5">
                   Informe o saldo manualmente (sem integração externa).
@@ -303,16 +303,16 @@ export default function SimuladorFinanciamento() {
 
           {/* Prévia da entrada */}
           {Number(valorImovel) > 0 && (
-            <div className="mt-3 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5 text-sm">
+            <div className="mt-3 bg-surface-2 border border-border-col rounded-xl px-3 py-2.5 text-sm">
               <div className="flex justify-between gap-3">
-                <span className="text-blue-700">Entrada total</span>
-                <strong className="text-blue-800">
+                <span className="text-sec">Entrada total</span>
+                <strong className="text-pri">
                   {formatCurrency((Number(recursosProprios) || 0) + reservaUsadaNum + fgtsNum)}
                 </strong>
               </div>
               <div className="flex justify-between gap-3 mt-1">
-                <span className="text-blue-700">Valor financiado</span>
-                <strong className="text-blue-800">
+                <span className="text-sec">Valor financiado</span>
+                <strong className="text-pri">
                   {formatCurrency(Math.max(0, (Number(valorImovel) || 0) - ((Number(recursosProprios) || 0) + reservaUsadaNum + fgtsNum)))}
                 </strong>
               </div>

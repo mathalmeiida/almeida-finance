@@ -244,11 +244,11 @@ export default function SimuladorCustoVida({
 
           {/* Transparência: mostra quantas despesas foram incluídas */}
           {modo === 'real' && categoriasTotais.length > 0 && (
-            <div className="rounded-xl bg-blue-50 border border-blue-100 px-3 py-2.5">
-              <p className="text-xs font-semibold text-blue-900 mb-1">
+            <div className="rounded-xl bg-marca-50 border border-marca-100 px-3 py-2.5">
+              <p className="text-xs font-semibold text-marca mb-1">
                 ✓ {categoriasTotais.length} categoria{categoriasTotais.length !== 1 ? 's' : ''} incluída{categoriasTotais.length !== 1 ? 's' : ''}
               </p>
-              <p className="text-[10px] text-blue-700">
+              <p className="text-[10px] text-marca">
                 Total: {fmtR(despesasReais)} · Todas as suas despesas foram consideradas
               </p>
             </div>

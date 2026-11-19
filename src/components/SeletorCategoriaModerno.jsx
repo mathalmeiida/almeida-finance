@@ -99,7 +99,7 @@ export default function SeletorCategoriaModerno({
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
             {filtrados.map(([nome, lista]) => (
               <button key={nome} type="button" onClick={() => setGrupoAberto(nome)}
-                className={`min-w-0 rounded-xl p-3 text-center border transition-colors ${grupoAberto === nome ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-gray-50 hover:border-blue-300'}`}>
+                className={`min-w-0 rounded-xl p-3 text-center border transition-colors ${grupoAberto === nome ? 'border-marca bg-surface-2' : 'border-gray-200 bg-gray-50 hover:border-marca/30'}`}>
                 <span className="block text-xl mb-1">{ICONES[nome] || lista[0]?.icone || '📂'}</span>
                 <span className="block text-xs font-semibold text-gray-800 break-words">{nome}</span>
               </button>
@@ -121,7 +121,7 @@ export default function SeletorCategoriaModerno({
                       </button>
                       {subs.filter(s => s.nome.toLowerCase() !== 'geral').map(s => (
                         <button type="button" key={s.id} onClick={() => escolherSubcategoria(c, s)}
-                          className={`rounded-lg border px-2 py-2 text-left text-xs break-words ${String(subcategoriaValue) === String(s.id) ? 'border-blue-500 bg-blue-50 text-blue-900' : 'border-gray-200 bg-gray-50 text-gray-800'}`}>
+                          className={`rounded-lg border px-2 py-2 text-left text-xs break-words ${String(subcategoriaValue) === String(s.id) ? 'border-marca bg-surface-2 text-pri' : 'border-gray-200 bg-gray-50 text-gray-800'}`}>
                           {s.nome}
                         </button>
                       ))}

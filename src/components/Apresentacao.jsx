@@ -229,8 +229,8 @@ function VisualCustoVida() {
         ))}
       </div>
       
-      <div className="rounded-lg px-2.5 py-2" style={{ background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.2)' }}>
-        <p className="text-[10px] text-blue-200/80 text-center">
+      <div className="rounded-lg px-2.5 py-2 bg-marca/12 border border-marca/20">
+        <p className="text-[10px] text-marca/80 text-center">
           💡 Reduza custos e aumente sua margem de segurança
         </p>
       </div>
@@ -284,8 +284,8 @@ function VisualImportacao() {
         ))}
       </div>
       
-      <div className="rounded-lg px-2.5 py-2" style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.2)' }}>
-        <p className="text-[10px] text-purple-200/80 text-center">
+      <div className="rounded-lg px-2.5 py-2 bg-marca/12 border border-marca/20">
+        <p className="text-[10px] text-marca/80 text-center">
           ✨ Revisão inteligente antes de salvar
         </p>
       </div>

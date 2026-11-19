@@ -4,12 +4,12 @@ import { supabase } from '../../lib/supabase'
 
 // Tipos e status com rótulos/cores discretos (sem excesso de cor).
 const TIPO = {
-  sugestao: { label: 'Sugestão', classe: 'bg-blue-50 text-blue-700' },
-  duvida:   { label: 'Dúvida',   classe: 'bg-violet-50 text-violet-700' },
+  sugestao: { label: 'Sugestão', classe: 'bg-surface-2 text-marca' },
+  duvida:   { label: 'Dúvida',   classe: 'bg-surface-2 text-marca' },
   problema: { label: 'Problema', classe: 'bg-red-50 text-red-700' },
 }
 const STATUS = {
-  novo:        { label: 'Novo',       classe: 'bg-blue-50 text-blue-700' },
+  novo:        { label: 'Novo',       classe: 'bg-surface-2 text-marca' },
   em_analise:  { label: 'Em análise', classe: 'bg-amber-50 text-amber-700' },
   resolvido:   { label: 'Resolvido',  classe: 'bg-emerald-50 text-emerald-700' },
   arquivado:   { label: 'Arquivado',  classe: 'bg-gray-100 text-gray-500' },

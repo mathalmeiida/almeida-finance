@@ -48,13 +48,13 @@ export const ESTADOS_CONCILIACAO = {
 
   divergente: { label: 'Divergente', cor: 'text-orange-600', bg: 'bg-orange-50', incluir: true },
 
-  novo: { label: 'Novo', cor: 'text-blue-600', bg: 'bg-blue-50', incluir: true },
+  novo: { label: 'Novo', cor: 'text-marca', bg: 'bg-surface-2', incluir: true },
 
   ja_importado: { label: 'Já importado', cor: 'text-gray-600', bg: 'bg-gray-50', incluir: false },
 
-  transferencia: { label: 'Transferência', cor: 'text-purple-600', bg: 'bg-purple-50', incluir: false },
+  transferencia: { label: 'Transferência', cor: 'text-marca', bg: 'bg-surface-2', incluir: false },
 
-  pagamento_fatura: { label: 'Pagamento fatura', cor: 'text-indigo-600', bg: 'bg-indigo-50', incluir: false },
+  pagamento_fatura: { label: 'Pagamento fatura', cor: 'text-marca', bg: 'bg-surface-2', incluir: false },
 
 }
 

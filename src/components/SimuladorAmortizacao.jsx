@@ -123,7 +123,7 @@ export default function SimuladorAmortizacao({ inicial = {}, mostrarFgts = false
       {mostrarFgts && (
         <div className="rounded-xl border border-gray-200 p-3">
           <label className="label flex items-center gap-1.5">
-            <Landmark size={15} className="text-sky-600" /> FGTS a utilizar (R$)
+            <Landmark size={15} className="text-marca" /> FGTS a utilizar (R$)
           </label>
           <InputMoeda valor={fgts} onChangeValor={(n) => { setFgts(n); limpar() }} className="input" prefixo={null} />
           <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5 mt-2">
@@ -165,9 +165,9 @@ export default function SimuladorAmortizacao({ inicial = {}, mostrarFgts = false
             </div>
           )}
 
-          <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl p-3">
-            <Info size={15} className="text-blue-500 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-blue-700">
+          <div className="flex items-start gap-2 bg-marca-50 border border-marca-100 rounded-xl p-3">
+            <Info size={15} className="text-marca flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-marca">
               Simulação sobre o principal (sem seguros, tarifas e encargos). A economia considera os juros do cronograma, não apenas a prestação.
               {resultado.usouFgts && ' Parte do valor vem do FGTS — não sai do seu saldo bancário.'}
             </p>

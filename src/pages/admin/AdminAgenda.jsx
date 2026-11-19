@@ -5,7 +5,7 @@ import Modal from '../../components/Modal'
 import { mascararTelefone, somenteDigitosTelefone, linkWhatsApp, hojeISO as hojeISOBrasil } from '../../lib/utils'
 
 const STATUS = {
-  agendado:  { label: 'Agendado',  classe: 'bg-indigo-50 text-indigo-700' },
+  agendado:  { label: 'Agendado',  classe: 'bg-surface-2 text-marca' },
   concluido: { label: 'Concluído', classe: 'bg-emerald-50 text-emerald-700' },
   cancelado: { label: 'Cancelado', classe: 'bg-gray-100 text-gray-500' },
 }
@@ -141,7 +141,7 @@ export default function AdminAgenda({ interesseParaAgendar, onConsumido }) {
   }
 
   if (carregando) {
-    return <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-blue-500" /></div>
+    return <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-marca" /></div>
   }
   if (erro) {
     return <div className="card text-sm text-red-600">Não foi possível carregar a agenda: {erro}</div>
@@ -172,7 +172,7 @@ export default function AdminAgenda({ interesseParaAgendar, onConsumido }) {
             </a>
           )}
           <button onClick={() => abrirEdicao(a)}
-            className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg">
+            className="inline-flex items-center gap-1 text-xs font-medium text-marca bg-surface-2 hover:bg-surface px-2.5 py-1.5 rounded-lg">
             <Pencil size={13} /> Editar
           </button>
           <button onClick={() => remover(a.id)}
