@@ -68,13 +68,17 @@ export function useFamilyGoals(groupId) {
       setCarregando(true);
       setErro(null);
 
+      const valorCentavos = typeof valor_alvo === 'number' 
+        ? Math.round(valor_alvo * 100) 
+        : Math.round(parseFloat(valor_alvo) * 100);
+
       const { data, error } = await supabase
         .from('family_goals')
         .insert([{
           group_id: groupId,
           nome,
           descricao,
-          valor_alvo: Math.round(valor_alvo * 100), // centavos
+          valor_alvo: valorCentavos,
           data_alvo
         }])
         .select()
@@ -147,12 +151,16 @@ export function useFamilyGoals(groupId) {
       setCarregando(true);
       setErro(null);
 
+      const valorCentavos = typeof valor === 'number' 
+        ? Math.round(valor * 100) 
+        : Math.round(parseFloat(valor) * 100);
+
       const { error } = await supabase
         .from('family_goal_contributions')
         .insert([{
           goal_id: goalId,
           contributor_id: contributorId,
-          valor: Math.round(valor * 100) // centavos
+          valor: valorCentavos
         }]);
 
       if (error) throw error;

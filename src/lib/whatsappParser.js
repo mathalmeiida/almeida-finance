@@ -5,7 +5,7 @@
 
 const PALAVRAS_CHAVE_DESPESA = ['gastei', 'paguei', 'comprei', 'despesa', 'saiu'];
 const PALAVRAS_CHAVE_RECEITA = ['recebi', 'ganhei', 'entrada', 'receita'];
-const PALAVRAS_CHAVE_FAMILIAR = ['familia', 'familiar', 'conjunta', 'conjunt', 'grupo'];
+const PALAVRAS_CHAVE_FAMILIAR = ['familia', 'familiar', 'conjunta', 'conjunt', 'grupo', 'família'];
 
 const CATEGORIAS = {
   alimentacao: ['mercado', 'supermercado', 'feira', 'padaria', 'açougue', 'acougue', 'restaurante', 'lanche', 'comida', 'almoço', 'almoco', 'jantar'],
@@ -22,12 +22,13 @@ const CATEGORIAS = {
  * Extrai valor monetário da mensagem
  */
 function extrairValor(texto) {
-  // Padrões: R$ 50, 50 reais, R$50.00, 50,00
+  // Padrões: R$ 50, 50 reais, R$50.00, 50,00, 1500 (sem símbolo)
   const padroes = [
     /R\$\s*(\d+(?:[.,]\d{2})?)/i,
     /(\d+(?:[.,]\d{2})?)\s*reais/i,
     /(\d+(?:[.,]\d{2})?)\s*R\$/i,
-    /(?:^|\s)(\d+[.,]\d{2})(?:\s|$)/
+    /(?:^|\s)(\d+[.,]\d{2})(?:\s|$)/,
+    /(?:^|\s)(\d{2,5})(?:\s|$)(?!x)/ // números grandes sem x (evita parcelas)
   ];
 
   for (const padrao of padroes) {

@@ -17,7 +17,7 @@ import { formatCurrency } from '../lib/utils';
 export default function GrupoFamiliar() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, perfil } = useAuth();
   
   const [grupo, setGrupo] = useState(null);
   const [carregando, setCarregando] = useState(true);
@@ -26,7 +26,7 @@ export default function GrupoFamiliar() {
   const { membros, ehAdmin, alterarPapel, removerMembro } = useFamilyMembers(id);
   const { divisoes, criarDivisao, dividirIgualmente, marcarPago, calcularBalanco } = useFamilyExpenseSplits(id);
   const { metas, criarMeta, contribuir } = useFamilyGoals(id);
-  const { criarConvite } = useFamilyInvitations(user?.id);
+  const { criarConvite } = useFamilyInvitations(perfil?.email);
   
   const [modalDespesa, setModalDespesa] = useState(false);
   const [modalMeta, setModalMeta] = useState(false);
