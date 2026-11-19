@@ -89,7 +89,7 @@ export default function Login() {
       className="min-h-[100dvh] text-white overflow-x-hidden flex items-start sm:items-center justify-center"
       style={{ background: 'linear-gradient(160deg, #3d0a18 0%, #250610 100%)' }}
     >
-      <div className="w-full max-w-[1100px] mx-auto px-4 sm:px-8 py-6 sm:py-10 lg:grid lg:grid-cols-[1.2fr_0.8fr] lg:gap-12 xl:gap-16 lg:items-center">
+      <div className="w-full mx-auto px-4 sm:px-8 py-6 sm:py-10 lg:grid lg:grid-cols-[1.2fr_0.8fr] lg:gap-12 xl:gap-16 lg:items-center lg:max-w-[1100px]">
       {/* ── Apresentação (desktop) — alinhada à esquerda ── */}
       <aside className="hidden lg:flex flex-col justify-center gap-7">
         <div className="w-full max-w-md">
