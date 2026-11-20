@@ -529,7 +529,9 @@ export default function Receitas() {
 
   return (
     <div className="af-container space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* flex-wrap: em larguras intermediárias (ex.: tablet com menu lateral)
+          os botões descem para a linha de baixo em vez de sair da tela. */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Receitas</h1>
           <div className="flex items-center gap-2 mt-2">
@@ -542,11 +544,11 @@ export default function Receitas() {
               className="text-xs text-marca font-semibold">Hoje</button>}
           </div>
         </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => setModalImportacao(true)} className="btn-secondary flex items-center gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setModalImportacao(true)} className="btn-secondary flex items-center gap-2 whitespace-nowrap">
             <Upload size={16} /> Importar
           </button>
-          <button type="button" onClick={handleAbrirNova} className="btn-primary flex items-center gap-2">
+          <button type="button" onClick={handleAbrirNova} className="btn-primary flex items-center gap-2 whitespace-nowrap">
             <Plus size={16} /> Nova receita
           </button>
         </div>

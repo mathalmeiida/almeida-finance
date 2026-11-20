@@ -1,184 +1,68 @@
 // @ts-check
+// Layout nas 5 resoluções de referência, com dados de exemplo.
+// Falha se: a página rolar na horizontal, ou algum elemento sair da tela sem
+// estar dentro de um trilho com rolagem própria (carrossel), de um card que o
+// recorta de propósito ou de um painel fixo fora da tela (menu fechado).
+// Roda só no projeto desktop-chromium: cada teste define o próprio viewport.
 import { test, expect } from '@playwright/test'
 import { criarBancoMemoria, isolarSupabase, perfilFalso } from './apoio.js'
+import { DADOS } from './dados-exemplo.js'
 
-/**
- * TESTE: RESPONSIVIDADE
- * Valida interface em múltiplas resoluções e dispositivos
- * 
- * Resoluções testadas:
- * - 375×812: iPhone SE (celular pequeno)
- * - 360×800: Android comum
- * - 768×1024: iPad (tablet)
- * - 1366×768: Laptop comum
- * - 1920×1080: Desktop Full HD
- */
+const RESOLUCOES = [[360, 800], [375, 812], [768, 1024], [1366, 768], [1920, 1080]]
+const PAGINAS = ['/', '/receitas', '/despesas', '/cartoes', '/cartoes?cartao=c1', '/projecao', '/mais']
 
-const RESOLUCOES = [
-  { nome: 'iPhone SE', largura: 375, altura: 812, tipo: 'mobile' },
-  { nome: 'Android Comum', largura: 360, altura: 800, tipo: 'mobile' },
-  { nome: 'iPad', largura: 768, altura: 1024, tipo: 'tablet' },
-  { nome: 'Laptop', largura: 1366, altura: 768, tipo: 'desktop' },
-  { nome: 'Desktop FHD', largura: 1920, altura: 1080, tipo: 'desktop' },
-]
-
-const PAGINAS_PRINCIPAIS = [
-  { rota: '/', nome: 'Dashboard/Home' },
-  { rota: '/receitas', nome: 'Receitas' },
-  { rota: '/despesas', nome: 'Despesas' },
-  { rota: '/cartoes', nome: 'Cartões' },
-]
+/** Lista elementos que saem da tela, já classificados. Roda no navegador. */
+function vazamentos() {
+  const vw = document.documentElement.clientWidth
+  const descr = el => `${el.tagName.toLowerCase()}.${String(el.className?.baseVal ?? el.className).trim().split(/\s+/).slice(0, 5).join('.')}`
+  const reais = []
+  let intencionais = 0
+  for (const el of document.querySelectorAll('body *')) {
+    if (el instanceof SVGElement && el.tagName.toLowerCase() !== 'svg') continue
+    const b = el.getBoundingClientRect()
+    if (b.width === 0 || b.height === 0 || !(b.right > vw + 1 || b.left < -1)) continue
+    let intencional = false
+    for (let p = el.parentElement; p; p = p.parentElement) {
+      const s = getComputedStyle(p)
+      if (s.position === 'fixed' && (s.transform !== 'none' || s.translate !== 'none')) { intencional = true; break }
+      if (['auto', 'scroll'].includes(s.overflowX)) { intencional = true; break }
+      if (['hidden', 'clip'].includes(s.overflowX)) {
+        // Recorte por um card é intencional; recorte pela raiz esconde conteúdo.
+        intencional = p.getBoundingClientRect().width < vw - 1
+        break
+      }
+    }
+    if (intencional) intencionais++
+    else reais.push(`${descr(el)} [${Math.round(b.left)}→${Math.round(b.right)}] "${(el.textContent || '').trim().slice(0, 30)}"`)
+  }
+  return { vw, scrollWidth: document.documentElement.scrollWidth, reais, intencionais }
+}
 
 test.describe('Responsividade', () => {
-  for (const res of RESOLUCOES) {
-    test(`${res.nome} (${res.largura}×${res.altura})`, async ({ browser }) => {
-      const context = await browser.newContext({
-        viewport: { width: res.largura, height: res.altura },
-      })
-      const page = await context.newPage()
-      const banco = criarBancoMemoria({
-        despesas: [
-          { id: 'desp-1', descricao: 'Aluguel', valor: 1200, data: '2026-11-01', recorrente: true, frequencia: 'mensal', tipo_despesa: 'fixa', usuario_id: '00000000-0000-4000-8000-000000000001' },
-        ],
-        receitas: [
-          { id: 'rec-1', descricao: 'Salário', valor: 5000, data: '2026-11-05', recorrente: true, frequencia: 'mensal', usuario_id: '00000000-0000-4000-8000-000000000001' },
-        ],
-      })
+  test.beforeEach(() => { test.skip(test.info().project.name !== 'desktop-chromium', 'viewport definido por teste') })
 
-      await isolarSupabase(page, {
-        autenticado: true,
-        perfil: perfilFalso({
-          onboarding_concluido: true,
-          nome: 'Teste Responsividade',
-          saldo_base: 500000
-        }),
-        banco
-      })
-
-      console.log(`\n======================================================================`)
-      console.log(`TESTE RESPONSIVIDADE: ${res.nome.toUpperCase()} (${res.largura}×${res.altura})`)
-      console.log(`======================================================================\n`)
-
-      for (const pag of PAGINAS_PRINCIPAIS) {
-        console.log(`=== ${pag.nome} (${pag.rota}) ===`)
-        
-        await page.goto(pag.rota)
-        await page.waitForLoadState('networkidle')
-        await page.waitForTimeout(1500)
-        
-        // Verificar se a página carregou sem erro
-        const bodyText = await page.locator('body').textContent()
-        const temErro = bodyText.includes('Erro') || bodyText.includes('erro') || bodyText.includes('falha')
-        
-        if (temErro) {
-          console.log(`⚠️  Possível erro detectado na página`)
-        } else {
-          console.log(`✅ Página carregada`)
+  for (const tema of ['claro', 'escuro']) {
+    for (const [w, h] of RESOLUCOES) {
+      test(`${w}×${h} tema ${tema}: sem rolagem horizontal nem conteúdo cortado`, async ({ browser }) => {
+        test.setTimeout(90_000)
+        const ctx = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: w < 768 })
+        const page = await ctx.newPage()
+        await page.clock.setFixedTime(new Date('2026-11-10T12:00:00-03:00'))
+        await isolarSupabase(page, { autenticado: true, perfil: perfilFalso({ saldo_base: 5000, cor_tema: tema }), banco: criarBancoMemoria(DADOS) })
+        const problemas = []
+        for (const rota of PAGINAS) {
+          await page.goto(rota)
+          await page.locator('.splash-bar').waitFor({ state: 'detached' })
+          await page.waitForLoadState('networkidle')
+          await page.waitForTimeout(300)
+          const r = await page.evaluate(vazamentos)
+          console.log(`${w}x${h} ${tema} ${rota.padEnd(18)} rolagem ${r.scrollWidth}/${r.vw} | cortados ${r.reais.length} | em trilho/card ${r.intencionais}`)
+          if (r.scrollWidth > r.vw) problemas.push(`${rota}: rolagem horizontal (${r.scrollWidth}px > ${r.vw}px)`)
+          for (const x of r.reais) problemas.push(`${rota}: ${x}`)
         }
-        
-        // Verificar scroll horizontal (indica layout quebrado)
-        const scrollWidth = await page.evaluate(() => document.body.scrollWidth)
-        const clientWidth = await page.evaluate(() => document.body.clientWidth)
-        
-        if (scrollWidth > clientWidth + 10) { // +10 tolerância
-          console.log(`⚠️  SCROLL HORIZONTAL: ${scrollWidth}px (viewport: ${clientWidth}px)`)
-          console.log(`   Diferença: ${scrollWidth - clientWidth}px`)
-        } else {
-          console.log(`✅ Sem scroll horizontal`)
-        }
-        
-        // Verificar elementos fora da tela
-        const elementosForaDaTela = await page.evaluate((vw) => {
-          const elementos = document.querySelectorAll('*')
-          let count = 0
-          for (const el of elementos) {
-            const rect = el.getBoundingClientRect()
-            if (rect.right > vw && rect.width > 10) { // ignora elementos muito pequenos
-              count++
-            }
-          }
-          return count
-        }, res.largura)
-        
-        if (elementosForaDaTela > 5) { // tolerância
-          console.log(`⚠️  ${elementosForaDaTela} elementos ultrapassam a largura da tela`)
-        } else {
-          console.log(`✅ Elementos dentro da viewport`)
-        }
-        
-        // Verificar navegação (menu hamburguer em mobile, barra normal em desktop)
-        const tipoNav = res.tipo === 'mobile' ? 'menu hamburguer' : 'navegação horizontal'
-        console.log(`ℹ️  Tipo esperado: ${tipoNav}`)
-        
-        // Screenshot para análise visual (salvo em test-results)
-        await page.screenshot({
-          path: `test-results/responsividade-${res.nome.replace(/\s/g, '_')}-${pag.nome.replace(/\//g, '_')}.png`,
-          fullPage: false
-        })
-        
-        console.log(`📸 Screenshot salvo\n`)
-      }
-
-      console.log(`======================================================================`)
-      console.log(`✅ TESTE RESPONSIVIDADE ${res.nome.toUpperCase()} COMPLETO`)
-      console.log(`======================================================================\n`)
-
-      await context.close()
-    })
-  }
-
-  test('Comparar temas claro/escuro em mobile', async ({ browser }) => {
-    const context = await browser.newContext({
-      viewport: { width: 375, altura: 812 },
-    })
-    const page = await context.newPage()
-    const banco = criarBancoMemoria()
-
-    await isolarSupabase(page, {
-      autenticado: true,
-      perfil: perfilFalso({
-        onboarding_concluido: true,
-        nome: 'Teste Tema',
-        cor_tema: 'claro',
-        saldo_base: 100000
-      }),
-      banco
-    })
-
-    console.log(`\n======================================================================`)
-    console.log(`TESTE: TEMAS CLARO/ESCURO`)
-    console.log(`======================================================================\n`)
-
-    await page.goto('/')
-    await page.waitForLoadState('networkidle')
-    await page.waitForTimeout(1500)
-
-    // Tema claro
-    const corFundo = await page.evaluate(() => {
-      return window.getComputedStyle(document.body).backgroundColor
-    })
-    
-    console.log(`=== Tema Claro ===`)
-    console.log(`Cor de fundo: ${corFundo}`)
-    
-    const ehClaro = corFundo.includes('255') || corFundo.includes('rgb(255, 255, 255)')
-    if (ehClaro) {
-      console.log(`✅ Tema claro aplicado corretamente`)
-    } else {
-      console.log(`⚠️  Cor de fundo não é branca/clara`)
+        await ctx.close()
+        expect(problemas, problemas.join('\n')).toEqual([])
+      })
     }
-
-    await page.screenshot({
-      path: `test-results/tema-claro.png`,
-      fullPage: false
-    })
-
-    console.log(`📸 Screenshot tema claro salvo\n`)
-
-    console.log(`======================================================================`)
-    console.log(`✅ TESTE TEMAS COMPLETO`)
-    console.log(`======================================================================\n`)
-
-    await context.close()
-  })
+  }
 })
