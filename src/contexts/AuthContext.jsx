@@ -340,8 +340,11 @@ export function AuthProvider({ children }) {
   // Atualiza preferências de limite no perfil (modo e/ou valor manual).
   // Aceita um objeto com qualquer um dos campos: { limite_diario, modo_limite, saldo_base, etc }
   // 
-  // IMPORTANTE: Esta função é usada durante o onboarding E após ele ser concluído.
-  // Para garantir integridade, NUNCA alteramos onboarding_concluido implicitamente.
+  // PRINCÍPIO: Esta função atualiza APENAS preferências financeiras.
+  // NÃO gerencia nem modifica o status de onboarding_concluido.
+  // 
+  // SEGURANÇA: Utiliza .update() sem .select() para evitar sobrescrever
+  // campos não intencionais. O perfil é recarregado separadamente se necessário.
   async function atualizarPreferenciasLimite(campos) {
     if (!usuario) return
     // No modo consultoria o app está em somente leitura: não grava preferências
@@ -350,26 +353,31 @@ export function AuthProvider({ children }) {
       throw new Error('Modo Consultoria: visualização somente leitura. Edição desativada.')
     }
     
-    // CORREÇÃO DEFINITIVA: Se onboarding_concluido NÃO está sendo explicitamente
-    // atualizado, preservamos seu valor atual no banco (não deixamos o Supabase
-    // retornar um valor diferente que possa ter sido alterado por triggers).
-    const camposParaAtualizar = { ...campos }
-    if (!campos.hasOwnProperty('onboarding_concluido') && perfil) {
-      // Força o valor atual no UPDATE para garantir que não mude
-      camposParaAtualizar.onboarding_concluido = perfil.onboarding_concluido
+    // IMPORTANTE: Removemos explicitamente onboarding_concluido dos campos
+    // para garantir que esta função NUNCA altere o status de onboarding.
+    // Isso mantém separação clara de responsabilidades.
+    const { onboarding_concluido, ...camposFinanceiros } = campos
+    
+    // Se alguém tentar passar onboarding_concluido, ignoramos e alertamos
+    if (campos.hasOwnProperty('onboarding_concluido')) {
+      console.warn(
+        '[AuthContext] atualizarPreferenciasLimite: onboarding_concluido foi removido dos campos.',
+        'Use marcarOnboardingConcluido() para alterar o status de onboarding.'
+      )
     }
     
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('perfis')
-      .update(camposParaAtualizar)
+      .update(camposFinanceiros)
       .eq('id', usuario.id)
-      .select()
-      .single()
     
     if (error) throw error
     
-    setPerfil(data)
-    return data
+    // Atualiza apenas os campos financeiros no perfil local
+    setPerfil(p => p ? { ...p, ...camposFinanceiros } : p)
+    
+    // Retorna os campos atualizados (sem buscar do banco)
+    return camposFinanceiros
   }
 
   // Mantida por compatibilidade: salva apenas o valor manual
@@ -474,11 +482,30 @@ export function AuthProvider({ children }) {
   // Marca o onboarding (primeiro acesso) como concluído no perfil do usuário.
   // Persistido no banco (perfis.onboarding_concluido) → funciona em qualquer
   // dispositivo. Atualiza o perfil no contexto para refletir na hora.
+  // 
+  // ÚNICA FUNÇÃO QUE PODE MARCAR ONBOARDING COMO CONCLUÍDO.
   async function marcarOnboardingConcluido() {
     if (!usuario) return
     const { data, error } = await supabase
       .from('perfis')
       .update({ onboarding_concluido: true })
+      .eq('id', usuario.id)
+      .select()
+      .single()
+    if (error) throw error
+    setPerfil(data)
+    return data
+  }
+
+  // Reinicia o onboarding (usado por Admin ou quando usuário zera dados).
+  // Marca onboarding_concluido = false para reabrir o fluxo.
+  // 
+  // ÚNICA FUNÇÃO QUE PODE MARCAR ONBOARDING COMO NÃO CONCLUÍDO.
+  async function reiniciarOnboarding() {
+    if (!usuario) return
+    const { data, error } = await supabase
+      .from('perfis')
+      .update({ onboarding_concluido: false })
       .eq('id', usuario.id)
       .select()
       .single()
@@ -555,6 +582,7 @@ export function AuthProvider({ children }) {
     atualizarPreferenciasLimite,
     recarregarPerfil,          // recarga o perfil após atualizar foto/avatar
     marcarOnboardingConcluido,
+    reiniciarOnboarding,       // reinicia o onboarding (usado por Admin ou zerar dados)
     encerrarMinhaConta,
     // Aparência (cor do tema) — preferência efetiva (perfil do banco quando
     // disponível, senão localStorage). Robusto à migration pendente.
