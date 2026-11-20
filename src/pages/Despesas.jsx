@@ -9,6 +9,7 @@ import { useParcelamentos, valorParcelaNoMes, calcularParcelas } from '../hooks/
 import { useCategorias } from '../hooks/useCategorias'
 import SeletorCategoriaModerno from '../components/SeletorCategoriaModerno'
 import { useCartoes } from '../hooks/useCartoes'
+import { useComprasCartao } from '../hooks/useComprasCartao'
 import { useProjecao } from '../hooks/useProjecao'
 import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
@@ -26,10 +27,15 @@ const anoAtual = new Date().getFullYear()
 
 // ─── Formulário de despesa ────────────────────────────────────────────────────
 // Fluxo unificado: a diferenciação "1x / Parcelada" aparece apenas quando a
-// forma de pagamento é "Cartão de crédito". Internamente, continua usando a
-// lógica existente — à vista grava em "despesas" (onSalvarVista) e parcelada
-// grava em "parcelamentos" (onSalvarParcelada). Nenhum cálculo/banco muda.
-function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando, despesaInicial, textoBotao }) {
+// forma de pagamento é "Cartão de crédito".
+// Fonte única das compras de cartão = compras_cartao (a mesma usada pela aba
+// Cartões e pelo gasto rápido da Home). Uma compra nova no crédito, 1x ou
+// parcelada, vira UMA linha em compras_cartao (onSalvarCartao) e NUNCA uma
+// linha em "despesas": assim ela entra na fatura e no limite e é contada uma
+// única vez nos compromissos. Exceção: despesa recorrente no cartão
+// (assinatura), que compras_cartao não representa — segue em "despesas" com o
+// cartão obrigatório como vínculo.
+function FormDespesa({ onSalvarVista, onSalvarParcelada, onSalvarCartao, onCancelar, carregando, despesaInicial, textoBotao }) {
   const { categorias } = useCategorias('despesa')
   const { cartoes } = useCartoes()
   const editando = !!despesaInicial
@@ -67,8 +73,12 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
     cartao_id: despesaInicial?.cartao_id ?? '',
   })
 
+  // Erro de validação do cartão (exibido junto ao seletor).
+  const [erroCartao, setErroCartao] = useState('')
+
   function handleChange(e) {
     const { name, value } = e.target
+    if (name === 'cartao_id' || name === 'forma_pagamento') setErroCartao('')
     setForm(prev => ({ ...prev, [name]: value }))
   }
 
@@ -83,6 +93,11 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
   const ehCartaoCredito = form.forma_pagamento === 'cartao_credito'
   // Parcelada só é possível no cartão de crédito; edição nunca vira parcelamento.
   const ehParcelada = !editando && ehCartaoCredito && form.comoCompra === 'parcelada'
+  // Compra nova no crédito sem recorrência → compras_cartao (fonte única).
+  const ehCompraCartao = !editando && ehCartaoCredito && (ehParcelada || form.frequencia === 'nao_repete')
+  // Na criação no crédito o cartão é obrigatório (compra ou assinatura).
+  const exigeCartao = !editando && ehCartaoCredito
+  const semCartaoCadastrado = exigeCartao && cartoes.length === 0
 
   // Se a despesa foi salva com uma forma que não está no seletor atual
   // (ex.: dinheiro, VR, VA vindos do onboarding), inclui uma opção extra para
@@ -111,18 +126,28 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
       return
     }
 
-    // ── Caminho PARCELAMENTO (compra parcelada no cartão) ──
-    if (ehParcelada) {
-      onSalvarParcelada({
-        descricao: form.descricao,
+    // Cartão obrigatório no crédito: nunca grava compra/assinatura de cartão
+    // sem um cartao_id válido do próprio usuário.
+    const cartaoValido = cartoes.some(c => c.id === form.cartao_id)
+    if (exigeCartao && !cartaoValido) {
+      setErroCartao(cartoes.length === 0
+        ? 'Cadastre um cartão antes de registrar uma compra no crédito.'
+        : 'Selecione o cartão usado na compra.')
+      return
+    }
+
+    // ── Caminho COMPRA NO CARTÃO (1x ou parcelada) → compras_cartao ──
+    // Uma compra = um registro. As parcelas são projetadas pela regra de
+    // fechamento do cartão (lib/faturaCartao), sem criar N linhas.
+    if (ehCompraCartao) {
+      onSalvarCartao({
+        cartao_id: form.cartao_id,
+        descricao: form.descricao.trim(),
         valor_total: Number(form.valor) || 0,
-        numero_parcelas: parseInt(form.numero_parcelas),
-        // 1ª parcela = mês da data informada (mesmo formato do FormParcelamento)
-        primeira_parcela: form.data.slice(0, 7) + '-01',
+        data_compra: form.data,
+        numero_parcelas: ehParcelada ? parseInt(form.numero_parcelas, 10) : 1,
         categoria_id: form.categoria_id || null,
-        // A tabela parcelamentos não tem subcategoria_id; preservar cadastro parcelado.
-        forma_pagamento: 'cartao_credito',
-        cartao_id: form.cartao_id || null,
+        subcategoria_id: form.subcategoria_id || null,
       })
       return
     }
@@ -282,25 +307,37 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
                 </div>
               )}
 
-              {/* Em qual cartão? (opcional, igual ao FormParcelamento) */}
-              <label className="label mt-3">Em qual cartão? <span className="text-gray-400">(opcional)</span></label>
-              {cartoes.length === 0 ? (
-                <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-500">
-                  Você ainda não possui cartões cadastrados.
-                  <Link to="/cartoes" className="block mt-2 text-marca font-medium hover:underline">
-                    + Cadastrar cartão
-                  </Link>
-                </div>
-              ) : (
-                <select name="cartao_id" value={form.cartao_id} onChange={handleChange} className="input">
-                  <option value="">Não vincular a um cartão específico</option>
-                  {cartoes.map(c => (
-                    <option key={c.id} value={c.id}>{c.nome}{c.banco ? ` • ${c.banco}` : ''}</option>
-                  ))}
-                </select>
-              )}
             </div>
           )}
+
+          {/* Em qual cartão? — obrigatório para 1x, parcelada e assinatura. */}
+          <div>
+            <label className="label" htmlFor="despesa-cartao-id">Em qual cartão?</label>
+            {cartoes.length === 0 ? (
+              <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-3 text-sm text-gray-500">
+                Você ainda não possui cartões cadastrados.
+                <Link to="/cartoes" className="block mt-2 text-marca font-medium hover:underline">
+                  + Cadastrar cartão
+                </Link>
+              </div>
+            ) : (
+              <select id="despesa-cartao-id" name="cartao_id" value={form.cartao_id} onChange={handleChange}
+                className="input" aria-invalid={!!erroCartao} aria-describedby={erroCartao ? 'despesa-cartao-erro' : undefined}>
+                <option value="">Selecione o cartão</option>
+                {cartoes.map(c => (
+                  <option key={c.id} value={c.id}>{c.nome}{c.banco ? ` • ${c.banco}` : ''}</option>
+                ))}
+              </select>
+            )}
+            {erroCartao && (
+              <p id="despesa-cartao-erro" role="alert" className="text-xs text-red-600 mt-1">{erroCartao}</p>
+            )}
+            {ehCompraCartao && cartoes.length > 0 && (
+              <p className="text-xs text-gray-400 mt-1">
+                A compra entra na fatura deste cartão e reduz o limite disponível. Ela não é lançada de novo como despesa.
+              </p>
+            )}
+          </div>
         </div>
       )}
 
@@ -429,7 +466,7 @@ function FormDespesa({ onSalvarVista, onSalvarParcelada, onCancelar, carregando,
 
       <div className="flex gap-3 pt-1">
         <button type="button" onClick={onCancelar} className="btn-secondary flex-1">Cancelar</button>
-        <button type="submit" disabled={carregando}
+        <button type="submit" disabled={carregando || semCartaoCadastrado}
           className="btn-primary flex-1 flex items-center justify-center gap-2">
           {carregando
             ? <><Loader2 size={15} className="animate-spin" /> Salvando...</>
@@ -736,7 +773,7 @@ function FormFinanciamentoConsorcio({ tipo, onSalvar, onCancelar, carregando }) 
 
 // ─── Modal: Nova despesa (seletor de tipo) ou Editar despesa ──────────────────
 function ModalNovaDespesa({
-  aberto, onFechar, onSalvarVista, onSalvarParcelada,
+  aberto, onFechar, onSalvarVista, onSalvarParcelada, onSalvarCartao,
   salvandoVista, salvandoParcelada, despesaEmEdicao,
 }) {
   const editando = !!despesaEmEdicao
@@ -797,6 +834,7 @@ function ModalNovaDespesa({
           key={editando ? despesaEmEdicao.id : 'nova'}
           onSalvarVista={onSalvarVista}
           onSalvarParcelada={onSalvarParcelada}
+          onSalvarCartao={onSalvarCartao}
           onCancelar={onFechar}
           carregando={editando ? salvandoVista : (salvandoVista || salvandoParcelada)}
           despesaInicial={editando ? despesaEmEdicao : undefined}
@@ -1219,6 +1257,9 @@ export default function Despesas() {
   } = useParcelamentos()
   const { resumoMes } = useProjecao()
   const { cartoes } = useCartoes()
+  // Compras no crédito feitas por esta tela vão para compras_cartao (fonte
+  // única da fatura/limite), igual à aba Cartões e ao gasto rápido da Home.
+  const { criar: criarCompraCartao } = useComprasCartao()
 
   const [filtro, setFiltro] = useState('Todas')
   const [pagina, setPagina] = useState('visao')
@@ -1445,6 +1486,28 @@ export default function Despesas() {
       fecharModal()
     } catch (e) {
       console.error('[Despesas] Erro ao salvar:', e)
+      setErroAcao(`Não foi possível salvar: ${e?.message || 'erro desconhecido'}`)
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  // Compra nova no cartão de crédito (1x ou parcelada): UMA linha em
+  // compras_cartao. Não cria despesa nem parcelamento — evita contar a mesma
+  // compra duas vezes (como despesa e dentro da fatura).
+  async function handleSalvarCartao(dados) {
+    setSalvando(true)
+    setErroAcao('')
+    setAvisoSalvo('')
+    try {
+      const cartao = cartoes.find(c => c.id === dados.cartao_id)
+      if (!cartao) throw new Error('Selecione um cartão válido.')
+      await criarCompraCartao(dados)
+      const parcelas = Number(dados.numero_parcelas) > 1 ? ` em ${dados.numero_parcelas}x` : ''
+      setAvisoSalvo(`Compra${parcelas} lançada na fatura do cartão ${cartao.nome}. Confira as faturas na aba Cartões.`)
+      fecharModal()
+    } catch (e) {
+      console.error('[Despesas] Erro ao salvar compra no cartão:', e)
       setErroAcao(`Não foi possível salvar: ${e?.message || 'erro desconhecido'}`)
     } finally {
       setSalvando(false)
@@ -2127,6 +2190,7 @@ export default function Despesas() {
         onFechar={fecharModal}
         onSalvarVista={handleSalvar}
         onSalvarParcelada={handleSalvarParcelado}
+        onSalvarCartao={handleSalvarCartao}
         salvandoVista={salvando}
         salvandoParcelada={salvandoParc}
         despesaEmEdicao={despesaEditando}

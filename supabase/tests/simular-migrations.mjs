@@ -11,7 +11,7 @@ import { readFileSync, readdirSync, existsSync } from 'fs'
 const dir = new URL('../', import.meta.url)
 // pgcrypto não existe no PGlite; gen_random_uuid() é nativo desde o PG 13.
 const ler = p => readFileSync(new URL(p, dir), 'utf8').replace(/CREATE EXTENSION IF NOT EXISTS "?pgcrypto"?[^;]*;/gi, '-- (pgcrypto omitido na simulação)')
-const NOVAS = ['2026-11_atalhos_home.sql', '2026-11_onboarding_perfil.sql', '2026-11_importacoes.sql']
+const NOVAS = ['2026-11_atalhos_home.sql', '2026-11_onboarding_perfil.sql', '2026-11_importacoes.sql', '2026-11_compras_cartao_cartao_do_dono.sql']
 const A = '00000000-0000-4000-8000-00000000000a'
 const B = '00000000-0000-4000-8000-00000000000b'
 
@@ -148,6 +148,33 @@ ok('sem UPDATE/TRUNCATE para authenticated e sem acesso anônimo', !r.rows[0].u 
 r = await db.query(`SELECT has_column_privilege('authenticated','public.perfis','atalhos_home','UPDATE') a, has_column_privilege('authenticated','public.perfis','onboarding_etapa','UPDATE') b`)
 ok('UPDATE por coluna concedido nas colunas novas de perfis', r.rows[0].a && r.rows[0].b)
 ok('índices criados', idx.includes('idx_importacoes_usuario') && idx.includes('idx_importacoes_itens_importacao') && idx.includes('importacoes_itens_chave_unica'))
+console.log('\n# compras_cartao: cartão precisa ser do próprio usuário')
+r = await como(A, `INSERT INTO public.cartoes (usuario_id, nome, limite_total, dia_fechamento, dia_vencimento) VALUES ($1, 'Cartão A', 5000, 20, 28) RETURNING id`, [A])
+ok('A cria o próprio cartão', !r.erro, r.erro || '')
+const cartaoA = r.linhas?.[0]?.id
+r = await como(B, `INSERT INTO public.cartoes (usuario_id, nome, limite_total, dia_fechamento, dia_vencimento) VALUES ($1, 'Cartão B', 3000, 10, 17) RETURNING id`, [B])
+const cartaoB = r.linhas?.[0]?.id
+r = await como(A, `INSERT INTO public.compras_cartao (usuario_id, cartao_id, descricao, valor_total, data_compra, numero_parcelas) VALUES ($1, $2, 'Mercado', 300, '2026-11-12', 1) RETURNING id`, [A, cartaoA])
+ok('A grava compra no próprio cartão', !r.erro, r.erro || '')
+const compraA = r.linhas?.[0]?.id
+r = await como(A, `INSERT INTO public.compras_cartao (usuario_id, cartao_id, descricao, valor_total, data_compra) VALUES ($1, $2, 'Indevida', 10, '2026-11-12')`, [A, cartaoB])
+ok('A não grava compra no cartão de B', !!r.erro)
+r = await como(A, `UPDATE public.compras_cartao SET cartao_id = $1 WHERE id = $2`, [cartaoB, compraA])
+ok('A não move a compra para o cartão de B', !!r.erro || r.afetadas === 0)
+r = await como(A, `UPDATE public.compras_cartao SET valor_total = 350 WHERE id = $1`, [compraA])
+ok('A edita a própria compra', !r.erro && r.afetadas === 1, r.erro || '')
+r = await como(B, `SELECT count(*)::int AS n FROM public.compras_cartao`)
+ok('B não vê compras de A', !r.erro && r.linhas[0].n === 0, r.erro || '')
+r = await como(B, `DELETE FROM public.compras_cartao WHERE id = $1`, [compraA])
+ok('B não apaga compra de A', !r.erro && r.afetadas === 0, r.erro || '')
+r = await como(A, `INSERT INTO public.compras_cartao (usuario_id, cartao_id, descricao, valor_total, data_compra) VALUES ($1, NULL, 'Sem cartão', 10, '2026-11-12')`, [A])
+ok('compra sem cartão recusada', !!r.erro)
+r = await db.query(`SELECT cmd, count(*)::int AS n FROM pg_policies WHERE tablename = 'compras_cartao' GROUP BY cmd ORDER BY cmd`)
+const porCmd = Object.fromEntries(r.rows.map(x => [x.cmd, x.n]))
+ok('uma política por operação (sem FOR ALL residual)', !porCmd.ALL && porCmd.SELECT === 1 && porCmd.INSERT === 1 && porCmd.UPDATE === 1 && porCmd.DELETE === 1, JSON.stringify(porCmd))
+r = await como(A, `DELETE FROM public.compras_cartao WHERE id = $1`, [compraA])
+ok('A apaga a própria compra', !r.erro && r.afetadas === 1, r.erro || '')
+
 r = await db.query(`SELECT count(*)::int AS n FROM public.perfis`)
 ok('dados existentes preservados', r.rows[0].n === 2)
 
