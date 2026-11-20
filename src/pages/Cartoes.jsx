@@ -24,6 +24,7 @@ import {
   faturaInformadaNoMes,
   totalFaturaComOverride,
   totalParcelasFuturas,
+  competenciaPrimeiraParcela,
 } from '../lib/faturaCartao'
 const hoje = new Date()
 const mesAtual = hoje.getMonth() + 1
@@ -132,7 +133,9 @@ function FormCartao({ onSalvar, onCancelar, carregando, cartaoInicial, textoBota
   )
 }
 // ─── Formulário de nova compra no cartão ──────────────────────────────────────
-function FormCompra({ cartoes, cartaoIdFixo, onSalvar, onCancelar, carregando, compraInicial }) {
+// limiteLivre: limite ainda não comprometido do cartão (já somando de volta o
+// valor da própria compra em edição). Pode ser negativo. null = não avisar.
+function FormCompra({ cartoes, cartaoIdFixo, onSalvar, onCancelar, carregando, compraInicial, limiteLivre = null }) {
   const { categorias } = useCategorias('despesa')
   const [form, setForm] = useState({
     cartao_id: cartaoIdFixo ?? (cartoes[0]?.id ?? ''),
@@ -151,6 +154,9 @@ function FormCompra({ cartoes, cartaoIdFixo, onSalvar, onCancelar, carregando, c
   const { base: valorParcela } = Number(form.valor_total) > 0 && nParc
     ? calcularParcelas(Number(form.valor_total), nParc)
     : { base: 0 }
+  // Aviso (não bloqueia: a compra pode ter sido aprovada pelo banco mesmo assim).
+  const ultrapassaLimite = limiteLivre != null && Number(form.valor_total) > 0
+    && Math.round(Number(form.valor_total) * 100) > Math.round(limiteLivre * 100)
   function handleSubmit(e) {
     e.preventDefault()
     onSalvar({
@@ -194,6 +200,11 @@ function FormCompra({ cartoes, cartaoIdFixo, onSalvar, onCancelar, carregando, c
             type="date" className="input" required />
         </div>
       </div>
+      {ultrapassaLimite && (
+        <p role="status" className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          Esta compra ultrapassa o limite disponível de {formatCurrency(Math.max(0, limiteLivre))}. Ela será registrada mesmo assim; confira com o banco se foi aprovada.
+        </p>
+      )}
       {/* Categoria + subcategoria (mesmo seletor da aba Despesas). Ao trocar a
           categoria, a subcategoria é limpa automaticamente pelo componente. */}
       <SeletorCategoriaModerno
@@ -517,11 +528,29 @@ const [modalFatura, setModalFatura] = useState(false)
   async function handleRemover(id) {
     const compra = compras.find(c => String(c.id) === String(id))
     if (!compra) return
-    if (Number(compra.numero_parcelas || 1) > 1) {
-      setErro('Para excluir uma compra parcelada, precisamos validar antes as parcelas e faturas já pagas. Nenhuma parcela foi excluída.')
+    setErro('')
+    const n = Number(compra.numero_parcelas || 1)
+    if (n > 1) {
+      // Parcelada: só pode ser apagada se NENHUMA parcela caiu numa fatura já
+      // fechada (ciclo anterior ao aberto hoje) nem numa fatura marcada como
+      // paga. Assim o histórico de faturas fechadas/pagas nunca muda.
+      const chave = ({ ano, mes }) => ano * 12 + mes
+      const aberto = chave(competenciaPrimeiraParcela(hojeISO(), cartao.dia_fechamento))
+      const inicio = chave(competenciaPrimeiraParcela(compra.data_compra, cartao.dia_fechamento))
+      const temPaga = faturasInformadas.some(f => {
+        if (f.pago !== true || String(f.cartao_id) !== String(cartao.id)) return false
+        const [a, m] = String(f.ano_mes).split('-').map(Number)
+        const k = a * 12 + m
+        return k >= inicio && k < inicio + n
+      })
+      if (inicio < aberto || temPaga) {
+        setErro('Esta compra parcelada já tem parcela em fatura fechada ou paga. Para não alterar faturas anteriores, ela não foi excluída.')
+        return
+      }
+      if (!confirm(`Excluir a compra parcelada "${compra.descricao}"? As ${n} parcelas sairão das faturas atuais e futuras e o limite será liberado.`)) return
+    } else if (!confirm('Excluir definitivamente esta compra à vista? A fatura e as projeções poderão mudar.')) {
       return
     }
-    if (!confirm('Excluir definitivamente esta compra à vista? A fatura e as projeções poderão mudar.')) return
     setRemovendo(id)
     try { await remover(id) } catch { setErro('Erro ao remover.') } finally { setRemovendo(null) }
   }
@@ -760,7 +789,7 @@ const [modalFatura, setModalFatura] = useState(false)
     <button type="button" onClick={() => iniciarEdicao(l)} aria-label="Editar compra" title="Editar compra"
       className="touch-target rounded-lg text-marca hover:bg-marca-100"><Pencil size={15} /></button>
     <button type="button" onClick={() => handleRemover(l.id)} disabled={removendo === l.id}
-      aria-label="Excluir compra" title="Excluir compra à vista"
+      aria-label="Excluir compra" title="Excluir compra"
       className="touch-target rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
       {removendo === l.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
     </button>
@@ -825,7 +854,7 @@ const [modalFatura, setModalFatura] = useState(false)
     <button type="button" onClick={() => iniciarEdicao(l)} aria-label="Editar compra" title="Editar compra"
       className="touch-target rounded-lg text-marca hover:bg-marca-100"><Pencil size={15} /></button>
     <button type="button" onClick={() => handleRemover(l.id)} disabled={removendo === l.id}
-      aria-label="Excluir compra" title="Excluir compra à vista"
+      aria-label="Excluir compra" title="Excluir compra"
       className="touch-target rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
       {removendo === l.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
     </button>
@@ -892,7 +921,8 @@ const [modalFatura, setModalFatura] = useState(false)
         </div>
       </div>
       <Modal aberto={modalCompra} onFechar={() => { setModalCompra(false); setCompraEditando(null) }} titulo={compraEditando ? "Editar compra no cartão" : "Nova compra no cartão"}>
-        <FormCompra key={compraEditando?.id || "nova"} compraInicial={compraEditando} cartoes={[cartao]} cartaoIdFixo={cartao.id} onSalvar={handleSalvar} onCancelar={() => { setModalCompra(false); setCompraEditando(null) }} carregando={salvando} />
+        <FormCompra key={compraEditando?.id || "nova"} compraInicial={compraEditando} cartoes={[cartao]} cartaoIdFixo={cartao.id} onSalvar={handleSalvar} onCancelar={() => { setModalCompra(false); setCompraEditando(null) }} carregando={salvando}
+          limiteLivre={Number(cartao.limite_total) - comprometido + (compraEditando ? Number(compraEditando.valor_total) || 0 : 0)} />
       </Modal>
       <Modal aberto={modalFatura} onFechar={() => setModalFatura(false)} titulo="Informar total da fatura">
         <FormFatura
@@ -933,11 +963,11 @@ function CardCartao({ cartao, compras, parcelamentos = [], faturasInformadas = [
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           <button onClick={() => onEditar(cartao)} title="Editar cartão" aria-label="Editar cartão"
-            className="touch-target rounded-lg text-gray-400 hover:text-marca hover:bg-marca-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+            className="touch-target rounded-lg text-gray-400 hover:text-marca hover:bg-marca-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-all">
             <Pencil size={15} />
           </button>
           <button onClick={() => onRemover(cartao.id)} disabled={removendo === cartao.id} title="Excluir cartão" aria-label="Excluir cartão"
-            className="touch-target rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+            className="touch-target rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-all">
             {removendo === cartao.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
           </button>
         </div>
@@ -974,7 +1004,6 @@ export default function Cartoes() {
   const { compras } = useComprasCartao() //todas as compras (para resumo e cards)
   const { parcelamentos } = useParcelamentos()
   const { faturas: faturasInformadas } = useFaturasCartao() //totais informados
-  const [faturaAberta, setFaturaAberta] = useState(null) //cartão em visão de fatura
   const [modalCartao, setModalCartao] = useState(false)
   const [modalImportacao, setModalImportacao] = useState(false)
   const [cartaoEditando, setCartaoEditando] = useState(null)
@@ -983,8 +1012,22 @@ export default function Cartoes() {
   const [erro, setErro] = useState('')
   
   // Retorno ao onboarding
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const origemOnboarding = searchParams.get('origem') === 'onboarding'
+  // Fatura aberta fica na URL (/cartoes?cartao=<id>): sobrevive ao recarregar,
+  // pode ser compartilhada e o "voltar" do navegador retorna à lista.
+  const cartaoAbertoId = searchParams.get('cartao')
+  const faturaAberta = cartaoAbertoId ? (cartoes.find(c => String(c.id) === cartaoAbertoId) || null) : null
+  function abrirFatura(c) {
+    const p = new URLSearchParams(searchParams)
+    p.set('cartao', c.id)
+    setSearchParams(p)
+  }
+  function fecharFatura() {
+    const p = new URLSearchParams(searchParams)
+    p.delete('cartao')
+    setSearchParams(p)
+  }
 // Compras agrupadas por cartão (para passar a cada card sem refazer query)
   const comprasPorCartao = (cartaoId) => compras.filter(c => c.cartao_id === cartaoId)
   const parcelamentosPorCartao = (cartaoId) => parcelamentos.filter(p => p.cartao_id === cartaoId)
@@ -1021,7 +1064,7 @@ export default function Cartoes() {
   }
 // Visão de fatura de um cartão
   if (faturaAberta) {
-    return <VerFatura cartao={faturaAberta} onVoltar={() => setFaturaAberta(null)} onEditarCartao={() => { setFaturaAberta(null); abrirEdicao(faturaAberta) }} />
+    return <VerFatura cartao={faturaAberta} onVoltar={fecharFatura} onEditarCartao={() => { fecharFatura(); abrirEdicao(faturaAberta) }} />
   }
   return (
     <div className="af-container space-y-6">
@@ -1106,7 +1149,7 @@ export default function Cartoes() {
               parcelamentos={parcelamentosPorCartao(c.id)}
               faturasInformadas={faturasInformadas}
               faturaMes={faturaMesAtualCartao(c)}
-              onVerFatura={setFaturaAberta}
+              onVerFatura={abrirFatura}
               onEditar={abrirEdicao}
               onRemover={handleRemover}
               removendo={removendo}
