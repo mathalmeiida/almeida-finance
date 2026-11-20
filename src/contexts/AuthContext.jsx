@@ -14,7 +14,6 @@ export function AuthProvider({ children }) {
   const usuarioIdRef = useRef(null)
   const montadoRef = useRef(true)
   
-  // DEBUG: Log de estados (remover após diagnóstico)
   useEffect(() => {
     console.log('[AuthContext] Estado:', {
       carregando,
@@ -339,7 +338,11 @@ export function AuthProvider({ children }) {
   }
 
   // Atualiza preferências de limite no perfil (modo e/ou valor manual).
-  // Aceita um objeto com qualquer um dos campos: { limite_diario, modo_limite }
+  // Aceita um objeto com qualquer um dos campos: { limite_diario, modo_limite, saldo_base, etc }
+  // 
+  // IMPORTANTE: Esta função é usada durante o onboarding E após ele ser concluído.
+  // Para evitar que o onboarding seja fechado prematuramente durante a configuração,
+  // preservamos o valor atual de onboarding_concluido ao atualizar outros campos.
   async function atualizarPreferenciasLimite(campos) {
     if (!usuario) return
     // No modo consultoria o app está em somente leitura: não grava preferências
@@ -347,15 +350,31 @@ export function AuthProvider({ children }) {
     if (consultoriaAlvo) {
       throw new Error('Modo Consultoria: visualização somente leitura. Edição desativada.')
     }
+    
     const { data, error } = await supabase
       .from('perfis')
       .update(campos)
       .eq('id', usuario.id)
       .select()
       .single()
+    
     if (error) throw error
-    setPerfil(data) // reflete imediatamente no app
-    return data
+    
+    // CORREÇÃO DO BUG: Preservar onboarding_concluido do perfil anterior
+    // Se o banco retornar um valor diferente do que tínhamos localmente,
+    // mantemos o valor local (evita redirecionamento prematuro durante config)
+    const perfilAtualizado = {
+      ...data,
+      // Preserva o estado de onboarding_concluido que estava no perfil antes
+      // do update, a menos que o campo tenha sido explicitamente alterado
+      // pelo próprio update (quando marcarOnboardingConcluido é chamado)
+      onboarding_concluido: campos.hasOwnProperty('onboarding_concluido') 
+        ? data.onboarding_concluido  // Update intencional de onboarding_concluido
+        : perfil?.onboarding_concluido  // Preserva valor anterior
+    }
+    
+    setPerfil(perfilAtualizado)
+    return perfilAtualizado
   }
 
   // Mantida por compatibilidade: salva apenas o valor manual
