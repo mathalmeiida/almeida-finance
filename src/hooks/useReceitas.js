@@ -196,9 +196,11 @@ export function useReceitas(mes, ano) {
 
     if (error) throw error
 
-    if (pertenceAoMes(data.data, mes, ano)) {
-      setReceitas(prev => [data, ...prev])
-    }
+    // CORREÇÃO: Sempre adiciona ao estado local após criar, mesmo que não
+    // pertença ao mês atual do filtro. Isso garante que a receita apareça
+    // imediatamente após a criação, mesmo que o usuário mude o mês depois.
+    // A página pode aplicar seus próprios filtros de visualização.
+    setReceitas(prev => [data, ...prev])
 
     await buscarRecorrentes()
     return data

@@ -124,38 +124,48 @@ test.describe('Receitas - CRUD Completo', () => {
     // ═══════════════════════════════════════════════════════════════
     console.log('\n=== PASSO 5: Editar Receita ===')
     
-    // Encontrar item da receita e clicar para editar
-    const itemReceita = page.locator('li, div, button').filter({ hasText: /Bônus de Natal/i }).first()
+    // Primeiro, expandir o item da receita (accordion)
+    const itemReceita = page.locator('button').filter({ hasText: /Bônus de Natal/i }).first()
     
     if (await itemReceita.isVisible({ timeout: 3000 })) {
       await itemReceita.click()
       await page.waitForTimeout(800)
+      console.log('✅ Item expandido')
       
-      // Modal deve abrir novamente
-      await modal.waitFor({ state: 'visible', timeout: 5000 })
-      console.log('✅ Modal de edição aberto')
-      
-      // Alterar descrição
-      const inputDescEdicao = modal.locator('input[name="descricao"]')
-      await inputDescEdicao.fill('Bônus de Fim de Ano EDITADO')
-      console.log('✅ Descrição alterada')
-      
-      // Alterar valor
-      const inputValorEdicao = modal.locator('input[inputmode="numeric"]').first()
-      await inputValorEdicao.click()
-      await inputValorEdicao.fill('')
-      await inputValorEdicao.type('600000') // R$ 6.000,00
-      await page.waitForTimeout(300)
-      console.log('✅ Valor alterado para R$ 6.000,00')
-      
-      // Salvar edição
-      const btnSalvarEdicao = modal.locator('button[type="submit"], button').filter({ hasText: /Salvar|Confirmar/i }).first()
-      await btnSalvarEdicao.click()
-      await page.waitForTimeout(1500)
-      console.log('✅ Edição salva')
-      
-      // Verificar modal fechou
-      await expect(modal).not.toBeVisible({ timeout: 3000 })
+      // Agora clicar no botão "Editar" que aparece dentro do accordion
+      const btnEditar = page.locator('button').filter({ hasText: /Editar/i }).first()
+      if (await btnEditar.isVisible({ timeout: 2000 })) {
+        await btnEditar.click()
+        await page.waitForTimeout(800)
+        
+        // Modal deve abrir novamente
+        await modal.waitFor({ state: 'visible', timeout: 5000 })
+        console.log('✅ Modal de edição aberto')
+        
+        // Alterar descrição
+        const inputDescEdicao = modal.locator('input[name="descricao"]')
+        await inputDescEdicao.fill('Bônus de Fim de Ano EDITADO')
+        console.log('✅ Descrição alterada')
+        
+        // Alterar valor
+        const inputValorEdicao = modal.locator('input[inputmode="numeric"]').first()
+        await inputValorEdicao.click()
+        await inputValorEdicao.fill('')
+        await inputValorEdicao.type('600000') // R$ 6.000,00
+        await page.waitForTimeout(300)
+        console.log('✅ Valor alterado para R$ 6.000,00')
+        
+        // Salvar edição
+        const btnSalvarEdicao = modal.locator('button[type="submit"], button').filter({ hasText: /Salvar|Confirmar/i }).first()
+        await btnSalvarEdicao.click()
+        await page.waitForTimeout(1500)
+        console.log('✅ Edição salva')
+        
+        // Verificar modal fechou
+        await expect(modal).not.toBeVisible({ timeout: 3000 })
+      } else {
+        console.log('⚠️  Botão Editar não encontrado após expandir')
+      }
     } else {
       console.log('⚠️  Item de receita não encontrado para editar')
     }
@@ -180,25 +190,30 @@ test.describe('Receitas - CRUD Completo', () => {
     // ═══════════════════════════════════════════════════════════════
     console.log('\n=== PASSO 7: Excluir Receita ===')
     
-    // Procurar botão de excluir (pode estar no item ou aparecer após hover)
-    const btnExcluir = page.locator('button[aria-label*="Excluir"], button[title*="Excluir"], button').filter({ hasText: /Excluir|Remover/i }).first()
+    // O item pode estar fechado, vamos expandir novamente
+    const itemReceitaExcluir = page.locator('button').filter({ hasText: /EDITADO|Bônus/i }).first()
     
-    if (await btnExcluir.isVisible({ timeout: 2000 })) {
-      await btnExcluir.click()
-      await page.waitForTimeout(500)
-      
-      // Pode haver modal de confirmação
-      const modalConfirm = page.locator('[role="dialog"]')
-      if (await modalConfirm.isVisible({ timeout: 2000 })) {
-        const btnConfirmar = modalConfirm.locator('button').filter({ hasText: /Confirmar|Excluir|Sim/i }).first()
-        await btnConfirmar.click()
-        console.log('✅ Exclusão confirmada')
+    if (await itemReceitaExcluir.isVisible({ timeout: 2000 })) {
+      // Verificar se está expandido
+      const estaExpandido = await itemReceitaExcluir.getAttribute('aria-expanded')
+      if (estaExpandido !== 'true') {
+        await itemReceitaExcluir.click()
+        await page.waitForTimeout(500)
+        console.log('✅ Item expandido para exclusão')
       }
       
-      await page.waitForTimeout(1500)
-      console.log('✅ Receita excluída')
+      // Procurar botão de excluir
+      const btnExcluir = page.locator('button').filter({ hasText: /Excluir/i }).first()
+      
+      if (await btnExcluir.isVisible({ timeout: 2000 })) {
+        await btnExcluir.click()
+        await page.waitForTimeout(500)
+        console.log('✅ Receita excluída')
+      } else {
+        console.log('⚠️  Botão de exclusão não encontrado')
+      }
     } else {
-      console.log('⚠️  Botão de exclusão não encontrado')
+      console.log('⚠️  Item não encontrado para excluir')
     }
 
     // ═══════════════════════════════════════════════════════════════

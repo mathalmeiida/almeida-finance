@@ -128,10 +128,18 @@ test.describe('Despesas - CRUD Completo', () => {
     // ═══════════════════════════════════════════════════════════════
     console.log('\n=== PASSO 5: Editar Despesa ===')
     
-    const itemDespesa = page.locator('li, div, button').filter({ hasText: /Supermercado/i }).first()
+    // PATTERN ACCORDION: Primeiro expandir o item, depois clicar em "Editar"
+    const itemDespesa = page.locator('button[aria-expanded]').filter({ hasText: /Supermercado/i }).first()
     
     if (await itemDespesa.isVisible({ timeout: 3000 })) {
+      // Expandir item
       await itemDespesa.click()
+      await page.waitForTimeout(500)
+      console.log('✅ Item expandido')
+      
+      // Agora clicar no botão "Editar" dentro do accordion
+      const btnEditar = page.locator('button').filter({ hasText: /Editar/i }).first()
+      await btnEditar.click()
       await page.waitForTimeout(800)
       
       await modal.waitFor({ state: 'visible', timeout: 5000 })
@@ -181,23 +189,38 @@ test.describe('Despesas - CRUD Completo', () => {
     // ═══════════════════════════════════════════════════════════════
     console.log('\n=== PASSO 7: Excluir Despesa ===')
     
-    const btnExcluir = page.locator('button[aria-label*="Excluir"], button[title*="Excluir"], button').filter({ hasText: /Excluir|Remover/i }).first()
+    // PATTERN ACCORDION: Verificar se item está expandido, expandir se necessário
+    const itemParaExcluir = page.locator('button[aria-expanded]').filter({ hasText: /Mercado|Editado/i }).first()
     
-    if (await btnExcluir.isVisible({ timeout: 2000 })) {
-      await btnExcluir.click()
-      await page.waitForTimeout(500)
-      
-      const modalConfirm = page.locator('[role="dialog"]')
-      if (await modalConfirm.isVisible({ timeout: 2000 })) {
-        const btnConfirmar = modalConfirm.locator('button').filter({ hasText: /Confirmar|Excluir|Sim/i }).first()
-        await btnConfirmar.click()
-        console.log('✅ Exclusão confirmada')
+    if (await itemParaExcluir.isVisible({ timeout: 3000 })) {
+      const expandido = await itemParaExcluir.getAttribute('aria-expanded')
+      if (expandido !== 'true') {
+        await itemParaExcluir.click()
+        await page.waitForTimeout(500)
+        console.log('✅ Item expandido para exclusão')
       }
       
-      await page.waitForTimeout(1500)
-      console.log('✅ Despesa excluída')
+      // Agora clicar no botão "Excluir" dentro do accordion
+      const btnExcluir = page.locator('button').filter({ hasText: /Excluir|Remover/i }).first()
+      
+      if (await btnExcluir.isVisible({ timeout: 2000 })) {
+        await btnExcluir.click()
+        await page.waitForTimeout(500)
+        
+        const modalConfirm = page.locator('[role="dialog"]')
+        if (await modalConfirm.isVisible({ timeout: 2000 })) {
+          const btnConfirmar = modalConfirm.locator('button').filter({ hasText: /Confirmar|Excluir|Sim/i }).first()
+          await btnConfirmar.click()
+          console.log('✅ Exclusão confirmada')
+        }
+        
+        await page.waitForTimeout(1500)
+        console.log('✅ Despesa excluída')
+      } else {
+        console.log('⚠️  Botão de exclusão não encontrado')
+      }
     } else {
-      console.log('⚠️  Botão de exclusão não encontrado')
+      console.log('⚠️  Item de despesa não encontrado para excluir')
     }
 
     // ═══════════════════════════════════════════════════════════════
