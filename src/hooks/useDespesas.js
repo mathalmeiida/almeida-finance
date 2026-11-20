@@ -264,6 +264,34 @@ export function useDespesas(mes, ano) {
       throw error
     }
 
+    // INTEGRAÇÃO AUTOMÁTICA: Se despesa é no cartão de crédito, criar
+    // registro espelhado em compras_cartao para incluir na fatura.
+    if (dados.forma_pagamento === 'cartao_credito' && dados.cartao_id) {
+      try {
+        const compraPayload = {
+          usuario_id: usuario.id,
+          cartao_id: dados.cartao_id,
+          descricao: dados.descricao,
+          valor: dados.valor,
+          data_compra: dados.data,
+          categoria_id: dados.categoria_id || null,
+          despesa_id: data.id, // Referência cruzada
+          parcelas: 1 // Compra à vista (parcelamento usa tabela parcelamentos)
+        }
+
+        const { error: compraError } = await supabase
+          .from('compras_cartao')
+          .insert([compraPayload])
+
+        if (compraError) {
+          console.warn('[Despesas] Erro ao criar compra_cartao:', compraError)
+          // Não falha a operação principal, apenas loga warning
+        }
+      } catch (err) {
+        console.warn('[Despesas] Falha na integração compras_cartao:', err)
+      }
+    }
+
     await sincronizar()
     return data
   }
@@ -292,12 +320,62 @@ export function useDespesas(mes, ano) {
       throw error
     }
 
+    // INTEGRAÇÃO: Atualizar compra_cartao espelhada (se existir)
+    if (data.forma_pagamento === 'cartao_credito' && data.cartao_id) {
+      try {
+        // Buscar compra existente por despesa_id
+        const { data: comprasExistentes } = await supabase
+          .from('compras_cartao')
+          .select('id')
+          .eq('despesa_id', id)
+          .eq('usuario_id', usuario.id)
+
+        if (comprasExistentes && comprasExistentes.length > 0) {
+          // Atualizar compra existente
+          const compraUpdatePayload = {
+            cartao_id: dados.cartao_id || data.cartao_id,
+            descricao: dados.descricao || data.descricao,
+            valor: dados.valor !== undefined ? dados.valor : data.valor,
+            data_compra: dados.data || data.data,
+            categoria_id: dados.categoria_id !== undefined ? dados.categoria_id : data.categoria_id
+          }
+
+          await supabase
+            .from('compras_cartao')
+            .update(compraUpdatePayload)
+            .eq('id', comprasExistentes[0].id)
+            .eq('usuario_id', usuario.id)
+        }
+      } catch (err) {
+        console.warn('[Despesas] Falha ao sincronizar compra_cartao:', err)
+      }
+    }
+
     await sincronizar()
     return data
   }
 
   async function remover(id) {
     validarEscrita()
+
+    // INTEGRAÇÃO: Remover compra_cartao espelhada ANTES de remover despesa
+    try {
+      const { data: comprasVinculadas } = await supabase
+        .from('compras_cartao')
+        .select('id')
+        .eq('despesa_id', id)
+        .eq('usuario_id', usuario.id)
+
+      if (comprasVinculadas && comprasVinculadas.length > 0) {
+        await supabase
+          .from('compras_cartao')
+          .delete()
+          .eq('despesa_id', id)
+          .eq('usuario_id', usuario.id)
+      }
+    } catch (err) {
+      console.warn('[Despesas] Falha ao remover compra_cartao vinculada:', err)
+    }
 
     const { error } = await supabase
       .from('despesas')
