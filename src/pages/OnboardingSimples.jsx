@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 
 import { useSearchParams } from 'react-router-dom'
 
-import { FileText, Wallet, ArrowRight, CheckCircle2, Upload, Loader2, X } from 'lucide-react'
+import { FileText, Wallet, ArrowRight, CheckCircle2, Upload, Loader2, X, TrendingUp, TrendingDown, CreditCard, UtensilsCrossed } from 'lucide-react'
 
 import { useAuth } from '../contexts/AuthContext'
 
@@ -13,6 +13,8 @@ import { useCartoes } from '../hooks/useCartoes'
 import { useBeneficios } from '../hooks/useBeneficios'
 
 import { useInvestimentos } from '../hooks/useInvestimentos'
+import { useReceitas } from '../hooks/useReceitas'
+import { useDespesas } from '../hooks/useDespesas'
 
 import InputMoeda from '../components/InputMoeda'
 
@@ -57,6 +59,8 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
   const { beneficios } = useBeneficios()
 
   const { investimentos } = useInvestimentos()
+  const { receitas } = useReceitas()
+  const { despesas } = useDespesas()
 
   const [searchParams] = useSearchParams()
 
@@ -88,11 +92,51 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
 
   const [saldo, setSaldo] = useState(0)
 
-  const [renda, setRenda] = useState(0)
+  // 'Não utilizo': conjunto de módulos que o usuário declarou não utilizar.
+  // Persiste em localStorage para sobreviver ao reload. Chave por userId.
+  const CHAVE_NAO_UTILIZO = (id) => 'almeida_onboarding_nao_utilizo_' + id
 
-  const [despesaFixa, setDespesaFixa] = useState(0)
+  const [modulosNaoUtilizo, setModulosNaoUtilizo] = useState(() => {
+    try {
+      const id = usuario?.id
+      if (!id) return []
+      return JSON.parse(localStorage.getItem('almeida_onboarding_nao_utilizo_' + id) || '[]')
+    } catch { return [] }
+  })
 
-  const [despesaVariavel, setDespesaVariavel] = useState(0)
+  // Re-carrega quando o userId chega (caso carregue depois do mount)
+  useEffect(() => {
+    if (!usuario?.id) return
+    try {
+      const saved = JSON.parse(localStorage.getItem('almeida_onboarding_nao_utilizo_' + usuario.id) || '[]')
+      setModulosNaoUtilizo(saved)
+    } catch {}
+  }, [usuario?.id])
+
+  function toggleNaoUtilizo(modulo) {
+    const nova = modulosNaoUtilizo.includes(modulo)
+      ? modulosNaoUtilizo.filter(m => m !== modulo)
+      : [...modulosNaoUtilizo, modulo]
+    setModulosNaoUtilizo(nova)
+    if (usuario?.id) {
+      try { localStorage.setItem('almeida_onboarding_nao_utilizo_' + usuario.id, JSON.stringify(nova)) } catch {}
+    }
+  }
+
+  // Status de cada módulo
+  function statusModulo(modulo) {
+    const naoUsa = modulosNaoUtilizo.includes(modulo)
+    if (naoUsa) return 'nao_utilizo'
+    switch (modulo) {
+      case 'saldo':         return perfil?.saldo_base != null ? 'configurado' : 'nao_configurado'
+      case 'receitas':      return receitas.length > 0 ? 'configurado' : 'nao_configurado'
+      case 'despesas':      return despesas.length > 0 ? 'configurado' : 'nao_configurado'
+      case 'cartoes':       return cartoes.length > 0 ? 'configurado' : 'nao_configurado'
+      case 'vrva':          return beneficios.length > 0 ? 'configurado' : 'nao_configurado'
+      case 'investimentos': return investimentos.length > 0 ? 'configurado' : 'nao_configurado'
+      default:              return 'nao_configurado'
+    }
+  }
 
   // O retorno é explícito: prop etapaInicial='central' (via App.jsx/CHAVE_ETAPA_ONBOARDING)
   // ou searchParams ?etapa=central como fallback.
@@ -156,215 +200,6 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
     setEtapa(ETAPA_CENTRAL)
   }
 
-  async function handleSalvarConfiguracao() {
-
-    setSalvando(true)
-
-    let receitasCriadas = 0
-
-    let despesasCriadas = 0
-
-    try {
-
-      // Salva saldo
-
-      if (saldo > 0) {
-
-        await atualizarPreferenciasLimite({
-
-          saldo_base: saldo,
-
-          saldo_base_data: hojeISOBrasil(),
-
-        })
-
-      }
-
-      // Salva renda como receita recorrente mensal (idempotente)
-
-      if (renda > 0 && categoriasReceita.length > 0) {
-
-        const categoriaRenda = categoriasReceita.find(c => 
-
-          c.nome === 'Salário' || c.nome === 'Renda'
-
-        ) || categoriasReceita[0]
-
-        // Verifica se já existe receita do onboarding
-
-        const { data: receitaExistente } = await supabase
-
-          .from('receitas')
-
-          .select('id, valor')
-
-          .eq('usuario_id', usuario.id)
-
-          .eq('descricao', 'Renda mensal')
-
-          .eq('recorrente', true)
-
-          .eq('frequencia', 'mensal')
-
-          .maybeSingle()
-
-        if (receitaExistente) {
-
-          // Atualiza valor se mudou
-
-          if (Number(receitaExistente.valor) !== renda) {
-
-            await supabase
-
-              .from('receitas')
-
-              .update({ valor: renda, categoria_id: categoriaRenda.id })
-
-              .eq('id', receitaExistente.id)
-
-          }
-
-          receitasCriadas++
-
-        } else {
-
-          // Cria nova receita
-
-          const { error: erroReceita } = await supabase
-
-            .from('receitas')
-
-            .insert([{
-
-              usuario_id: usuario.id,
-
-              descricao: 'Renda mensal',
-
-              valor: renda,
-
-              data: hojeISOBrasil(),
-
-              recorrente: true,
-
-              frequencia: 'mensal',
-
-              categoria_id: categoriaRenda.id,
-
-            }])
-
-          if (!erroReceita) receitasCriadas++
-
-        }
-
-      }
-
-      // Salva despesas fixas como despesa recorrente mensal (idempotente)
-
-      if (despesaFixa > 0 && categoriasDespesa.length > 0) {
-
-        const categoriaDespesas = categoriasDespesa.find(c => 
-
-          c.nome === 'Moradia' || c.nome === 'Contas' || c.nome === 'Despesas Fixas'
-
-        ) || categoriasDespesa[0]
-
-        // Verifica se já existe despesa do onboarding
-
-        const { data: despesaExistente } = await supabase
-
-          .from('despesas')
-
-          .select('id, valor')
-
-          .eq('usuario_id', usuario.id)
-
-          .eq('descricao', 'Despesas fixas mensais')
-
-          .eq('recorrente', true)
-
-          .eq('frequencia', 'mensal')
-
-          .maybeSingle()
-
-        if (despesaExistente) {
-
-          // Atualiza valor se mudou
-
-          if (Number(despesaExistente.valor) !== despesaFixa) {
-
-            await supabase
-
-              .from('despesas')
-
-              .update({ valor: despesaFixa, categoria_id: categoriaDespesas.id })
-
-              .eq('id', despesaExistente.id)
-
-          }
-
-          despesasCriadas++
-
-        } else {
-
-          // Cria nova despesa
-
-          const { error: erroDespesa } = await supabase
-
-            .from('despesas')
-
-            .insert([{
-
-              usuario_id: usuario.id,
-
-              descricao: 'Despesas fixas mensais',
-
-              valor: despesaFixa,
-
-              data: hojeISOBrasil(),
-
-              recorrente: true,
-
-              frequencia: 'mensal',
-
-              tipo_despesa: 'fixa',
-
-              categoria_id: categoriaDespesas.id,
-
-            }])
-
-          if (!erroDespesa) despesasCriadas++
-
-        }
-
-      }
-
-      // Despesas variáveis são apenas estimativa, não cria lançamento
-
-      // (usuário registra conforme for gastando)
-
-      setContadores({
-
-        receitas: receitasCriadas,
-
-        despesas: despesasCriadas,
-
-      })
-
-      // Volta para a central em vez de concluir automaticamente
-      setEtapa(ETAPA_CENTRAL)
-
-    } catch (err) {
-
-      alert('Erro ao salvar: ' + (err?.message || String(err)))
-
-    } finally {
-
-      setSalvando(false)
-
-    }
-
-  }
-
   function handleImportacaoConcluida() {
 
     setEtapa(ETAPA_CONCLUSAO)
@@ -416,9 +251,9 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
 
             saldo: perfil?.saldo_base || 0,
 
-            receitas: contadores.receitas > 0 ? contadores.receitas : (receitasRes.count || 0),
+            receitas: receitasRes.count || 0,
 
-            despesas: contadores.despesas > 0 ? contadores.despesas : (despesasRes.count || 0),
+            despesas: despesasRes.count || 0,
 
             cartoes: cartoes.length,
 
@@ -438,7 +273,7 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
 
     }
 
-  }, [etapa, usuario, perfil, cartoes, investimentos, contadores])
+  }, [etapa, usuario, perfil, cartoes, investimentos])
 
   if (etapa === ETAPA_BOAS_VINDAS) {
 
@@ -613,204 +448,101 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
 
           <div className="space-y-3">
 
-            {/* Saldo e Contas - Inline */}
-
-            <button
-
-              onClick={() => {
-                setEtapa(ETAPA_SALDO)
-
-              }}
-
-              className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
-
-            >
-
-              <div className="w-12 h-12 rounded-xl bg-surface-2 flex items-center justify-center flex-shrink-0">
-
-                <Wallet size={24} style={{color: '#801D39'}} />
-
-              </div>
-
-              <div className="flex-1 text-left min-w-0">
-
-                <h3 className="font-semibold text-gray-900 mb-0.5">Saldo e Contas</h3>
-
-                <p className="text-xs text-gray-600">Seu saldo bancário inicial</p>
-
-              </div>
-
-              <ArrowRight size={20} className="text-gray-400 group-hover:text-marca transition-colors flex-shrink-0" />
-
-            </button>
-
-            {/* Receitas */}
-
-            <button
-
-              onClick={() => {
-                localStorage.setItem(CHAVE_CONFIGURANDO, '1')
-
-                window.location.href = '/receitas?origem=onboarding'
-
-              }}
-
-              className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
-
-            >
-
-              <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0">
-
-                <ArrowRight size={24} className="text-green-600 rotate-180" />
-
-              </div>
-
-              <div className="flex-1 text-left min-w-0">
-
-                <h3 className="font-semibold text-gray-900 mb-0.5">Receitas</h3>
-
-                <p className="text-xs text-gray-600">Salários, rendas e entradas</p>
-
-              </div>
-
-              <ArrowRight size={20} className="text-gray-400 group-hover:text-marca transition-colors flex-shrink-0" />
-
-            </button>
-
-            {/* Despesas */}
-
-            <button
-
-              onClick={() => {
-                localStorage.setItem(CHAVE_CONFIGURANDO, '1')
-
-                window.location.href = '/despesas?origem=onboarding'
-
-              }}
-
-              className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
-
-            >
-
-              <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
-
-                <ArrowRight size={24} className="text-red-600" />
-
-              </div>
-
-              <div className="flex-1 text-left min-w-0">
-
-                <h3 className="font-semibold text-gray-900 mb-0.5">Despesas</h3>
-
-                <p className="text-xs text-gray-600">Gastos fixos e variáveis</p>
-
-              </div>
-
-              <ArrowRight size={20} className="text-gray-400 group-hover:text-marca transition-colors flex-shrink-0" />
-
-            </button>
-
-            {/* Cartões */}
-
-            <button
-
-              onClick={() => {
-                localStorage.setItem(CHAVE_CONFIGURANDO, '1')
-
-                window.location.href = '/cartoes?origem=onboarding'
-
-              }}
-
-              className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
-
-            >
-
-              <div className="w-12 h-12 rounded-xl bg-surface-2 flex items-center justify-center flex-shrink-0">
-
-                <CheckCircle2 size={24} className="text-marca" />
-
-              </div>
-
-              <div className="flex-1 text-left min-w-0">
-
-                <h3 className="font-semibold text-gray-900 mb-0.5">Cartões</h3>
-
-                <p className="text-xs text-gray-600">Cartões de crédito</p>
-
-              </div>
-
-              <ArrowRight size={20} className="text-gray-400 group-hover:text-marca transition-colors flex-shrink-0" />
-
-            </button>
-
-            {/* VR/VA */}
-
-            <button
-
-              onClick={() => {
-                localStorage.setItem(CHAVE_CONFIGURANDO, '1')
-
-                window.location.href = '/beneficios?origem=onboarding'
-
-              }}
-
-              className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
-
-            >
-
-              <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
-
-                <FileText size={24} className="text-amber-600" />
-
-              </div>
-
-              <div className="flex-1 text-left min-w-0">
-
-                <h3 className="font-semibold text-gray-900 mb-0.5">VR/VA</h3>
-
-                <p className="text-xs text-gray-600">Vale refeição e alimentação</p>
-
-              </div>
-
-              <ArrowRight size={20} className="text-gray-400 group-hover:text-marca transition-colors flex-shrink-0" />
-
-            </button>
-
-            {/* Investimentos */}
-
-            <button
-
-              onClick={() => {
-                localStorage.setItem(CHAVE_CONFIGURANDO, '1')
-
-                window.location.href = '/investimentos?origem=onboarding'
-
-              }}
-
-              className="w-full bg-white border-2 border-gray-200 hover:border-marca rounded-xl p-4 transition-all hover:shadow-lg group flex items-center gap-3"
-
-            >
-
-              <div className="w-12 h-12 rounded-xl bg-surface-2 flex items-center justify-center flex-shrink-0">
-
-                <Upload size={24} className="text-marca" />
-
-              </div>
-
-              <div className="flex-1 text-left min-w-0">
-
-                <h3 className="font-semibold text-gray-900 mb-0.5">Investimentos</h3>
-
-                <p className="text-xs text-gray-600">Patrimônio investido</p>
-
-              </div>
-
-              <ArrowRight size={20} className="text-gray-400 group-hover:text-marca transition-colors flex-shrink-0" />
-
-            </button>
-
+            {/* ─── Módulos de configuração ─── */}
+            {/* Componente de badge de status */}
+            {[
+              {
+                id: 'saldo', label: 'Saldo e Contas',
+                desc: 'Saldo bancário disponível hoje',
+                icone: <Wallet size={22} style={{color:'#801D39'}} />,
+                bg: 'bg-surface-2',
+                onClick: () => setEtapa(ETAPA_SALDO),
+              },
+              {
+                id: 'receitas', label: 'Receitas',
+                desc: 'Salários, rendas e entradas',
+                icone: <TrendingUp size={22} className="text-green-600" />,
+                bg: 'bg-green-50',
+                onClick: () => { localStorage.setItem(CHAVE_CONFIGURANDO, '1'); window.location.href = '/receitas?origem=onboarding' },
+              },
+              {
+                id: 'despesas', label: 'Despesas',
+                desc: 'Gastos fixos e variáveis',
+                icone: <TrendingDown size={22} className="text-red-600" />,
+                bg: 'bg-red-50',
+                onClick: () => { localStorage.setItem(CHAVE_CONFIGURANDO, '1'); window.location.href = '/despesas?origem=onboarding' },
+              },
+              {
+                id: 'cartoes', label: 'Cartões de crédito',
+                desc: 'Acompanhe faturas e limites',
+                icone: <CreditCard size={22} className="text-marca" />,
+                bg: 'bg-surface-2',
+                onClick: () => { localStorage.setItem(CHAVE_CONFIGURANDO, '1'); window.location.href = '/cartoes?origem=onboarding' },
+              },
+              {
+                id: 'vrva', label: 'VR / VA',
+                desc: 'Vale-refeição e vale-alimentação',
+                icone: <UtensilsCrossed size={22} className="text-amber-600" />,
+                bg: 'bg-amber-50',
+                onClick: () => { localStorage.setItem(CHAVE_CONFIGURANDO, '1'); window.location.href = '/beneficios?origem=onboarding' },
+              },
+              {
+                id: 'investimentos', label: 'Investimentos',
+                desc: 'Patrimônio investido',
+                icone: <TrendingUp size={22} className="text-blue-600" />,
+                bg: 'bg-blue-50',
+                onClick: () => { localStorage.setItem(CHAVE_CONFIGURANDO, '1'); window.location.href = '/investimentos?origem=onboarding' },
+              },
+            ].map(mod => {
+              const st = statusModulo(mod.id)
+              const ehConfigurado = st === 'configurado'
+              const ehNaoUtilizo = st === 'nao_utilizo'
+              return (
+                <div key={mod.id} className="rounded-xl border-2 border-gray-200 bg-white overflow-hidden">
+                  {/* Linha principal: ícone + título + status + seta */}
+                  <button
+                    onClick={mod.onClick}
+                    disabled={ehNaoUtilizo}
+                    className={`w-full p-4 transition-all flex items-center gap-3 text-left ${ehNaoUtilizo ? 'opacity-50 cursor-not-allowed' : 'hover:border-marca hover:shadow-sm group'}`}
+                  >
+                    <div className={`w-10 h-10 rounded-xl ${mod.bg} flex items-center justify-center flex-shrink-0`}>
+                      {mod.icone}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-gray-900 text-sm">{mod.label}</span>
+                        {ehConfigurado && (
+                          <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">✓ Configurado</span>
+                        )}
+                        {ehNaoUtilizo && (
+                          <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700">Não utilizo</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">{mod.desc}</p>
+                    </div>
+                    {!ehNaoUtilizo && <ArrowRight size={16} className="text-gray-400 group-hover:text-marca flex-shrink-0" />}
+                  </button>
+                  {/* Linha secundária: Não utilizo / Desfazer */}
+                  <div className="border-t border-gray-100 px-4 py-2 flex items-center justify-between">
+                    <span className="text-xs text-gray-400">
+                      {ehNaoUtilizo
+                        ? 'Declarado como não utilizado'
+                        : ehConfigurado
+                          ? 'Módulo configurado — clique para editar'
+                          : 'Opcional — configure quando quiser'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => toggleNaoUtilizo(mod.id)}
+                      className={`text-xs font-medium underline underline-offset-2 ml-3 whitespace-nowrap ${ehNaoUtilizo ? 'text-blue-600 hover:text-blue-800' : 'text-gray-400 hover:text-gray-600'}`}
+                    >
+                      {ehNaoUtilizo ? 'Desfazer' : 'Não utilizo'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
           </div>
-
           <div className="flex gap-3 mt-6">
 
             <button
