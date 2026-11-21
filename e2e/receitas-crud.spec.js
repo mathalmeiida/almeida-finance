@@ -30,6 +30,7 @@ test.describe('Receitas - CRUD Completo', () => {
     // PASSO 1: Navegar para Receitas
     // ═══════════════════════════════════════════════════════════════
     console.log('=== PASSO 1: Navegar para Receitas ===')
+    await page.clock.setFixedTime(new Date('2026-11-10T12:00:00-03:00'))
     await page.goto('/receitas')
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(1000)
@@ -76,8 +77,8 @@ test.describe('Receitas - CRUD Completo', () => {
     
     // Preencher data
     const inputData = modal.locator('input[type="date"]').first()
-    await inputData.fill('2026-12-20')
-    console.log('✅ Data preenchida: 2026-12-20')
+    await inputData.fill('2026-11-20')
+    console.log('✅ Data preenchida: 2026-11-20')
     
     // Selecionar categoria (opcional, mas vamos testar)
     const selectCategoria = modal.locator('select[name="categoria"]')
