@@ -48,8 +48,11 @@ function FormGastoRapido({ onSalvar, onCancelar, carregando, onMaisOpcoes, erro,
   const { cartoes } = useCartoes()
   const [form, setForm] = useState({
     descricao: '', valor: '', categoria_id: '', subcategoria_id: '',
-    data: dataInicial || hojeISOBrasil(), forma_pagamento: '', cartao_id: '', beneficio_id: '',
+    data: dataInicial || hojeISOBrasil(), 
+    forma_pagamento: 'dinheiro', // PADRÃO INTELIGENTE: dinheiro é o mais comum
+    cartao_id: '', beneficio_id: '',
   })
+  const [mostrarOpcoes, setMostrarOpcoes] = useState(false) // Oculta opções avançadas por padrão
 
   const formaSelecionada = FORMAS_PAGAMENTO.find(f => f.value === form.forma_pagamento)
   const nomeForma = String(formaSelecionada?.label || '').toLowerCase()
@@ -81,9 +84,10 @@ function FormGastoRapido({ onSalvar, onCancelar, carregando, onMaisOpcoes, erro,
     if (carregando) return
     const valorNum = Number(form.valor)
     if (!Number.isFinite(valorNum) || valorNum <= 0) return
-    if (!form.forma_pagamento) return
+    // Validações específicas apenas se a opção foi escolhida
     if (ehCartaoCredito && !form.cartao_id) return
     if (tipoBeneficio && !form.beneficio_id) return
+    
     const catSelecionada = categorias.find(c => c.id === form.categoria_id)
     const descricao = form.descricao.trim() || catSelecionada?.nome || 'Gasto'
     const tipo_despesa = classificarDespesa({ descricao, categoria: catSelecionada?.nome || '' })
@@ -104,67 +108,97 @@ function FormGastoRapido({ onSalvar, onCancelar, carregando, onMaisOpcoes, erro,
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       {erro && <p role="alert" className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{erro}</p>}
+      
+      {/* VALOR - ÚNICO CAMPO REALMENTE OBRIGATÓRIO */}
       <div className="rounded-xl bg-gray-50 p-3 text-center">
         <label className="label">Quanto você gastou?</label>
         <InputMoeda valor={form.valor} onChangeValor={n => setForm(prev => ({ ...prev, valor: n }))}
           className="input text-2xl font-bold text-center py-3" prefixo={null} autoFocus />
       </div>
+      
+      {/* DESCRIÇÃO OPCIONAL - Sugerida pela categoria se escolhida */}
       <div>
-        <label className="label">Descrição <span className="text-gray-400">(opcional)</span></label>
+        <label className="label">O que foi? <span className="text-gray-400 text-xs">(opcional)</span></label>
         <input name="descricao" value={form.descricao} onChange={handleChange}
-          className="input" placeholder="Ex.: Almoço, mercado, transporte" />
+          className="input" placeholder="Ex.: Almoço, mercado, Uber" />
       </div>
-      <SeletorCategoriaModerno categorias={categoriasOrdenadas} value={form.categoria_id}
-        onChange={categoria_id => setForm(prev => ({ ...prev, categoria_id, subcategoria_id: '' }))}
-        subcategoriaValue={form.subcategoria_id}
-        onSubcategoriaChange={subcategoria_id => setForm(prev => ({ ...prev, subcategoria_id }))} />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label className="label">Forma de pagamento</label>
-          <select name="forma_pagamento" value={form.forma_pagamento} onChange={handleChange} className="input" required>
-            <option value="">Selecionar forma</option>
-            {FORMAS_PAGAMENTO.map(f => <option key={f.value} value={f.value}>{f.icone} {f.label}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="label">Data do gasto</label>
-          <input name="data" type="date" value={tipoBeneficio ? hojeISOBrasil() : form.data}
-            onChange={handleChange} disabled={!!tipoBeneficio} className="input" required />
-        </div>
+      
+      {/* CATEGORIA OPCIONAL - Padrão "Outros" se não escolher */}
+      <div>
+        <label className="label">Categoria <span className="text-gray-400 text-xs">(opcional)</span></label>
+        <SeletorCategoriaModerno categorias={categoriasOrdenadas} value={form.categoria_id}
+          onChange={categoria_id => setForm(prev => ({ ...prev, categoria_id, subcategoria_id: '' }))}
+          subcategoriaValue={form.subcategoria_id}
+          onSubcategoriaChange={subcategoria_id => setForm(prev => ({ ...prev, subcategoria_id }))} />
       </div>
-      {ehCartaoCredito && (
-        <div>
-          <label className="label">Em qual cartão?</label>
-          {cartoes.length ? (
-            <select name="cartao_id" value={form.cartao_id} onChange={handleChange} className="input" required>
-              <option value="">Selecionar cartão</option>
-              {cartoes.map(c => <option key={c.id} value={c.id}>{c.nome}{c.banco ? ` • ${c.banco}` : ''}</option>)}
+
+      {/* BOTÃO "MAIS OPÇÕES" - Expande opções avançadas */}
+      {!mostrarOpcoes && (
+        <button type="button" onClick={() => setMostrarOpcoes(true)}
+          className="w-full text-center text-sm text-marca hover:text-marca/80 font-medium py-2">
+          + Mais opções (forma de pagamento, data, cartão...)
+        </button>
+      )}
+
+      {/* OPÇÕES AVANÇADAS - Só aparece se usuário pedir */}
+      {mostrarOpcoes && (
+        <div className="space-y-3 pt-2 border-t border-gray-200">
+          <div>
+            <label className="label">Como você pagou?</label>
+            <select name="forma_pagamento" value={form.forma_pagamento} onChange={handleChange} className="input">
+              {FORMAS_PAGAMENTO.map(f => <option key={f.value} value={f.value}>{f.icone} {f.label}</option>)}
             </select>
-          ) : <p className="text-sm text-amber-600">Cadastre primeiro um cartão na aba Cartões.</p>}
-          <p className="text-xs text-gray-500 mt-1">O valor entrará na fatura, não no saldo bancário imediato.</p>
+          </div>
+          
+          {ehCartaoCredito && (
+            <div>
+              <label className="label">Qual cartão?</label>
+              {cartoes.length ? (
+                <select name="cartao_id" value={form.cartao_id} onChange={handleChange} className="input" required>
+                  <option value="">Escolha o cartão</option>
+                  {cartoes.map(c => <option key={c.id} value={c.id}>{c.nome}{c.banco ? ` • ${c.banco}` : ''}</option>)}
+                </select>
+              ) : <p className="text-sm text-amber-600">Cadastre um cartão primeiro na aba Cartões.</p>}
+            </div>
+          )}
+          
+          {tipoBeneficio && (
+            <div>
+              <label className="label">Qual benefício {tipoBeneficio}?</label>
+              {beneficiosCompativeis.length ? (
+                <select name="beneficio_id" value={form.beneficio_id} onChange={handleChange} className="input" required>
+                  <option value="">Escolha o benefício</option>
+                  {beneficiosCompativeis.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
+                </select>
+              ) : <p className="text-sm text-amber-600">Nenhum benefício {tipoBeneficio} cadastrado.</p>}
+            </div>
+          )}
+          
+          <div>
+            <label className="label">Quando foi?</label>
+            <input name="data" type="date" value={tipoBeneficio ? hojeISOBrasil() : form.data}
+              onChange={handleChange} disabled={!!tipoBeneficio} className="input" />
+            <p className="text-xs text-gray-400 mt-1">Padrão: hoje</p>
+          </div>
+          
+          <button type="button" onClick={() => setMostrarOpcoes(false)}
+            className="w-full text-center text-sm text-gray-500 hover:text-gray-700 font-medium py-1">
+            − Ocultar opções
+          </button>
         </div>
       )}
-      {tipoBeneficio && (
-        <div>
-          <label className="label">Qual benefício {tipoBeneficio}?</label>
-          {beneficiosCompativeis.length ? (
-            <select name="beneficio_id" value={form.beneficio_id} onChange={handleChange} className="input" required>
-              <option value="">Selecionar benefício</option>
-              {beneficiosCompativeis.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
-            </select>
-          ) : <p className="text-sm text-amber-600">Nenhum benefício {tipoBeneficio} cadastrado.</p>}
-          <p className="text-xs text-gray-500 mt-1">Será descontado apenas do saldo {tipoBeneficio}. Este registro usa a data de hoje.</p>
-        </div>
-      )}
-      <button type="submit" disabled={carregando || !form.forma_pagamento || Number(form.valor) <= 0
+
+      {/* BOTÃO SALVAR - Ativo se apenas o valor estiver preenchido */}
+      <button type="submit" disabled={carregando || Number(form.valor) <= 0
         || (ehCartaoCredito && !form.cartao_id) || (tipoBeneficio && !form.beneficio_id)}
-        className="btn-primary w-full flex items-center justify-center gap-2 py-3">
-        {carregando ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : 'Salvar gasto'}
+        className="btn-primary w-full flex items-center justify-center gap-2 py-3 text-base font-semibold">
+        {carregando ? <><Loader2 size={16} className="animate-spin" /> Salvando...</> : '✓ Salvar gasto'}
       </button>
-      <div className="flex items-center justify-between gap-2">
-        <button type="button" onClick={onCancelar} className="text-xs font-medium text-gray-500 py-1">Cancelar</button>
-        <button type="button" onClick={onMaisOpcoes} className="text-xs font-medium text-marca hover:text-marca/80 py-1">Mais opções</button>
-      </div>
+      
+      <button type="button" onClick={onCancelar} 
+        className="w-full text-center text-sm text-gray-500 hover:text-gray-700 py-2">
+        Cancelar
+      </button>
     </form>
   )
 }

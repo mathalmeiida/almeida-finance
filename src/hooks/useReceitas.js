@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
+import { humanizarErro } from '../lib/errosAPI'
 import {
   valorReceitaRecorrenteNoMes,
   frequenciaDaReceita,

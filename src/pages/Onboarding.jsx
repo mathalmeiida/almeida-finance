@@ -535,6 +535,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
   // ─── ETAPA Saldo ───
   async function salvarSaldo() {
     if (emGravacao.current) return
+    if (salvando) return // Dupla proteção contra cliques múltiplos
     emGravacao.current = true
     const valor = Number(saldo) || 0
     if (valor < 0) { setErro('O saldo não pode ser negativo.'); emGravacao.current = false; return }
@@ -1311,6 +1312,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
               <InputMoeda id="onb-saldo"
                 valor={saldo} onChangeValor={setSaldo}
                 className="input text-2xl font-bold text-center py-3" prefixo={null} autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault() }}
               />
 
               <div className="mt-5 rounded-xl border border-gray-200 p-4">
