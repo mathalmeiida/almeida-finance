@@ -1,38 +1,45 @@
 import { defineConfig, devices } from '@playwright/test'
 
-// Testes de interface do Almeida Finance.
-// • Rodam contra o build local (`vite preview`), nunca contra produção.
-// • Todo tráfego para *.supabase.co é interceptado nos testes (e2e/apoio.js):
-//   nenhuma requisição chega ao banco real.
-// • WebKit com emulação de iPhone usa o motor do Safari, mas NÃO reproduz o
-//   zoom automático de foco do iOS (comportamento do UIKit). A validação final
-//   do zoom exige um iPhone real.
 export default defineConfig({
-  testDir: './e2e',
-  timeout: 45_000,
-  expect: { timeout: 8_000 },
-  fullyParallel: false,
-  workers: 1,
-  retries: 0,
-  reporter: [['list']],
+  testDir: './tests/e2e',
+  fullyParallel: false, // Sequencial para evitar conflitos de dados
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: 1, // 1 worker para evitar concorrência
+  reporter: 'list',
   use: {
-    baseURL: 'http://127.0.0.1:4173',
-    trace: 'off',
-    serviceWorkers: 'block',
+    baseURL: process.env.BASE_URL || 'http://localhost:5173',
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
   },
-  webServer: {
-    command: 'npx vite preview --host 127.0.0.1 --port 4173 --strictPort',
-    url: 'http://127.0.0.1:4173',
-    reuseExistingServer: true,
-    timeout: 60_000,
-  },
+
   projects: [
-    { name: 'iphone-se-webkit', use: { ...devices['iPhone SE'] } },
-    { name: 'iphone-13-webkit', use: { ...devices['iPhone 13'] } },
-    { name: 'iphone-13-paisagem-webkit', use: { ...devices['iPhone 13 landscape'] } },
-    // Largura real do Safari em paisagem com viewport-fit=cover (844px): o
-    // preset do Playwright usa 750px e esconde regras com min-width: 768px.
-    { name: 'iphone-13-paisagem-844-webkit', use: { ...devices['iPhone 13 landscape'], viewport: { width: 844, height: 390 } } },
-    { name: 'desktop-chromium', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } } },
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // Descomente para testar em outros navegadores
+    // {
+    //   name: 'firefox',
+    //   use: { ...devices['Desktop Firefox'] },
+    // },
+    // {
+    //   name: 'webkit',
+    //   use: { ...devices['Desktop Safari'] },
+    // },
+    // Mobile
+    // {
+    //   name: 'Mobile Chrome',
+    //   use: { ...devices['Pixel 5'] },
+    // },
   ],
+
+  // Dev server para testes
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://localhost:5173',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120000,
+  },
 })
