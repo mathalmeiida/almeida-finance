@@ -199,6 +199,8 @@ r = await como(A, `SELECT * FROM public.estornar_pagamento_fatura($1)`, [pgResta
 ok('estorno marca status estornado', !r.erro && r.linhas[0].status === 'estornado' && !!r.linhas[0].estornado_em, r.erro || '')
 r = await como(A, `SELECT * FROM public.estornar_pagamento_fatura($1)`, [pgRestante])
 ok('estorno duplicado recusado', !!r.erro)
+r = await pagar(A, cartaoA, '2026-11', 600, 'chave-restante-1')
+ok('retry com chave de pagamento já estornado é recusado (não devolve como sucesso)', !!r.erro && /estornado/i.test(r.erro), r.erro || '')
 r = await pagar(A, cartaoA, '2026-11', 600, 'chave-restante-2')
 ok('após estorno o valor volta a ficar em aberto (600 aceito)', !r.erro, r.erro || '')
 r = await pagar(A, cartaoA, '2026-12', 100, 'chave-antecipado-1', 500)

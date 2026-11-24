@@ -546,7 +546,7 @@ const [modalFatura, setModalFatura] = useState(false)
     setCicloPagando(null)
   }
   async function handleEstornar(pg) {
-    if (!confirm(`Estornar o pagamento de ${formatCurrency(pg.valor)} feito em ${formatDate(pg.data_pagamento)}? O valor volta ao saldo em aberto da fatura e o saldo da conta é restaurado.`)) return
+    if (!confirm(`Estornar o pagamento de ${formatCurrency(pg.valor)} feito em ${formatDate(pg.data_pagamento)}? O valor volta ao saldo em aberto da fatura${pg.legado || pg.origem !== 'saldo_principal' ? '. Este pagamento anterior não debitou o saldo da conta, então o saldo não muda.' : ' e o saldo da conta é restaurado.'}`)) return
     setErro('')
     setEstornando(pg.id)
     try { await estornar(pg.id) } catch (err) { setErro(err.message || 'Erro ao estornar o pagamento.') } finally { setEstornando(null) }
@@ -726,6 +726,11 @@ const [modalFatura, setModalFatura] = useState(false)
         {cicloFoco.saldoAnterior > 0 && (
           <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
             Saldo anterior em aberto: {formatCurrency(cicloFoco.saldoAnterior)} (pertence ao ciclo anterior e não está somado a este total).
+          </p>
+        )}
+        {cicloFoco.excedentePago > 0 && (
+          <p className="text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2" data-testid="alerta-excedente-pago">
+            Os pagamentos ativos superam o total atual da fatura em {formatCurrency(cicloFoco.excedentePago)}. Confira as compras deste ciclo e, se algum pagamento foi duplicado, estorne-o no histórico.
           </p>
         )}
         <p className="text-xs text-gray-400">Vencimento: {formatDate(cicloFoco.vencimento)}</p>

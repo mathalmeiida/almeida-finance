@@ -30,6 +30,8 @@
 --     parcelas), então o servidor não recalcula o total. Um teto no servidor
 --     divergiria da regra de ciclo do cliente. O total vem do cliente e o impacto
 --     de um valor adulterado fica restrito ao próprio usuário (RLS + dono do cartão).
+--     Risco aceito (revisão v3): sem checagem de saldo suficiente nem de compras no ciclo;
+--     recomendação: função SQL de total por ciclo com testes de paridade com o cliente.
 --   • Origem: somente 'saldo_principal' (não há múltiplas contas). 'outra_conta'
 --     existe só em pagamentos legados migrados, que não debitam saldo.
 --   • Idempotência: mesma chave + mesmos parâmetros devolve o original; mesma chave
@@ -73,6 +75,21 @@ BEGIN
   END IF;
 END $$;
 
+-- Consultoria: o consultor autorizado lê (somente leitura) os pagamentos do cliente,
+-- como nas demais tabelas financeiras (2026-10_consultoria_acessos.sql). Só cria a
+-- policy se a função de verificação existir.
+DO $$
+BEGIN
+  IF to_regprocedure('public.consultor_autorizado(uuid)') IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM pg_policies
+       WHERE schemaname='public' AND tablename='pagamentos_fatura'
+         AND policyname='Consultor autorizado lê pagamentos de fatura do cliente') THEN
+    CREATE POLICY "Consultor autorizado lê pagamentos de fatura do cliente"
+      ON public.pagamentos_fatura FOR SELECT
+      USING (public.consultor_autorizado(usuario_id));
+  END IF;
+END $$;
+
 -- Escrita somente via RPC (SECURITY DEFINER).
 REVOKE ALL ON public.pagamentos_fatura FROM anon, authenticated;
 GRANT SELECT ON public.pagamentos_fatura TO authenticated;
@@ -92,7 +109,7 @@ CREATE OR REPLACE FUNCTION public.pagar_fatura_cartao(
 ) RETURNS public.pagamentos_fatura
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_uid       UUID := auth.uid();
@@ -136,6 +153,9 @@ BEGIN
     IF v_existente.cartao_id = p_cartao_id AND v_existente.ano_mes = p_ano_mes
        AND v_existente.valor = round(p_valor, 2)
        AND v_existente.data_pagamento = p_data_pagamento THEN
+      IF v_existente.status <> 'ativo' THEN
+        RAISE EXCEPTION 'Este pagamento já foi estornado. Gere um novo pagamento.' USING ERRCODE = '22023';
+      END IF;
       RETURN v_existente;
     END IF;
     RAISE EXCEPTION 'Chave de idempotência já usada em outro pagamento' USING ERRCODE = '23505';
@@ -176,7 +196,7 @@ CREATE OR REPLACE FUNCTION public.estornar_pagamento_fatura(p_pagamento_id UUID)
 RETURNS public.pagamentos_fatura
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_uid UUID := auth.uid();
