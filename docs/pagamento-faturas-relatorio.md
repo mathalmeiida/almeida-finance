@@ -2,7 +2,7 @@
 
 Branch: `feat/pagamento-faturas` (PR #4, rascunho). Nada foi enviado ao remoto e a produção não foi tocada.
 
-**Veredito: NÃO APROVADO PARA PRODUÇÃO.** Há validações obrigatórias pendentes (seção 8). O PR deve continuar como rascunho.
+**Veredito: NÃO APROVADO PARA PRODUÇÃO.** O risco do total vindo do cliente foi eliminado no código (seção 9), mas a migration e a paridade SQL x JS ainda não foram executadas (seção 9.3, "Depende do DEV"). O PR deve continuar como rascunho.
 
 ## Resumo do estado
 
@@ -10,7 +10,7 @@ Branch: `feat/pagamento-faturas` (PR #4, rascunho). Nada foi enviado ao remoto e
 |---|---|
 | Implementação (SQL, lib, hook, modal, telas, integração) | Concluída |
 | Testes unitários em node (dados fictícios, em memória) | Executados e aprovados |
-| Testes das migrations/RPCs em PGlite | Escritos, **NÃO executados** (pacote `@electric-sql/pglite` não instalável: npm devolve 403) |
+| Testes das migrations/RPCs e paridade SQL x JS em PGlite | Escritos, **PENDENTE, NÃO executados** (pacote `@electric-sql/pglite` não instalável: npm devolve 403) |
 | `npm run build` (Vite) | **NÃO executado** (sem `node_modules`) |
 | Testes reais no Supabase DEV (pagamentos total, parcial, antecipado, estorno, reload, duplicidade) | **BLOQUEADO**: sem credenciais DEV e o DNS `fzawugbiojmtrthmshcc.supabase.co` não resolve (ver `DEV-BLOQUEADO.md`) |
 | Playwright `e2e/pagamento-fatura.spec.js` | Escrito, **NÃO executado** |
@@ -40,8 +40,8 @@ Premissa a validar com dados reais: a 1ª parcela de um parcelamento segue a reg
 
 - Tabela `pagamentos_fatura` (migration `supabase/migrations/2026-11_pagamentos_fatura.sql`): valor > 0, `ano_mes` (competência = mês de fechamento), data, origem (`saldo_principal` ou `outra_conta`), status `ativo` ou `estornado`, `idempotency_key` única por usuário, `legado`.
 - RLS: o usuário só lê as próprias linhas. Não existe INSERT/UPDATE/DELETE direto para `authenticated`.
-- RPCs `SECURITY DEFINER` com `auth.uid()`: `pagar_fatura_cartao` e `estornar_pagamento_fatura`. A primeira trava o cartão (`FOR UPDATE`), valida o dono, devolve o pagamento original se a chave se repete (duplo clique, retry, outro dispositivo) e recusa soma de pagamentos acima do total atual do ciclo, data futura, valor <= 0 e origem diferente de `saldo_principal` (`outra_conta` existe só em pagamentos legados migrados).
-- Limitação: a fatura é projetada no cliente (compras e parcelamentos), então o total do ciclo (`p_total_ciclo`) vem do app. O servidor garante consistência por ciclo, mas não recalcula a fatura.
+- RPCs `SECURITY DEFINER` com `auth.uid()`: `pagar_fatura_cartao` e `estornar_pagamento_fatura`. A primeira trava o cartão (`FOR UPDATE`), valida o dono, devolve o pagamento original se a chave se repete (duplo clique, retry, outro dispositivo) e recusa pagamento acima do saldo em aberto calculado no servidor (seção 9), data futura, valor <= 0 e origem diferente de `saldo_principal` (`outra_conta` existe só em pagamentos legados migrados).
+- Total do ciclo: calculado no servidor por `total_fatura_ciclo_servidor` (seção 9). O `p_total_ciclo` do cliente não é mais o teto.
 - **Saldo da conta é derivado, não gravado.** `calcularSaldoDisponivel` subtrai pagamentos ativos com origem `saldo_principal` e data depois do marco do saldo e até hoje. Pagar e estornar são, portanto, atômicos (uma linha). Pagamento não é despesa, então a compra não é contada duas vezes.
 - Conta de origem: o app não tem tabela de contas (existe um único saldo informado). Só `saldo_principal` é aceito na criação; "Outra conta" só aparece em pagamentos legados, que não debitam o saldo.
 - Backfill: faturas com `pago = true` viram pagamento legado (`origem = outra_conta`, não debita saldo), idempotente pela chave `legado-<id>`.
@@ -105,7 +105,7 @@ Também é necessário validar visualmente (tema claro e escuro, mobile e deskto
 
 | # | Problema | Decisão |
 |---|---|---|
-| 1 | Total do ciclo confiado ao cliente | **Revisto na terceira etapa (decisão 2, seção 8.1).** A âncora do total foi REMOVIDA da RPC: ela obrigava a estornar pagamentos para pagar após nova compra. Hoje o teto é o total atual informado pelo app e `total_ciclo_ref` é só snapshot. O total ainda vem do cliente (a fatura é projetada no app); recalcular no servidor fica como evolução. |
+| 1 | Total do ciclo confiado ao cliente | **Resolvido na quarta etapa (seção 9).** O servidor calcula o total do ciclo; o valor enviado pelo cliente é só uma dica e, se divergir, o pagamento é recusado. A âncora de total continua removida, então nova compra após pagamento parcial segue permitida sem estorno. |
 | 2 | SQL e RPCs nunca executados | **Não corrigível aqui.** Sem npm (403) e sem credenciais DEV. Segue bloqueado, com os comandos da seção 6. Foi adicionado um caso PGlite para a âncora (também não executado). |
 | 3 | Carry-over só informativo | **Mantido por decisão de projeto.** Somar o saldo anterior ao ciclo seguinte duplicaria o valor, pois cada ciclo é pago e cobrado separadamente, e juros do rotativo exigem regras que o enunciado não define. O ciclo antigo continua Vencida e o modal avisa o valor. Precisa de confirmação do dono do produto. |
 | 4 | Realtime sem publicação | **Corrigido.** A migration adiciona `pagamentos_fatura` a `supabase_realtime` de forma idempotente (só se a publicação existir e a tabela ainda não estiver nela). |
@@ -133,7 +133,7 @@ Também é necessário validar visualmente (tema claro e escuro, mobile e deskto
 ### 8.1 Decisões adotadas
 
 1. **Origem do pagamento só `saldo_principal`.** Não há tabela de contas. A RPC recusa `outra_conta`. Pagamentos legados migrados usam `outra_conta` e nunca debitam o saldo.
-2. **Âncora de total removida da RPC.** O teto é o total atual do ciclo informado pelo app; pagamentos ativos são preservados e nova compra após pagamento parcial é permitida sem estorno (em aberto = total - pago). `total_ciclo_ref` é snapshot. Se o total cair abaixo do pago, o em aberto é 0 e o app expõe `excedentePago`; nada é debitado a mais.
+2. **Âncora de total removida da RPC.** O teto é o total atual do ciclo (a partir da quarta etapa, calculado no servidor); pagamentos ativos são preservados e nova compra após pagamento parcial é permitida sem estorno (em aberto = total - pago). `total_ciclo_ref` é snapshot. Se o total cair abaixo do pago, o em aberto é 0 e o app expõe `excedentePago`; nada é debitado a mais.
 3. **`excedentePago` exposto** em `cicloFatura` quando o total atual fica menor que o já pago.
 4. **Primeira parcela segue a regra de fechamento** como se fosse a data da compra (`competenciaParcelamento`). Premissa a confirmar com dados reais: se `primeira_parcela` for gravada como data de vencimento da parcela, ajustar essa função.
 
@@ -182,7 +182,7 @@ A migration **não foi executada** e **não está validada**. Achados da leitura
 - Idempotência: `UNIQUE (usuario_id, idempotency_key)`; repetição com mesmos parâmetros devolve o original, com parâmetros diferentes é recusada. Estorno trava a linha (`FOR UPDATE`) e recusa o segundo estorno. Em READ COMMITTED o segundo estorno concorrente revê o status depois do lock, então não reverte em dobro.
 - Backfill idempotente pela chave `legado-<id>`, `outra_conta`, sem débito. Um legado estornado pelo usuário não é recriado (`ON CONFLICT DO NOTHING`).
 - Publicação realtime condicional e idempotente.
-- Observações (SQL não pode ser testado aqui): (a) `search_path` agora é `public, pg_temp` nas duas RPCs (aplicado após a revisão v3, sem execução); (b) o total do ciclo vem do cliente, então um usuário pode registrar pagamento acima do total real do próprio ciclo, com impacto restrito aos próprios dados; (c) `estornar_pagamento_fatura` trava só a linha do pagamento, não o cartão, o que é suficiente porque o pagar soma pagamentos ativos já confirmados.
+- Observações (SQL não pode ser testado aqui): (a) `search_path` agora é `public, pg_temp` nas duas RPCs (aplicado após a revisão v3, sem execução); (b) item superado: o total agora é calculado no servidor (seção 9); (c) item superado: `estornar_pagamento_fatura` agora trava o cartão antes da linha do pagamento (seção 9.2).
 
 ### 8.5 Pendente (não executado, não declarado aprovado)
 
@@ -203,12 +203,74 @@ Revisor separado de quem implementou. **Veredito: NEEDS_CHANGES.** O revisor exe
 | # | Item (classificação) | Tratamento |
 |---|---|---|
 | 1 | Calendário sem `parcelamentos` (confirmado) | **Corrigido.** `Calendario.jsx` passa `parcelamentos` a `gerarHorizonte`. Seção 8.3 corrigida. |
-| 2 | Consultor não lê `pagamentos_fatura` (confirmado) | **Corrigido na migration** (policy SELECT com `consultor_autorizado`, criada só se a função existir). Não coberto no PGlite (a simulação não carrega a migration de consultoria) e não executado. |
-| 3 | Sem teto confiável do total no servidor (provável) | **Risco aceito, a ser confirmado pelo responsável.** Um teto no servidor exigiria replicar em SQL a regra de ciclo, fechamento e parcelas do cliente, com risco de divergir e de bloquear pagamentos legítimos ou novas compras (o problema da âncora). Mitigação barata no cliente: alerta visível em Cartões quando `excedentePago > 0`, com orientação de conferir e estornar. Não implementado: rebuscar compras antes do envio. O servidor também não valida saldo suficiente nem existência de compras no ciclo. Recomendação: calcular o total em SQL (função de fatura por ciclo) numa etapa própria, com testes de paridade com `faturaCartao.js`. Impacto restrito aos dados do próprio usuário. |
+| 2 | Consultor não lê `pagamentos_fatura` (confirmado) | **Corrigido na migration** (policy SELECT com `consultor_autorizado`). Na quarta etapa a ausência da função passou a falhar de forma explícita (seção 9.2). |
+| 3 | Sem teto confiável do total no servidor (provável) | **Resolvido na quarta etapa (seção 9).** O risco aceito nesta revisão foi revogado: o total é calculado no servidor. |
 | 4 | Concorrência não comprovada (possível) | **Não corrigível aqui.** Segue pendente em 8.5: duas sessões reais no DEV (mesma chave, chaves diferentes no mesmo cartão, pagar contra estornar). O teste PGlite só valida a lógica de idempotência. |
 | 5 | Retry após estorno devolve pagamento estornado como sucesso (possível) | **Corrigido.** A RPC recusa com "Este pagamento já foi estornado" quando a chave corresponde a um pagamento estornado; novo caso no PGlite (não executado). |
 | 6 | Texto de estorno de legado (confirmado) | **Corrigido.** `handleEstornar` informa que pagamento legado não debitou e o saldo não muda. |
 | 7 | `search_path` sem `pg_temp` (possível, baixo) | **Corrigido** nas duas RPCs (`public, pg_temp`). |
 | 8 | Validações pendentes e relatório incompleto (confirmado) | **Mantido pendente** (8.5). Esta seção foi preenchida. |
 
-**Situação: NAO APROVADO PARA PRODUCAO.** Persistem migration, PGlite, build, e2e, RLS e concorrência reais e validação visual sem execução.
+**Situação à época: NAO APROVADO PARA PRODUCAO.** A situação atual está na seção 9.
+
+## 9. Quarta etapa: total da fatura calculado no servidor
+
+Decisão formal do responsável: o total da fatura enviado pelo cliente não é confiável e o risco foi eliminado antes da aprovação para produção. A decisão de aceitar o risco registrada na seção 8.6 (item 3) está revogada.
+
+### 9.1 O que mudou
+
+- **Função SQL do total**: `public.total_fatura_ciclo_servidor(cartao, usuario, ano_mes)` em `supabase/migrations/2026-11_pagamentos_fatura.sql`. Recebe o usuário como parâmetro, então `EXECUTE` é revogado de `PUBLIC`, `anon` e `authenticated`; só as RPCs `SECURITY DEFINER` a chamam, sempre com `auth.uid()`. Todas as consultas filtram por `usuario_id`.
+- **Função pública**: `public.total_fatura_ciclo(cartao, ano_mes)` usa só `auth.uid()` e recusa cartão de outro usuário (erro 42501). Não expõe dados de terceiros.
+- **Regras reproduzidas de `src/lib/faturaCartao.js`**: competência pelo dia de fechamento (limitado ao último dia de meses curtos); parcelas em centavos com o resto na última; parcelamentos pela data da 1ª parcela com a mesma regra de fechamento; parcelamentos quitados fora; dedupe parcelamento x compra (mesmo cartão, descrição normalizada sem acentos latinos, valor e nº de parcelas); pagamentos de um ciclo nunca abatem outro.
+- **Fatura informada (override)**: entra no cálculo, como no app (total = maior entre o informado e as compras). Decisão explícita: é o total que o app exibe e cobra, e o dado pertence ao próprio usuário (RLS), não ao parâmetro da RPC. O boolean legado `pago` não entra (virou pagamento legado no backfill).
+- **`pagar_fatura_cartao`**: mesma assinatura. Depois do lock do cartão, calcula o total no servidor, soma os pagamentos ativos (anteriores preservados), exige total > 0 e saldo em aberto > 0, e recusa `p_valor` acima do em aberto (erro 22003 com o valor em aberto). `p_total_ciclo` virou dica: se vier e divergir do servidor, a RPC recusa com "Fatura desatualizada" (erro 40001); `NULL` é aceito. `total_ciclo_ref` guarda o total do servidor. Um cliente com tela desatualizada ou total adulterado não consegue pagar acima do devido.
+- **Pagamentos parciais e novas compras**: pagamentos ativos nunca são alterados; nova compra sobe o total e o em aberto passa a ser total - pago, sem estorno.
+- **Cliente**: `src/lib/mensagemPagamentoFatura.js` (módulo puro) traduz os erros; ao receber "fatura desatualizada", `Cartoes.jsx` recarrega as compras, fecha o modal e mostra a mensagem para o usuário conferir o novo total.
+
+### 9.2 Concorrência, idempotência, policy e mensagem de estorno
+
+- **Concorrência**: `pagar` e `estornar` travam primeiro o cartão (`FOR UPDATE`) e depois a linha do pagamento (mesma ordem, sem deadlock). `UNIQUE (usuario_id, idempotency_key)` segue como barreira final e um `unique_violation` concorrente devolve o pagamento original quando os parâmetros coincidem. Limite: compra inserida ou removida em outra sessão não é travada; vale o total lido sob o lock do cartão.
+- **Idempotência**: mesma chave e mesmos parâmetros devolve o original; parâmetros diferentes dão 23505; pagamento estornado dá 22023.
+- **Policy `consultor_autorizado`**: avaliada. `public.consultor_autorizado(uuid)` é criada em `2026-10_consultoria_acessos.sql`, que vem antes por ordem de nome. A migration agora verifica a dependência (e as tabelas `cartoes`, `compras_cartao`, `parcelamentos`, `faturas_cartao`) no início, antes de qualquer alteração, e falha com `RAISE EXCEPTION` indicando qual migration aplicar. O script roda numa única transação, então nada fica meio aplicado. A criação da policy continua idempotente.
+- **`parcelamentos.cartao_id`**: o app e a migration `20250124_proteger_exclusao_cartao.sql` já usam a coluna, mas `schema.sql` não a declara. A migration faz `ADD COLUMN IF NOT EXISTS` (sem efeito onde já existe). Conferir no DEV que a coluna existe com o tipo esperado.
+- **Mensagem de estorno repetido**: o regex antigo não casava "Este pagamento já foi estornado". `mensagemAmigavel` agora cobre "Pagamento já estornado", "Este pagamento já foi estornado" e variantes sem acento, e também fatura desatualizada, sem saldo em aberto, ciclo sem valor e excesso.
+
+### 9.3 Testado (executado nesta sessão)
+
+Ambiente: Node v22.23.4, sem `node_modules`. Comandos e resultados reais:
+
+| Comando | Resultado |
+|---|---|
+| `node tests/fatura-cartao.test.mjs` | Saiu com 0; 35 linhas PASS, 0 FALHA |
+| `node tests/fatura-detalhamento.test.mjs` | Saiu com 0; 21 PASS, 0 FALHA |
+| `node tests/pagamento-fatura.test.mjs` | Saiu com 0; 78 PASS, 0 FALHA (inclui as 15 verificações novas de mensagens: estorno repetido, "já foi estornado", sem acento, fatura desatualizada, excesso, quitada, ciclo sem valor) |
+| `node tests/paridade-fatura-js.test.mjs` | Saiu com 0; 147 verificações, 0 falhas. Confere `faturaCartao.js` contra o gabarito `tests/fixtures/paridade-fatura.json` (valores calculados à mão: à vista, parcelado com resto de centavos, 9x, fechamento dia 31 e 30 em meses curtos e bissexto, virada de ano, parcelamentos, quitado, dedupe, fatura informada, cartões distintos, parcial, nova compra, estorno e repagamento, ciclos diferentes) |
+| `node tests/saldo-disponivel.test.mjs` | Saiu com 0; 30 PASS, 0 FALHA |
+| `node tests/valor-fatura-consumidores.test.mjs` | Saiu com 0; 15 PASS, 0 FALHA |
+| `node tests/icones.test.mjs`, `investimentos-page`, `investimentos-robustez`, `onboarding-componente` | As quatro **falham** (saída 1), também com as mudanças desta etapa guardadas (`git stash -u`), ou seja, na base. Não foram alteradas nem mascaradas. |
+| `npm ci --ignore-scripts` | **Falhou: 403 Forbidden** (`zlibjs-0.3.1.tgz`), reverificado uma vez. Não contornado. |
+| `node --check` de `supabase/tests/simular-migrations.mjs`, `supabase/tests/paridade-fatura.mjs` e `e2e/pagamento-fatura.spec.js` | Sintaxe ok (isto não executa os testes) |
+| `node supabase/tests/paridade-fatura.mjs` | Saiu com 2: imprime "PENDENTE - @electric-sql/pglite indisponivel". **Não executou nenhuma verificação SQL.** |
+
+Não há Postgres local (`psql`, `postgres`, `pg_ctl` e `initdb` ausentes; docker e podman sem `conmon`) e `pip install pglast` também não encontrou pacote, então **nem a sintaxe da migration foi validada por um parser**. Esses testes node puros validam o gabarito e a lógica JS, não o SQL.
+
+### 9.4 Depende do DEV (NÃO executado, PENDENTE)
+
+Nada abaixo foi executado, e nenhum item é declarado aprovado. Pré-requisito: `npm ci` funcionando e acesso ao DEV documentado (`fzawugbiojmtrthmshcc`, sem DNS e sem credenciais neste ambiente).
+
+| Item | Como executar |
+|---|---|
+| Migration no DEV e reaplicação (idempotência), incluindo a falha explícita sem `consultor_autorizado` | Aplicar `2026-10_consultoria_acessos.sql` e depois `supabase/migrations/2026-11_pagamentos_fatura.sql` no SQL Editor do DEV; rodar a segunda de novo |
+| Conferir `parcelamentos.cartao_id` no DEV | `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'parcelamentos' AND column_name = 'cartao_id';` |
+| Simulação PGlite das migrations (RLS, RPCs, idempotência, backfill, policy do consultor, total inflado recusado, funções internas sem EXECUTE para clientes) | `npm ci && node supabase/tests/simular-migrations.mjs` |
+| Paridade SQL x JS (gabarito, 25 rodadas aleatórias com semente fixa, sequências de pagamento, isolamento) | `npm ci && node supabase/tests/paridade-fatura.mjs` (também em `npm run test:migrations`) |
+| Concorrência real com duas sessões (mesma chave; chaves diferentes no mesmo cartão; pagar contra estornar) | Duas conexões no DEV chamando `pagar_fatura_cartao` ao mesmo tempo. O PGlite usa uma conexão e só cobre a idempotência |
+| RLS entre usuários reais | `E2E_EMAIL_B`/`E2E_SENHA_B` no e2e abaixo |
+| E2E real (total inflado recusado, ciclo sem compras, `total_fatura_ciclo`, parcial, estorno, antecipado) | `E2E_EMAIL=... E2E_SENHA=... E2E_EMAIL_B=... E2E_SENHA_B=... npx playwright test e2e/pagamento-fatura.spec.js --config=playwright.dev.config.js` |
+| Suíte unitária completa e build | `npm run test:unit` e `npm run build` |
+| Validação visual (claro e escuro, mobile e desktop), incluindo o aviso de fatura desatualizada em Cartões | Manual, após `npm run dev -- --mode development` |
+| Premissa da 1ª parcela (decisão 4 da seção 8.1) e dados reais com `normalizar_texto_fatura` (acentos fora do conjunto latino comum não são normalizados no SQL) | Comparar `total_fatura_ciclo` com o total exibido no app para cartões reais do DEV |
+
+### 9.5 Segurança do processo
+
+O host `ievccupeijzuzhomphwn.supabase.co` não foi acessado e não é presumido como DEV. Nenhuma migration foi aplicada em produção, nenhuma credencial desconhecida foi usada, o bloqueio do npm não foi contornado e o PR segue como rascunho (sem push nesta etapa).
