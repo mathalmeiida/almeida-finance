@@ -2,7 +2,8 @@
 -- Pagamentos de fatura de cartão (total, parcial e antecipado) com histórico e estorno.
 --
 -- Execute no DEV primeiro (SQL Editor > New query > cole TUDO > Run).
--- COMO APLICAR: como UMA transação única. SQL Editor e `supabase db push` já fazem isso.
+-- COMO APLICAR: como UMA transação única. O SQL Editor executa tudo em uma única requisição.
+-- Este arquivo não tem prefixo numérico de versão, então `supabase db push` não o reconhece.
 -- Em psql use:  psql -1 -v ON_ERROR_STOP=1 -f supabase/migrations/2026-11_pagamentos_fatura.sql
 -- (sem -1 e ON_ERROR_STOP, o erro do bloco DO de pré-requisitos não impede os comandos
 -- seguintes e a garantia "nada fica meio aplicado" não vale).

@@ -72,6 +72,18 @@
       "esperado": { "2026-11": 800, "2026-12": 800, "2027-01": 300, "2027-02": 300, "2027-03": 0 }
     },
     {
+      "nome": "dedupe com acento fora do latino comum e espacos repetidos (Åpé  Ý = ape y)",
+      "compras": [{ "descricao": "Åpé  Ý", "valor_total": 120, "data_compra": "2026-11-10", "numero_parcelas": 2 }],
+      "parcelamentos": [{ "descricao": "ape y", "valor_total": 120, "numero_parcelas": 2, "primeira_parcela": "2026-11-10" }],
+      "esperado": { "2026-10": 0, "2026-11": 60, "2026-12": 60, "2027-01": 0 }
+    },
+    {
+      "nome": "dedupe com texto decomposto (e + U+0301) contra a forma composta",
+      "compras": [{ "descricao": "Cafe\u0301 Ão", "valor_total": 90, "data_compra": "2026-11-10", "numero_parcelas": 3 }],
+      "parcelamentos": [{ "descricao": "CAFÉ ÃO", "valor_total": 90, "numero_parcelas": 3, "primeira_parcela": "2026-11-10" }],
+      "esperado": { "2026-10": 0, "2026-11": 30, "2026-12": 30, "2027-01": 30, "2027-02": 0 }
+    },
+    {
       "nome": "fatura informada: maior entre o informado e as compras",
       "compras": [
         { "descricao": "out", "valor_total": 400, "data_compra": "2026-10-05", "numero_parcelas": 1 },
