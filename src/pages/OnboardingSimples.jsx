@@ -534,8 +534,8 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
                     {!ehNaoUtilizo && <ArrowRight size={16} className="text-gray-400 group-hover:text-marca flex-shrink-0" />}
                   </button>
                   {/* Linha secundária: Não utilizo / Desfazer */}
-                  <div className="border-t border-gray-100 px-4 py-2 flex items-center justify-between">
-                    <span className="text-xs text-gray-400">
+                  <div className="border-t border-gray-100 px-4 py-2.5 flex items-center justify-between">
+                    <span className="text-xs text-gray-500">
                       {ehNaoUtilizo
                         ? 'Declarado como não utilizado'
                         : ehConfigurado
@@ -545,9 +545,28 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
                     <button
                       type="button"
                       onClick={() => toggleNaoUtilizo(mod.id)}
-                      className={`text-xs font-medium underline underline-offset-2 ml-3 whitespace-nowrap ${ehNaoUtilizo ? 'text-blue-600 hover:text-blue-800' : 'text-gray-400 hover:text-gray-600'}`}
+                      className={`inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border-2 transition-all min-h-[44px] sm:min-h-0 ${
+                        ehNaoUtilizo
+                          ? 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300'
+                          : 'bg-white border-gray-200 text-gray-600 hover:border-marca hover:text-marca hover:bg-marca/5'
+                      }`}
                     >
-                      {ehNaoUtilizo ? 'Desfazer' : 'Não utilizo'}
+                      {ehNaoUtilizo ? (
+                        <>
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 12h16M12 4l8 8-8 8" />
+                          </svg>
+                          Desfazer
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10" strokeWidth={2} />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 12h8" />
+                          </svg>
+                          Não utilizo
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
