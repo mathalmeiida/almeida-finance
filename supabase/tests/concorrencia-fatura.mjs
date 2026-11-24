@@ -565,19 +565,21 @@ const ordenar = (a, b) => (a < b ? [a, b] : [b, a])
 const INS_COMPRA = `INSERT INTO public.compras_cartao (usuario_id, cartao_id, descricao, valor_total, data_compra, numero_parcelas) VALUES ($1, $2, 'Nova', 300, '2026-10-06', 1)`
 
 // (13) DELETE de cartao com cascata: nao inverte a ordem de locks e serializa com pagar
-await cenario('13a. DELETE de cartao (cascata) concorrente com DML do mesmo usuario: sem 40P01', async () => {
+await cenario('13a. DELETE de cartao (cascata) concorrente com DML do mesmo usuario: serializam e ambas concluem', async () => {
   for (let rodada = 1; rodada <= 5; rodada++) {
     const u = await novoUsuario()
     const [lo, hi] = ordenar(await novoCartao(u, 'A'), await novoCartao(u, 'B'))
     await novaCompra(u, lo, 'No menor', 100); await novaCompra(u, hi, 'No maior', 200)
     const D = await abrir(u); const W = await abrir(u)
-    // Em paralelo: D exclui o cartao de MAIOR id (cascata em compras_cartao); W escreve no de MENOR id.
-    const [rd, rw] = await Promise.all([
-      D.q(`DELETE FROM public.cartoes WHERE id = $1`, [hi]),
-      W.q(INS_COMPRA, [u, lo]),
-    ])
-    ok(`13a rodada ${rodada}: nenhuma das duas recebeu 40P01`, rd.code !== '40P01' && rw.code !== '40P01', `(D ${rd.code || 'ok'} ${rd.erro || ''}; W ${rw.code || 'ok'} ${rw.erro || ''})`)
-    await D.commit(); await W.commit()
+    // D exclui o cartao de MAIOR id (cascata em compras_cartao) e segura os locks; W escreve no de MENOR id.
+    const rd = await D.q(`DELETE FROM public.cartoes WHERE id = $1`, [hi])
+    ok(`13a rodada ${rodada}: DELETE aceito`, !rd.erro, rd.erro || '')
+    const pW = W.q(INS_COMPRA, [u, lo])
+    const bloqueou = await aguardarBloqueio(W, pW, `13a rodada ${rodada} W espera D`)
+    await D.commit() // a primeira sessao commita ANTES de aguardar a segunda
+    const rw = await pW
+    ok(`13a rodada ${rodada}: ambas concluem, sem 40P01 e sem 55P03`, bloqueou && !rd.erro && !rw.erro, `(D ${rd.code || 'ok'} ${rd.erro || ''}; W ${rw.code || 'ok'} ${rw.erro || ''})`)
+    await W.commit()
   }
 })
 await cenario('13b. Pagamento aberto x DELETE de cartao: exclusao espera o commit e a cascata remove o pagamento', async () => {
