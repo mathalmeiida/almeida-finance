@@ -7,7 +7,8 @@ import { useParcelamentos, valorParcelaNoMes } from './useParcelamentos'
 import { useCartoes } from './useCartoes'
 import { useComprasCartao } from './useComprasCartao'
 import { useFaturasCartao } from './useFaturasCartao'
-import { totalFaturaComOverride, faturaInformadaNoMes } from '../lib/faturaCartao'
+import { usePagamentosFatura } from './usePagamentosFatura'
+import { totalFaturaComOverride, saldoEmAbertoFatura } from '../lib/faturaCartao'
 import { useAuth } from '../contexts/AuthContext'
 import { labelMes, hojeISO, partesHojeBrasil } from '../lib/utils'
 import { vencimentoEfetivo } from '../lib/calendarioBancario'
@@ -34,6 +35,8 @@ export function useProjecao() {
   const { compras: comprasCartao, carregando: carregandoCompras } = useComprasCartao()
   // Faturas informadas por total (substituem a soma das compras no mês/cartão).
   const { faturas: faturasInformadas, carregando: carregandoFaturas } = useFaturasCartao()
+  // Pagamentos de fatura (ativos reduzem o saldo em aberto e debitam o saldo da conta).
+  const { pagamentos: pagamentosFatura, carregando: carregandoPagamentos } = usePagamentosFatura()
   const { perfil, idEfetivo } = useAuth()
 
   // Lançamentos entre a data do saldo informado e o início do mês atual (as
@@ -63,7 +66,7 @@ export function useProjecao() {
     ? Number(perfil.reserva_percentual)
     : 20
 
-  const carregando = carregandoR || carregandoD || carregandoP || carregandoCartoes || carregandoCompras || carregandoFaturas
+  const carregando = carregandoR || carregandoD || carregandoP || carregandoCartoes || carregandoCompras || carregandoFaturas || carregandoPagamentos
 
   // Soma das faturas de todos os cartões em um mês/ano específico.
   // USA A MESMA FONTE da tela Cartões → "Ver fatura"/"Próximas faturas"
@@ -177,14 +180,13 @@ function faturasNoMes(ano, mes) {
         compMes = mes - 1
         if (compMes < 1) { compMes = 12; compAno = ano - 1 }
       }
-      const informada = faturaInformadaNoMes(faturasInformadas, c.id, compAno, compMes)
-      if (informada?.pago === true) return acc // fatura informada já paga → não é futura
       const comprasDoCartao = comprasCartao.filter(cp => cp.cartao_id === c.id)
       const parcelamentosDoCartao = parcelamentos.filter(p => p.cartao_id === c.id)
       const total = totalFaturaComOverride(
         comprasDoCartao, parcelamentosDoCartao, faturasInformadas, c.id, c.dia_fechamento, compAno, compMes
       )
-      return acc + total
+      // Só o SALDO EM ABERTO ainda é compromisso futuro (pagamentos ativos já saíram do saldo).
+      return acc + saldoEmAbertoFatura(total, pagamentosFatura, faturasInformadas, c.id, compAno, compMes)
     }, 0)
   }
 
@@ -244,6 +246,8 @@ const marcoStr = perfil?.saldo_base_data || hojeStr
 const calculoSaldo = calcularSaldoDisponivel({
   saldoBase: saldoConfigurado ? saldoBase : null, marco: marcoStr, hoje: hojeStr,
   receitas: [receitas, anteriores.receitas], despesas: [despesas, anteriores.despesas],
+  // Pagamento de fatura debita o saldo (não é despesa; sem dupla contagem).
+  pagamentos: pagamentosFatura,
 })
 const receitasAteHoje = calculoSaldo.receitas
 const despesasAteHoje = calculoSaldo.despesas
@@ -324,12 +328,6 @@ if (dataVencimento <= hojeStr || dataVencimento >= dataLimiteSegura) {    return
     }
   }
 
-  const informada = faturaInformadaNoMes(
-    faturasInformadas, c.id, compAno, compMes
-  )
-
-  if (informada?.pago === true) return acc
-
   const comprasDoCartao = comprasCartao.filter(
     cp => cp.cartao_id === c.id
   )
@@ -337,14 +335,17 @@ if (dataVencimento <= hojeStr || dataVencimento >= dataLimiteSegura) {    return
     p => p.cartao_id === c.id
   )
 
-  return acc + totalFaturaComOverride(
-    comprasDoCartao,
-    parcelamentosDoCartao,
-    faturasInformadas,
-    c.id,
-    c.dia_fechamento,
-    compAno,
-    compMes
+  return acc + saldoEmAbertoFatura(
+    totalFaturaComOverride(
+      comprasDoCartao,
+      parcelamentosDoCartao,
+      faturasInformadas,
+      c.id,
+      c.dia_fechamento,
+      compAno,
+      compMes
+    ),
+    pagamentosFatura, faturasInformadas, c.id, compAno, compMes
   )
 }, 0)
 
@@ -471,6 +472,7 @@ const saldoSeguroHoje = Math.max(
     cartoes,
     comprasCartao,
     faturasInformadas,
+    pagamentosFatura,
     reservaPct,
     // mês/ano de referência
     mesAtual,

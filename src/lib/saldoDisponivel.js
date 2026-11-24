@@ -24,12 +24,29 @@ function somaNoPeriodo(listas, marco, hoje) {
   return total
 }
 
-export function calcularSaldoDisponivel({ saldoBase, marco, hoje, receitas = [], despesas = [] }) {
+// Pagamentos de fatura NÃO são despesas (a compra já foi contada como gasto do
+// cartão): debitam o saldo apenas quando ativos, com origem 'saldo_principal' e
+// data_pagamento depois do marco e até hoje. Estornados voltam ao saldo.
+function somaPagamentos(pagamentos, marco, hoje) {
+  const vistos = new Set()
+  let total = 0
+  for (const p of pagamentos || []) {
+    if (!p || p.status === 'estornado' || (p.origem || 'saldo_principal') !== 'saldo_principal') continue
+    const data = String(p.data_pagamento || '').slice(0, 10)
+    if (!data || data <= marco || data > hoje) continue
+    if (p.id != null) { if (vistos.has(p.id)) continue; vistos.add(p.id) }
+    total += Number(p.valor) || 0
+  }
+  return total
+}
+
+export function calcularSaldoDisponivel({ saldoBase, marco, hoje, receitas = [], despesas = [], pagamentos = [] }) {
   if (saldoBase == null) return { configurado: false, saldo: 0, receitas: 0, despesas: 0 }
   const m = marco || hoje
   const rec = somaNoPeriodo(Array.isArray(receitas[0]) ? receitas : [receitas], m, hoje)
   const desp = somaNoPeriodo(Array.isArray(despesas[0]) ? despesas : [despesas], m, hoje)
-  return { configurado: true, saldo: r2((Number(saldoBase) || 0) + rec - desp), receitas: r2(rec), despesas: r2(desp) }
+  const pagFatura = somaPagamentos(pagamentos, m, hoje)
+  return { configurado: true, saldo: r2((Number(saldoBase) || 0) + rec - desp - pagFatura), receitas: r2(rec), despesas: r2(desp), pagamentosFatura: r2(pagFatura) }
 }
 
 // Primeiro dia do mês de uma data ISO.

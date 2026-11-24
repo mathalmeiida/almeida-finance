@@ -2,7 +2,7 @@
 // Nao modifica saldo, reserva, banco ou regras do orcamento.
 import { valorDespesaRecorrenteNoMes, frequenciaDaDespesa } from '../hooks/useDespesas'
 import { valorParcelaNoMes } from '../hooks/useParcelamentos'
-import { totalFaturaComOverride, faturaInformadaNoMes } from './faturaCartao'
+import { totalFaturaComOverride, faturaInformadaNoMes, saldoEmAbertoFatura } from './faturaCartao'
 import { frequenciaDaReceita, valorReceitaRecorrenteNoMes } from './recorrenciaReceita'
 import { labelMes, partesHojeBrasil } from './utils'
 import { vencimentoEfetivo } from './calendarioBancario'
@@ -72,7 +72,7 @@ function diasDeReceita(receita, ano, mes) {
 
 export function gerarHorizonte({
   receitas = [], despesas = [], recorrentes = [], parcelamentos = [],
-  cartoes = [], comprasCartao = [], faturasInformadas = [],
+  cartoes = [], comprasCartao = [], faturasInformadas = [], pagamentosFatura = [],
   saldoInicial = 0, reservaPct = 20, dataReferencia, meses = 12,
 }) {
   const referencia = /^\d{4}-\d{2}-\d{2}$/.test(dataReferencia || '') ? dataReferencia : null
@@ -159,10 +159,13 @@ export function gerarHorizonte({
         if (diaVenc < diaFech) competencia = new Date(vencAno, vencMes - 2, 1)
         const compAno = competencia.getFullYear(), compMes = competencia.getMonth() + 1
         const informada = faturaInformadaNoMes(faturasInformadas, c.id, compAno, compMes)
-        const total = totalFaturaComOverride(compras, parcelas, faturasInformadas, c.id, c.dia_fechamento, compAno, compMes)
+        // Só o saldo em aberto (total - pagamentos ativos) ainda sai do caixa no vencimento.
+        const total = saldoEmAbertoFatura(
+          totalFaturaComOverride(compras, parcelas, faturasInformadas, c.id, c.dia_fechamento, compAno, compMes),
+          pagamentosFatura, faturasInformadas, c.id, compAno, compMes
+        )
         const diaNominal = Number(informada?.vencimento_dia) || diaVenc
         const efetivo = vencimentoEfetivo(vencAno, vencMes, diaNominal)
-        if (informada?.pago === true) continue
         if (!(total > 0)) continue
         if (efetivo.ano === ano && efetivo.mes === mes) {
           adicionar(efetivo.dia, total, 'saida', `Fatura ${c.nome || 'cartao'}`, 'cartao')
