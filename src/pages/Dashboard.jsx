@@ -2219,9 +2219,10 @@ export default function Dashboard() {
   // dispensa na sessão e a gravação falha em silêncio (fallback).
   const [dispensadoLocal, setDispensadoLocal] = useState(false)
   const comeceDispensado = perfil?.comece_por_aqui_dispensado === true || dispensadoLocal
-  // Mostra só até concluir os 4 OU até o usuário dispensar; some automaticamente
-  // quando tudo estiver pronto.
-  const mostrarComecePorAqui = !carregando && totalConcluidos < onboardingItens.length && !comeceDispensado
+  
+  // CORREÇÃO: Banner some quando onboarding_concluido = true OU tudo configurado
+  const onboardingConcluido = perfil?.onboarding_concluido === true
+  const mostrarComecePorAqui = !carregando && !onboardingConcluido && totalConcluidos < onboardingItens.length && !comeceDispensado
 
   async function handleDispensarComece() {
     setDispensadoLocal(true) // some imediatamente (otimista)
