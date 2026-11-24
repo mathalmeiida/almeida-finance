@@ -95,6 +95,47 @@ eq('origem outra conta não debita o saldo principal', calcularSaldoDisponivel({
 eq('pagamento anterior ao marco já está no saldo informado', calcularSaldoDisponivel({ ...base, pagamentos: [{ ...pg('1', '2026-10', 400), data_pagamento: '2026-11-01' }] }).saldo, 4900)
 eq('mesmo id repetido na lista conta uma vez', calcularSaldoDisponivel({ ...base, pagamentos: [pg('1', '2026-10', 400), pg('1', '2026-10', 400)] }).saldo, 4500)
 
+console.log('\n# Nova compra após pagamento parcial (sem estorno)')
+{
+  const pagsP = [pg('1', '2026-11', 300)]
+  const calc = cs => F.cicloFatura({ cartao, compras: cs, parcelamentos: [], faturasInformadas: [], pagamentos: pagsP, ano: 2026, mes: 11, hoje: HOJE })
+  const antesC = calc(compras)
+  eq('antes: total 1.000, pago 300, em aberto 700', antesC.emAberto, 700)
+  const novas = [...compras, compra('nova', 250, '2026-11-08')]
+  const depC = calc(novas)
+  eq('depois da nova compra: total sobe para 1.250,00', depC.total, 1250)
+  eq('pagamento anterior preservado: pago continua 300,00', depC.pago, 300)
+  eq('em aberto = novo total - pago = 950,00', depC.emAberto, 950)
+  assert('status Parcialmente paga', depC.status === 'Parcialmente paga', `(${depC.status})`)
+  assert('lista de pagamentos intacta (1 ativo, sem estorno)', depC.pagamentos.length === 1 && depC.pagamentos[0].status === 'ativo')
+  assert('valor igual ao novo em aberto é aceito', F.validarPagamento({ valor: 950, emAberto: depC.emAberto, data: '2026-11-10', hoje: HOJE }) === null)
+  const quitado = F.cicloFatura({ cartao, compras: novas, parcelamentos: [], faturasInformadas: [], pagamentos: [...pagsP, pg('2', '2026-11', 950)], ano: 2026, mes: 11, hoje: HOJE })
+  eq('quitar o novo restante zera o em aberto', quitado.emAberto, 0)
+  assert('status Paga', quitado.status === 'Paga')
+  const reaberto = F.cicloFatura({ cartao, compras: [...novas, compra('outra', 80, '2026-11-09')], parcelamentos: [], faturasInformadas: [], pagamentos: [...pagsP, pg('2', '2026-11', 950)], ano: 2026, mes: 11, hoje: HOJE })
+  assert('fatura quitada volta a Parcialmente paga com nova compra', reaberto.status === 'Parcialmente paga', `(${reaberto.status})`)
+  eq('em aberto da fatura reaberta = 80,00', reaberto.emAberto, 80)
+  const menor = F.cicloFatura({ cartao, compras: [compra('so', 200, '2026-11-03')], parcelamentos: [], faturasInformadas: [], pagamentos: pagsP, ano: 2026, mes: 11, hoje: HOJE })
+  eq('total abaixo do pago: em aberto 0 (sem débito extra)', menor.emAberto, 0)
+  eq('excedente pago exposto = 100,00', menor.excedentePago, 100)
+  const saldoNovo = calcularSaldoDisponivel({ saldoBase: 5000, marco: '2026-11-01', hoje: '2026-11-10', receitas: [], despesas: [], pagamentos: [pg('1', '2026-11', 300), pg('2', '2026-11', 950)] })
+  eq('saldo debita só os pagamentos reais (300 + 950)', saldoNovo.saldo, 3750)
+}
+
+console.log('\n# Saldo anterior não duplica o total de compras do ciclo')
+{
+  const pagsA = [pg('1', '2026-10', 400)]
+  const nov = ciclo(pagsA, 2026, 11)
+  eq('saldo anterior informativo = 600,00', nov.saldoAnterior, 600)
+  eq('total de compras de novembro segue 1.000,00', nov.total, 1000)
+  eq('em aberto de novembro não soma o anterior', nov.emAberto, 1000)
+  eq('limite comprometido não duplica (2.400)', comprometido(pagsA), 2400)
+}
+
+console.log('\n# Pagamento legado outra_conta nunca debita')
+eq('legado migrado não debita saldo', calcularSaldoDisponivel({ ...base, pagamentos: [{ ...pg('L', '2026-10', 1000), origem: 'outra_conta', legado: true, data_pagamento: '2026-11-09' }] }).saldo, 4900)
+eq('legado ainda conta como pago no ciclo', ciclo([{ ...pg('L', '2026-10', 1000), origem: 'outra_conta', legado: true }], 2026, 10).emAberto, 0)
+
 console.log('\n# Parcelamento (valor em aberto) e parcelas futuras')
 eq('parcelas futuras após novembro = 800 (2 parcelas de 400)', F.totalParcelasFuturas(compras, [], 20, 2026, 11), 800)
 

@@ -61,6 +61,14 @@ eq('compra do cartão c2 não entra na fatura de c1', F.totalFaturaCompleta(comp
 eq('sem cartaoId o comportamento anterior é mantido (soma tudo)', F.totalFaturaCompleta(compras, [], FECH, 2026, 11), 5970.18 + 999)
 eq('compra de 21/11 não aparece em novembro', F.totalFaturaCompleta([compra('t', 100, '2026-11-21')], [], FECH, 2026, 11, 'c1'), 0)
 
+console.log('\n# Competência da 1a parcela (data da primeira parcela + fechamento)')
+const cp = d => { const r = F.competenciaParcelamento({ primeira_parcela: d }, FECH); return `${r.ano}-${String(r.mes).padStart(2, '0')}` }
+assert('antes do fechamento (19/11) => novembro', cp('2026-11-19') === '2026-11')
+assert('no dia do fechamento (20/11) => novembro', cp('2026-11-20') === '2026-11')
+assert('depois do fechamento (21/11) => dezembro', cp('2026-11-21') === '2026-12')
+assert('virada de ano (25/12) => janeiro seguinte', cp('2026-12-25') === '2027-01')
+assert('sem data => null', F.competenciaParcelamento({}, FECH) === null)
+
 await Promise.resolve()
 console.log(falhas === 0 ? '\nOK — detalhamento de faturas aprovado' : `\n${falhas} FALHA(S)`)
 if (falhas) process.exitCode = 1

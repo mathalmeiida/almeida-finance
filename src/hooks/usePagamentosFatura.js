@@ -102,7 +102,7 @@ export function usePagamentosFatura(cartaoId = null) {
   // Registra um pagamento. `totalCiclo` é o total da fatura (projetada) usado pelo
   // servidor para limitar a soma dos pagamentos do ciclo. A chave de idempotência
   // torna o envio repetido (duplo clique, retry, 2 abas) seguro.
-  async function pagar({ cartaoId: cid, anoMes, valor, data, origem = 'saldo_principal', contaNome = null, totalCiclo, chave }) {
+  async function pagar({ cartaoId: cid, anoMes, valor, data, totalCiclo, chave }) {
     bloquearSeConsultoria(modoConsultoria)
     if (!usuario?.id) throw new Error('Usuário não autenticado')
     if (emAndamento.current) throw new Error('Já existe um pagamento sendo registrado. Aguarde.')
@@ -114,8 +114,8 @@ export function usePagamentosFatura(cartaoId = null) {
         p_ano_mes: anoMes,
         p_valor: valor,
         p_data_pagamento: data,
-        p_origem: origem,
-        p_conta_nome: contaNome,
+        p_origem: 'saldo_principal',
+        p_conta_nome: null,
         p_total_ciclo: totalCiclo,
         p_idempotency_key: chave || novaChaveIdempotencia(),
       })

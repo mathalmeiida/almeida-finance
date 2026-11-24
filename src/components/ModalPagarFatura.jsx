@@ -14,20 +14,18 @@ import { novaChaveIdempotencia } from '../hooks/usePagamentosFatura'
 export default function ModalPagarFatura({ aberto, ciclo, cartao, onConfirmar, onFechar }) {
   const [valor, setValor] = useState(0)
   const [data, setData] = useState(hojeISO())
-  const [origem, setOrigem] = useState('saldo_principal')
-  const [contaNome, setContaNome] = useState('')
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
   const chave = useRef(novaChaveIdempotencia())
+  const assinatura = useRef('')
 
   useEffect(() => {
     if (aberto && ciclo) {
       setValor(ciclo.emAberto)
       setData(hojeISO())
-      setOrigem('saldo_principal')
-      setContaNome('')
       setErro('')
       chave.current = novaChaveIdempotencia()
+      assinatura.current = ''
     }
   }, [aberto, ciclo?.ano, ciclo?.mes]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -42,21 +40,27 @@ export default function ModalPagarFatura({ aberto, ciclo, cartao, onConfirmar, o
     if (msg) { setErro(msg); return }
     setSalvando(true)
     setErro('')
+    const anoMes = `${ciclo.ano}-${String(ciclo.mes).padStart(2, '0')}`
+    // Nova chave sempre que a tentativa muda (valor, data ou total do ciclo). Um retry
+    // idêntico reaproveita a chave e fica idempotente.
+    const sig = `${anoMes}|${Number(valor)}|${data}|${ciclo.total}`
+    if (sig !== assinatura.current) {
+      chave.current = novaChaveIdempotencia()
+      assinatura.current = sig
+    }
     try {
       await onConfirmar({
-        anoMes: `${ciclo.ano}-${String(ciclo.mes).padStart(2, '0')}`,
+        anoMes,
         valor: Number(valor),
         data,
-        origem,
-        contaNome: origem === 'outra_conta' ? contaNome.trim() || null : null,
+        origem: 'saldo_principal',
+        contaNome: null,
         totalCiclo: ciclo.total,
         chave: chave.current,
       })
     } catch (e) {
       const m = e?.message || ''
-      setErro(/divergente/i.test(m)
-        ? 'O total da fatura mudou desde o primeiro pagamento deste ciclo (por exemplo, por uma nova compra). Estorne os pagamentos deste ciclo no histórico e registre novamente com o total atualizado.'
-        : (m || 'Erro ao registrar o pagamento.'))
+      setErro(m || 'Erro ao registrar o pagamento.')
       setSalvando(false)
       return
     }
@@ -119,14 +123,7 @@ export default function ModalPagarFatura({ aberto, ciclo, cartao, onConfirmar, o
 
         <div>
           <label className="label">Conta de origem</label>
-          <select value={origem} onChange={(e) => setOrigem(e.target.value)} className="input">
-            <option value="saldo_principal">Saldo principal (debita do saldo do app)</option>
-            <option value="outra_conta">Outra conta (não altera o saldo do app)</option>
-          </select>
-          {origem === 'outra_conta' && (
-            <input type="text" maxLength={80} value={contaNome} onChange={(e) => setContaNome(e.target.value)}
-              className="input mt-2" placeholder="Nome da conta (opcional)" />
-          )}
+          <p className="input bg-gray-50 text-gray-700">Saldo principal (debita do saldo do app)</p>
         </div>
 
         {erro && <p className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2" role="alert">{erro}</p>}

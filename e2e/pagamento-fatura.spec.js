@@ -107,7 +107,7 @@ test.describe.serial('Pagamento de fatura (DEV real)', () => {
     const chave = `e2e-dup-${Date.now()}`
     const args = {
       p_cartao_id: cartaoId, p_ano_mes: mesCorrente, p_valor: 100, p_data_pagamento: hoje,
-      p_origem: 'outra_conta', p_conta_nome: 'E2E', p_total_ciclo: 1000, p_idempotency_key: chave,
+      p_origem: 'saldo_principal', p_conta_nome: null, p_total_ciclo: 1000, p_idempotency_key: chave,
     }
     const r1 = await sb.rpc('pagar_fatura_cartao', args)
     const r2 = await sb.rpc('pagar_fatura_cartao', args)
@@ -117,6 +117,30 @@ test.describe.serial('Pagamento de fatura (DEV real)', () => {
     const { count } = await sb.from('pagamentos_fatura').select('*', { count: 'exact', head: true }).eq('idempotency_key', chave)
     expect(count).toBe(1)
     await sb.rpc('estornar_pagamento_fatura', { p_pagamento_id: r1.data.id })
+  })
+
+  test('origem outra_conta é recusada (só existe saldo principal)', async () => {
+    const r = await sb.rpc('pagar_fatura_cartao', {
+      p_cartao_id: cartaoId, p_ano_mes: mesCorrente, p_valor: 10, p_data_pagamento: hoje,
+      p_origem: 'outra_conta', p_conta_nome: null, p_total_ciclo: 1000, p_idempotency_key: `e2e-outra-${Date.now()}`,
+    })
+    expect(r.error).not.toBeNull()
+  })
+
+  test('nova compra após pagamento parcial: total maior aceito e pagamento anterior preservado', async () => {
+    const ym = '2031-03'
+    const base = { p_cartao_id: cartaoId, p_ano_mes: ym, p_data_pagamento: hoje, p_origem: 'saldo_principal', p_conta_nome: null }
+    const a = await sb.rpc('pagar_fatura_cartao', { ...base, p_valor: 100, p_total_ciclo: 300, p_idempotency_key: `e2e-nc-a-${Date.now()}` })
+    expect(a.error).toBeNull()
+    const b = await sb.rpc('pagar_fatura_cartao', { ...base, p_valor: 350, p_total_ciclo: 500, p_idempotency_key: `e2e-nc-b-${Date.now()}` })
+    expect(b.error).toBeNull()
+    const { data } = await sb.from('pagamentos_fatura').select('id,status').eq('cartao_id', cartaoId).eq('ano_mes', ym)
+    expect(data.filter(p => p.status === 'ativo').length).toBe(2)
+    const dup = await sb.rpc('estornar_pagamento_fatura', { p_pagamento_id: b.data.id })
+    expect(dup.error).toBeNull()
+    const dup2 = await sb.rpc('estornar_pagamento_fatura', { p_pagamento_id: b.data.id })
+    expect(dup2.error).not.toBeNull()
+    await sb.rpc('estornar_pagamento_fatura', { p_pagamento_id: a.data.id })
   })
 
   test('valor acima do saldo em aberto é recusado', async () => {
@@ -152,7 +176,7 @@ test.describe.serial('Pagamento de fatura (DEV real)', () => {
     const ym = proximo.toISOString().slice(0, 7)
     const r = await sb.rpc('pagar_fatura_cartao', {
       p_cartao_id: cartaoId, p_ano_mes: ym, p_valor: 50, p_data_pagamento: hoje,
-      p_origem: 'outra_conta', p_conta_nome: null, p_total_ciclo: 200, p_idempotency_key: `e2e-antecipado-${Date.now()}`,
+      p_origem: 'saldo_principal', p_conta_nome: null, p_total_ciclo: 200, p_idempotency_key: `e2e-antecipado-${Date.now()}`,
     })
     expect(r.error).toBeNull()
     await sb.rpc('estornar_pagamento_fatura', { p_pagamento_id: r.data.id })

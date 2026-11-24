@@ -1031,6 +1031,14 @@ export function cicloFatura({
     resumo.total, pagamentos, faturasInformadas, cartaoId, ano, mes
   )
 
+  // Se o total cair abaixo do que ja foi pago (ex.: compra removida), o excedente
+  // e apenas exibido: nao gera debito extra nem estorno automatico.
+  const ativosC = pagamentosDoCiclo(pagamentos, cartaoId, ano, mes)
+    .reduce((acc, pg) => acc + centavos(pg.valor), 0)
+  const excedentePago = pagamentos?.length && ativosC > 0
+    ? Math.max(0, ativosC - centavos(resumo.total)) / 100
+    : 0
+
   const anterior = competenciaPorIndice(chaveNumerica(ano, mes) - 1)
   const totalAnterior = totalFaturaComOverride(
     compras, parcelamentos, faturasInformadas, cartaoId, fech,
@@ -1048,6 +1056,7 @@ export function cicloFatura({
     ...datas,
     pago,
     emAberto,
+    excedentePago,
     saldoAnterior,
     status: statusFatura({
       total: resumo.total,

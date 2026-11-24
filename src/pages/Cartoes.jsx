@@ -745,7 +745,7 @@ const [modalFatura, setModalFatura] = useState(false)
                   <div className="min-w-0">
                     <p className={`text-sm font-medium ${pg.status === 'estornado' ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{formatCurrency(pg.valor)}</p>
                     <p className="text-xs text-gray-400 truncate">
-                      {formatDate(pg.data_pagamento)} · {pg.origem === 'saldo_principal' ? 'Saldo principal' : (pg.conta_nome || 'Outra conta')}
+                      {formatDate(pg.data_pagamento)} · {pg.origem === 'saldo_principal' ? 'Saldo principal' : (pg.conta_nome || 'Pagamento anterior, sem débito no saldo')}
                       {pg.legado ? ' · migrado' : ''}{pg.status === 'estornado' ? ' · estornado' : ''}
                     </p>
                   </div>

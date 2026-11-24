@@ -22,9 +22,19 @@
 --   • Duplicidade: UNIQUE (usuario_id, idempotency_key) e trava por cartão
 --     (SELECT ... FOR UPDATE) dentro da RPC.
 --   • Limite do valor: soma dos pagamentos ativos + novo valor <= total do ciclo
---     informado pelo app (p_total_ciclo). Como a fatura é projetada no cliente, o
---     servidor não consegue recalculá-la; ele garante consistência por ciclo e
---     ancora o total no primeiro pagamento ativo (total_ciclo_ref).
+--     ATUAL informado pelo app (p_total_ciclo). Novas compras após pagamento parcial
+--     são permitidas: o total sobe, os pagamentos ativos são preservados (sem
+--     estorno) e o em aberto passa a ser total - pago. total_ciclo_ref guarda o
+--     total vigente em cada pagamento (snapshot).
+--   • Limitação conhecida: a fatura é projetada no cliente (ciclo, fechamento,
+--     parcelas), então o servidor não recalcula o total. Um teto no servidor
+--     divergiria da regra de ciclo do cliente. O total vem do cliente e o impacto
+--     de um valor adulterado fica restrito ao próprio usuário (RLS + dono do cartão).
+--   • Origem: somente 'saldo_principal' (não há múltiplas contas). 'outra_conta'
+--     existe só em pagamentos legados migrados, que não debitam saldo.
+--   • Idempotência: mesma chave + mesmos parâmetros devolve o original; mesma chave
+--     com parâmetros diferentes é recusada. Estorno repetido é recusado (sem dupla
+--     reversão).
 
 CREATE TABLE IF NOT EXISTS public.pagamentos_fatura (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -87,7 +97,6 @@ AS $$
 DECLARE
   v_uid       UUID := auth.uid();
   v_pago      NUMERIC(12,2);
-  v_ancora    NUMERIC(12,2);
   v_existente public.pagamentos_fatura;
   v_novo      public.pagamentos_fatura;
 BEGIN
@@ -106,8 +115,10 @@ BEGIN
   IF p_data_pagamento IS NULL OR p_data_pagamento > (NOW() AT TIME ZONE 'America/Sao_Paulo')::date THEN
     RAISE EXCEPTION 'Data do pagamento não pode ser futura' USING ERRCODE = '22023';
   END IF;
-  IF COALESCE(p_origem, 'saldo_principal') NOT IN ('saldo_principal', 'outra_conta') THEN
-    RAISE EXCEPTION 'Conta de origem inválida' USING ERRCODE = '22023';
+  -- Só existe uma conta (saldo principal). 'outra_conta' segue válida no CHECK da
+  -- tabela apenas para o backfill legado e não pode ser criada por esta RPC.
+  IF COALESCE(p_origem, 'saldo_principal') <> 'saldo_principal' THEN
+    RAISE EXCEPTION 'Conta de origem inválida: somente saldo_principal' USING ERRCODE = '22023';
   END IF;
 
   -- Trava o cartão (e valida o dono): serializa pagamentos concorrentes.
@@ -123,7 +134,8 @@ BEGIN
    WHERE usuario_id = v_uid AND idempotency_key = p_idempotency_key;
   IF FOUND THEN
     IF v_existente.cartao_id = p_cartao_id AND v_existente.ano_mes = p_ano_mes
-       AND v_existente.valor = round(p_valor, 2) THEN
+       AND v_existente.valor = round(p_valor, 2)
+       AND v_existente.data_pagamento = p_data_pagamento THEN
       RETURN v_existente;
     END IF;
     RAISE EXCEPTION 'Chave de idempotência já usada em outro pagamento' USING ERRCODE = '23505';
@@ -133,19 +145,10 @@ BEGIN
    WHERE usuario_id = v_uid AND cartao_id = p_cartao_id
      AND ano_mes = p_ano_mes AND status = 'ativo';
 
-  -- Âncora do total: enquanto houver pagamento ativo no ciclo, o total enviado deve
-  -- ser o mesmo do primeiro pagamento. Impede inflar o teto em chamadas seguintes.
-  -- Para mudar o total (ex.: nova compra no ciclo), estorne os pagamentos do ciclo.
-  SELECT total_ciclo_ref INTO v_ancora FROM public.pagamentos_fatura
-   WHERE usuario_id = v_uid AND cartao_id = p_cartao_id
-     AND ano_mes = p_ano_mes AND status = 'ativo' AND total_ciclo_ref IS NOT NULL
-   ORDER BY criado_em ASC, id ASC
-   LIMIT 1;
-  IF v_ancora IS NOT NULL AND v_ancora <> round(p_total_ciclo, 2) THEN
-    RAISE EXCEPTION 'Total da fatura divergente do primeiro pagamento do ciclo (total registrado: %)',
-      to_char(v_ancora, 'FM999999990.00')
-      USING ERRCODE = '22023';
-  END IF;
+  -- Novo contrato: o total do ciclo pode mudar (nova compra depois de pagamento
+  -- parcial). Pagamentos ativos nunca são alterados nem exigem estorno; o teto é
+  -- sempre o total ATUAL informado. total_ciclo_ref é só o snapshot do total no
+  -- momento de cada pagamento.
 
   IF v_pago + round(p_valor, 2) > round(p_total_ciclo, 2) THEN
     RAISE EXCEPTION 'Valor excede o saldo em aberto da fatura (em aberto: %)',
@@ -158,7 +161,7 @@ BEGIN
      total_ciclo_ref, idempotency_key)
   VALUES
     (v_uid, p_cartao_id, p_ano_mes, round(p_valor, 2), p_data_pagamento,
-     COALESCE(p_origem, 'saldo_principal'), NULLIF(btrim(p_conta_nome), ''),
+     'saldo_principal', NULL,
      round(p_total_ciclo, 2), p_idempotency_key)
   RETURNING * INTO v_novo;
 
