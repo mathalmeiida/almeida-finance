@@ -2,6 +2,10 @@
 // E2E REAL contra o Supabase DEV: pagamento de fatura (total, parcial, antecipado,
 // estorno, recarregamento e duplicidade). NÃO usa mocks de rede.
 //
+// Desde a v4 o servidor calcula o total do ciclo (public.total_fatura_ciclo) e ignora o
+// p_total_ciclo do cliente como teto: os casos de total inflado/desatualizado abaixo
+// dependem do DEV com a migration v4 aplicada.
+//
 // STATUS: escrito, mas NÃO EXECUTADO no ambiente de desenvolvimento do agente
 // (sem credenciais DEV e DNS do DEV inacessível; ver DEV-BLOQUEADO.md).
 //
@@ -130,8 +134,13 @@ test.describe.serial('Pagamento de fatura (DEV real)', () => {
   test('nova compra após pagamento parcial: total maior aceito e pagamento anterior preservado', async () => {
     const ym = '2031-03'
     const base = { p_cartao_id: cartaoId, p_ano_mes: ym, p_data_pagamento: hoje, p_origem: 'saldo_principal', p_conta_nome: null }
+    // O servidor calcula o total a partir das compras: cria as compras do ciclo (fechamento dia 28).
+    const c1 = await sb.from('compras_cartao').insert({ usuario_id: userId, cartao_id: cartaoId, descricao: 'E2E nc 1', valor_total: 300, data_compra: '2031-03-05', numero_parcelas: 1 })
+    expect(c1.error).toBeNull()
     const a = await sb.rpc('pagar_fatura_cartao', { ...base, p_valor: 100, p_total_ciclo: 300, p_idempotency_key: `e2e-nc-a-${Date.now()}` })
     expect(a.error).toBeNull()
+    const c2 = await sb.from('compras_cartao').insert({ usuario_id: userId, cartao_id: cartaoId, descricao: 'E2E nc 2', valor_total: 200, data_compra: '2031-03-06', numero_parcelas: 1 })
+    expect(c2.error).toBeNull()
     const b = await sb.rpc('pagar_fatura_cartao', { ...base, p_valor: 350, p_total_ciclo: 500, p_idempotency_key: `e2e-nc-b-${Date.now()}` })
     expect(b.error).toBeNull()
     const { data } = await sb.from('pagamentos_fatura').select('id,status').eq('cartao_id', cartaoId).eq('ano_mes', ym)
@@ -141,6 +150,45 @@ test.describe.serial('Pagamento de fatura (DEV real)', () => {
     const dup2 = await sb.rpc('estornar_pagamento_fatura', { p_pagamento_id: b.data.id })
     expect(dup2.error).not.toBeNull()
     await sb.rpc('estornar_pagamento_fatura', { p_pagamento_id: a.data.id })
+  })
+
+  test('total inflado pelo cliente é recusado pelo servidor (fatura desatualizada)', async () => {
+    const ym = '2031-04'
+    const c = await sb.from('compras_cartao').insert({ usuario_id: userId, cartao_id: cartaoId, descricao: 'E2E inflado', valor_total: 200, data_compra: '2031-04-05', numero_parcelas: 1 })
+    expect(c.error).toBeNull()
+    const r = await sb.rpc('pagar_fatura_cartao', {
+      p_cartao_id: cartaoId, p_ano_mes: ym, p_valor: 900, p_data_pagamento: hoje,
+      p_origem: 'saldo_principal', p_conta_nome: null, p_total_ciclo: 99999, p_idempotency_key: `e2e-inflado-${Date.now()}`,
+    })
+    expect(r.error).not.toBeNull()
+    expect(r.error.message).toMatch(/desatualizada/i)
+    // Mesmo com o total correto, o valor não pode passar do em aberto real (200).
+    const r2 = await sb.rpc('pagar_fatura_cartao', {
+      p_cartao_id: cartaoId, p_ano_mes: ym, p_valor: 200.01, p_data_pagamento: hoje,
+      p_origem: 'saldo_principal', p_conta_nome: null, p_total_ciclo: 200, p_idempotency_key: `e2e-inflado2-${Date.now()}`,
+    })
+    expect(r2.error).not.toBeNull()
+    expect(r2.error.message).toMatch(/excede/i)
+    const { count } = await sb.from('pagamentos_fatura').select('*', { count: 'exact', head: true }).eq('cartao_id', cartaoId).eq('ano_mes', ym)
+    expect(count).toBe(0)
+  })
+
+  test('ciclo sem compras não aceita pagamento (o total vem do servidor)', async () => {
+    const r = await sb.rpc('pagar_fatura_cartao', {
+      p_cartao_id: cartaoId, p_ano_mes: '2035-01', p_valor: 10, p_data_pagamento: hoje,
+      p_origem: 'saldo_principal', p_conta_nome: null, p_total_ciclo: 10, p_idempotency_key: `e2e-vazio-${Date.now()}`,
+    })
+    expect(r.error).not.toBeNull()
+  })
+
+  test('total_fatura_ciclo devolve o total real e não expõe outro usuário', async () => {
+    const r = await sb.rpc('total_fatura_ciclo', { p_cartao_id: cartaoId, p_ano_mes: mesCorrente })
+    expect(r.error).toBeNull()
+    expect(Number(r.data)).toBe(1000)
+    test.skip(!EMAIL_B || !SENHA_B, 'Sem usuário B (E2E_EMAIL_B/E2E_SENHA_B)')
+    const sbB = await clienteLogado(EMAIL_B, SENHA_B)
+    const rb = await sbB.rpc('total_fatura_ciclo', { p_cartao_id: cartaoId, p_ano_mes: mesCorrente })
+    expect(rb.error).not.toBeNull()
   })
 
   test('valor acima do saldo em aberto é recusado', async () => {
@@ -174,6 +222,8 @@ test.describe.serial('Pagamento de fatura (DEV real)', () => {
     const proximo = new Date(`${mesCorrente}-15T12:00:00`)
     proximo.setMonth(proximo.getMonth() + 1)
     const ym = proximo.toISOString().slice(0, 7)
+    const cf = await sb.from('compras_cartao').insert({ usuario_id: userId, cartao_id: cartaoId, descricao: 'E2E antecipado', valor_total: 200, data_compra: `${ym}-05`, numero_parcelas: 1 })
+    expect(cf.error).toBeNull()
     const r = await sb.rpc('pagar_fatura_cartao', {
       p_cartao_id: cartaoId, p_ano_mes: ym, p_valor: 50, p_data_pagamento: hoje,
       p_origem: 'saldo_principal', p_conta_nome: null, p_total_ciclo: 200, p_idempotency_key: `e2e-antecipado-${Date.now()}`,

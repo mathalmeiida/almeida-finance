@@ -326,7 +326,7 @@ function FormFatura({ cartao, faturaInicial, refData, onSalvar, onCancelar, carr
 }
 // ─── Visão: Ver fatura de um cartão (atual ou projetada) ──────────────────────
 function VerFatura({ cartao, onVoltar, onEditarCartao }) {
-  const { compras, carregando, criar, atualizar, remover } = useComprasCartao(cartao.id)
+  const { compras, carregando, criar, atualizar, remover, recarregar: recarregarCompras } = useComprasCartao(cartao.id)
   const { parcelamentos } = useParcelamentos()
 // Faturas informadas por total (deste cartão).
 const { faturas: faturasInformadas, salvarFatura, removerFatura } = useFaturasCartao(cartao.id)
@@ -542,7 +542,19 @@ const [modalFatura, setModalFatura] = useState(false)
   }
   async function handlePagar(dados) {
     setErro('')
-    await pagar({ cartaoId: cartao.id, ...dados })
+    try {
+      await pagar({ cartaoId: cartao.id, ...dados })
+    } catch (err) {
+      // Servidor recusou por total divergente: refaz a leitura das compras e fecha o modal
+      // para o usuario conferir o novo total antes de pagar.
+      if (err?.desatualizada) {
+        recarregarCompras()
+        setCicloPagando(null)
+        setErro(err.message)
+        return
+      }
+      throw err
+    }
     setCicloPagando(null)
   }
   async function handleEstornar(pg) {

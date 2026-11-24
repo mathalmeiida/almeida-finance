@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
+import { mensagemAmigavel, ehFaturaDesatualizada } from '../lib/mensagemPagamentoFatura'
 
 // ─── Pagamentos de fatura (tabela pagamentos_fatura) ──────────────────────────
 // Leitura direta (RLS: só os próprios registros). Escrita SOMENTE pelas RPCs
@@ -19,18 +20,6 @@ const barramento = typeof window !== 'undefined' ? window : null
 export function novaChaveIdempotencia() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
   return `pg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-}
-
-function mensagemAmigavel(err) {
-  const m = String(err?.message || err || '')
-  if (/excede o saldo em aberto/i.test(m)) return m
-  if (/j[aá] estornado/i.test(m)) return 'Este pagamento já foi estornado.'
-  if (/n[aã]o encontrado/i.test(m)) return 'Cartão ou pagamento não encontrado.'
-  if (/futura/i.test(m)) return 'A data do pagamento não pode ser futura.'
-  if (/function .*does not exist|schema cache/i.test(m)) {
-    return 'Pagamento de fatura indisponível: a migração 2026-11_pagamentos_fatura.sql ainda não foi aplicada neste ambiente.'
-  }
-  return m || 'Erro ao registrar o pagamento.'
 }
 
 export function usePagamentosFatura(cartaoId = null) {
@@ -99,9 +88,9 @@ export function usePagamentosFatura(cartaoId = null) {
     barramento?.dispatchEvent(new Event(EVENTO))
   }
 
-  // Registra um pagamento. `totalCiclo` é o total da fatura (projetada) usado pelo
-  // servidor para limitar a soma dos pagamentos do ciclo. A chave de idempotência
-  // torna o envio repetido (duplo clique, retry, 2 abas) seguro.
+  // Registra um pagamento. `totalCiclo` é só uma DICA: o servidor calcula o total real
+  // do ciclo e recusa ('Fatura desatualizada') se a tela divergir. A chave de
+  // idempotência torna o envio repetido (duplo clique, retry, 2 abas) seguro.
   async function pagar({ cartaoId: cid, anoMes, valor, data, totalCiclo, chave }) {
     bloquearSeConsultoria(modoConsultoria)
     if (!usuario?.id) throw new Error('Usuário não autenticado')
@@ -119,7 +108,14 @@ export function usePagamentosFatura(cartaoId = null) {
         p_total_ciclo: totalCiclo,
         p_idempotency_key: chave || novaChaveIdempotencia(),
       })
-      if (error) throw new Error(mensagemAmigavel(error))
+      if (error) {
+        const e = new Error(mensagemAmigavel(error))
+        if (ehFaturaDesatualizada(error)) {
+          e.desatualizada = true
+          buscar({ silencioso: true })
+        }
+        throw e
+      }
       setPagamentos(prev => [linha, ...prev.filter(p => p.id !== linha.id)])
       avisarOutrasTelas()
       return linha

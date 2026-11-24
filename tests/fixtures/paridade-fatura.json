@@ -1,0 +1,177 @@
+{
+  "_doc": "Gabarito compartilhado: tests/paridade-fatura-js.test.mjs (JS, node puro) e supabase/tests/paridade-fatura.mjs (SQL, PGlite). Cartao 'main' fecha no dia cartoes.main; 'b' e um segundo cartao do mesmo usuario. Valores esperados calculados a mao, em reais. Passos de pagamento: erro = excede | quitada | sem_valor | desatualizada (somente SQL).",
+  "cartoes": { "main": 20, "b": 5 },
+  "totais": [
+    {
+      "nome": "compra a vista no dia do fechamento fica no ciclo",
+      "compras": [{ "descricao": "A", "valor_total": 100, "data_compra": "2026-11-20", "numero_parcelas": 1 }],
+      "esperado": { "2026-10": 0, "2026-11": 100, "2026-12": 0 }
+    },
+    {
+      "nome": "compra a vista um dia depois do fechamento vai para o ciclo seguinte",
+      "compras": [{ "descricao": "A", "valor_total": 100, "data_compra": "2026-11-21", "numero_parcelas": 1 }],
+      "esperado": { "2026-11": 0, "2026-12": 100 }
+    },
+    {
+      "nome": "100 em 3x: resto de centavos na ultima parcela (virada de ano)",
+      "compras": [{ "descricao": "B", "valor_total": 100, "data_compra": "2026-11-10", "numero_parcelas": 3 }],
+      "esperado": { "2026-10": 0, "2026-11": 33.33, "2026-12": 33.33, "2027-01": 33.34, "2027-02": 0 }
+    },
+    {
+      "nome": "1000 em 9x: 8 parcelas de 111,11 e ultima de 111,12",
+      "compras": [{ "descricao": "C", "valor_total": 1000, "data_compra": "2026-10-05", "numero_parcelas": 9 }],
+      "esperado": { "2026-10": 111.11, "2027-05": 111.11, "2027-06": 111.12, "2027-07": 0 }
+    },
+    {
+      "nome": "compra parcelada feita apos o fechamento comeca no mes seguinte (virada de ano)",
+      "compras": [{ "descricao": "D", "valor_total": 120, "data_compra": "2026-12-25", "numero_parcelas": 2 }],
+      "esperado": { "2026-12": 0, "2027-01": 60, "2027-02": 60, "2027-03": 0 }
+    },
+    {
+      "nome": "fechamento dia 31 em meses curtos",
+      "cartoes": { "main": 31 },
+      "compras": [
+        { "descricao": "jan", "valor_total": 50, "data_compra": "2026-01-31", "numero_parcelas": 1 },
+        { "descricao": "fev", "valor_total": 100, "data_compra": "2026-02-28", "numero_parcelas": 1 },
+        { "descricao": "mar", "valor_total": 25, "data_compra": "2026-03-01", "numero_parcelas": 1 },
+        { "descricao": "abr", "valor_total": 200, "data_compra": "2026-04-30", "numero_parcelas": 1 },
+        { "descricao": "mai", "valor_total": 300, "data_compra": "2026-05-31", "numero_parcelas": 1 }
+      ],
+      "esperado": { "2025-12": 0, "2026-01": 50, "2026-02": 100, "2026-03": 25, "2026-04": 200, "2026-05": 300, "2026-06": 0 }
+    },
+    {
+      "nome": "fechamento dia 30 em fevereiro e bissexto",
+      "cartoes": { "main": 30 },
+      "compras": [
+        { "descricao": "fev26", "valor_total": 10, "data_compra": "2026-02-28", "numero_parcelas": 1 },
+        { "descricao": "fev28", "valor_total": 20, "data_compra": "2028-02-29", "numero_parcelas": 1 },
+        { "descricao": "mar", "valor_total": 40, "data_compra": "2026-03-31", "numero_parcelas": 1 }
+      ],
+      "esperado": { "2026-02": 10, "2026-03": 0, "2026-04": 40, "2028-02": 20, "2028-03": 0 }
+    },
+    {
+      "nome": "parcelamentos (tabela): 1a parcela antes e depois do fechamento",
+      "parcelamentos": [
+        { "descricao": "P1", "valor_total": 600, "numero_parcelas": 4, "primeira_parcela": "2026-11-15" },
+        { "descricao": "P2", "valor_total": 100, "numero_parcelas": 3, "primeira_parcela": "2026-11-25" }
+      ],
+      "esperado": { "2026-10": 0, "2026-11": 150, "2026-12": 183.33, "2027-01": 183.33, "2027-02": 183.34, "2027-03": 0 }
+    },
+    {
+      "nome": "parcelamento quitado fica fora",
+      "parcelamentos": [{ "descricao": "Q", "valor_total": 600, "numero_parcelas": 4, "primeira_parcela": "2026-11-15", "quitado_em": "2026-11-30" }],
+      "esperado": { "2026-11": 0, "2026-12": 0 }
+    },
+    {
+      "nome": "dedupe parcelamento x compra (acentos, caixa e espacos) e parcelamento distinto soma",
+      "compras": [{ "descricao": "Notebook Dell", "valor_total": 1200, "data_compra": "2026-11-10", "numero_parcelas": 4 }],
+      "parcelamentos": [
+        { "descricao": "Notébook   DELL", "valor_total": 1200, "numero_parcelas": 4, "primeira_parcela": "2026-11-10" },
+        { "descricao": "Notebook Dell", "valor_total": 1000, "numero_parcelas": 2, "primeira_parcela": "2026-11-10" }
+      ],
+      "esperado": { "2026-11": 800, "2026-12": 800, "2027-01": 300, "2027-02": 300, "2027-03": 0 }
+    },
+    {
+      "nome": "fatura informada: maior entre o informado e as compras",
+      "compras": [
+        { "descricao": "out", "valor_total": 400, "data_compra": "2026-10-05", "numero_parcelas": 1 },
+        { "descricao": "nov", "valor_total": 1000, "data_compra": "2026-11-05", "numero_parcelas": 1 }
+      ],
+      "faturasInformadas": [
+        { "ano_mes": "2026-10", "valor_total": 100 },
+        { "ano_mes": "2026-11", "valor_total": 3600 },
+        { "ano_mes": "2026-12", "valor_total": 500 }
+      ],
+      "esperado": { "2026-10": 400, "2026-11": 3600, "2026-12": 500, "2027-01": 0 }
+    },
+    {
+      "nome": "cartoes distintos nao se misturam",
+      "compras": [
+        { "descricao": "main", "valor_total": 100, "data_compra": "2026-11-10", "numero_parcelas": 1 },
+        { "cartao": "b", "descricao": "b1", "valor_total": 777, "data_compra": "2026-11-03", "numero_parcelas": 1 },
+        { "cartao": "b", "descricao": "b2", "valor_total": 223, "data_compra": "2026-11-08", "numero_parcelas": 1 }
+      ],
+      "esperado": { "2026-11": 100, "2026-12": 0 },
+      "esperado_b": { "2026-11": 777, "2026-12": 223 }
+    }
+  ],
+  "pagamentos": [
+    {
+      "nome": "parcial + parcial + excesso + quitacao",
+      "compras": [{ "descricao": "X", "valor_total": 1000, "data_compra": "2026-11-05", "numero_parcelas": 1 }],
+      "passos": [
+        { "op": "pagar", "ano_mes": "2026-11", "valor": 400, "ok": true, "emAberto": 600 },
+        { "op": "pagar", "ano_mes": "2026-11", "valor": 300, "ok": true, "emAberto": 300 },
+        { "op": "pagar", "ano_mes": "2026-11", "valor": 300.01, "ok": false, "erro": "excede", "emAberto": 300 },
+        { "op": "pagar", "ano_mes": "2026-11", "valor": 300, "ok": true, "emAberto": 0 },
+        { "op": "pagar", "ano_mes": "2026-11", "valor": 0.01, "ok": false, "erro": "quitada", "emAberto": 0 }
+      ]
+    },
+    {
+      "nome": "cliente com total inflado ou desatualizado (somente SQL)",
+      "compras": [{ "descricao": "X", "valor_total": 500, "data_compra": "2026-11-05", "numero_parcelas": 1 }],
+      "passos": [
+        { "op": "pagar", "ano_mes": "2026-11", "valor": 900, "hint": 1000, "somenteSql": true, "ok": false, "erro": "desatualizada", "emAberto": 500 },
+        { "op": "pagar", "ano_mes": "2026-11", "valor": 900, "hint": 500, "somenteSql": true, "ok": false, "erro": "excede", "emAberto": 500 },
+        { "op": "pagar", "ano_mes": "2026-11", "valor": 100, "hint": 400, "somenteSql": true, "ok": false, "erro": "desatualizada", "emAberto": 500 },
+        { "op": "pagar", "ano_mes": "2026-11", "valor": 500, "ok": true, "emAberto": 0 }
+      ]
+    },
+    {
+      "nome": "nova compra depois de pagamento parcial, sem estorno",
+      "compras": [{ "descricao": "X", "valor_total": 1000, "data_compra": "2026-11-05", "numero_parcelas": 1 }],
+      "passos": [
+        { "op": "pagar", "ano_mes": "2026-11", "valor": 300, "ok": true, "emAberto": 700 },
+        { "op": "compra", "compra": { "descricao": "nova", "valor_total": 250, "data_compra": "2026-11-08", "numero_parcelas": 1 }, "ano_mes": "2026-11", "emAberto": 950 },
+        { "op": "pagar", "ano_mes": "2026-11", "valor": 950, "ok": true, "emAberto": 0 },
+        { "op": "compra", "compra": { "descricao": "outra", "valor_total": 80, "data_compra": "2026-11-09", "numero_parcelas": 1 }, "ano_mes": "2026-11", "emAberto": 80 },
+        { "op": "pagar", "ano_mes": "2026-11", "valor": 80.01, "ok": false, "erro": "excede", "emAberto": 80 },
+        { "op": "pagar", "ano_mes": "2026-11", "valor": 80, "ok": true, "emAberto": 0 }
+      ]
+    },
+    {
+      "nome": "estorno e repagamento",
+      "compras": [{ "descricao": "X", "valor_total": 500, "data_compra": "2026-11-05", "numero_parcelas": 1 }],
+      "passos": [
+        { "op": "pagar", "id": "p1", "ano_mes": "2026-11", "valor": 500, "ok": true, "emAberto": 0 },
+        { "op": "estornar", "ref": "p1", "ano_mes": "2026-11", "emAberto": 500 },
+        { "op": "pagar", "ano_mes": "2026-11", "valor": 500, "ok": true, "emAberto": 0 }
+      ]
+    },
+    {
+      "nome": "ciclos diferentes (fechamento dia 10) e parcelado; pagar um ciclo nao afeta outro",
+      "cartoes": { "main": 10 },
+      "compras": [
+        { "descricao": "c1", "valor_total": 200, "data_compra": "2026-11-05", "numero_parcelas": 1 },
+        { "descricao": "c2", "valor_total": 300, "data_compra": "2026-11-15", "numero_parcelas": 1 },
+        { "descricao": "c3", "valor_total": 600, "data_compra": "2026-11-20", "numero_parcelas": 3 }
+      ],
+      "esperado": { "2026-11": 200, "2026-12": 500, "2027-01": 200, "2027-02": 200 },
+      "passos": [
+        { "op": "pagar", "ano_mes": "2026-11", "valor": 200, "ok": true, "emAberto": 0 },
+        { "op": "pagar", "ano_mes": "2026-12", "valor": 600, "ok": false, "erro": "excede", "emAberto": 500 },
+        { "op": "pagar", "ano_mes": "2026-12", "valor": 500, "ok": true, "emAberto": 0 },
+        { "op": "pagar", "ano_mes": "2027-01", "valor": 100, "ok": true, "emAberto": 100 }
+      ]
+    },
+    {
+      "nome": "ciclo sem compras nao aceita pagamento",
+      "compras": [{ "descricao": "X", "valor_total": 100, "data_compra": "2026-11-05", "numero_parcelas": 1 }],
+      "passos": [
+        { "op": "pagar", "ano_mes": "2027-05", "valor": 10, "ok": false, "erro": "sem_valor", "emAberto": 0 }
+      ]
+    },
+    {
+      "nome": "pagamento de um cartao nao afeta o outro",
+      "compras": [
+        { "descricao": "main", "valor_total": 100, "data_compra": "2026-11-10", "numero_parcelas": 1 },
+        { "cartao": "b", "descricao": "b1", "valor_total": 777, "data_compra": "2026-11-03", "numero_parcelas": 1 }
+      ],
+      "passos": [
+        { "op": "pagar", "cartao": "b", "ano_mes": "2026-11", "valor": 777, "ok": true, "emAberto": 0 },
+        { "op": "pagar", "ano_mes": "2026-11", "valor": 100, "ok": true, "emAberto": 0 },
+        { "op": "pagar", "cartao": "b", "ano_mes": "2026-11", "valor": 1, "ok": false, "erro": "quitada", "emAberto": 0 }
+      ]
+    }
+  ]
+}

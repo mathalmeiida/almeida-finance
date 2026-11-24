@@ -177,6 +177,15 @@ ok('A apaga a própria compra', !r.erro && r.afetadas === 1, r.erro || '')
 
 console.log('\n# pagamentos_fatura: RPCs transacionais, duplicidade, estorno e RLS (SIMULADO em PGlite)')
 const hoje = new Date().toISOString().slice(0, 10)
+// Dados do servidor: o teto vem de compras_cartao (o total do cliente e so uma dica).
+const semear = (usuario, cartao, descricao, valor, data, parcelas = 1) => db.query(
+  `INSERT INTO public.compras_cartao (usuario_id, cartao_id, descricao, valor_total, data_compra, numero_parcelas) VALUES ($1, $2, $3, $4, $5, $6)`,
+  [usuario, cartao, descricao, valor, data, parcelas])
+await semear(A, cartaoA, 'Ciclo 2026-11', 1000, '2026-11-05')
+await semear(A, cartaoA, 'Ciclo 2026-12', 500, '2026-12-05')
+await semear(A, cartaoA, 'Ciclo 2027-01', 500, '2027-01-05')
+await semear(A, cartaoA, 'Ciclo 2027-02', 100, '2027-02-05')
+await semear(B, cartaoB, 'Ciclo B 2026-11', 500, '2026-11-05')
 const pagar = (uid, cartao, ym, valor, key, total = 1000, origem = 'saldo_principal', data = hoje) =>
   como(uid, `SELECT * FROM public.pagar_fatura_cartao($1, $2, $3, $4, $5, NULL, $6, $7)`, [cartao, ym, valor, data, origem, total, key])
 r = await pagar(A, cartaoA, '2026-11', 400, 'chave-parcial-1')
@@ -206,6 +215,7 @@ ok('após estorno o valor volta a ficar em aberto (600 aceito)', !r.erro, r.erro
 r = await pagar(A, cartaoA, '2026-12', 100, 'chave-antecipado-1', 500)
 ok('pagamento antecipado de outro ciclo aceito', !r.erro, r.erro || '')
 // Nova compra apos pagamento parcial: total maior aceito, pagamento anterior preservado.
+await semear(A, cartaoA, 'Nova compra 2026-12', 200, '2026-12-06')
 r = await pagar(A, cartaoA, '2026-12', 150, 'chave-total-maior-1', 700)
 ok('total maior apos pagamento parcial aceito (sem estorno)', !r.erro && Number(r.linhas[0].total_ciclo_ref) === 700, r.erro || '')
 r = await como(A, `SELECT count(*)::int AS n, COALESCE(SUM(valor),0)::numeric AS soma FROM public.pagamentos_fatura WHERE cartao_id = $1 AND ano_mes = '2026-12' AND status = 'ativo'`, [cartaoA])
@@ -234,7 +244,7 @@ r = await pagar(B, cartaoB, '2026-11', 100, 'chave-b-proprio-1', 500)
 ok('B paga o proprio cartao', !r.erro, r.erro || '')
 r = await como(A, `SELECT count(*)::int AS n FROM public.pagamentos_fatura WHERE cartao_id = $1`, [cartaoB])
 ok('A nao le pagamentos do cartao de B (RLS)', !r.erro && r.linhas[0].n === 0, r.erro || '')
-r = await pagar(A, cartaoA, '2026-11', 10, 'chave-b-proprio-1', 1000)
+r = await pagar(A, cartaoA, '2027-02', 10, 'chave-b-proprio-1', 100)
 ok('A pode usar a mesma chave de B (chave e por usuario)', !r.erro && Number(r.linhas[0].valor) === 10, r.erro || '')
 r = await pagar(B, cartaoA, '2026-11', 10, 'chave-b-cartao-a')
 ok('B não paga fatura do cartão de A', !!r.erro, r.erro || '')
@@ -250,6 +260,34 @@ r = await como(null, `SELECT * FROM public.pagar_fatura_cartao($1, '2026-11', 1,
 ok('anônimo não executa a RPC', !!r.erro)
 r = await como(A, `SELECT COALESCE(SUM(valor),0)::numeric AS ativo FROM public.pagamentos_fatura WHERE cartao_id = $1 AND ano_mes = '2026-11' AND status = 'ativo'`, [cartaoA])
 ok('soma de pagamentos ativos do ciclo = 1000 (400 + 600), sem duplicar', Number(r.linhas[0].ativo) === 1000, `(${r.linhas?.[0]?.ativo})`)
+// Total calculado no servidor: p_total_ciclo do cliente nao e confiavel.
+r = await pagar(A, cartaoA, '2027-02', 50, 'chave-inflado-0001', 99999)
+ok('cliente com total inflado e recusado (fatura desatualizada)', !!r.erro && /desatualizada/i.test(r.erro), r.erro || '')
+r = await pagar(A, cartaoA, '2027-02', 95, 'chave-inflado-0002', 100)
+ok('valor acima do em aberto real (90) recusado mesmo com total correto', !!r.erro && /excede/i.test(r.erro) && /90\.00/.test(r.erro), r.erro || '')
+r = await como(A, `SELECT * FROM public.pagar_fatura_cartao($1, '2027-02', 10, $2, 'saldo_principal', NULL, NULL, 'chave-sem-dica-001')`, [cartaoA, hoje])
+ok('sem dica de total (NULL) o servidor calcula sozinho', !r.erro && Number(r.linhas[0].total_ciclo_ref) === 100, r.erro || '')
+r = await pagar(A, cartaoA, '2030-01', 10, 'chave-ciclo-vazio-1', 10)
+ok('ciclo sem compras nao aceita pagamento', !!r.erro && /sem valor a pagar/i.test(r.erro), r.erro || '')
+r = await como(A, `SELECT public.total_fatura_ciclo($1, '2026-11') AS t`, [cartaoA])
+ok('total_fatura_ciclo devolve o total do proprio cartao (1000)', !r.erro && Number(r.linhas[0].t) === 1000, r.erro || '')
+r = await como(B, `SELECT public.total_fatura_ciclo($1, '2026-11') AS t`, [cartaoA])
+ok('B nao consulta o total do cartao de A', !!r.erro, r.erro || '')
+r = await como(null, `SELECT public.total_fatura_ciclo($1, '2026-11') AS t`, [cartaoA])
+ok('anonimo nao consulta total', !!r.erro)
+r = await como(A, `SELECT public.total_fatura_ciclo_servidor($1, $2, '2026-11') AS t`, [cartaoB, B])
+ok('funcao interna (usuario arbitrario) nao e executavel por authenticated', !!r.erro, r.erro || '')
+r = await como(null, `SELECT public.total_fatura_ciclo_servidor($1, $2, '2026-11') AS t`, [cartaoA, A])
+ok('funcao interna nao e executavel por anon', !!r.erro, r.erro || '')
+r = await db.query(`SELECT count(*)::int AS n FROM pg_policies WHERE tablename = 'pagamentos_fatura' AND policyname = 'Consultor autorizado lê pagamentos de fatura do cliente'`)
+ok('policy do consultor existe (dependencia consultor_autorizado presente)', r.rows[0].n === 1)
+// Falha explicita se a dependencia do consultor sumir: a migration NAO pode passar em silencio.
+await db.exec(`ALTER FUNCTION public.consultor_autorizado(uuid) RENAME TO consultor_autorizado_tmp`)
+let falhouExplicito = false, msgDep = ''
+try { await db.exec(ler('migrations/2026-11_pagamentos_fatura.sql')) } catch (e) { falhouExplicito = true; msgDep = e.message }
+await db.exec('ROLLBACK').catch(() => {})
+await db.exec(`ALTER FUNCTION public.consultor_autorizado_tmp(uuid) RENAME TO consultor_autorizado`)
+ok('migration falha de forma explicita sem consultor_autorizado', falhouExplicito && /consultor_autorizado/.test(msgDep) && /2026-10_consultoria_acessos/.test(msgDep), msgDep)
 // Concorrência: duas chamadas simultâneas com a MESMA chave não geram duas linhas.
 await Promise.all([pagar(A, cartaoA, '2027-01', 50, 'chave-concorrente-1', 500), pagar(A, cartaoA, '2027-01', 50, 'chave-concorrente-1', 500)])
 r = await como(A, `SELECT count(*)::int AS n FROM public.pagamentos_fatura WHERE ano_mes = '2027-01'`)
