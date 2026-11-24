@@ -61,11 +61,63 @@ export function useCartoes() {
 
   async function remover(id) {
     bloquearSeConsultoria(modoConsultoria)
+    
+    // SEGURANÇA: Verifica se cartão tem compras vinculadas antes de deletar
+    const { data: compras, error: comprasError } = await supabase
+      .from('compras_cartao')
+      .select('id')
+      .eq('cartao_id', id)
+      .limit(1)
+    
+    if (comprasError) throw comprasError
+    
+    // Se tiver compras, bloqueia exclusão e sugere desativação
+    if (compras && compras.length > 0) {
+      throw new Error(
+        'Este cartão possui compras vinculadas e não pode ser excluído. ' +
+        'Considere desativá-lo ou arquivá-lo para preservar o histórico financeiro.'
+      )
+    }
+    
+    // Verifica parcelamentos vinculados
+    const { data: parcelamentos, error: parcelamentosError } = await supabase
+      .from('parcelamentos')
+      .select('id')
+      .eq('cartao_id', id)
+      .limit(1)
+    
+    if (parcelamentosError) throw parcelamentosError
+    
+    if (parcelamentos && parcelamentos.length > 0) {
+      throw new Error(
+        'Este cartão possui parcelamentos vinculados e não pode ser excluído. ' +
+        'Quite os parcelamentos ou desvincule-os antes de excluir o cartão.'
+      )
+    }
+    
+    // Verifica faturas informadas
+    const { data: faturas, error: faturasError } = await supabase
+      .from('faturas_cartao')
+      .select('id')
+      .eq('cartao_id', id)
+      .limit(1)
+    
+    if (faturasError) throw faturasError
+    
+    if (faturas && faturas.length > 0) {
+      throw new Error(
+        'Este cartão possui faturas informadas e não pode ser excluído. ' +
+        'Remova as faturas informadas antes de excluir o cartão.'
+      )
+    }
+    
+    // Só deleta se não houver nada vinculado (cartão vazio)
     const { error } = await supabase
       .from('cartoes')
       .delete()
       .eq('id', id)
-      .eq('usuario_id', usuario.id)   // garante que só o dono pode remover
+      .eq('usuario_id', usuario.id)
+    
     if (error) throw error
     setCartoes(prev => prev.filter(c => c.id !== id))
   }
