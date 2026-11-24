@@ -289,12 +289,12 @@ try { await db.exec(ler('migrations/20261124000001_pagamentos_fatura.sql')) } ca
 await db.exec('ROLLBACK').catch(() => {})
 await db.exec(`ALTER FUNCTION public.consultor_autorizado_tmp(uuid) RENAME TO consultor_autorizado`)
 ok('migration falha de forma explicita sem consultor_autorizado', falhouExplicito && /consultor_autorizado/.test(msgDep) && /2026-10_consultoria_acessos/.test(msgDep), msgDep)
-// v5: serializacao por cartao. Verifica a EXISTENCIA dos 6 triggers e do helper e a permissao.
+// v5: serializacao por cartao. Verifica a EXISTENCIA dos 7 triggers e do helper e a permissao.
 // NAO prova concorrencia (PGlite tem uma conexao): a prova real e supabase/tests/concorrencia-fatura.mjs.
 r = await db.query(`SELECT count(*)::int AS n FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
-  WHERE NOT t.tgisinternal AND c.relname IN ('compras_cartao','parcelamentos','faturas_cartao')
+  WHERE NOT t.tgisinternal AND c.relname IN ('compras_cartao','parcelamentos','faturas_cartao','cartoes')
     AND t.tgname IN ('aa_fatura_travar_usuario','aa_fatura_travar_cartao')`)
-ok('6 triggers de serializacao por cartao existem (3 tabelas x statement/row)', r.rows[0].n === 6, `(${r.rows[0].n})`)
+ok('7 triggers de serializacao existem (3 tabelas x statement/row + DELETE statement em cartoes)', r.rows[0].n === 7, `(${r.rows[0].n})`)
 r = await db.query(`SELECT to_regprocedure('public.travar_cartoes_fatura(uuid[],uuid)') IS NOT NULL AS ok`)
 ok('travar_cartoes_fatura existe', r.rows[0].ok === true)
 r = await como(A, `SELECT public.travar_cartoes_fatura(ARRAY[$1::uuid], $2::uuid)`, [cartaoA, A])

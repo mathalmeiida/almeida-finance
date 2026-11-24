@@ -522,8 +522,8 @@ await cenario('10. authenticated nao executa travar_cartoes_fatura nem as funcoe
   const A = await abrir(u, { papel: 'dono' })
   const r2 = await A.q(`SELECT has_function_privilege('authenticated', 'public.travar_cartoes_fatura(uuid[],uuid)', 'EXECUTE') AS a, has_function_privilege('anon', 'public.travar_cartoes_fatura(uuid[],uuid)', 'EXECUTE') AS b`)
   ok('10: nem authenticated nem anon tem EXECUTE', r2.linhas[0].a === false && r2.linhas[0].b === false)
-  const r3 = await A.q(`SELECT count(*)::int AS n FROM pg_trigger t JOIN pg_class k ON k.oid = t.tgrelid WHERE NOT t.tgisinternal AND k.relname IN ('compras_cartao','parcelamentos','faturas_cartao') AND t.tgname IN ('aa_fatura_travar_usuario','aa_fatura_travar_cartao')`)
-  ok('10: 6 triggers de serializacao presentes', r3.linhas[0].n === 6)
+  const r3 = await A.q(`SELECT count(*)::int AS n FROM pg_trigger t JOIN pg_class k ON k.oid = t.tgrelid WHERE NOT t.tgisinternal AND k.relname IN ('compras_cartao','parcelamentos','faturas_cartao','cartoes') AND t.tgname IN ('aa_fatura_travar_usuario','aa_fatura_travar_cartao')`)
+  ok('10: 7 triggers de serializacao presentes (6 nas tabelas do total + 1 em cartoes)', r3.linhas[0].n === 7)
   await A.rollback()
 })
 
@@ -557,6 +557,172 @@ await cenario('12. estornar x pagar concorrentes no mesmo cartao sem deadlock', 
   ok('12: pagamento de 1000 aceito apos o estorno (em aberto voltou a 1000)', !rP.erro, rP.erro || '')
   await P.commit()
   ok('12: soma ativa = 1000', centavos(await somaPagamentos(c)) === 100000)
+})
+
+// ============================================================
+// Lacunas da revisao v5. Estes cenarios provam (ou refutam) o que o cabecalho da migration afirma.
+const ordenar = (a, b) => (a < b ? [a, b] : [b, a])
+const INS_COMPRA = `INSERT INTO public.compras_cartao (usuario_id, cartao_id, descricao, valor_total, data_compra, numero_parcelas) VALUES ($1, $2, 'Nova', 300, '2026-10-06', 1)`
+
+// (13) DELETE de cartao com cascata: nao inverte a ordem de locks e serializa com pagar
+await cenario('13a. DELETE de cartao (cascata) concorrente com DML do mesmo usuario: sem 40P01', async () => {
+  for (let rodada = 1; rodada <= 5; rodada++) {
+    const u = await novoUsuario()
+    const [lo, hi] = ordenar(await novoCartao(u, 'A'), await novoCartao(u, 'B'))
+    await novaCompra(u, lo, 'No menor', 100); await novaCompra(u, hi, 'No maior', 200)
+    const D = await abrir(u); const W = await abrir(u)
+    // Em paralelo: D exclui o cartao de MAIOR id (cascata em compras_cartao); W escreve no de MENOR id.
+    const [rd, rw] = await Promise.all([
+      D.q(`DELETE FROM public.cartoes WHERE id = $1`, [hi]),
+      W.q(INS_COMPRA, [u, lo]),
+    ])
+    ok(`13a rodada ${rodada}: nenhuma das duas recebeu 40P01`, rd.code !== '40P01' && rw.code !== '40P01', `(D ${rd.code || 'ok'} ${rd.erro || ''}; W ${rw.code || 'ok'} ${rw.erro || ''})`)
+    await D.commit(); await W.commit()
+  }
+})
+await cenario('13b. Pagamento aberto x DELETE de cartao: exclusao espera o commit e a cascata remove o pagamento', async () => {
+  const u = await novoUsuario(); const c = await novoCartao(u)
+  await novaCompra(u, c, 'Mercado', 1000)
+  const P = await abrir(u)
+  const rp = await P.q(SQL_PAGAR, [c, CICLO, 400, 1000, chave()])
+  ok('13b: pagamento de 400 aceito (sessao aberta)', !rp.erro, rp.erro || '')
+  const D = await abrir(u)
+  const pD = D.q(`DELETE FROM public.cartoes WHERE id = $1`, [c])
+  await aguardarBloqueio(D, pD, '13b DELETE cartoes espera pagar')
+  await P.commit()
+  const rd = await pD
+  ok('13b: exclusao concluida apos o commit do pagamento', !rd.erro, rd.erro || '')
+  await D.commit()
+  ok('13b: cartao e pagamentos removidos pela cascata', (await admin.query(`SELECT count(*)::int AS n FROM public.cartoes WHERE id = $1`, [c])).rows[0].n === 0 && (await qtdPagamentos(c)) === 0)
+})
+await cenario('13c. DELETE de cartao em andamento x pagar: pagar espera e recusa cartao inexistente', async () => {
+  const u = await novoUsuario(); const c = await novoCartao(u)
+  await novaCompra(u, c, 'Mercado', 1000)
+  const D = await abrir(u)
+  const rd = await D.q(`DELETE FROM public.cartoes WHERE id = $1`, [c])
+  ok('13c: DELETE aceito', !rd.erro, rd.erro || '')
+  const P = await abrir(u)
+  const pP = P.q(SQL_PAGAR, [c, CICLO, 1000, 1000, chave()])
+  await aguardarBloqueio(P, pP, '13c pagar espera DELETE do cartao')
+  await D.commit()
+  const rp = await pP
+  ok('13c: pagar recusado (cartao nao encontrado, 42501), sem 40P01', rp.code === '42501', `(${rp.code} ${rp.erro || ''})`)
+  await P.rollback()
+})
+
+// (14) zerar_dados_financeiros REAL (RPC), nas duas direcoes
+await cenario('14a. Pagamento aberto x zerar_dados_financeiros: zerar espera, conclui e o total pode ficar abaixo do pago', async () => {
+  const u = await novoUsuario(); const x = await novoCartao(u, 'X'); const y = await novoCartao(u, 'Y')
+  await novaCompra(u, x, 'A', 1000); await novaCompra(u, y, 'B', 800)
+  await novoParcelamento(u, x, 'Notebook', 600, 3)
+  const P = await abrir(u)
+  const rp = await P.q(SQL_PAGAR, [x, CICLO, 400, 1200, chave()])
+  ok('14a: pagamento de 400 aceito (sessao aberta)', !rp.erro, rp.erro || '')
+  const Z = await abrir(u)
+  const pZ = Z.q(`SELECT public.zerar_dados_financeiros()`)
+  await aguardarBloqueio(Z, pZ, '14a zerar_dados_financeiros espera o pagamento')
+  await P.commit()
+  const rz = await pZ
+  ok('14a: zerar_dados_financeiros concluiu (nao e bloqueado por pagamento ja feito), sem 40P01', !rz.erro, `(${rz.code} ${rz.erro || ''})`)
+  await Z.commit()
+  const n = (await admin.query(`SELECT (SELECT count(*) FROM public.compras_cartao WHERE usuario_id = $1)::int AS c, (SELECT count(*) FROM public.parcelamentos WHERE usuario_id = $1)::int AS p`, [u])).rows[0]
+  ok('14a: compras e parcelamentos zerados', n.c === 0 && n.p === 0, JSON.stringify(n))
+})
+await cenario('14b. zerar_dados_financeiros em andamento x pagar: pagar espera e nao grava pagamento acima do total', async () => {
+  const u = await novoUsuario(); const x = await novoCartao(u, 'X'); await novoCartao(u, 'Y')
+  await novaCompra(u, x, 'A', 1000)
+  const Z = await abrir(u)
+  const rz = await Z.q(`SELECT public.zerar_dados_financeiros()`)
+  ok('14b: zerar aceito (sessao aberta)', !rz.erro, rz.erro || '')
+  const P = await abrir(u)
+  const pP = P.q(SQL_PAGAR, [x, CICLO, 1000, 1000, chave()])
+  await aguardarBloqueio(P, pP, '14b pagar espera zerar')
+  await Z.commit()
+  const rp = await pP
+  ok('14b: pagamento recusado (40001, 22003 ou 42501 se o cartao foi removido)', ['40001', '22003', '42501'].includes(rp.code), `(${rp.code} ${rp.erro || ''})`)
+  await P.rollback()
+  ok('14b: nenhum pagamento gravado', (await qtdPagamentos(x)) === 0)
+})
+
+// (15) parcelamentos.cartao_id NULL (coluna nullable)
+await cenario('15. parcelamentos.cartao_id nulo: INSERT/UPDATE nulo <-> cartao funcionam e serializam', async () => {
+  const u = await novoUsuario(); const c = await novoCartao(u)
+  await novaCompra(u, c, 'Mercado', 1000)
+  const S = await abrir(u)
+  const ri = await S.q(`INSERT INTO public.parcelamentos (usuario_id, cartao_id, descricao, valor_total, numero_parcelas, primeira_parcela) VALUES ($1, NULL, 'Sem cartao', 300, 3, '2026-10-05') RETURNING id`, [u])
+  ok('15: INSERT com cartao_id nulo aceito (trigger tolera NULL)', !ri.erro, ri.erro || '')
+  await S.commit()
+  const pid = ri.linhas[0].id
+  ok('15: parcelamento sem cartao nao entra no total do cartao (1000)', centavos(await totalAdmin(u, c)) === 100000)
+  await escritaDuranteOPagamento({ nome: '15 UPDATE nulo -> cartao', u, cartao: c, totalAntigo: 1000, totalNovo: 1100,
+    escrever: W => W.q(`UPDATE public.parcelamentos SET cartao_id = $1 WHERE id = $2`, [c, pid]) })
+  const u2 = await novoUsuario(); const c2 = await novoCartao(u2)
+  await novaCompra(u2, c2, 'Mercado', 1000)
+  const p2 = await novoParcelamento(u2, c2, 'TV', 300, 3)
+  await escritaDuranteOPagamento({ nome: '15 UPDATE cartao -> nulo', u: u2, cartao: c2, totalAntigo: 1100, totalNovo: 1000,
+    escrever: W => W.q(`UPDATE public.parcelamentos SET cartao_id = NULL WHERE id = $1`, [p2]) })
+})
+
+// (16) UPDATE de cartoes.dia_fechamento durante pagamento (muda o ciclo das compras)
+await cenario('16. UPDATE cartoes.dia_fechamento durante pagamento: pagar espera a linha do cartao e recalcula', async () => {
+  const u = await novoUsuario(); const c = await novoCartao(u)
+  await novaCompra(u, c, 'Mercado', 1000) // 05/10, fechamento 20 => ciclo 2026-10
+  const W = await abrir(u)
+  const rw = await W.q(`UPDATE public.cartoes SET dia_fechamento = 3 WHERE id = $1`, [c]) // 05/10 > 3 => ciclo 2026-11
+  ok('16: UPDATE dia_fechamento aceito', !rw.erro, rw.erro || '')
+  const P = await abrir(u)
+  const pP = P.q(SQL_PAGAR, [c, CICLO, 1000, 1000, chave()])
+  await aguardarBloqueio(P, pP, '16 pagar espera UPDATE em cartoes')
+  await W.commit()
+  const rp = await pP
+  ok('16: pagamento do total antigo abortado (40001): o ciclo mudou', rp.code === '40001', `(${rp.code} ${rp.erro || ''})`)
+  await P.rollback()
+  ok('16: total do ciclo 2026-10 agora e 0 e nada foi pago', centavos(await totalAdmin(u, c)) === 0 && (await qtdPagamentos(c)) === 0)
+})
+
+// (17) Repeticao apos 55P03 (lock_timeout) e apos 40P01 (deadlock), com a MESMA idempotency_key
+await cenario('17a. Repeticao apos 55P03: lock_timeout curto, mesma chave, 1 pagamento', async () => {
+  const u = await novoUsuario(); const c = await novoCartao(u)
+  await novaCompra(u, c, 'Mercado', 1000)
+  const k = chave()
+  const W = await abrir(u)
+  await W.q(`UPDATE public.cartoes SET nome = nome WHERE id = $1`, [c]) // segura a linha do cartao
+  const P = await abrir(u)
+  await P.q(`SET LOCAL lock_timeout = '400ms'`)
+  const r = await P.q(SQL_PAGAR, [c, CICLO, 1000, 1000, k])
+  ok('17a: tentativa 1 falha com 55P03 (lock_timeout)', r.code === '55P03', `(${r.code} ${r.erro || ''})`)
+  await P.rollback()
+  await W.commit()
+  const P2 = await abrir(u)
+  const r2 = await P2.q(SQL_PAGAR, [c, CICLO, 1000, 1000, k])
+  ok('17a: repeticao com a mesma chave aceita', !r2.erro, r2.erro || '')
+  await P2.commit()
+  const P3 = await abrir(u)
+  const r3 = await P3.q(SQL_PAGAR, [c, CICLO, 1000, 1000, k])
+  await P3.commit()
+  ok('17a: repetir de novo devolve o mesmo pagamento; 1 linha', !r3.erro && r3.linhas[0].id === r2.linhas[0].id && (await qtdPagamentos(c)) === 1, r3.erro || '')
+})
+await cenario('17b. Repeticao apos 40P01: deadlock provocado por lock manual fora do mecanismo (limite documentado)', async () => {
+  const u = await novoUsuario(); const [x, y] = ordenar(await novoCartao(u, 'X'), await novoCartao(u, 'Y'))
+  await novaCompra(u, x, 'Mercado', 1000)
+  const k = chave()
+  const S = await abrir(u, { papel: 'dono' })
+  await S.q(`SELECT 1 FROM public.cartoes WHERE id = $1 FOR UPDATE`, [x]) // S segura X (lock manual)
+  const P = await abrir(u)
+  await P.q(`SELECT 1 FROM public.cartoes WHERE id = $1 FOR UPDATE`, [y]) // P segura Y (lock manual, fora da ordem)
+  const pP = P.q(SQL_PAGAR, [x, CICLO, 1000, 1000, k]) // P espera X
+  await aguardarBloqueio(P, pP, '17b P espera X')
+  const pS = S.q(`SELECT 1 FROM public.cartoes WHERE id = $1 FOR UPDATE`, [y]) // S espera Y => ciclo
+  const [rP, rS] = await Promise.all([pP, pS])
+  const vitimas = [rP, rS].filter(r => r.code === '40P01').length
+  ok('17b: exatamente uma transacao foi vitima de 40P01 (conflito abortado com seguranca)', vitimas === 1, `(P ${rP.code || 'ok'}; S ${rS.code || 'ok'})`)
+  if (rP.code === '40P01') await P.rollback(); else await P.commit()
+  await S.rollback()
+  const P2 = await abrir(u)
+  const r2 = await P2.q(SQL_PAGAR, [x, CICLO, 1000, 1000, k])
+  ok('17b: repeticao com a mesma chave aceita (ou devolve o pagamento ja gravado)', !r2.erro, r2.erro || '')
+  await P2.commit()
+  ok('17b: exatamente 1 pagamento de 1000, nunca acima do total', (await qtdPagamentos(x)) === 1 && centavos(await somaPagamentos(x)) === 100000)
 })
 
 // ---------- Encerramento ----------

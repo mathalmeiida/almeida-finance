@@ -60,11 +60,32 @@
 --       - triggers nas três tabelas que compõem o total (compras_cartao, parcelamentos,
 --         faturas_cartao), em INSERT, UPDATE e DELETE:
 --           * BEFORE STATEMENT (trg_fatura_travar_usuario): com auth.uid(), trava TODOS os
---             cartões do usuário em ordem ascendente. Cobre DML em massa, multi-cartão e
---             zerar_dados_financeiros com a mesma ordem global, sem deadlock;
+--             cartões do usuário em ordem ascendente ANTES de qualquer linha ser tocada.
+--             Granularidade: por USUÁRIO (pagar o cartão A espera DML de compras do cartão B
+--             do mesmo usuário até o commit). Decisão aceita: as transações são curtas e a
+--             ordem única de locks vale para DML em massa, multi-cartão e
+--             zerar_dados_financeiros;
 --           * BEFORE ROW (trg_fatura_travar_cartao): trava OLD.cartao_id e NEW.cartao_id
---             (mudança de cartão trava origem e destino em ordem). Cobre também service role
---             e SQL Editor, onde auth.uid() é nulo.
+--             (mudança de cartão trava origem e destino em ordem). Com auth.uid() só trava
+--             cartões do próprio usuário (um UUID alheio não segura lock de terceiro). Cobre
+--             também service role e SQL Editor, onde auth.uid() é nulo;
+--           * BEFORE DELETE STATEMENT em public.cartoes (mesma função do statement): a
+--             exclusão de cartão (e a cascata para as filhas) trava todos os cartões do
+--             usuário em ordem ANTES de travar a linha do cartão excluído, sem inverter a ordem.
+--     Por que BEFORE e não AFTER com tabelas de transição (REFERENCING OLD/NEW TABLE): triggers
+--     com tabelas de transição só existem em AFTER, depois do DML. Lá a FK (KEY SHARE em
+--     cartoes) já foi tomada, e converter para FOR UPDATE faria duas sessões concorrentes do
+--     mesmo cartão se bloquearem mutuamente (upgrade de lock = deadlock). Em BEFORE o
+--     FOR UPDATE é o primeiro lock em cartoes, sem upgrade. Preço assumido: o escopo do
+--     statement é o usuário inteiro, não só os cartões afetados.
+--     LIMITES DA GARANTIA (o que NÃO é prometido):
+--       - Com auth.uid() (app, RPC como zerar_dados_financeiros) a ordem é global e ascendente.
+--       - SEM auth.uid() (service role, SQL Editor) não há como saber os cartões afetados antes
+--         do DML; só vale o trigger de linha, que trava na ordem em que as linhas são visitadas.
+--         Duas operações em massa concorrentes com ordens opostas podem receber 40P01. É
+--         seguro (aborta sem pagamento indevido) e repetível.
+--       - Não é afirmado "sem deadlock" em geral: a garantia é pagamento nunca acima do total
+--         sob lock e, no caminho autenticado, ordem consistente de locks de cartão.
 --     Assim o banco serializa independentemente do cliente (supabase-js direto, RPC, service
 --     role, edge function). Não se depende de lock no frontend. Não foi revogado DML direto:
 --     os hooks continuam válidos e a garantia está no banco.
@@ -76,8 +97,10 @@
 --     seria anterior ao lock e o total ficaria obsoleto): fora disso recusa com erro.
 --     Conflitos: 40001 (fatura desatualizada), 40P01 (deadlock) e 55P03 (lock_timeout) abortam
 --     a transação sem pagamento indevido e podem ser repetidos com a MESMA idempotency_key.
---     Deadlock residual só é possível em transações multi-statement que misturem DML com locks
---     manuais em cartoes fora desse mecanismo (ex.: SELECT FOR UPDATE próprio em ordem diferente).
+--     Deadlock residual possível: DML em massa sem auth.uid() (ver LIMITES) e transações
+--     multi-statement que misturem DML com locks manuais em cartoes fora desse mecanismo.
+--     Decisão registrada: editar ou excluir compra DEPOIS do pagamento pode deixar o total abaixo
+--     do pago; é permitido (o limite vale no instante do pagamento, sob lock).
 --     UNIQUE (usuario_id, idempotency_key) é a barreira final; unique_violation concorrente
 --     devolve o original se os parâmetros coincidem.
 --   • Origem: somente 'saldo_principal' (não há múltiplas contas). 'outra_conta'
@@ -191,7 +214,7 @@ GRANT SELECT ON public.pagamentos_fatura TO authenticated;
 -- Serialização por cartão (UNICO mecanismo de lock; ver "Concorrência" no cabeçalho).
 -- Trava as linhas de public.cartoes em ordem ASCENDENTE de id, uma a uma, para que
 -- qualquer combinação de cartões (mover compra A->B e B->A, DML em massa) adquira os
--- locks na mesma ordem global e não gere deadlock. Retorna quantos cartões travou.
+-- locks na mesma ordem global (reduz o risco de deadlock; ver LIMITES no cabeçalho). Retorna quantos cartões travou.
 -- Interna: EXECUTE revogado de clientes (recebe ids arbitrários).
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.travar_cartoes_fatura(
@@ -242,19 +265,23 @@ END;
 $$;
 
 -- BEFORE ROW: trava o cartão antigo e o novo da linha (cobre service role e mudança de cartão).
+-- Com auth.uid(), filtra por dono: não segura lock de cartão de terceiro (o WITH CHECK de RLS
+-- só roda depois dos triggers BEFORE).
 CREATE OR REPLACE FUNCTION public.trg_fatura_travar_cartao()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+DECLARE
+  v_uid UUID := auth.uid();
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    PERFORM public.travar_cartoes_fatura(ARRAY[NEW.cartao_id]);
+    PERFORM public.travar_cartoes_fatura(ARRAY[NEW.cartao_id], v_uid);
   ELSIF TG_OP = 'DELETE' THEN
-    PERFORM public.travar_cartoes_fatura(ARRAY[OLD.cartao_id]);
+    PERFORM public.travar_cartoes_fatura(ARRAY[OLD.cartao_id], v_uid);
   ELSE
-    PERFORM public.travar_cartoes_fatura(ARRAY[OLD.cartao_id, NEW.cartao_id]);
+    PERFORM public.travar_cartoes_fatura(ARRAY[OLD.cartao_id, NEW.cartao_id], v_uid);
   END IF;
   IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;
@@ -284,6 +311,12 @@ CREATE TRIGGER aa_fatura_travar_usuario BEFORE INSERT OR UPDATE OR DELETE ON pub
 DROP TRIGGER IF EXISTS aa_fatura_travar_cartao ON public.faturas_cartao;
 CREATE TRIGGER aa_fatura_travar_cartao BEFORE INSERT OR UPDATE OR DELETE ON public.faturas_cartao
   FOR EACH ROW EXECUTE FUNCTION public.trg_fatura_travar_cartao();
+
+-- Exclusão de cartão: trava todos os cartões do usuário em ordem antes de travar a linha
+-- excluída e antes da cascata para as tabelas filhas (evita inversão de ordem de locks).
+DROP TRIGGER IF EXISTS aa_fatura_travar_usuario ON public.cartoes;
+CREATE TRIGGER aa_fatura_travar_usuario BEFORE DELETE ON public.cartoes
+  FOR EACH STATEMENT EXECUTE FUNCTION public.trg_fatura_travar_usuario();
 
 -- ------------------------------------------------------------
 -- Total do ciclo calculado no servidor (fonte confiável do teto de pagamento).
