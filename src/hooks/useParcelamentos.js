@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
+import { alterarHistoricoFatura } from '../lib/historicoFatura'
 import { labelMes, hojeISO } from '../lib/utils'
 import { classificarDespesa } from '../lib/classificarDespesa'
 import { amortizarSaldoDevedor } from '../lib/financiamento'
@@ -293,6 +294,22 @@ export function useParcelamentos() {
     setParcelamentos(prev => prev.filter(p => p.id !== id))
   }
 
+  // Fatura quitada: o banco recusa o DML direto (FP001). Estes métodos usam a RPC
+  // alterar_historico_fatura, que exige motivo e audita.
+  async function atualizarComMotivo(id, dados, motivo) {
+    bloquearSeConsultoria(modoConsultoria)
+    const r = await alterarHistoricoFatura(supabase, { tabela: 'parcelamentos', id, acao: 'editar', dados, motivo })
+    await buscar()
+    return r
+  }
+
+  async function removerComMotivo(id, motivo) {
+    bloquearSeConsultoria(modoConsultoria)
+    const r = await alterarHistoricoFatura(supabase, { tabela: 'parcelamentos', id, acao: 'excluir', motivo })
+    setParcelamentos(prev => prev.filter(p => p.id !== id))
+    return r
+  }
+
   // Total das parcelas devidas no mês atual (com arredondamento correto)
   const _hoje = new Date()
   const totalMesAtual = parcelamentos
@@ -307,6 +324,8 @@ export function useParcelamentos() {
     atualizar,
     quitar,
     remover,
+    atualizarComMotivo,
+    removerComMotivo,
     registrarAmortizacao,
     listarAmortizacoes,
     recarregar: buscar,

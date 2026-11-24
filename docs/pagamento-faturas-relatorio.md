@@ -134,7 +134,7 @@ Também é necessário validar visualmente (tema claro e escuro, mobile e deskto
 ### 8.1 Decisões adotadas
 
 1. **Origem do pagamento só `saldo_principal`.** Não há tabela de contas. A RPC recusa `outra_conta`. Pagamentos legados migrados usam `outra_conta` e nunca debitam o saldo.
-2. **Âncora de total removida da RPC.** O teto é o total atual do ciclo (a partir da quarta etapa, calculado no servidor); pagamentos ativos são preservados e nova compra após pagamento parcial é permitida sem estorno (em aberto = total - pago). `total_ciclo_ref` é snapshot. Se o total cair abaixo do pago, o em aberto é 0 e o app expõe `excedentePago`; nada é debitado a mais.
+2. **Âncora de total removida da RPC.** O teto é o total atual do ciclo (a partir da quarta etapa, calculado no servidor); pagamentos ativos são preservados e nova compra após pagamento parcial é permitida sem estorno (em aberto = total - pago). `total_ciclo_ref` é snapshot. Se o total cair abaixo do pago, o em aberto é 0 e o app expõe `excedentePago`; nada é debitado a mais. (Desde a seção 11, fatura quitada só muda pelo fluxo controlado.)
 3. **`excedentePago` exposto** em `cicloFatura` quando o total atual fica menor que o já pago.
 4. **Primeira parcela segue a regra de fechamento** como se fosse a data da compra (`competenciaParcelamento`). Premissa a confirmar com dados reais: se `primeira_parcela` for gravada como data de vencimento da parcela, ajustar essa função.
 
@@ -304,7 +304,7 @@ O host `ievccupeijzuzhomphwn.supabase.co` não foi acessado e não é presumido 
 | 6. Lacunas de cobertura | **Cenários adicionados** (não executados): 13a/13b/13c DELETE de cartão com cascata, 14a/14b `zerar_dados_financeiros` real, 15 `parcelamentos.cartao_id` nulo (INSERT e troca nulo <-> cartão), 16 UPDATE de `cartoes.dia_fechamento`, 17a repetição após 55P03, 17b repetição após 40P01 (provocado por lock manual fora do mecanismo). O antigo 7d é DELETE em massa de compras, não `zerar_dados_financeiros`. |
 | Revisão v2, cenário 13a | **Corrigido**: D executa o DELETE e segura os locks, W é iniciado e comprovado bloqueado via `pg_stat_activity`, D commita antes de aguardar W, e o teste exige que ambas concluam sem erro (nem 40P01 nem 55P03). Continua **não executado**: a concorrência não foi testada em PostgreSQL real. |
 | 7. Texto "sem deadlock" | **Corrigido** no cabeçalho da migration, no comentário do helper e nesta seção. |
-| 8. Total abaixo do já pago | **Decisão explícita**: permitido. O limite "não pagar acima do total real" vale no instante do pagamento, sob lock do cartão. Editar ou excluir compra depois é operação posterior válida, igual ao uso sequencial; bloquear impediria `zerar_dados_financeiros` e exclusões. O app expõe `excedentePago`. Precisa de confirmação do responsável pelo produto. |
+| 8. Total abaixo do já pago | **Decisão explícita**: permitido. O limite "não pagar acima do total real" vale no instante do pagamento, sob lock do cartão. **SUPERADO pela seção 11:** em fatura quitada, editar ou excluir compra por DML direto passa a ser recusado (FP001) e só o fluxo controlado com motivo é aceito; o excesso vira crédito. Em fatura aberta ou parcial segue livre. O app expõe `excedentePago`. |
 | 9. Dependências sem prefixo numérico | **Não alterado**: renomear `2026-10_*` e `2026-11_*` mudaria migrations possivelmente já aplicadas em DEV/produção (o registro de versões do CLI divergiria) e foge do escopo. Segue documentado: aplicar as dependências antes, `db push` não deve ser usado contra produção. |
 
 ### 10.2 Mapa dos caminhos de escrita
@@ -355,3 +355,78 @@ Somente o projeto DEV (`fzawugbiojmtrthmshcc`), por quem tem acesso. Produção 
 - **Pré-checagens**: `SHOW server_version_num;` (>= 130000), `SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname = current_database();` (UTF8), e `SELECT column_name FROM information_schema.columns WHERE table_name='parcelamentos' AND column_name='cartao_id';`. A migration também falha com mensagem clara se a versão ou a codificação não servirem, e confere a coluna `parcelamentos.cartao_id` após o `ALTER`.
 - **Aplicar**: `psql "$DATABASE_URL_DEV" -1 -v ON_ERROR_STOP=1 -f supabase/migrations/20261124000001_pagamentos_fatura.sql` (ou colar o arquivo inteiro no SQL Editor). Reaplicar é seguro.
 - **Concorrência em Postgres local descartável**: `docker run --rm -e POSTGRES_PASSWORD=x -p 55432:5432 postgres:16`, `npm i --no-save pg`, `PG_TEST_URL=postgres://postgres:x@127.0.0.1:55432/postgres node supabase/tests/concorrencia-fatura.mjs`. O script recusa hosts não locais (e `supabase.co`) sem `PG_TEST_PERMITIR_HOST_REMOTO=1`, recusa bancos com `public.cartoes` sem `PG_TEST_RESETAR=1` e nunca imprime a senha.
+
+## 11. Integridade histórica após pagamento (sexta etapa)
+
+Motivo: até a seção 10, depois de um pagamento a compra podia ser editada ou apagada e a fatura "paga" mudava sem rastro (decisão aceita na etapa 5). O responsável pelo produto não aceita isso. Esta seção substitui aquela decisão.
+
+### 11.1 Regras por estado da competência (cartão, mês)
+
+P = soma dos pagamentos ativos. T = total da fatura calculado no servidor.
+
+| Estado | Condição | Alteração de compra, parcelamento ou fatura informada |
+|---|---|---|
+| Aberta | P = 0 | Livre e sem auditoria |
+| Parcial | 0 < P < T | DML normal; pagamentos preservados; saldo em aberto = T - P; alteração relevante gera linha de auditoria |
+| Quitada | P > 0 e P >= T | DML direto recusado com SQLSTATE `FP001`. Só a RPC `alterar_historico_fatura` (motivo de 5 a 300 caracteres), que audita |
+| Total cai abaixo de P | | Nunca apaga pagamento. Registra crédito em `ajustes_fatura` (`tipo = 'credito'`, valor = variação, razão assinada) |
+
+### 11.2 Estratégia de banco e impactos
+
+Arquivo: `supabase/migrations/20261124000002_integridade_historica_fatura.sql` (depende da 000001; falha com mensagem clara se ela não estiver aplicada).
+
+- `ajustes_fatura`: razão append-only (inclusão, edição, exclusão, crédito, estorno) com dados antes/depois, pago ativo, total depois, via (`direto`, `controlado`, `administrativo`) e motivo. RLS: leitura do dono e do consultor autorizado; cliente só tem SELECT; UPDATE e DELETE por papéis de cliente são recusados por trigger.
+- `_fatura_liberacoes`: liberação por transação (`txid_current()` e `auth.uid()`), sem acesso para papéis de cliente. Some em rollback, é apagada ao fim da RPC e podada após 1 hora. Não é forjável por sessão alheia.
+- Triggers `ab_fatura_guardar_historico` (BEFORE) e `zz_fatura_auditar_historico` (AFTER) em `compras_cartao`, `parcelamentos` e `faturas_cartao`; `ab_fatura_proteger_cartao` em `cartoes` (cartão com pagamento ativo não pode ser excluído); trigger em `pagamentos_fatura` (só aceita a transição ativo para estornado; DELETE recusado a papéis de cliente).
+- `alterar_historico_fatura(p_tabela, p_id, p_acao, p_dados, p_motivo)`: único caminho para fatura quitada, com whitelist de colunas, trava dos cartões e auditoria `via = 'controlado'`.
+- `estornar_pagamento_fatura(p_pagamento_id, p_motivo)`: motivo opcional, linha `estorno` na razão e reconciliação do crédito. A versão de 1 argumento chama a de 2.
+- `zerar_dados_financeiros()` continua SECURITY INVOKER e transacional; ganhou a exceção por transação e usuário (`liberar_historico_zerar` e `encerrar_liberacao_zerar`). Pagamentos e razão saem por cascata de FK ao apagar `cartoes`.
+- Impactos: o banco é a barreira (independe do cliente); nenhum DML foi revogado, então os hooks seguem funcionando em fatura aberta e parcial. Cada DML em compras, parcelamentos e faturas calcula, por linha, os meses com pagamento ativo (importação em massa paga esse custo por linha, aceito). Consultor só lê `ajustes_fatura`.
+- Residual: quem executar SQL arbitrário como o próprio usuário numa conexão direta poderia chamar `liberar_historico_zerar` e apagar o próprio histórico na mesma transação. O app não oferece essa conexão, e o usuário já pode apagar os próprios dados via zerar.
+
+### 11.3 Decisões e pontos que precisam de confirmação do produto
+
+- Crédito não é aplicado automaticamente a outra fatura e não altera o saldo derivado da conta. Estorno reduz o crédito por novo lançamento.
+- `descricao` só é campo relevante quando coincide com a deduplicação de parcelamento (afeta o total); editar descrição ou categoria em fatura quitada não bloqueia.
+- Compra de data antiga inserida em mês quitado é recusada (FP001). Não há RPC de inclusão controlada; no app aparece uma mensagem orientando estornar o pagamento ou usar outra data.
+- `fatura_liberacao_ativa` tem GRANT a `authenticated`, `anon` e `service_role` porque os triggers INVOKER a chamam com o papel do cliente. Ela só informa se há liberação da transação atual para o próprio usuário.
+- Desvios da migration em relação ao design estão comentados no cabeçalho dela (FEAT-001).
+
+### 11.4 Implementado nesta etapa (app)
+
+- `src/lib/historicoFatura.js`: detecção de `FP001`, validação de motivo, whitelist de campos, chamada da RPC (cliente recebido por parâmetro) e cálculo puro do crédito vigente.
+- Hooks: `atualizarComMotivo` e `removerComMotivo` em `useComprasCartao`, `useParcelamentos` e `useFaturasCartao` (os métodos antigos não mudaram); novo `useAjustesFatura` (somente leitura).
+- `src/pages/Cartoes.jsx`: ao receber `FP001` em editar compra, excluir compra ou remover o total informado, abre diálogo com o aviso e campo de motivo, e repete pela RPC. Na fatura em foco aparecem o crédito vigente e a lista "Alterações da fatura". Não há tela para editar parcelamentos de cartão em `Cartoes.jsx`; o método `removerComMotivo`/`atualizarComMotivo` de `useParcelamentos` está disponível, mas sem tela ligada a ele nesta etapa.
+- `tests/historico-fatura.test.mjs` (incluído em `npm run test:unit`).
+- `supabase/migrations/README.md` com ordem e validação.
+- Frases antigas que diziam que editar ou excluir após o pagamento era permitido foram corrigidas na tabela da seção 10.1 (item 8), na seção 8 (item 2) e nos comentários da migration 000001.
+
+### 11.5 Evidências reais desta rodada (comandos reexecutados)
+
+Ambiente (saídas reais; data da execução 2026-11-24):
+
+| Comando | Resultado |
+|---|---|
+| `which psql` / `which postgres` / `which initdb` | `no psql in (...)`, `no postgres in (...)`, `no initdb in (...)`; saída 1 em todos |
+| `ls node_modules` | `ls: cannot access 'node_modules': No such file or directory` |
+| `npm ping` | `npm error 403 In most cases, you or one of your dependencies are requesting a package version that is forbidden by your security policy...` |
+| `curl https://registry.npmjs.org/pg` | `curl: (7) CONNECT tunnel failed, response 403` |
+| `getent hosts fzawugbiojmtrthmshcc.supabase.co` | sem resposta, saída 2 |
+| `docker info` | `Error: could not find a working conmon binary (...)`, saída 125 |
+| `PG_TEST_URL` | não definida |
+| `npm run test:concorrencia` | `PENDENTE: nao executado (defina PG_TEST_URL ...). Nenhuma prova de concorrencia foi produzida.`; saída 2 |
+
+Testes que rodaram e passaram (node puro, sem pacotes, dados fictícios): `node tests/historico-fatura.test.mjs` (todos PASS, saída 0), `node tests/pagamento-fatura.test.mjs` (saída 0) e `node tests/fatura-cartao.test.mjs` (saída 0). `node --check` em `src/lib/historicoFatura.js` e `tests/historico-fatura.test.mjs`: ok. Checagem apenas sintática (tsc com `--noResolve`, erros TS1xxx) em `Cartoes.jsx` e nos hooks alterados: sem erros de sintaxe. Isso NÃO compila nem executa a tela.
+
+### 11.6 PENDENTE (nada abaixo foi executado, nada é declarado aprovado)
+
+- `npm run test:migrations` (simular-migrations, incluindo os cenários de integridade histórica; paridade SQL x JS; compras-cartao-producao): sem `@electric-sql/pglite` e sem Postgres.
+- `npm run test:concorrencia` (cenários 13b ajustado e 18a a 18d): sem `PG_TEST_URL`.
+- RLS com dois usuários reais (A e B) em `ajustes_fatura`, `pagamentos_fatura` e nas tabelas guardadas.
+- A migration 000002 nunca rodou em PostgreSQL nem PGlite. Riscos a conferir na primeira execução: `e.code` (FP001) exposto pelo driver, tabela `subcategorias` não versionada, tabelas de `zerar_dados_financeiros` no ambiente de simulação, sintaxe plpgsql revisada só por leitura.
+- `npm run build` (Vite): sem `node_modules`.
+- `npm run test:unit` completo: não executado em bloco. Os testes antigos `icones`, `investimentos-page`, `investimentos-robustez` e `onboarding-componente` falham também em `main` e não foram mascarados nem corrigidos.
+- E2E no DEV (Playwright) e validação visual em celular e desktop, claro e escuro, do diálogo de motivo, do crédito e da lista de alterações.
+- Aplicação da 000001 e da 000002 no DEV: não realizada. Produção não tocada.
+
+Veredito mantido: **NÃO APROVADO PARA PRODUÇÃO**.

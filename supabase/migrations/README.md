@@ -200,3 +200,20 @@ Em caso de problemas:
   PG_TEST_URL=postgres://postgres:x@127.0.0.1:55432/postgres node supabase/tests/concorrencia-fatura.mjs
   ```
   Código de saída 0 somente se todos os cenários rodaram; 2 se não executou (PENDENTE); 1 se algum falhou.
+
+---
+
+# Integridade histórica das faturas: `20261124000002_integridade_historica_fatura.sql`
+
+- Ordem: aplicar `20261124000001_pagamentos_fatura.sql` e DEPOIS `20261124000002_integridade_historica_fatura.sql`. A 000002 falha com mensagem clara se a 000001 não estiver aplicada. Reaplicar a 000001 depois da 000002 restaura o estorno de 1 argumento sem auditoria; reaplique a 000002 em seguida.
+- A 000002 também redefine `zerar_dados_financeiros()` (com a exceção transacional do histórico). Ela ordena depois de `2026-11_rpc_zerar_dados_financeiros_CORRECAO_FINAL.sql`, então é a definição final.
+- Efeito: DML direto em compras, parcelamentos e faturas informadas de uma competência quitada passa a ser recusado com SQLSTATE `FP001`. O caminho permitido é a RPC `alterar_historico_fatura` (motivo obrigatório, com auditoria em `ajustes_fatura`). Cartão com pagamento ativo não pode ser excluído.
+- Produção NÃO recebe esta migration manual, e `supabase db push` não deve ser usado contra produção. Aplicar somente no DEV, por quem tem acesso, como transação única:
+  `psql "$DATABASE_URL_DEV" -1 -v ON_ERROR_STOP=1 -f supabase/migrations/20261124000002_integridade_historica_fatura.sql`
+- Validação (Postgres descartável, nunca produção):
+  ```bash
+  npm i --no-save @electric-sql/pglite pg
+  npm run test:migrations      # PGlite: inclui a seção "integridade histórica"
+  PG_TEST_URL=postgres://postgres:x@127.0.0.1:55432/postgres npm run test:concorrencia   # cenários 13b e 18a a 18d
+  ```
+- Estado: os cenários novos estão escritos e NÃO foram executados (sem Postgres nem pglite no ambiente de desenvolvimento). Ver `docs/pagamento-faturas-relatorio.md`, seção 11.

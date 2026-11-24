@@ -11,6 +11,8 @@ import ModalPagarFatura from '../components/ModalPagarFatura'
 import { useCategorias } from '../hooks/useCategorias'
 import SeletorCategoriaModerno from '../components/SeletorCategoriaModerno'
 import Modal from '../components/Modal'
+import { useAjustesFatura } from '../hooks/useAjustesFatura'
+import { ehErroFaturaQuitada, MENSAGEM_FATURA_QUITADA, filtrarCamposEditaveis, MOTIVO_MIN, MOTIVO_MAX } from '../lib/historicoFatura'
 import InputMoeda from '../components/InputMoeda'
 import ImportacaoInteligente from './ImportacaoInteligente'
 import { CORES_CARTAO } from '../lib/coresCartao'
@@ -326,10 +328,10 @@ function FormFatura({ cartao, faturaInicial, refData, onSalvar, onCancelar, carr
 }
 // ─── Visão: Ver fatura de um cartão (atual ou projetada) ──────────────────────
 function VerFatura({ cartao, onVoltar, onEditarCartao }) {
-  const { compras, carregando, criar, atualizar, remover, recarregar: recarregarCompras } = useComprasCartao(cartao.id)
+  const { compras, carregando, criar, atualizar, remover, atualizarComMotivo: atualizarCompraComMotivo, removerComMotivo: removerCompraComMotivo, recarregar: recarregarCompras } = useComprasCartao(cartao.id)
   const { parcelamentos, recarregar: recarregarParcelamentos } = useParcelamentos()
 // Faturas informadas por total (deste cartão).
-const { faturas: faturasInformadas, salvarFatura, removerFatura, recarregar: recarregarFaturasInformadas } = useFaturasCartao(cartao.id)
+const { faturas: faturasInformadas, salvarFatura, removerFatura, removerComMotivo: removerFaturaComMotivo, recarregar: recarregarFaturasInformadas } = useFaturasCartao(cartao.id)
 // Pagamentos de fatura (RPC transacional, histórico e estorno).
   const { pagamentos, pagar, estornar, enviando: enviandoPagamento, erro: erroPagamentos } = usePagamentosFatura(cartao.id)
   const [cicloPagando, setCicloPagando] = useState(null)
@@ -341,8 +343,14 @@ const [modalFatura, setModalFatura] = useState(false)
   const [salvandoFatura, setSalvandoFatura] = useState(false)
   const [removendo, setRemovendo] = useState(null)
   const [erro, setErro] = useState('')
+  // Fatura quitada: o banco recusa DML direto (FP001). Guardamos a operação pendente
+  // e pedimos o motivo antes de repetir pela RPC alterar_historico_fatura.
+  const [pendenteHistorico, setPendenteHistorico] = useState(null) // { acao, id, dados }
+  const [motivoHistorico, setMotivoHistorico] = useState('')
+  const [enviandoHistorico, setEnviandoHistorico] = useState(false)
 // Mês/ano exibido: começa no atual; "Próximas faturas" muda isto
   const [refData, setRefData] = useState({ ano: anoAtual, mes: mesAtual })
+  const { ajustes, credito: creditoVigenteFatura, recarregar: recarregarAjustes } = useAjustesFatura(cartao.id, anoMesChave(refData.ano, refData.mes))
 // Categoria expandida (mostra os lançamentos dela ao tocar). null = nenhuma.
   const [categoriaAberta, setCategoriaAberta] = useState(null)
 // Visão da seção "Meus gastos": 'categoria' (padrão) ou 'data'.
@@ -510,8 +518,21 @@ const [modalFatura, setModalFatura] = useState(false)
       }
       setModalCompra(false)
       setCompraEditando(null)
-    } catch {
-      setErro('Erro ao salvar compra ou alteração. Tente novamente.')
+    } catch (err) {
+      if (ehErroFaturaQuitada(err)) {
+        if (compraEditando) {
+          const payload = Number(compraEditando.numero_parcelas || 1) > 1
+            ? { descricao: dados.descricao, categoria_id: dados.categoria_id, subcategoria_id: dados.subcategoria_id }
+            : dados
+          setModalCompra(false)
+          setPendenteHistorico({ acao: 'editar', id: compraEditando.id, dados: filtrarCamposEditaveis('compras_cartao', payload) })
+          setCompraEditando(null)
+        } else {
+          setErro('Esta compra cai em uma fatura já quitada e não pode ser incluída diretamente. Estorne o pagamento ou use uma data de outra fatura.')
+        }
+      } else {
+        setErro('Erro ao salvar compra ou alteração. Tente novamente.')
+      }
     } finally {
       setSalvando(false)
     }
@@ -532,7 +553,31 @@ const [modalFatura, setModalFatura] = useState(false)
   async function handleRemoverFaturaInformada() {
     if (!faturaInformada) return
     if (!confirm('Remover o total informado desta fatura? Voltará a valer a soma das compras.')) return
-    try { await removerFatura(faturaInformada.id) } catch { setErro('Erro ao remover o total informado.') }
+    try {
+      await removerFatura(faturaInformada.id)
+    } catch (err) {
+      if (ehErroFaturaQuitada(err)) setPendenteHistorico({ acao: 'excluir', id: faturaInformada.id, dados: null, tabela: 'faturas_cartao' })
+      else setErro('Erro ao remover o total informado.')
+    }
+  }
+  function fecharMotivoHistorico() {
+    setPendenteHistorico(null); setMotivoHistorico('')
+  }
+  // Repete a operação recusada pela RPC controlada, com motivo obrigatório.
+  async function confirmarHistorico() {
+    if (!pendenteHistorico) return
+    const { acao, id, dados, tabela } = pendenteHistorico
+    setEnviandoHistorico(true); setErro('')
+    try {
+      if (tabela === 'faturas_cartao') await removerFaturaComMotivo(id, motivoHistorico)
+      else if (acao === 'editar') await atualizarCompraComMotivo(id, dados, motivoHistorico)
+      else await removerCompraComMotivo(id, motivoHistorico)
+      fecharMotivoHistorico()
+      recarregarAjustes()
+      recarregarFaturasInformadas?.()
+    } catch (err) {
+      setErro(err.message || 'Não foi possível registrar a alteração.')
+    } finally { setEnviandoHistorico(false) }
   }
   function iniciarEdicao(linha) {
     const compra = compras.find(c => String(c.id) === String(linha.id))
@@ -593,7 +638,12 @@ const [modalFatura, setModalFatura] = useState(false)
       return
     }
     setRemovendo(id)
-    try { await remover(id) } catch { setErro('Erro ao remover.') } finally { setRemovendo(null) }
+    try {
+      await remover(id)
+    } catch (err) {
+      if (ehErroFaturaQuitada(err)) setPendenteHistorico({ acao: 'excluir', id, dados: null })
+      else setErro('Erro ao remover.')
+    } finally { setRemovendo(null) }
   }
   return (
     <div className="space-y-6">
@@ -779,6 +829,23 @@ const [modalFatura, setModalFatura] = useState(false)
               ))}
             </ul>
           </div>
+        )}
+        {creditoVigenteFatura > 0 && (
+          <p data-testid="credito-fatura" className="text-xs text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">
+            Crédito de {formatCurrency(creditoVigenteFatura)}: a fatura foi alterada depois de paga e o total ficou abaixo do valor pago. O crédito não é aplicado automaticamente a outra fatura.
+          </p>
+        )}
+        {ajustes.length > 0 && (
+          <details data-testid="historico-alteracoes" className="pt-3 border-t border-gray-100">
+            <summary className="text-xs font-semibold text-gray-500 cursor-pointer">Alterações da fatura ({ajustes.length})</summary>
+            <ul className="mt-2 space-y-1">
+              {ajustes.map(a => (
+                <li key={a.id} className="text-xs text-gray-500">
+                  {formatDate(String(a.criado_em).slice(0, 10))} · {a.tipo}{a.valor != null ? ` ${formatCurrency(a.valor)}` : ''}{a.motivo ? ` · ${a.motivo}` : ''}
+                </li>
+              ))}
+            </ul>
+          </details>
         )}
       </div>
       {/* Aviso de previsão quando não é o mês atual */}
@@ -1024,6 +1091,24 @@ const [modalFatura, setModalFatura] = useState(false)
       <Modal aberto={modalCompra} onFechar={() => { setModalCompra(false); setCompraEditando(null) }} titulo={compraEditando ? "Editar compra no cartão" : "Nova compra no cartão"}>
         <FormCompra key={compraEditando?.id || "nova"} compraInicial={compraEditando} cartoes={[cartao]} cartaoIdFixo={cartao.id} onSalvar={handleSalvar} onCancelar={() => { setModalCompra(false); setCompraEditando(null) }} carregando={salvando}
           limiteLivre={Number(cartao.limite_total) - comprometido + (compraEditando ? Number(compraEditando.valor_total) || 0 : 0)} />
+      </Modal>
+      <Modal aberto={Boolean(pendenteHistorico)} onFechar={fecharMotivoHistorico} titulo="Alterar fatura quitada">
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">{MENSAGEM_FATURA_QUITADA}</p>
+          <label className="block text-sm font-medium text-gray-700" htmlFor="motivo-historico">Motivo</label>
+          <textarea id="motivo-historico" data-testid="motivo-historico" className="input w-full" rows={3} maxLength={MOTIVO_MAX}
+            value={motivoHistorico} onChange={e => setMotivoHistorico(e.target.value)} />
+          <p className="text-xs text-gray-400">Mínimo de {MOTIVO_MIN} caracteres.</p>
+          {erro && <p className="text-sm text-red-600">{erro}</p>}
+          <div className="flex gap-3">
+            <button type="button" onClick={fecharMotivoHistorico} className="btn-secondary flex-1">Cancelar</button>
+            <button type="button" data-testid="confirmar-historico" onClick={confirmarHistorico}
+              disabled={enviandoHistorico || motivoHistorico.trim().length < MOTIVO_MIN}
+              className="btn-primary flex-1 flex items-center justify-center gap-2">
+              {enviandoHistorico ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : 'Confirmar alteração'}
+            </button>
+          </div>
+        </div>
       </Modal>
       <ModalPagarFatura aberto={Boolean(cicloPagando)} ciclo={cicloPagando} cartao={cartao} onConfirmar={handlePagar} onFechar={() => setCicloPagando(null)} />
       <Modal aberto={modalFatura} onFechar={() => setModalFatura(false)} titulo="Informar total da fatura">

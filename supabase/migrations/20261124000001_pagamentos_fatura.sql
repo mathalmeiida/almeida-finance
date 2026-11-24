@@ -99,8 +99,11 @@
 --     a transação sem pagamento indevido e podem ser repetidos com a MESMA idempotency_key.
 --     Deadlock residual possível: DML em massa sem auth.uid() (ver LIMITES) e transações
 --     multi-statement que misturem DML com locks manuais em cartoes fora desse mecanismo.
---     Decisão registrada: editar ou excluir compra DEPOIS do pagamento pode deixar o total abaixo
---     do pago; é permitido (o limite vale no instante do pagamento, sob lock).
+--     Decisão original (v5), SUPERADA pela migration 20261124000002: editar ou excluir compra
+--     depois do pagamento podia deixar o total abaixo do pago. A 000002 passa a recusar DML
+--     direto em fatura QUITADA (SQLSTATE FP001; só a RPC alterar_historico_fatura, com motivo e
+--     auditoria) e registra crédito quando o total cai abaixo do pago. Fatura aberta ou parcial
+--     continua editável. O limite do pagamento vale no instante do pagamento, sob lock.
 --     UNIQUE (usuario_id, idempotency_key) é a barreira final; unique_violation concorrente
 --     devolve o original se os parâmetros coincidem.
 --   • Origem: somente 'saldo_principal' (não há múltiplas contas). 'outra_conta'
