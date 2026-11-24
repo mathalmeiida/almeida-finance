@@ -64,6 +64,9 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
 
   const [searchParams] = useSearchParams()
 
+  // Flag para prevenir navegação automática durante digitação
+  const [processandoOnboarding, setProcessandoOnboarding] = useState(true)
+
   // Estados para contadores de resumo
 
   const [contadores, setContadores] = useState({
@@ -165,13 +168,14 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
 
   }, [etapa])
 
-  // Carrega dados existentes
-
+  // Carrega dados existentes APENAS UMA VEZ no mount
+  const [saldoCarregado, setSaldoCarregado] = useState(false)
   useEffect(() => {
-
-    if (perfil?.saldo_base) setSaldo(Number(perfil.saldo_base))
-
-  }, [perfil])
+    if (perfil?.saldo_base && !saldoCarregado) {
+      setSaldo(Number(perfil.saldo_base))
+      setSaldoCarregado(true)
+    }
+  }, [perfil, saldoCarregado])
 
   async function handleEscolha(escolha) {
 
@@ -207,12 +211,19 @@ export default function OnboardingSimples({ aoConcluir, etapaInicial: etapaInici
   }
 
   async function handleConcluir() {
+    // Marca que está processando para prevenir navegação indevida
+    setProcessandoOnboarding(true)
+    
     // Limpa a flag de configuração ANTES de marcar como concluído
     try {
       localStorage.removeItem(CHAVE_CONFIGURANDO)
     } catch {}
     
+    // Conclui o onboarding
     if (aoConcluir) await aoConcluir()
+    
+    // Mantém o flag ativo até a navegação ser completada
+    setProcessandoOnboarding(false)
   }
 
   // Carrega resumo real do banco

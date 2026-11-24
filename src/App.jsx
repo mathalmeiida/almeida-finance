@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 
@@ -304,39 +304,44 @@ function AreaAutenticada({ children }) {
 
   }, [concluir])
 
-  if (usuario && perfil == null) return <Carregando />
+  // Calcular valores para onboarding ANTES dos returns condicionais
+  const ROTAS_CONFIGURACAO = ['/receitas', '/despesas', '/cartoes', '/beneficios', '/investimentos']
+  
+  const estaConfigurando = useMemo(() => {
+    try { return localStorage.getItem(CHAVE_CONFIGURANDO) === '1' }
+    catch { return false }
+  }, [])
+  
+  const rotaPermitida = useMemo(() => 
+    ROTAS_CONFIGURACAO.includes(location.pathname),
+    [location.pathname]
+  )
+  
+  const deveBloquear = useMemo(() => 
+    (precisaOnboarding || refazer) && !(estaConfigurando && rotaPermitida),
+    [precisaOnboarding, refazer, estaConfigurando, rotaPermitida]
+  )
+  
+  const [emOnboarding, setEmOnboarding] = useState(false)
+  
+  useEffect(() => {
+    if (deveBloquear) {
+      setEmOnboarding(true)
+    } else if (!precisaOnboarding && !refazer) {
+      setEmOnboarding(false)
+    }
+  }, [deveBloquear, precisaOnboarding, refazer])
 
-  // Conta desativada tem prioridade sobre qualquer outra tela.
+  // Returns condicionais DEPOIS de todos os hooks
+  if (usuario && perfil == null) return <Carregando />
 
   if (contaDesativada) return <ContaDesativada />
 
-  // Enquanto verifica o status do onboarding, aguarda (evita piscar o app).
-
   if (verificando) return <Carregando />
-
-  // Onboarding: primeiro acesso (precisaOnboarding) OU refazer manual.
-  // EXCEÇÃO: Se a flag CHAVE_CONFIGURANDO está ativa E o usuário está navegando
-  // para um módulo específico permitido durante a configuração, permite acesso.
-  // Lista explícita de rotas permitidas durante onboarding (comparação exata):
-  const ROTAS_CONFIGURACAO = ['/receitas', '/despesas', '/cartoes', '/beneficios', '/investimentos']
   
-  const estaConfigurando = (() => {
-    try { return localStorage.getItem(CHAVE_CONFIGURANDO) === '1' }
-    catch { return false }
-  })()
-  
-  // Comparação exata do pathname (sem query params)
-  const rotaPermitida = ROTAS_CONFIGURACAO.includes(location.pathname)
-  
-  if ((precisaOnboarding || refazer) && !(estaConfigurando && rotaPermitida)) {
-
+  if (emOnboarding) {
     return <OnboardingSimples aoConcluir={encerrarOnboarding} etapaInicial={etapaInicial} />
-
   }
-
-  // Solicitação de consultoria pendente para o cliente: mostra a tela de
-
-  // autorização antes do app. Não aplica quando o próprio usuário está no modo
 
   // consultoria (visualizando outra conta) — ali ele é o consultor, não o alvo.
 
