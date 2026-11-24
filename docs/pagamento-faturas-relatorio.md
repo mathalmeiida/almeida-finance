@@ -57,7 +57,7 @@ Premissa a validar com dados reais: a 1ª parcela de um parcelamento segue a reg
 
 `useProjecao` (faturas a vencer, saldo seguro, saldo disponível), `horizonteFinanceiro.gerarHorizonte` (calendário da Home e Projeção), `Dashboard.jsx` (Próximos 7 dias), `HorizonteFinanceiro`, `Projecao.jsx` e Posso Comprar (via `useProjecao`). `Cartoes.jsx`: botão "Pagar fatura" por ciclo, selo de status, histórico e estorno com confirmação. `usePagamentosFatura` recarrega ao focar a janela, por evento entre telas e por realtime (quando habilitado no Supabase) para sincronizar dispositivos.
 
-`Calendario.jsx` usa uma chamada antiga de `gerarHorizonte` que não recebe compras nem faturas; não foi alterada.
+`Calendario.jsx` agora obtém `comprasCartao`, `faturasInformadas` e `pagamentosFatura` de `useProjecao` e os repassa a `gerarHorizonte` (vazios no modo família), então as faturas e o saldo em aberto aparecem no calendário.
 
 ## 6. Testes
 
@@ -108,10 +108,19 @@ Também é necessário validar visualmente (tema claro e escuro, mobile e deskto
 | 4 | Realtime sem publicação | **Corrigido.** A migration adiciona `pagamentos_fatura` a `supabase_realtime` de forma idempotente (só se a publicação existir e a tabela ainda não estiver nela). |
 | 5 | Data anterior ao marco não debita | **Corrigido por aviso.** O modal informa que, com origem no saldo principal, o saldo só é debitado se a data for posterior ao último saldo informado. A data não foi restringida, pois o marco não está disponível na tela de cartões e o registro retroativo continua válido para o histórico. |
 | 6 | Backfill ignora fatura paga com valor 0 ou sem total | **Mantido.** `valor` tem `CHECK (valor > 0)`, então não há pagamento de R$ 0,00 a registrar. A lib já trata essas faturas como pagas pelo boolean. Conferir no DEV com: `SELECT count(*) FROM faturas_cartao WHERE pago AND COALESCE(valor_total,0) = 0;`. |
-| 7 | Validação visual e Calendario.jsx | **Não executável aqui** (sem navegador e sem build). Calendário: `Calendario.jsx` não referencia faturas diretamente; o vencimento e o valor vêm de `horizonteFinanceiro.js`, já atualizado para usar saldo em aberto. Verificação visual de temas e responsividade permanece pendente. |
+| 7 | Validação visual e Calendario.jsx | **Calendário corrigido na revisão v2:** `Calendario.jsx` passava só `cartoes` e `gerarHorizonte` descartava as faturas (total 0); agora recebe compras, faturas informadas e pagamentos. Verificação visual de temas e responsividade segue **não executável aqui** (sem navegador e sem build). |
 
 ## 7. Ordem de aplicação
 
 1. DEV: aplicar `2026-11_pagamentos_fatura.sql` (depende de `faturas_cartao` com `pago`/`pago_em`, migrations de 2026-10). Reaplicar para confirmar idempotência.
 2. Rodar a suíte acima no DEV e revisar os resultados.
 3. Somente após aprovação: aplicar a mesma migration em produção e publicar o front-end. O front-end novo sem a migration mostra "migração ainda não aplicada" e segue funcionando sem pagamentos.
+
+## 6.2 Tratamento da revisão v2 (2026-11-24-225122-review.md)
+
+| # | Problema | Tratamento |
+|---|----------|------------|
+| 1 | Teste da âncora quebrava o teste do antecipado | **Corrigido.** A chamada com total divergente foi movida para depois do `ok` do antecipado em `supabase/tests/simular-migrations.mjs`. Suíte ainda não executada (sem npm). |
+| 2 | Calendário sem dados de fatura | **Corrigido.** `Calendario.jsx` passa `comprasCartao`, `faturasInformadas` e `pagamentosFatura` a `gerarHorizonte`. |
+| 3 | Âncora sem orientação ao usuário | **Corrigido.** `ModalPagarFatura.jsx` traduz o erro "Total da fatura divergente" em mensagem orientando a estornar e registrar de novo. |
+| 4 | DEV, build, e2e e visual pendentes | **Não corrigível aqui** (sem npm, sem credenciais DEV, sem navegador). Executar antes de produção, conforme a seção 6. |

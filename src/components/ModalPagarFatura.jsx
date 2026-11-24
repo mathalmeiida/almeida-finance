@@ -53,7 +53,10 @@ export default function ModalPagarFatura({ aberto, ciclo, cartao, onConfirmar, o
         chave: chave.current,
       })
     } catch (e) {
-      setErro(e?.message || 'Erro ao registrar o pagamento.')
+      const m = e?.message || ''
+      setErro(/divergente/i.test(m)
+        ? 'O total da fatura mudou desde o primeiro pagamento deste ciclo (por exemplo, por uma nova compra). Estorne os pagamentos deste ciclo no histórico e registre novamente com o total atualizado.'
+        : (m || 'Erro ao registrar o pagamento.'))
       setSalvando(false)
       return
     }
