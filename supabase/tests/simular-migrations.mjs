@@ -11,7 +11,7 @@ import { readFileSync, readdirSync, existsSync } from 'fs'
 const dir = new URL('../', import.meta.url)
 // pgcrypto não existe no PGlite; gen_random_uuid() é nativo desde o PG 13.
 const ler = p => readFileSync(new URL(p, dir), 'utf8').replace(/CREATE EXTENSION IF NOT EXISTS "?pgcrypto"?[^;]*;/gi, '-- (pgcrypto omitido na simulação)')
-const NOVAS = ['2026-11_atalhos_home.sql', '2026-11_onboarding_perfil.sql', '2026-11_importacoes.sql', '2026-11_compras_cartao_cartao_do_dono.sql', '20261124000001_pagamentos_fatura.sql']
+const NOVAS = ['2026-11_atalhos_home.sql', '2026-11_onboarding_perfil.sql', '2026-11_importacoes.sql', '2026-11_compras_cartao_cartao_do_dono.sql', '20261124000001_pagamentos_fatura.sql', '20261124000002_integridade_historica_fatura.sql']
 const A = '00000000-0000-4000-8000-00000000000a'
 const B = '00000000-0000-4000-8000-00000000000b'
 
@@ -82,7 +82,17 @@ async function como(uid, sql, params) {
     const r = await db.query(sql, params)
     await db.exec('COMMIT')
     return { linhas: r.rows, afetadas: r.affectedRows ?? 0 }
-  } catch (e) { await db.exec('ROLLBACK'); return { erro: e.message } }
+  } catch (e) { await db.exec('ROLLBACK'); return { erro: e.message, code: e.code } }
+}
+// Executa como service_role (sem auth.uid()): papel de cliente com privilégio de DML, usado para provar os triggers de imutabilidade.
+async function comoServico(sql, params) {
+  await db.exec('BEGIN')
+  try {
+    await db.exec('SET LOCAL ROLE service_role')
+    const r = await db.query(sql, params)
+    await db.exec('COMMIT')
+    return { linhas: r.rows, afetadas: r.affectedRows ?? 0 }
+  } catch (e) { await db.exec('ROLLBACK'); return { erro: e.message, code: e.code } }
 }
 
 console.log('\n# perfis: atalhos_home, objetivos_financeiros, onboarding_etapa')
@@ -310,11 +320,197 @@ await db.exec(`INSERT INTO public.faturas_cartao (id, usuario_id, cartao_id, ano
 await db.exec(`SET session_replication_role = origin`)
 await db.exec(ler('migrations/20261124000001_pagamentos_fatura.sql'))
 await db.exec(ler('migrations/20261124000001_pagamentos_fatura.sql'))
+// Reaplicar a 000001 restaura o estorno de 1 argumento sem auditoria: a 000002 vem depois, como em producao.
+await db.exec(ler('migrations/20261124000002_integridade_historica_fatura.sql'))
 r = await db.query(`SELECT count(*)::int AS n, bool_and(legado) AS l, bool_and(origem = 'outra_conta') AS o FROM public.pagamentos_fatura WHERE ano_mes = '2026-09'`)
 ok('backfill cria 1 pagamento legado sem debitar saldo e é idempotente', r.rows[0].n === 1 && r.rows[0].l && r.rows[0].o, JSON.stringify(r.rows[0]))
 
 r = await db.query(`SELECT count(*)::int AS n FROM public.perfis`)
 ok('dados existentes preservados', r.rows[0].n === 2)
+
+
+// ============================================================
+// Integridade histórica das faturas pagas (migration 20261124000002).
+// ATENÇÃO: estes cenários foram ESCRITOS mas NÃO EXECUTADOS no ambiente em que a feature foi
+// implementada (sem Postgres e sem PGlite). Ficam PENDENTES até rodar com `npm run test:migrations`.
+// O código de erro FP001 depende de o driver PGlite expor `e.code`; se não expuser, o ajuste é
+// comparar pela mensagem ("já está quitada").
+// ============================================================
+console.log('\n# integridade historica (000002): guarda, auditoria, credito, fluxo controlado (PENDENTE de execucao)')
+const FP = 'FP001'
+const novoCartaoDe = async (uid, nome) => (await como(uid, `INSERT INTO public.cartoes (usuario_id, nome, limite_total, dia_fechamento, dia_vencimento) VALUES ($1, $2, 5000, 20, 28) RETURNING id`, [uid, nome])).linhas?.[0]?.id
+const novaCompraDe = async (uid, cartao, descricao, valor, data = '2026-11-05') => (await como(uid, `INSERT INTO public.compras_cartao (usuario_id, cartao_id, descricao, valor_total, data_compra, numero_parcelas) VALUES ($1, $2, $3, $4, $5, 1) RETURNING id`, [uid, cartao, descricao, valor, data])).linhas?.[0]?.id
+const pagarSemDica = (uid, cartao, ym, valor, key) => como(uid, `SELECT * FROM public.pagar_fatura_cartao($1, $2, $3, $4, 'saldo_principal', NULL, NULL, $5)`, [cartao, ym, valor, hoje, key])
+const ajustesDe = async (cartao, ym, filtro = '') => (await db.query(`SELECT * FROM public.ajustes_fatura WHERE cartao_id = $1 AND ano_mes = $2 ${filtro} ORDER BY criado_em, id`, [cartao, ym])).rows
+const somaCredito = async (cartao, ym) => Number((await db.query(`SELECT COALESCE(SUM(valor), 0) AS v FROM public.ajustes_fatura WHERE cartao_id = $1 AND ano_mes = $2 AND tipo = 'credito'`, [cartao, ym])).rows[0].v)
+const pagosAtivos = async cartao => (await db.query(`SELECT count(*)::int AS n, COALESCE(SUM(valor), 0)::numeric AS soma FROM public.pagamentos_fatura WHERE cartao_id = $1 AND status = 'ativo'`, [cartao])).rows[0]
+const valorCompra = async id => Number((await db.query(`SELECT valor_total FROM public.compras_cartao WHERE id = $1`, [id])).rows[0]?.valor_total)
+const YM = '2026-11'
+
+// 1) Aberta: DML livre e sem auditoria.
+const cI = await novoCartaoDe(A, 'Integridade A')
+const k1 = await novaCompraDe(A, cI, 'Compra integridade', 1000)
+r = await como(A, `UPDATE public.compras_cartao SET valor_total = 900 WHERE id = $1`, [k1])
+ok('aberta: A edita livremente', !r.erro && r.afetadas === 1, r.erro || '')
+ok('aberta: nenhuma linha de auditoria', (await ajustesDe(cI, YM)).length === 0)
+
+// 2) Parcial: permite editar, incluir e excluir; audita; pagamentos intactos.
+r = await pagarSemDica(A, cI, YM, 400, 'ih-parcial-0001')
+ok('parcial: pagamento de 400 sobre 900 aceito', !r.erro, r.erro || '')
+const pgIH1 = r.linhas?.[0]?.id
+r = await como(A, `UPDATE public.compras_cartao SET valor_total = 800 WHERE id = $1`, [k1])
+ok('parcial: editar valor da compra é permitido', !r.erro && r.afetadas === 1, r.erro || '')
+let aj = await ajustesDe(cI, YM, `AND tipo = 'edicao'`)
+ok('parcial: edição gera 1 linha de auditoria via direto com pago 400 e total 800', aj.length === 1 && aj[0].via === 'direto' && Number(aj[0].pago_ativo) === 400 && Number(aj[0].total_depois) === 800, JSON.stringify(aj.map(x => [x.via, x.pago_ativo, x.total_depois])))
+r = await como(A, `INSERT INTO public.compras_cartao (usuario_id, cartao_id, descricao, valor_total, data_compra, numero_parcelas) VALUES ($1, $2, 'Extra', 100, '2026-11-06', 1) RETURNING id`, [A, cI])
+ok('parcial: incluir compra é permitido', !r.erro, r.erro || '')
+const kExtra = r.linhas?.[0]?.id
+r = await como(A, `DELETE FROM public.compras_cartao WHERE id = $1`, [kExtra])
+ok('parcial: excluir compra é permitido', !r.erro && r.afetadas === 1, r.erro || '')
+ok('parcial: inclusão e exclusão auditadas', (await ajustesDe(cI, YM, `AND tipo = 'inclusao'`)).length === 1 && (await ajustesDe(cI, YM, `AND tipo = 'exclusao'`)).length === 1)
+let pa = await pagosAtivos(cI)
+ok('parcial: pagamentos intactos (1 ativo de 400)', pa.n === 1 && Number(pa.soma) === 400, JSON.stringify(pa))
+
+// 3) Quitada: DML direto recusado com FP001.
+r = await pagarSemDica(A, cI, YM, 400, 'ih-parcial-0002')
+ok('quitada: restante (400) pago', !r.erro, r.erro || '')
+const pgIH2 = r.linhas?.[0]?.id
+const antesQ = (await ajustesDe(cI, YM)).length
+r = await como(A, `UPDATE public.compras_cartao SET valor_total = 700 WHERE id = $1`, [k1])
+ok('quitada: editar valor recusado com FP001', r.code === FP, `(${r.code} ${r.erro || 'sem erro'})`)
+ok('quitada: a mensagem orienta o fluxo controlado (HINT/mensagem)', /quitada/i.test(r.erro || ''))
+r = await como(A, `DELETE FROM public.compras_cartao WHERE id = $1`, [k1])
+ok('quitada: excluir recusado com FP001', r.code === FP, `(${r.code} ${r.erro || 'sem erro'})`)
+r = await como(A, `INSERT INTO public.compras_cartao (usuario_id, cartao_id, descricao, valor_total, data_compra, numero_parcelas) VALUES ($1, $2, 'Tarde demais', 50, '2026-11-07', 1)`, [A, cI])
+ok('quitada: inserir compra no ciclo recusado com FP001', r.code === FP, `(${r.code} ${r.erro || 'sem erro'})`)
+ok('quitada: compra intacta (800) e nenhuma auditoria nova', (await valorCompra(k1)) === 800 && (await ajustesDe(cI, YM)).length === antesQ)
+r = await como(A, `UPDATE public.compras_cartao SET descricao = 'Renomeada', categoria_id = NULL WHERE id = $1`, [k1])
+ok('quitada: editar descricao/categoria não é bloqueado', !r.erro && r.afetadas === 1, r.erro || '')
+r = await como(B, `UPDATE public.compras_cartao SET valor_total = 1 WHERE id = $1`, [k1])
+ok('quitada: B não altera a compra de A por DML direto (0 linhas)', !r.erro ? r.afetadas === 0 : true, r.erro || '')
+r = await como(B, `DELETE FROM public.compras_cartao WHERE id = $1`, [k1])
+ok('quitada: B não apaga a compra de A por DML direto (0 linhas)', !r.erro ? r.afetadas === 0 : true, r.erro || '')
+ok('quitada: compra de A segue com 800', (await valorCompra(k1)) === 800)
+
+// 4) Fluxo controlado: alterar_historico_fatura.
+const ALTERAR = `SELECT public.alterar_historico_fatura($1, $2, $3, $4::jsonb, $5) AS r`
+r = await como(A, ALTERAR, ['compras_cartao', k1, 'editar', JSON.stringify({ valor_total: 700 }), null])
+ok('controlado: motivo obrigatório (NULL recusado)', !!r.erro && r.code === '22023', `(${r.code} ${r.erro || ''})`)
+r = await como(A, ALTERAR, ['compras_cartao', k1, 'editar', JSON.stringify({ valor_total: 700 }), 'abc'])
+ok('controlado: motivo com menos de 5 caracteres recusado', !!r.erro && r.code === '22023')
+r = await como(A, ALTERAR, ['despesas', k1, 'excluir', null, 'Motivo valido'])
+ok('controlado: tabela fora da lista recusada', !!r.erro && r.code === '22023', `(${r.code} ${r.erro || ''})`)
+r = await como(A, ALTERAR, ['compras_cartao', k1, 'editar', JSON.stringify({ usuario_id: B }), 'Motivo valido'])
+ok('controlado: coluna fora da whitelist recusada (usuario_id)', !!r.erro && r.code === '22023', `(${r.code} ${r.erro || ''})`)
+r = await como(A, ALTERAR, ['compras_cartao', k1, 'editar', JSON.stringify({ criado_em: '2020-01-01' }), 'Motivo valido'])
+ok('controlado: coluna fora da whitelist recusada (criado_em)', !!r.erro && r.code === '22023')
+r = await como(A, ALTERAR, ['compras_cartao', k1, 'apagar', null, 'Motivo valido'])
+ok('controlado: ação inválida recusada', !!r.erro && r.code === '22023')
+r = await como(B, ALTERAR, ['compras_cartao', k1, 'editar', JSON.stringify({ valor_total: 1 }), 'Motivo valido'])
+ok('controlado: B não altera o histórico de A (42501)', !!r.erro && r.code === '42501', `(${r.code} ${r.erro || ''})`)
+r = await como(A, ALTERAR, ['compras_cartao', k1, 'editar', JSON.stringify({ valor_total: 700, cartao_id: cartaoB }), 'Motivo valido'])
+ok('controlado: A não move a compra para o cartão de B (42501)', !!r.erro && r.code === '42501', `(${r.code} ${r.erro || ''})`)
+r = await como(null, ALTERAR, ['compras_cartao', k1, 'editar', JSON.stringify({ valor_total: 700 }), 'Motivo valido'])
+ok('controlado: anônimo não executa', !!r.erro)
+ok('controlado: nada mudou após as recusas (800)', (await valorCompra(k1)) === 800)
+r = await como(A, ALTERAR, ['compras_cartao', k1, 'editar', JSON.stringify({ valor_total: 700 }), 'Correção de lançamento'])
+ok('controlado: edição de fatura quitada aceita com motivo', !r.erro && r.linhas[0].r.ok === true, r.erro || '')
+ok('controlado: devolve a quantidade de linhas da razão (edição + crédito = 2)', r.linhas?.[0]?.r?.ajustes === 2, JSON.stringify(r.linhas?.[0]?.r))
+ok('controlado: valor novo gravado (700)', (await valorCompra(k1)) === 700)
+aj = await ajustesDe(cI, YM, `AND tipo = 'edicao' AND via = 'controlado'`)
+ok('controlado: auditoria com via controlado e motivo', aj.length === 1 && aj[0].motivo === 'Correção de lançamento' && Number(aj[0].dados_antes.valor_total) === 800 && Number(aj[0].dados_depois.valor_total) === 700)
+// 5) Crédito: total (700) abaixo do pago (800): crédito de 100, pagamentos preservados.
+ok('crédito: lançamento de 100 quando o total cai abaixo do pago', (await somaCredito(cI, YM)) === 100, `(${await somaCredito(cI, YM)})`)
+pa = await pagosAtivos(cI)
+ok('crédito: nenhum pagamento apagado (2 ativos, 800)', pa.n === 2 && Number(pa.soma) === 800, JSON.stringify(pa))
+r = await como(A, `SELECT * FROM public.estornar_pagamento_fatura($1, $2)`, [pgIH2, 'Pagamento em duplicidade'])
+ok('estorno com motivo aceito', !r.erro && r.linhas[0].status === 'estornado', r.erro || '')
+aj = await ajustesDe(cI, YM, `AND tipo = 'estorno'`)
+ok('estorno: gera linha estorno com o motivo e o pagamento', aj.length === 1 && aj[0].motivo === 'Pagamento em duplicidade' && aj[0].pagamento_id === pgIH2 && Number(aj[0].valor) === 400, JSON.stringify(aj))
+ok('estorno: crédito reconciliado para 0 (pago 400 < total 700)', (await somaCredito(cI, YM)) === 0, `(${await somaCredito(cI, YM)})`)
+r = await como(A, `SELECT * FROM public.estornar_pagamento_fatura($1)`, [pgIH1])
+ok('estorno de 1 argumento continua funcionando e também audita', !r.erro && (await ajustesDe(cI, YM, `AND tipo = 'estorno'`)).length === 2, r.erro || '')
+r = await como(A, `SELECT * FROM public.estornar_pagamento_fatura($1, $2)`, [pgIH1, 'x'.repeat(301)])
+ok('estorno: motivo acima de 300 caracteres recusado', !!r.erro)
+
+// Exclusão controlada com crédito de 100% do pago.
+const cJ = await novoCartaoDe(A, 'Integridade B')
+const k2 = await novaCompraDe(A, cJ, 'Compra a excluir', 500)
+r = await pagarSemDica(A, cJ, YM, 500, 'ih-quita-excluir-1')
+ok('exclusão controlada: fatura de 500 quitada', !r.erro, r.erro || '')
+r = await como(A, ALTERAR, ['compras_cartao', k2, 'excluir', null, 'Compra lançada por engano'])
+ok('exclusão controlada aceita com motivo', !r.erro && r.linhas[0].r.ok === true, r.erro || '')
+ok('exclusão controlada: compra removida, pagamento preservado e crédito de 500', (await db.query(`SELECT count(*)::int AS n FROM public.compras_cartao WHERE id = $1`, [k2])).rows[0].n === 0 && (await pagosAtivos(cJ)).n === 1 && (await somaCredito(cJ, YM)) === 500, `(${await somaCredito(cJ, YM)})`)
+ok('exclusão controlada: auditoria exclusao via controlado', (await ajustesDe(cJ, YM, `AND tipo = 'exclusao' AND via = 'controlado'`)).length === 1)
+
+// 6) Pagamentos e razão: imutáveis para papéis de cliente.
+const pgJ = (await db.query(`SELECT id FROM public.pagamentos_fatura WHERE cartao_id = $1`, [cJ])).rows[0].id
+r = await como(A, `DELETE FROM public.pagamentos_fatura WHERE id = $1`, [pgJ])
+ok('pagamentos: authenticated não apaga (sem privilégio)', !!r.erro)
+r = await como(A, `UPDATE public.pagamentos_fatura SET valor = 1 WHERE id = $1`, [pgJ])
+ok('pagamentos: authenticated não altera valor', !!r.erro)
+r = await comoServico(`DELETE FROM public.pagamentos_fatura WHERE id = $1`, [pgJ])
+ok('pagamentos: service_role não apaga (trigger FP001)', r.code === FP, `(${r.code} ${r.erro || 'sem erro'})`)
+r = await comoServico(`UPDATE public.pagamentos_fatura SET valor = 1 WHERE id = $1`, [pgJ])
+ok('pagamentos: service_role não altera valor (trigger FP001)', r.code === FP, `(${r.code} ${r.erro || 'sem erro'})`)
+r = await comoServico(`UPDATE public.pagamentos_fatura SET status = 'estornado', estornado_em = now(), valor = 2 WHERE id = $1`, [pgJ])
+ok('pagamentos: estorno não pode vir junto com mudança de valor', r.code === FP, `(${r.code} ${r.erro || 'sem erro'})`)
+r = await como(A, `INSERT INTO public.ajustes_fatura (usuario_id, cartao_id, ano_mes, tipo, via) VALUES ($1, $2, '2026-11', 'credito', 'direto')`, [A, cJ])
+ok('ajustes_fatura: authenticated não insere', !!r.erro)
+r = await como(A, `UPDATE public.ajustes_fatura SET motivo = 'adulterado' WHERE cartao_id = $1`, [cJ])
+ok('ajustes_fatura: authenticated não altera', !!r.erro)
+r = await como(A, `DELETE FROM public.ajustes_fatura WHERE cartao_id = $1`, [cJ])
+ok('ajustes_fatura: authenticated não apaga', !!r.erro)
+r = await comoServico(`DELETE FROM public.ajustes_fatura WHERE cartao_id = $1`, [cJ])
+ok('ajustes_fatura: service_role não apaga (trigger FP001)', r.code === FP, `(${r.code} ${r.erro || 'sem erro'})`)
+r = await comoServico(`UPDATE public.ajustes_fatura SET motivo = 'adulterado' WHERE cartao_id = $1`, [cJ])
+ok('ajustes_fatura: service_role não altera (trigger FP001)', r.code === FP, `(${r.code} ${r.erro || 'sem erro'})`)
+r = await db.query(`SELECT has_table_privilege('authenticated','public.ajustes_fatura','INSERT') i, has_table_privilege('authenticated','public.ajustes_fatura','UPDATE') u, has_table_privilege('authenticated','public.ajustes_fatura','DELETE') d, has_table_privilege('authenticated','public.ajustes_fatura','SELECT') s, has_table_privilege('anon','public.ajustes_fatura','SELECT') a`)
+ok('ajustes_fatura: authenticated só tem SELECT; anon sem acesso', !r.rows[0].i && !r.rows[0].u && !r.rows[0].d && r.rows[0].s && !r.rows[0].a, JSON.stringify(r.rows[0]))
+r = await como(A, `SELECT count(*)::int AS n FROM public.ajustes_fatura WHERE cartao_id = $1`, [cI])
+ok('ajustes_fatura: A lê os próprios ajustes', !r.erro && r.linhas[0].n > 0, r.erro || '')
+r = await como(B, `SELECT count(*)::int AS n FROM public.ajustes_fatura WHERE cartao_id = ANY($1::uuid[])`, [[cI, cJ]])
+ok('ajustes_fatura: B não lê ajustes de A (RLS)', !r.erro && r.linhas[0].n === 0, r.erro || '')
+r = await como(A, `SELECT count(*)::int AS n FROM public._fatura_liberacoes`)
+ok('_fatura_liberacoes: authenticated sem acesso', !!r.erro)
+r = await db.query(`SELECT has_table_privilege('authenticated','public._fatura_liberacoes','SELECT') s, has_table_privilege('authenticated','public._fatura_liberacoes','INSERT') i, has_table_privilege('anon','public._fatura_liberacoes','SELECT') a, has_table_privilege('service_role','public._fatura_liberacoes','SELECT') sr`)
+ok('_fatura_liberacoes: nenhum papel de cliente tem privilégio', !r.rows[0].s && !r.rows[0].i && !r.rows[0].a && !r.rows[0].sr, JSON.stringify(r.rows[0]))
+r = await como(A, `SELECT public.fatura_liberacao_ativa('controlado') AS a, public.fatura_liberacao_ativa('zerar') AS z`)
+ok('fatura_liberacao_ativa: sem liberação na transação devolve false', !r.erro && r.linhas[0].a === false && r.linhas[0].z === false, r.erro || '')
+
+// 7) Liberação 'zerar' solta não vale em outra transação; cartão com pagamento ativo não é excluído.
+const cK = await novoCartaoDe(A, 'Integridade C')
+const k3 = await novaCompraDe(A, cK, 'Compra cartao C', 300)
+r = await pagarSemDica(A, cK, YM, 300, 'ih-quita-zerar-0001')
+ok('cartão C: fatura de 300 quitada', !r.erro, r.erro || '')
+r = await como(A, `SELECT public.liberar_historico_zerar()`)
+ok('liberar_historico_zerar solta é aceita (inofensiva)', !r.erro, r.erro || '')
+r = await como(A, `UPDATE public.compras_cartao SET valor_total = 1 WHERE id = $1`, [k3])
+ok('liberação solta de OUTRA transação não destrava a guarda (FP001)', r.code === FP, `(${r.code} ${r.erro || 'sem erro'})`)
+r = await como(A, `DELETE FROM public.cartoes WHERE id = $1`, [cK])
+ok('cartão com pagamento ativo não pode ser excluído (FP001)', r.code === FP, `(${r.code} ${r.erro || 'sem erro'})`)
+r = await como(null, `SELECT public.liberar_historico_zerar()`)
+ok('anônimo não executa liberar_historico_zerar', !!r.erro)
+
+// 8) Contexto administrativo (dono/service role, auth.uid() nulo): permitido e auditado.
+await db.query(`UPDATE public.compras_cartao SET valor_total = 310 WHERE id = $1`, [k3])
+aj = await ajustesDe(cK, YM, `AND tipo = 'edicao'`)
+ok('administrativo: o dono edita fatura quitada e fica auditado via administrativo', aj.length === 1 && aj[0].via === 'administrativo', JSON.stringify(aj.map(x => x.via)))
+await db.query(`UPDATE public.compras_cartao SET valor_total = 300 WHERE id = $1`, [k3])
+
+// 9) zerar_dados_financeiros funciona com fatura quitada e não toca nos dados de B.
+const antesB = (await db.query(`SELECT (SELECT count(*) FROM public.pagamentos_fatura WHERE usuario_id = $1)::int AS p, (SELECT count(*) FROM public.ajustes_fatura WHERE usuario_id = $1)::int AS a, (SELECT count(*) FROM public.cartoes WHERE usuario_id = $1)::int AS c`, [B])).rows[0]
+ok('zerar: B tem pagamento ativo antes (pré-condição)', antesB.p >= 1, JSON.stringify(antesB))
+r = await como(A, `SELECT public.zerar_dados_financeiros() AS ok`)
+ok('zerar_dados_financeiros funciona com faturas quitadas e histórico', !r.erro && r.linhas[0].ok === true, r.erro || '')
+const depoisA = (await db.query(`SELECT (SELECT count(*) FROM public.pagamentos_fatura WHERE usuario_id = $1)::int AS p, (SELECT count(*) FROM public.ajustes_fatura WHERE usuario_id = $1)::int AS a, (SELECT count(*) FROM public.cartoes WHERE usuario_id = $1)::int AS c, (SELECT count(*) FROM public.compras_cartao WHERE usuario_id = $1)::int AS k`, [A])).rows[0]
+ok('zerar: pagamentos, ajustes, cartões e compras de A zerados', depoisA.p === 0 && depoisA.a === 0 && depoisA.c === 0 && depoisA.k === 0, JSON.stringify(depoisA))
+const depoisB = (await db.query(`SELECT (SELECT count(*) FROM public.pagamentos_fatura WHERE usuario_id = $1)::int AS p, (SELECT count(*) FROM public.ajustes_fatura WHERE usuario_id = $1)::int AS a, (SELECT count(*) FROM public.cartoes WHERE usuario_id = $1)::int AS c`, [B])).rows[0]
+ok('zerar: dados de B (pagamentos, ajustes, cartões) intactos', JSON.stringify(depoisB) === JSON.stringify(antesB), `${JSON.stringify(antesB)} -> ${JSON.stringify(depoisB)}`)
+r = await db.query(`SELECT p.prosecdef AS definer FROM pg_proc p WHERE p.oid = 'public.zerar_dados_financeiros()'::regprocedure`)
+ok('zerar_dados_financeiros segue SECURITY INVOKER', r.rows[0].definer === false)
+r = await db.query(`SELECT string_agg(t.tgname, ',' ORDER BY t.tgname) AS nomes FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid WHERE NOT t.tgisinternal AND c.relname = 'compras_cartao' AND t.tgrelid = 'public.compras_cartao'::regclass AND t.tgname IN ('aa_fatura_travar_cartao','ab_fatura_guardar_historico','zz_fatura_auditar_historico')`)
+ok('ordem alfabética dos triggers: aa_ < ab_ < zz_', r.rows[0].nomes === 'aa_fatura_travar_cartao,ab_fatura_guardar_historico,zz_fatura_auditar_historico', r.rows[0].nomes)
 
 console.log(falhas === 0 ? '\nOK — simulação aprovada' : `\n${falhas} FALHA(S) na simulação`)
 if (falhas) process.exitCode = 1

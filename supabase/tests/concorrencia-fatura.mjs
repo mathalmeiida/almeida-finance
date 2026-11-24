@@ -106,7 +106,7 @@ await admin.query(`
 
 const STAGING = ['1-SCHEMA-COMPLETO-STAGING.sql', '2-FUNCOES-TRIGGERS.sql', '3-POLITICAS-RLS.sql', '4-CATEGORIAS-INICIAIS.sql', 'MIGRATION-PERMISSOES-STAGING.sql']
 const base = existsSync(new URL('../staging/1-SCHEMA-COMPLETO-STAGING.sql', dir)) ? STAGING.map(s => `../staging/${s}`) : ['schema.sql']
-const NOVA = '20261124000001_pagamentos_fatura.sql'
+const NOVA = /20261124000001_pagamentos_fatura|20261124000002_integridade_historica_fatura/
 const arquivos = [...base, ...readdirSync(new URL('migrations/', dir)).filter(f => f.endsWith('.sql') && !/TESTES|TESTE_/i.test(f)).sort().map(f => `migrations/${f}`)]
 for (const arq of arquivos) {
   try {
@@ -116,7 +116,7 @@ for (const arq of arquivos) {
   } catch (e) {
     await admin.query('ROLLBACK').catch(() => {})
     // A migration sob teste e as dependencias diretas nao podem falhar; as demais sao avisos.
-    if (arq.endsWith(NOVA) || /2026-10_consultoria_acessos|2026-10_faturas_cartao/.test(arq)) {
+    if (NOVA.test(arq) || /2026-10_consultoria_acessos|2026-10_faturas_cartao/.test(arq)) {
       console.error(`FALHA ao aplicar ${arq}: ${e.message}`)
       await admin.end()
       process.exit(1)
@@ -124,7 +124,7 @@ for (const arq of arquivos) {
     console.log(`(aviso) ${arq}: ${e.message.split('\n')[0]}`)
   }
 }
-console.log('Bootstrap aplicado (schema + migrations, incluindo 20261124000001_pagamentos_fatura.sql)')
+console.log('Bootstrap aplicado (schema + migrations, incluindo 20261124000001_pagamentos_fatura.sql e 20261124000002_integridade_historica_fatura.sql)')
 
 // ---------- Sessoes ----------
 const sessoesAbertas = new Set()
@@ -582,7 +582,7 @@ await cenario('13a. DELETE de cartao (cascata) concorrente com DML do mesmo usua
     await W.commit()
   }
 })
-await cenario('13b. Pagamento aberto x DELETE de cartao: exclusao espera o commit e a cascata remove o pagamento', async () => {
+await cenario('13b. Pagamento aberto x DELETE de cartao: exclusao espera o commit e, com pagamento ativo, e recusada (FP001)', async () => {
   const u = await novoUsuario(); const c = await novoCartao(u)
   await novaCompra(u, c, 'Mercado', 1000)
   const P = await abrir(u)
@@ -593,9 +593,10 @@ await cenario('13b. Pagamento aberto x DELETE de cartao: exclusao espera o commi
   await aguardarBloqueio(D, pD, '13b DELETE cartoes espera pagar')
   await P.commit()
   const rd = await pD
-  ok('13b: exclusao concluida apos o commit do pagamento', !rd.erro, rd.erro || '')
-  await D.commit()
-  ok('13b: cartao e pagamentos removidos pela cascata', (await admin.query(`SELECT count(*)::int AS n FROM public.cartoes WHERE id = $1`, [c])).rows[0].n === 0 && (await qtdPagamentos(c)) === 0)
+  // Integridade historica (000002): cartao com pagamento ativo nao pode ser excluido.
+  ok('13b: exclusao recusada apos o commit do pagamento (FP001), sem 40P01', rd.code === 'FP001', `(${rd.code} ${rd.erro || 'sem erro'})`)
+  await D.rollback()
+  ok('13b: cartao e pagamento permanecem', (await admin.query(`SELECT count(*)::int AS n FROM public.cartoes WHERE id = $1`, [c])).rows[0].n === 1 && (await qtdPagamentos(c)) === 1)
 })
 await cenario('13c. DELETE de cartao em andamento x pagar: pagar espera e recusa cartao inexistente', async () => {
   const u = await novoUsuario(); const c = await novoCartao(u)
@@ -725,6 +726,105 @@ await cenario('17b. Repeticao apos 40P01: deadlock provocado por lock manual for
   ok('17b: repeticao com a mesma chave aceita (ou devolve o pagamento ja gravado)', !r2.erro, r2.erro || '')
   await P2.commit()
   ok('17b: exatamente 1 pagamento de 1000, nunca acima do total', (await qtdPagamentos(x)) === 1 && centavos(await somaPagamentos(x)) === 100000)
+})
+
+
+// ============================================================
+// Integridade historica das faturas pagas (migration 20261124000002).
+// ESCRITOS, NAO EXECUTADOS no ambiente em que foram criados (sem PostgreSQL): PENDENTES ate rodar com PG_TEST_URL.
+const SQL_ALTERAR = `SELECT public.alterar_historico_fatura($1, $2, $3, $4::jsonb, $5) AS r`
+
+await cenario('18a. pagar x alterar_historico_fatura no mesmo cartao serializa (pagar espera e recusa total antigo)', async () => {
+  const u = await novoUsuario(); const c = await novoCartao(u)
+  const b = await novaCompra(u, c, 'Mercado', 1000)
+  const S0 = await abrir(u)
+  const r0 = await S0.q(SQL_PAGAR, [c, CICLO, 400, 1000, chave()])
+  ok('18a: pagamento inicial de 400 aceito', !r0.erro, r0.erro || '')
+  await S0.commit()
+  const W = await abrir(u)
+  const rw = await W.q(SQL_ALTERAR, ['compras_cartao', b, 'editar', JSON.stringify({ valor_total: 900 }), 'Correcao de valor'])
+  ok('18a: alterar_historico_fatura aceito (sessao aberta)', !rw.erro && rw.linhas[0].r.ok === true, rw.erro || '')
+  const P = await abrir(u)
+  const k = chave()
+  const pP = P.q(SQL_PAGAR, [c, CICLO, 600, 1000, k])
+  await aguardarBloqueio(P, pP, '18a pagar espera alterar_historico_fatura')
+  await W.commit()
+  const rp = await pP
+  ok('18a: pagamento com total antigo abortado (40001), sem 40P01', rp.code === '40001', `(${rp.code} ${rp.erro || 'sem erro'})`)
+  await P.rollback()
+  const P2 = await abrir(u)
+  const r2 = await P2.q(SQL_PAGAR, [c, CICLO, 500, 900, k])
+  ok('18a: repeticao com o total novo (900) e o saldo em aberto (500) aceita', !r2.erro, r2.erro || '')
+  await P2.commit()
+  ok('18a: soma dos pagamentos ativos = 900 = total', centavos(await somaPagamentos(c)) === 90000 && centavos(await totalAdmin(u, c)) === 90000)
+  const aj = (await admin.query(`SELECT count(*)::int AS n FROM public.ajustes_fatura WHERE cartao_id = $1 AND tipo = 'edicao' AND via = 'controlado'`, [c])).rows[0].n
+  ok('18a: 1 linha de auditoria via controlado', aj === 1, `(${aj})`)
+})
+
+await cenario('18b. DML direto em fatura quitada: FP001; concorrente com estorno, espera e depois e permitido (fatura reaberta)', async () => {
+  const u = await novoUsuario(); const c = await novoCartao(u)
+  const b = await novaCompra(u, c, 'Mercado', 1000)
+  const S0 = await abrir(u)
+  const r0 = await S0.q(SQL_PAGAR, [c, CICLO, 1000, 1000, chave()])
+  ok('18b: fatura de 1000 quitada', !r0.erro, r0.erro || '')
+  await S0.commit()
+  const D = await abrir(u)
+  const rd = await D.q(`UPDATE public.compras_cartao SET valor_total = 900 WHERE id = $1`, [b])
+  ok('18b: UPDATE direto em quitada recusado com SQLSTATE FP001', rd.code === 'FP001', `(${rd.code} ${rd.erro || 'sem erro'})`)
+  await D.rollback()
+  const E = await abrir(u)
+  const re = await E.q(`SELECT * FROM public.estornar_pagamento_fatura($1, $2)`, [r0.linhas[0].id, 'Estorno de teste'])
+  ok('18b: estorno aceito (sessao aberta, segura o lock do cartao)', !re.erro, re.erro || '')
+  const W = await abrir(u)
+  const pW = W.q(`UPDATE public.compras_cartao SET valor_total = 900 WHERE id = $1`, [b])
+  await aguardarBloqueio(W, pW, '18b DML direto espera o estorno')
+  await E.commit()
+  const rw = await pW
+  ok('18b: apos o commit do estorno a fatura esta aberta e o UPDATE direto e aceito', !rw.erro && rw.n === 1, `(${rw.code} ${rw.erro || 'sem erro'})`)
+  await W.commit()
+  const aj = (await admin.query(`SELECT tipo FROM public.ajustes_fatura WHERE cartao_id = $1 ORDER BY criado_em, id`, [c])).rows.map(x => x.tipo)
+  ok('18b: razao tem estorno e nenhuma edicao (competencia sem pagamento ativo nao audita)', aj.includes('estorno') && !aj.includes('edicao'), JSON.stringify(aj))
+})
+
+await cenario('18c. zerar_dados_financeiros com fatura quitada x DML direto do mesmo usuario: zerar passa e o DML nao acha a linha', async () => {
+  const u = await novoUsuario(); const c = await novoCartao(u); await novoCartao(u, 'Outro')
+  const b = await novaCompra(u, c, 'Mercado', 1000)
+  const S0 = await abrir(u)
+  const r0 = await S0.q(SQL_PAGAR, [c, CICLO, 1000, 1000, chave()])
+  ok('18c: fatura de 1000 quitada', !r0.erro, r0.erro || '')
+  await S0.commit()
+  const Z = await abrir(u)
+  const rz = await Z.q(`SELECT public.zerar_dados_financeiros() AS ok`)
+  ok('18c: zerar_dados_financeiros aceito com fatura quitada (liberacao transacional)', !rz.erro && rz.linhas[0].ok === true, `(${rz.code} ${rz.erro || 'sem erro'})`)
+  const W = await abrir(u)
+  const pW = W.q(`UPDATE public.compras_cartao SET valor_total = 1 WHERE id = $1`, [b])
+  await aguardarBloqueio(W, pW, '18c DML direto espera zerar')
+  await Z.commit()
+  const rw = await pW
+  ok('18c: DML direto concluido sem erro e sem linhas (a compra foi zerada)', !rw.erro && rw.n === 0, `(${rw.code} ${rw.erro || 'sem erro'}; n=${rw.n})`)
+  await W.commit()
+  const n = (await admin.query(`SELECT (SELECT count(*) FROM public.pagamentos_fatura WHERE usuario_id = $1)::int AS p, (SELECT count(*) FROM public.ajustes_fatura WHERE usuario_id = $1)::int AS a, (SELECT count(*) FROM public.cartoes WHERE usuario_id = $1)::int AS c`, [u])).rows[0]
+  ok('18c: pagamentos, ajustes e cartoes do usuario zerados', n.p === 0 && n.a === 0 && n.c === 0, JSON.stringify(n))
+})
+
+await cenario('18d. Liberacao nao forjavel: sem a transacao do zerar/controlado a guarda continua valendo (conexao real)', async () => {
+  const u = await novoUsuario(); const c = await novoCartao(u)
+  const b = await novaCompra(u, c, 'Mercado', 1000)
+  const S0 = await abrir(u)
+  await S0.q(SQL_PAGAR, [c, CICLO, 1000, 1000, chave()])
+  await S0.commit()
+  const L = await abrir(u)
+  const rl = await L.q(`SELECT public.liberar_historico_zerar()`)
+  ok('18d: liberar_historico_zerar solta aceita (inofensiva)', !rl.erro, rl.erro || '')
+  await L.commit() // a liberacao fica commitada, mas com o txid da transacao encerrada
+  const W = await abrir(u)
+  const rw = await W.q(`UPDATE public.compras_cartao SET valor_total = 1 WHERE id = $1`, [b])
+  ok('18d: DML direto em OUTRA transacao continua recusado (FP001)', rw.code === 'FP001', `(${rw.code} ${rw.erro || 'sem erro'})`)
+  await W.rollback()
+  const V = await abrir(u)
+  const rv = await V.q(`SELECT count(*)::int AS n FROM public._fatura_liberacoes`)
+  ok('18d: authenticated nao le _fatura_liberacoes (42501)', rv.code === '42501', `(${rv.code} ${rv.erro || 'sem erro'})`)
+  await V.rollback()
 })
 
 // ---------- Encerramento ----------
