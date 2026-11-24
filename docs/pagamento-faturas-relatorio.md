@@ -15,6 +15,7 @@ Branch: `feat/pagamento-faturas` (PR #4, rascunho). Nada foi enviado ao remoto e
 | Testes reais no Supabase DEV (pagamentos total, parcial, antecipado, estorno, reload, duplicidade) | **BLOQUEADO**: sem credenciais DEV e o DNS `fzawugbiojmtrthmshcc.supabase.co` não resolve (ver `DEV-BLOQUEADO.md`) |
 | Playwright `e2e/pagamento-fatura.spec.js` | Escrito, **NÃO executado** |
 | Aplicação da migration em DEV e produção | **NÃO realizada** |
+| Serialização por cartão de toda escrita que altera o total (etapa 5, seção 10) | Implementada, **NÃO aprovada**: `concorrencia-fatura.mjs` em PostgreSQL real **PENDENTE** |
 
 Nenhum resultado de DEV foi simulado ou inventado neste relatório.
 
@@ -229,8 +230,8 @@ Decisão formal do responsável: o total da fatura enviado pelo cliente não é 
 
 ### 9.2 Concorrência, idempotência, policy e mensagem de estorno
 
-- **Concorrência**: `pagar` e `estornar` travam primeiro o cartão (`FOR UPDATE`) e depois a linha do pagamento (mesma ordem, sem deadlock). `UNIQUE (usuario_id, idempotency_key)` segue como barreira final e um `unique_violation` concorrente devolve o pagamento original quando os parâmetros coincidem. O `FOR UPDATE` em `cartoes` também bloqueia, pela checagem de chave estrangeira, o `INSERT` de `compras_cartao`, `parcelamentos` e `faturas_cartao` desse cartão até o commit. `UPDATE` e `DELETE` dessas tabelas não são travados: uma remoção que confirme depois da leitura do total permite pagar acima do novo total (risco residual declarado; `FOR NO KEY UPDATE` não resolveria isso e foi descartado). O teste de concorrência do PGlite usa uma conexão e não prova o lock.
-- **Como aplicar a migration**: como transação única. O SQL Editor executa tudo como requisição única. O nome `20261124000001_pagamentos_fatura.sql` não tem prefixo numérico de versão, então `supabase db push` não o reconhece. Em `psql`: `psql -1 -v ON_ERROR_STOP=1 -f supabase/migrations/20261124000001_pagamentos_fatura.sql`; sem isso, o erro do bloco de pré-requisitos não impede os comandos seguintes. O cabeçalho da migration traz a mesma instrução.
+- **Concorrência**: `pagar` e `estornar` travam primeiro o cartão (`FOR UPDATE`) e depois a linha do pagamento (mesma ordem, sem deadlock). `UNIQUE (usuario_id, idempotency_key)` segue como barreira final e um `unique_violation` concorrente devolve o pagamento original quando os parâmetros coincidem. A versão v4 só travava INSERT por efeito da chave estrangeira e deixava UPDATE e DELETE sem trava; isso foi substituído na etapa 5 (seção 10). O teste de concorrência do PGlite usa uma conexão e não prova o lock.
+- **Como aplicar a migration**: como transação única. O SQL Editor executa tudo como requisição única. Na v4 o arquivo se chamava `2026-11_pagamentos_fatura.sql`, sem prefixo numérico, e o CLI não o reconhecia; na etapa 5 passou a `20261124000001_pagamentos_fatura.sql` (seção 10.5). Em `psql`: `psql -1 -v ON_ERROR_STOP=1 -f supabase/migrations/20261124000001_pagamentos_fatura.sql`; sem isso, o erro do bloco de pré-requisitos não impede os comandos seguintes. O cabeçalho da migration traz a mesma instrução.
 - **Normalização do dedupe**: `normalizar_texto_fatura` passou a usar `normalize(texto, NFD)` e remover marcas `U+0300-U+036F`, como o `normalizarTexto` do JS (cobre qualquer acento e texto decomposto). Exige PostgreSQL 13+ e banco UTF8. Não foi executado.
 - **Idempotência**: mesma chave e mesmos parâmetros devolve o original; parâmetros diferentes dão 23505; pagamento estornado dá 22023.
 - **Policy `consultor_autorizado`**: avaliada. `public.consultor_autorizado(uuid)` é criada em `2026-10_consultoria_acessos.sql`, que vem antes por ordem de nome. A migration agora verifica a dependência (e as tabelas `cartoes`, `compras_cartao`, `parcelamentos`, `faturas_cartao`) no início, antes de qualquer alteração, e falha com `RAISE EXCEPTION` indicando qual migration aplicar. O script roda numa única transação, então nada fica meio aplicado. A criação da policy continua idempotente.
@@ -276,3 +277,66 @@ Nada abaixo foi executado, e nenhum item é declarado aprovado. Pré-requisito: 
 ### 9.5 Segurança do processo
 
 O host `ievccupeijzuzhomphwn.supabase.co` não foi acessado e não é presumido como DEV. Nenhuma migration foi aplicada em produção, nenhuma credencial desconhecida foi usada, o bloqueio do npm não foi contornado e o PR segue como rascunho (sem push nesta etapa).
+
+## 10. Quinta etapa: serialização de toda escrita que altera o total da fatura
+
+**Estado: a correção está IMPLEMENTADA, mas NÃO está aprovada.** Nenhum teste de concorrência foi executado em PostgreSQL real, porque este ambiente não tem PostgreSQL. O PR permanece como rascunho.
+
+### 10.1 Achado e mecanismo escolhido
+
+- **Risco residual (v4)**: `pagar_fatura_cartao` travava o cartão, mas `UPDATE` e `DELETE` de `compras_cartao`, `parcelamentos` e `faturas_cartao` não travavam nada. Uma remoção ou redução de valor confirmada depois da leitura do total permitia pagar acima do total real.
+- **Mecanismo único**: `public.travar_cartoes_fatura(ids, usuario)` faz `SELECT ... FOR UPDATE` em `cartoes`, uma linha por cartão, em ordem ascendente de `id` (deduplicados, `NULL` ignorado). É usado por `pagar_fatura_cartao`, `estornar_pagamento_fatura` e pelos triggers.
+- **Triggers** (6, em `compras_cartao`, `parcelamentos` e `faturas_cartao`, para INSERT, UPDATE e DELETE): `aa_fatura_travar_usuario` (BEFORE STATEMENT, com `auth.uid()` trava todos os cartões do usuário em ordem) e `aa_fatura_travar_cartao` (BEFORE ROW, trava `OLD.cartao_id` e `NEW.cartao_id`, o que cobre service role, SQL Editor e mudança de cartão).
+- **Ordem de locks**: cartões por `id` ascendente, depois a linha do pagamento. Operações multi-cartão (mover compra A para B e B para A, `zerar_dados_financeiros`) usam a mesma ordem global.
+- **Recálculo**: o total e o valor já pago são recalculados dentro da transação, depois do lock e imediatamente antes do INSERT. A dica `p_total_ciclo` continua só como consistência (erro 40001 'Fatura desatualizada'). `pagar` exige isolamento READ COMMITTED e recusa os demais (erro 25006).
+- **Conflito**: 40001, 40P01 (deadlock) e 55P03 (lock_timeout) abortam a transação sem pagamento. O app recarrega a fatura e a repetição usa a mesma `idempotency_key`.
+- **Por que o DML direto não foi revogado**: os hooks (`useCartoes`, `useComprasCartao`, `useFaturasCartao`, `useParcelamentos`) e `zerar_dados_financeiros` continuam válidos, e o banco serializa independentemente do cliente. Uma RPC dedicada por operação não é necessária para a garantia e aumentaria o escopo. Reduzir o total abaixo do já pago não é bloqueado (necessário para zerar dados e excluir compras); editar depois do pagamento é uma operação posterior válida.
+
+### 10.2 Mapa dos caminhos de escrita
+
+| Caminho | Tabelas | Resultado da verificação (leitura de código) |
+|---|---|---|
+| `src/hooks/useComprasCartao.js` | `compras_cartao` INSERT/UPDATE/DELETE | DML direto, coberto pelos triggers |
+| `src/hooks/useParcelamentos.js` | `parcelamentos` INSERT/UPDATE/DELETE | DML direto, coberto pelos triggers |
+| `src/hooks/useFaturasCartao.js` | `faturas_cartao` upsert/DELETE | DML direto, coberto pelos triggers |
+| `src/hooks/useCartoes.js` | `cartoes`; leituras de compras, parcelamentos e faturas; exclusão com checagem prévia | `cartoes` não altera o total; DELETE de cartão espera o lock (`FOR UPDATE`) de um pagamento em curso |
+| `src/lib/importacaoGravar.js` | `compras_cartao` (importação de fatura) | DML direto, coberto pelos triggers |
+| `src/pages/Cartoes.jsx`, `Onboarding.jsx` | usam os hooks acima | Sem escrita própria nessas tabelas |
+| `zerar_dados_financeiros` (5 versões em `supabase/migrations/2026-11_rpc_zerar_dados_financeiros*.sql`) | DELETE em `faturas_cartao`, `compras_cartao`, `parcelamentos`, `cartoes` | Cada DELETE dispara os triggers (statement trava todos os cartões do usuário em ordem); DELETE de `cartoes` espera o pagamento em curso |
+| `supabase/functions/push-notificacoes` | só lê `cartoes` | Sem escrita |
+| service role / SQL Editor | qualquer uma das três | Coberto pelo trigger de linha (sem `auth.uid()`) |
+
+### 10.3 Executado neste ambiente
+
+| Verificação | Resultado |
+|---|---|
+| `node --check` em `concorrencia-fatura.mjs`, `simular-migrations.mjs`, `paridade-fatura.mjs` | Passou |
+| `node tests/pagamento-fatura.test.mjs`, `paridade-fatura-js.test.mjs`, `fatura-cartao.test.mjs` (node puro, dados fictícios) | Passaram, incluindo os novos casos de conflito 40P01/55P03 |
+| `node supabase/tests/concorrencia-fatura.mjs` sem `PG_TEST_URL` | Imprime PENDENTE e sai com código 2 |
+| Recusa de host remoto ou `supabase.co` pelo script | Confirmada (código 1) |
+| Busca por referências ao nome antigo `2026-11_pagamentos_fatura` | Nenhuma restante |
+| Reverificação do ambiente | Sem `postgres`, `initdb`, `psql`; docker sem `conmon`; `apt-get` ausente; npm, pip e curl com 403 |
+
+Quatro testes antigos (`icones`, `investimentos-page`, `investimentos-robustez`, `onboarding-componente`) falham também em `main`. Não foram alterados nem mascarados.
+
+### 10.4 PENDENTE (exige PostgreSQL real)
+
+Nada abaixo foi executado, e nenhum item é declarado aprovado.
+
+| Item | Como executar |
+|---|---|
+| `supabase/tests/concorrencia-fatura.mjs`: duas ou mais conexões `pg`, 12 grupos de cenários (exclusão, alteração de valor, inclusão, parcelamento, fatura informada, pagamentos concorrentes, mudança entre cartões e movimentos opostos, repetição após conflito, escrita sem `auth.uid()`, permissões, isolamento, estorno) | `PG_TEST_URL=... node supabase/tests/concorrencia-fatura.mjs` (esperado código 0) |
+| Aplicação da migration em PostgreSQL 13+ UTF8 (`normalize NFD`, triggers, helper) | Seção 10.5 |
+| `npm run test:migrations` (PGlite) com os novos testes de existência dos 6 triggers e de permissão | Requer `npm ci` |
+| Aplicação e reaplicação no DEV, e2e do pagamento | Requer acesso ao DEV |
+
+Os testes do PGlite não provam concorrência (conexão única). A prova é o script `pg` com sessões separadas, que usa `pg_stat_activity` (`wait_event_type = 'Lock'`) para comprovar a espera real. Ponto a observar na primeira execução real: `total_fatura_ciclo_servidor` é `STABLE` e é chamada de dentro da `pagar_fatura_cartao` (volátil), então deve ler o snapshot posterior ao lock; os cenários 1 a 5 verificam exatamente isso.
+
+### 10.5 Aplicar no DEV de forma reproduzível
+
+Somente o projeto DEV (`fzawugbiojmtrthmshcc`), por quem tem acesso. Produção não recebe migration manual e nenhum host de produção foi acessado.
+
+- **Nome**: `20261124000001_pagamentos_fatura.sql` segue `<versão numérica>_<nome>.sql` (reconhecido pelo Supabase CLI) e é maior que `20261119000002`, preservando a ordem. Migrations `2026-10_*` e `2026-11_*` não têm prefixo numérico e precisam estar aplicadas antes. Não usar `supabase db push` contra produção.
+- **Pré-checagens**: `SHOW server_version_num;` (>= 130000), `SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname = current_database();` (UTF8), e `SELECT column_name FROM information_schema.columns WHERE table_name='parcelamentos' AND column_name='cartao_id';`. A migration também falha com mensagem clara se a versão ou a codificação não servirem, e confere a coluna `parcelamentos.cartao_id` após o `ALTER`.
+- **Aplicar**: `psql "$DATABASE_URL_DEV" -1 -v ON_ERROR_STOP=1 -f supabase/migrations/20261124000001_pagamentos_fatura.sql` (ou colar o arquivo inteiro no SQL Editor). Reaplicar é seguro.
+- **Concorrência em Postgres local descartável**: `docker run --rm -e POSTGRES_PASSWORD=x -p 55432:5432 postgres:16`, `npm i --no-save pg`, `PG_TEST_URL=postgres://postgres:x@127.0.0.1:55432/postgres node supabase/tests/concorrencia-fatura.mjs`. O script recusa hosts não locais (e `supabase.co`) sem `PG_TEST_PERMITIR_HOST_REMOTO=1`, recusa bancos com `public.cartoes` sem `PG_TEST_RESETAR=1` e nunca imprime a senha.
