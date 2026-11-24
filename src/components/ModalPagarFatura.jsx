@@ -109,6 +109,9 @@ export default function ModalPagarFatura({ aberto, ciclo, cartao, onConfirmar, o
         <div>
           <label className="label">Data do pagamento</label>
           <input type="date" value={data} max={hojeISO()} onChange={(e) => setData(e.target.value)} className="input" />
+          <p className="text-xs text-gray-500 mt-1">
+            Com origem no saldo principal, o saldo só é debitado se a data for posterior à data do último saldo informado.
+          </p>
         </div>
 
         <div>

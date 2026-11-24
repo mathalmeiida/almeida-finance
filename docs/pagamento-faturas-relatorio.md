@@ -98,6 +98,18 @@ E2E_EMAIL=... E2E_SENHA=... E2E_EMAIL_B=... E2E_SENHA_B=... \
 
 Também é necessário validar visualmente (tema claro e escuro, mobile e desktop) os novos blocos de `Cartoes.jsx`; isso não foi feito.
 
+## 6.1 Tratamento da revisão (2026-11-24-224939-review.md)
+
+| # | Problema | Decisão |
+|---|---|---|
+| 1 | Total do ciclo confiado ao cliente | **Corrigido em parte.** A RPC agora ancora o total no primeiro pagamento ativo do ciclo (`total_ciclo_ref`) e recusa totais divergentes, então o teto não pode ser inflado em chamadas seguintes. O primeiro total ainda vem do cliente, porque a fatura é projetada no app e o servidor não a recalcula. Efeito colateral: nova compra no ciclo após um pagamento exige estornar os pagamentos do ciclo antes de pagar o novo total. Recalcular no servidor fica como evolução. |
+| 2 | SQL e RPCs nunca executados | **Não corrigível aqui.** Sem npm (403) e sem credenciais DEV. Segue bloqueado, com os comandos da seção 6. Foi adicionado um caso PGlite para a âncora (também não executado). |
+| 3 | Carry-over só informativo | **Mantido por decisão de projeto.** Somar o saldo anterior ao ciclo seguinte duplicaria o valor, pois cada ciclo é pago e cobrado separadamente, e juros do rotativo exigem regras que o enunciado não define. O ciclo antigo continua Vencida e o modal avisa o valor. Precisa de confirmação do dono do produto. |
+| 4 | Realtime sem publicação | **Corrigido.** A migration adiciona `pagamentos_fatura` a `supabase_realtime` de forma idempotente (só se a publicação existir e a tabela ainda não estiver nela). |
+| 5 | Data anterior ao marco não debita | **Corrigido por aviso.** O modal informa que, com origem no saldo principal, o saldo só é debitado se a data for posterior ao último saldo informado. A data não foi restringida, pois o marco não está disponível na tela de cartões e o registro retroativo continua válido para o histórico. |
+| 6 | Backfill ignora fatura paga com valor 0 ou sem total | **Mantido.** `valor` tem `CHECK (valor > 0)`, então não há pagamento de R$ 0,00 a registrar. A lib já trata essas faturas como pagas pelo boolean. Conferir no DEV com: `SELECT count(*) FROM faturas_cartao WHERE pago AND COALESCE(valor_total,0) = 0;`. |
+| 7 | Validação visual e Calendario.jsx | **Não executável aqui** (sem navegador e sem build). Calendário: `Calendario.jsx` não referencia faturas diretamente; o vencimento e o valor vêm de `horizonteFinanceiro.js`, já atualizado para usar saldo em aberto. Verificação visual de temas e responsividade permanece pendente. |
+
 ## 7. Ordem de aplicação
 
 1. DEV: aplicar `2026-11_pagamentos_fatura.sql` (depende de `faturas_cartao` com `pago`/`pago_em`, migrations de 2026-10). Reaplicar para confirmar idempotência.

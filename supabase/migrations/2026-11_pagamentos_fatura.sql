@@ -23,7 +23,8 @@
 --     (SELECT ... FOR UPDATE) dentro da RPC.
 --   • Limite do valor: soma dos pagamentos ativos + novo valor <= total do ciclo
 --     informado pelo app (p_total_ciclo). Como a fatura é projetada no cliente, o
---     servidor não consegue recalculá-la; ele garante consistência por ciclo.
+--     servidor não consegue recalculá-la; ele garante consistência por ciclo e
+--     ancora o total no primeiro pagamento ativo (total_ciclo_ref).
 
 CREATE TABLE IF NOT EXISTS public.pagamentos_fatura (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -86,6 +87,7 @@ AS $$
 DECLARE
   v_uid       UUID := auth.uid();
   v_pago      NUMERIC(12,2);
+  v_ancora    NUMERIC(12,2);
   v_existente public.pagamentos_fatura;
   v_novo      public.pagamentos_fatura;
 BEGIN
@@ -130,6 +132,20 @@ BEGIN
   SELECT COALESCE(SUM(valor), 0) INTO v_pago FROM public.pagamentos_fatura
    WHERE usuario_id = v_uid AND cartao_id = p_cartao_id
      AND ano_mes = p_ano_mes AND status = 'ativo';
+
+  -- Âncora do total: enquanto houver pagamento ativo no ciclo, o total enviado deve
+  -- ser o mesmo do primeiro pagamento. Impede inflar o teto em chamadas seguintes.
+  -- Para mudar o total (ex.: nova compra no ciclo), estorne os pagamentos do ciclo.
+  SELECT total_ciclo_ref INTO v_ancora FROM public.pagamentos_fatura
+   WHERE usuario_id = v_uid AND cartao_id = p_cartao_id
+     AND ano_mes = p_ano_mes AND status = 'ativo' AND total_ciclo_ref IS NOT NULL
+   ORDER BY criado_em ASC, id ASC
+   LIMIT 1;
+  IF v_ancora IS NOT NULL AND v_ancora <> round(p_total_ciclo, 2) THEN
+    RAISE EXCEPTION 'Total da fatura divergente do primeiro pagamento do ciclo (total registrado: %)',
+      to_char(v_ancora, 'FM999999990.00')
+      USING ERRCODE = '22023';
+  END IF;
 
   IF v_pago + round(p_valor, 2) > round(p_total_ciclo, 2) THEN
     RAISE EXCEPTION 'Valor excede o saldo em aberto da fatura (em aberto: %)',
@@ -206,3 +222,15 @@ SELECT f.usuario_id, f.cartao_id, f.ano_mes, f.valor_total,
   FROM public.faturas_cartao f
  WHERE f.pago = TRUE AND f.valor_total > 0
 ON CONFLICT (usuario_id, idempotency_key) DO NOTHING;
+
+-- ------------------------------------------------------------
+-- Realtime: sincroniza pagamentos entre aparelhos (idempotente).
+-- ------------------------------------------------------------
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime')
+     AND NOT EXISTS (SELECT 1 FROM pg_publication_tables
+       WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'pagamentos_fatura') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.pagamentos_fatura;
+  END IF;
+END $$;
