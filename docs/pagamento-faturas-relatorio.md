@@ -1,6 +1,8 @@
 # Pagamento de faturas: relatório de implementação e testes
 
-Branch: `feat/pagamento-faturas`. Nada foi enviado ao remoto e a produção não foi tocada.
+Branch: `feat/pagamento-faturas` (PR #4, rascunho). Nada foi enviado ao remoto e a produção não foi tocada.
+
+**Veredito: NÃO APROVADO PARA PRODUÇÃO.** Há validações obrigatórias pendentes (seção 8). O PR deve continuar como rascunho.
 
 ## Resumo do estado
 
@@ -38,10 +40,10 @@ Premissa a validar com dados reais: a 1ª parcela de um parcelamento segue a reg
 
 - Tabela `pagamentos_fatura` (migration `supabase/migrations/2026-11_pagamentos_fatura.sql`): valor > 0, `ano_mes` (competência = mês de fechamento), data, origem (`saldo_principal` ou `outra_conta`), status `ativo` ou `estornado`, `idempotency_key` única por usuário, `legado`.
 - RLS: o usuário só lê as próprias linhas. Não existe INSERT/UPDATE/DELETE direto para `authenticated`.
-- RPCs `SECURITY DEFINER` com `auth.uid()`: `pagar_fatura_cartao` e `estornar_pagamento_fatura`. A primeira trava o cartão (`FOR UPDATE`), valida o dono, devolve o pagamento original se a chave se repete (duplo clique, retry, outro dispositivo) e recusa soma de pagamentos acima do total do ciclo, data futura, valor <= 0 e origem inválida.
+- RPCs `SECURITY DEFINER` com `auth.uid()`: `pagar_fatura_cartao` e `estornar_pagamento_fatura`. A primeira trava o cartão (`FOR UPDATE`), valida o dono, devolve o pagamento original se a chave se repete (duplo clique, retry, outro dispositivo) e recusa soma de pagamentos acima do total atual do ciclo, data futura, valor <= 0 e origem diferente de `saldo_principal` (`outra_conta` existe só em pagamentos legados migrados).
 - Limitação: a fatura é projetada no cliente (compras e parcelamentos), então o total do ciclo (`p_total_ciclo`) vem do app. O servidor garante consistência por ciclo, mas não recalcula a fatura.
 - **Saldo da conta é derivado, não gravado.** `calcularSaldoDisponivel` subtrai pagamentos ativos com origem `saldo_principal` e data depois do marco do saldo e até hoje. Pagar e estornar são, portanto, atômicos (uma linha). Pagamento não é despesa, então a compra não é contada duas vezes.
-- Conta de origem: o app não tem tabela de contas (existe um único saldo informado). A escolha é entre "Saldo principal" (debita) e "Outra conta" (não altera o saldo do app, nome opcional).
+- Conta de origem: o app não tem tabela de contas (existe um único saldo informado). Só `saldo_principal` é aceito na criação; "Outra conta" só aparece em pagamentos legados, que não debitam o saldo.
 - Backfill: faturas com `pago = true` viram pagamento legado (`origem = outra_conta`, não debita saldo), idempotente pela chave `legado-<id>`.
 
 ## 4. Regras de cálculo (src/lib/faturaCartao.js)
@@ -61,7 +63,7 @@ Premissa a validar com dados reais: a 1ª parcela de um parcelamento segue a reg
 
 ## 6. Testes
 
-### Executados de verdade (node puro, dados fictícios, sem rede)
+### Executados de verdade (node puro, dados fictícios, sem rede). Ver também seção 8.2
 
 Comando: `node tests/<arquivo>.test.mjs`.
 
@@ -70,7 +72,8 @@ Comando: `node tests/<arquivo>.test.mjs`.
 | `tests/fatura-cartao.test.mjs` (adaptado para importar a lib direto, sem Vite) | Aprovado |
 | `tests/fatura-detalhamento.test.mjs` (caso 5.970,18 / 7.800,93) | Aprovado (falha no código antigo) |
 | `tests/pagamento-fatura.test.mjs` (total, parcial, antecipado, estorno, carry-over, status, limite, saldo, duplicidade) | Aprovado |
-| `tests/saldo-disponivel.test.mjs` | Aprovado |
+| `tests/saldo-disponivel.test.mjs` (inclui pagamentos: marco, futuro, legado, estornado, dedup) | Aprovado |
+| `tests/valor-fatura-consumidores.test.mjs` (saldo em aberto e limite comprometido, usados por Home, Calendário e Projeção) | Aprovado |
 
 Estes testes são **simulados em memória**: validam as regras puras, não o banco.
 
@@ -102,7 +105,7 @@ Também é necessário validar visualmente (tema claro e escuro, mobile e deskto
 
 | # | Problema | Decisão |
 |---|---|---|
-| 1 | Total do ciclo confiado ao cliente | **Corrigido em parte.** A RPC agora ancora o total no primeiro pagamento ativo do ciclo (`total_ciclo_ref`) e recusa totais divergentes, então o teto não pode ser inflado em chamadas seguintes. O primeiro total ainda vem do cliente, porque a fatura é projetada no app e o servidor não a recalcula. Efeito colateral: nova compra no ciclo após um pagamento exige estornar os pagamentos do ciclo antes de pagar o novo total. Recalcular no servidor fica como evolução. |
+| 1 | Total do ciclo confiado ao cliente | **Revisto na terceira etapa (decisão 2, seção 8.1).** A âncora do total foi REMOVIDA da RPC: ela obrigava a estornar pagamentos para pagar após nova compra. Hoje o teto é o total atual informado pelo app e `total_ciclo_ref` é só snapshot. O total ainda vem do cliente (a fatura é projetada no app); recalcular no servidor fica como evolução. |
 | 2 | SQL e RPCs nunca executados | **Não corrigível aqui.** Sem npm (403) e sem credenciais DEV. Segue bloqueado, com os comandos da seção 6. Foi adicionado um caso PGlite para a âncora (também não executado). |
 | 3 | Carry-over só informativo | **Mantido por decisão de projeto.** Somar o saldo anterior ao ciclo seguinte duplicaria o valor, pois cada ciclo é pago e cobrado separadamente, e juros do rotativo exigem regras que o enunciado não define. O ciclo antigo continua Vencida e o modal avisa o valor. Precisa de confirmação do dono do produto. |
 | 4 | Realtime sem publicação | **Corrigido.** A migration adiciona `pagamentos_fatura` a `supabase_realtime` de forma idempotente (só se a publicação existir e a tabela ainda não estiver nela). |
@@ -120,7 +123,79 @@ Também é necessário validar visualmente (tema claro e escuro, mobile e deskto
 
 | # | Problema | Tratamento |
 |---|----------|------------|
-| 1 | Teste da âncora quebrava o teste do antecipado | **Corrigido.** A chamada com total divergente foi movida para depois do `ok` do antecipado em `supabase/tests/simular-migrations.mjs`. Suíte ainda não executada (sem npm). |
+| 1 | Teste da âncora quebrava o teste do antecipado | **Superado.** A âncora foi removida (seção 8.1). Suíte PGlite ainda não executada (sem npm). |
 | 2 | Calendário sem dados de fatura | **Corrigido.** `Calendario.jsx` passa `comprasCartao`, `faturasInformadas` e `pagamentosFatura` a `gerarHorizonte`. |
-| 3 | Âncora sem orientação ao usuário | **Corrigido.** `ModalPagarFatura.jsx` traduz o erro "Total da fatura divergente" em mensagem orientando a estornar e registrar de novo. |
+| 3 | Âncora sem orientação ao usuário | **Superado.** Sem âncora, não há mais erro de total divergente nem necessidade de estorno. |
 | 4 | DEV, build, e2e e visual pendentes | **Não corrigível aqui** (sem npm, sem credenciais DEV, sem navegador). Executar antes de produção, conforme a seção 6. |
+
+## 8. Terceira etapa: decisões, auditoria e estado das validações
+
+### 8.1 Decisões adotadas
+
+1. **Origem do pagamento só `saldo_principal`.** Não há tabela de contas. A RPC recusa `outra_conta`. Pagamentos legados migrados usam `outra_conta` e nunca debitam o saldo.
+2. **Âncora de total removida da RPC.** O teto é o total atual do ciclo informado pelo app; pagamentos ativos são preservados e nova compra após pagamento parcial é permitida sem estorno (em aberto = total - pago). `total_ciclo_ref` é snapshot. Se o total cair abaixo do pago, o em aberto é 0 e o app expõe `excedentePago`; nada é debitado a mais.
+3. **`excedentePago` exposto** em `cicloFatura` quando o total atual fica menor que o já pago.
+4. **Primeira parcela segue a regra de fechamento** como se fosse a data da compra (`competenciaParcelamento`). Premissa a confirmar com dados reais: se `primeira_parcela` for gravada como data de vencimento da parcela, ajustar essa função.
+
+### 8.2 Executado (nesta etapa, ambiente local sem `node_modules`)
+
+| Comando | Resultado |
+|---|---|
+| `node tests/fatura-cartao.test.mjs` | Aprovado |
+| `node tests/fatura-detalhamento.test.mjs` | Aprovado |
+| `node tests/pagamento-fatura.test.mjs` | Aprovado |
+| `node tests/saldo-disponivel.test.mjs` (novos casos de pagamento) | Aprovado |
+| `node tests/valor-fatura-consumidores.test.mjs` (novo) | Aprovado |
+| `node --check` em `src/lib/saldoDisponivel.js` e `src/lib/faturaCartao.js` | Sintaxe ok |
+| `npm ci` | **Falhou: 403 Forbidden** do registry (política de segurança). Não contornado. |
+| DNS de `fzawugbiojmtrthmshcc.supabase.co` (DEV documentado) | **Não resolve** |
+| `.env*` | Inexistente (sem credenciais DEV) |
+
+O host `ievccupeijzuzhomphwn.supabase.co` resolve e pode ser produção: **não foi acessado**.
+
+#### Quatro falhas antigas (não corrigidas nem alteradas, registradas como estão)
+
+| Teste | Resultado |
+|---|---|
+| `tests/icones.test.mjs` | Falha: `Cannot find package 'sharp'` (dependência não instalável sem npm) |
+| `tests/investimentos-page.test.mjs` | Falha: 2 testes (ex.: "Hook chamado antes do return") |
+| `tests/investimentos-robustez.test.mjs` | Falha: 2 testes |
+| `tests/onboarding-componente.test.mjs` | Falha: verificações de `useOnboarding` / `AreaAutenticada` (`CHAVE_CONFIGURANDO`, `verificando`, `precisaOnboarding`) |
+
+Segundo o contexto da tarefa, as quatro já falham em `main`. Nenhum desses arquivos foi editado.
+
+### 8.3 Auditoria de regressões (leitura de código + testes puros)
+
+- **Saldo disponível** (`saldoDisponivel.js`): pagamentos com data <= marco, futuros, estornados, `outra_conta`/legado e ids repetidos não debitam. Coberto em `tests/saldo-disponivel.test.mjs`. Sem regressão encontrada.
+- **Limite**: `limiteComprometido` usa saldo em aberto por ciclo; parcial reduz uma vez, total libera, estorno restaura, nova compra soma só o novo, parcelamento não é contado em dobro com a compra (testes em `tests/valor-fatura-consumidores.test.mjs` e `tests/pagamento-fatura.test.mjs`).
+- **Home/Dashboard** (`Dashboard.jsx` ~2258, ~2388, ~2696), **Projeção** (`Projecao.jsx`), **`useProjecao.js`** (faturas a vencer e saldo) e **`horizonteFinanceiro.js`**: todos usam `saldoEmAbertoFatura(totalFaturaComOverride(...), pagamentos, ...)` e o saldo derivado com pagamentos. Não foi achado cálculo paralelo que ignore ou conte duas vezes os pagamentos.
+- **Calendário**: `Calendario.jsx` passa `comprasCartao`, `faturasInformadas` e `pagamentosFatura` (vazio no modo família) a `gerarHorizonte`, que lança o saldo em aberto e omite fatura quitada.
+- **Posso Comprar**: `PossoCComprar.jsx` consome `useProjecao` (saldo e compromissos já com pagamentos); não há cálculo de fatura próprio.
+- **Limite da cobertura**: `gerarHorizonte` **não é importável em node puro** (importa `useDespesas` e `useParcelamentos`, que carregam react e supabase). O teste novo reproduz a composição `saldoEmAbertoFatura(totalFaturaComOverride(...))` com as funções puras. O comportamento de `gerarHorizonte` em si, dos componentes e do Posso Comprar **não foi executado**; é leitura de código.
+
+### 8.4 Revisão da migration e RPCs (leitura, sem execução)
+
+A migration **não foi executada** e **não está validada**. Achados da leitura:
+
+- RLS ativa; policy só de SELECT por `auth.uid() = usuario_id`; `REVOKE ALL` de `anon` e `authenticated` com `GRANT SELECT`. Sem escrita direta.
+- RPCs `SECURITY DEFINER` com `search_path = public`, `auth.uid()` obrigatório, `EXECUTE` revogado de `PUBLIC` e `anon`. O cartão é validado pelo dono (`usuario_id = auth.uid()`) com `FOR UPDATE`, o que serializa dois pagamentos no mesmo cartão.
+- Idempotência: `UNIQUE (usuario_id, idempotency_key)`; repetição com mesmos parâmetros devolve o original, com parâmetros diferentes é recusada. Estorno trava a linha (`FOR UPDATE`) e recusa o segundo estorno. Em READ COMMITTED o segundo estorno concorrente revê o status depois do lock, então não reverte em dobro.
+- Backfill idempotente pela chave `legado-<id>`, `outra_conta`, sem débito. Um legado estornado pelo usuário não é recriado (`ON CONFLICT DO NOTHING`).
+- Publicação realtime condicional e idempotente.
+- Observações não corrigidas (SQL não pode ser testado aqui): (a) `search_path = public, pg_temp` seria uma defesa extra; (b) o total do ciclo vem do cliente, então um usuário pode registrar pagamento acima do total real do próprio ciclo, com impacto restrito aos próprios dados; (c) `estornar_pagamento_fatura` trava só a linha do pagamento, não o cartão, o que é suficiente porque o pagar soma pagamentos ativos já confirmados.
+
+### 8.5 Pendente (não executado, não declarado aprovado)
+
+- Aplicar a migration no DEV (e reaplicar para confirmar idempotência). **Bloqueado**: sem credenciais e DNS do DEV não resolve.
+- `npm run test:migrations` (PGlite): inclui atomicidade, idempotência, estorno repetido, RLS entre dois usuários, INSERT/UPDATE direto bloqueados e backfill. **Bloqueado**: npm 403.
+- Teste real de concorrência entre dois pagamentos no mesmo cartão (duas sessões) no DEV.
+- Teste real de RLS entre dois usuários no DEV.
+- `npm run build` (Vite). **Bloqueado**: sem `node_modules`.
+- `npm run test:unit` completo e Playwright `e2e/pagamento-fatura.spec.js`. **Bloqueado**.
+- Validação visual (tema claro e escuro, mobile e desktop) de Cartoes, Home, Calendário, Projeção e Posso Comprar.
+- Confirmar com dados reais a premissa da primeira parcela (decisão 4) e a query de faturas pagas com valor 0 (seção 6.1, item 6).
+- Resolver as quatro falhas antigas ou confirmá-las em `main`.
+
+### 8.6 Terceira revisão independente
+
+**PENDENTE.** Esta seção será preenchida por um revisor separado. Quem implementou a etapa não preenche.
