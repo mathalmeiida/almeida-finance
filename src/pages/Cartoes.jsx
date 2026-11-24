@@ -327,9 +327,9 @@ function FormFatura({ cartao, faturaInicial, refData, onSalvar, onCancelar, carr
 // ─── Visão: Ver fatura de um cartão (atual ou projetada) ──────────────────────
 function VerFatura({ cartao, onVoltar, onEditarCartao }) {
   const { compras, carregando, criar, atualizar, remover, recarregar: recarregarCompras } = useComprasCartao(cartao.id)
-  const { parcelamentos } = useParcelamentos()
+  const { parcelamentos, recarregar: recarregarParcelamentos } = useParcelamentos()
 // Faturas informadas por total (deste cartão).
-const { faturas: faturasInformadas, salvarFatura, removerFatura } = useFaturasCartao(cartao.id)
+const { faturas: faturasInformadas, salvarFatura, removerFatura, recarregar: recarregarFaturasInformadas } = useFaturasCartao(cartao.id)
 // Pagamentos de fatura (RPC transacional, histórico e estorno).
   const { pagamentos, pagar, estornar, enviando: enviandoPagamento, erro: erroPagamentos } = usePagamentosFatura(cartao.id)
   const [cicloPagando, setCicloPagando] = useState(null)
@@ -545,10 +545,13 @@ const [modalFatura, setModalFatura] = useState(false)
     try {
       await pagar({ cartaoId: cartao.id, ...dados })
     } catch (err) {
-      // Servidor recusou por total divergente: refaz a leitura das compras e fecha o modal
-      // para o usuario conferir o novo total antes de pagar.
+      // Servidor recusou por total divergente: refaz a leitura de tudo que compoe o total
+      // (compras, parcelamentos e faturas informadas) e fecha o modal para o usuario
+      // conferir o novo total antes de pagar.
       if (err?.desatualizada) {
         recarregarCompras()
+        recarregarParcelamentos?.()
+        recarregarFaturasInformadas?.()
         setCicloPagando(null)
         setErro(err.message)
         return

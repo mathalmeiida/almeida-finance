@@ -26,7 +26,8 @@ const fx = JSON.parse(readFileSync(new URL('../../tests/fixtures/paridade-fatura
 const A = '00000000-0000-4000-8000-00000000000a'
 const B = '00000000-0000-4000-8000-00000000000b'
 const HOJE = new Date()
-const hoje = HOJE.toISOString().slice(0, 10)
+// Mesma data que a RPC usa (America/Sao_Paulo); toISOString() seria UTC e falharia entre 21h e 24h BRT.
+const hoje = HOJE.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
 
 let falhas = 0
 let verificacoes = 0
@@ -220,7 +221,7 @@ console.log('# 4) Isolamento e permissoes')
   ok('B nao paga fatura do cartao de A', !!r.erro, r.erro || '')
 }
 
-console.log('# 5) Concorrencia (limite do PGlite: uma conexao, sem sessoes reais em paralelo)')
+console.log('# 5) Concorrencia (limite do PGlite: uma conexao, sem sessoes reais em paralelo; NAO conta como evidencia de lock)')
 {
   // Mesma chave em chamadas "simultaneas": a serializacao e feita pelo driver, entao isto valida
   // a idempotencia, NAO o lock FOR UPDATE entre duas sessoes. Isso e PENDENTE no DEV (2 sessoes).

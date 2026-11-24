@@ -176,7 +176,8 @@ r = await como(A, `DELETE FROM public.compras_cartao WHERE id = $1`, [compraA])
 ok('A apaga a própria compra', !r.erro && r.afetadas === 1, r.erro || '')
 
 console.log('\n# pagamentos_fatura: RPCs transacionais, duplicidade, estorno e RLS (SIMULADO em PGlite)')
-const hoje = new Date().toISOString().slice(0, 10)
+// Data de Sao_Paulo, a mesma que a RPC compara (toISOString seria UTC).
+const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
 // Dados do servidor: o teto vem de compras_cartao (o total do cliente e so uma dica).
 const semear = (usuario, cartao, descricao, valor, data, parcelas = 1) => db.query(
   `INSERT INTO public.compras_cartao (usuario_id, cartao_id, descricao, valor_total, data_compra, numero_parcelas) VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -288,7 +289,8 @@ try { await db.exec(ler('migrations/2026-11_pagamentos_fatura.sql')) } catch (e)
 await db.exec('ROLLBACK').catch(() => {})
 await db.exec(`ALTER FUNCTION public.consultor_autorizado_tmp(uuid) RENAME TO consultor_autorizado`)
 ok('migration falha de forma explicita sem consultor_autorizado', falhouExplicito && /consultor_autorizado/.test(msgDep) && /2026-10_consultoria_acessos/.test(msgDep), msgDep)
-// Concorrência: duas chamadas simultâneas com a MESMA chave não geram duas linhas.
+// Concorrência: duas chamadas com a MESMA chave não geram duas linhas. Limite: PGlite tem uma
+// conexão e o driver serializa as chamadas; isto NÃO prova o lock FOR UPDATE (PENDENTE no DEV).
 await Promise.all([pagar(A, cartaoA, '2027-01', 50, 'chave-concorrente-1', 500), pagar(A, cartaoA, '2027-01', 50, 'chave-concorrente-1', 500)])
 r = await como(A, `SELECT count(*)::int AS n FROM public.pagamentos_fatura WHERE ano_mes = '2027-01'`)
 ok('chamadas simultâneas com a mesma chave geram 1 linha', r.linhas[0].n === 1, `(${r.linhas?.[0]?.n})`)

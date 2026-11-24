@@ -2,6 +2,10 @@
 -- Pagamentos de fatura de cartão (total, parcial e antecipado) com histórico e estorno.
 --
 -- Execute no DEV primeiro (SQL Editor > New query > cole TUDO > Run).
+-- COMO APLICAR: como UMA transação única. SQL Editor e `supabase db push` já fazem isso.
+-- Em psql use:  psql -1 -v ON_ERROR_STOP=1 -f supabase/migrations/2026-11_pagamentos_fatura.sql
+-- (sem -1 e ON_ERROR_STOP, o erro do bloco DO de pré-requisitos não impede os comandos
+-- seguintes e a garantia "nada fica meio aplicado" não vale).
 -- PRODUÇÃO somente depois da aprovação dos testes no DEV.
 --
 -- SEGURO:
@@ -45,8 +49,10 @@
 --   • Concorrência: pagar e estornar travam primeiro o CARTÃO (FOR UPDATE) e só depois a
 --     linha do pagamento (ordem única, sem deadlock). UNIQUE (usuario_id, idempotency_key)
 --     é a barreira final; unique_violation concorrente devolve o original se os
---     parâmetros coincidem. Compra inserida/removida em paralelo não é travada: vale o
---     total lido sob o lock do cartão.
+--     parâmetros coincidem. O FOR UPDATE em cartoes também bloqueia (pela checagem de chave
+--     estrangeira) INSERT de compras_cartao, parcelamentos e faturas_cartao desse cartão
+--     até o commit. UPDATE/DELETE dessas tabelas NÃO são travados: vale o total lido sob o
+--     lock do cartão (risco residual de pagar acima do novo total após remoção concorrente).
 --   • Origem: somente 'saldo_principal' (não há múltiplas contas). 'outra_conta'
 --     existe só em pagamentos legados migrados, que não debitam saldo.
 --   • Idempotência: mesma chave + mesmos parâmetros devolve o original; mesma chave
@@ -144,7 +150,8 @@ GRANT SELECT ON public.pagamentos_fatura TO authenticated;
 -- ------------------------------------------------------------
 
 -- Normalização de descrição para o dedupe parcelamento x compra (equivale a
--- normalizarTexto do JS: sem acentos latinos, minúsculas, espaços colapsados, trim).
+-- normalizarTexto do JS: NFD sem marcas combinantes, minúsculas, espaços colapsados, trim).
+-- normalize(..., NFD) exige PostgreSQL 13+ e banco UTF8. Ainda NÃO executado (PENDENTE no DEV).
 CREATE OR REPLACE FUNCTION public.normalizar_texto_fatura(p_texto TEXT)
 RETURNS TEXT
 LANGUAGE sql
@@ -152,9 +159,7 @@ IMMUTABLE
 SET search_path = public, pg_temp
 AS $$
   SELECT btrim(regexp_replace(
-    lower(translate(COALESCE(p_texto, ''),
-      'ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑáàâãäéèêëíìîïóòôõöúùûüçñ',
-      'AAAAAEEEEIIIIOOOOOUUUUCNaaaaaeeeeiiiiooooouuuucn')),
+    lower(regexp_replace(normalize(COALESCE(p_texto, ''), NFD), '[\u0300-\u036f]', '', 'g')),
     '\s+', ' ', 'g'));
 $$;
 
