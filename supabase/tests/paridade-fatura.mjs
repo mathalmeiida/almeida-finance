@@ -59,7 +59,7 @@ for (const arq of arquivos) {
   try { await db.exec(ler(arq)) } catch (e) {
     await db.exec('ROLLBACK').catch(() => {})
     // A migration sob teste e as suas dependencias diretas nao podem falhar.
-    if (/2026-11_pagamentos_fatura|2026-10_consultoria_acessos|2026-10_faturas_cartao|2026-11_compras_cartao_cartao_do_dono/.test(arq)) {
+    if (/20261124000001_pagamentos_fatura|2026-10_consultoria_acessos|2026-10_faturas_cartao|2026-11_compras_cartao_cartao_do_dono/.test(arq)) {
       ok(`aplica ${arq}`, false, e.message)
     }
   }

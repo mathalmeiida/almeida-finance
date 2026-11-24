@@ -38,7 +38,7 @@ Premissa a validar com dados reais: a 1ª parcela de um parcelamento segue a reg
 
 ## 3. Modelo de pagamento
 
-- Tabela `pagamentos_fatura` (migration `supabase/migrations/2026-11_pagamentos_fatura.sql`): valor > 0, `ano_mes` (competência = mês de fechamento), data, origem (`saldo_principal` ou `outra_conta`), status `ativo` ou `estornado`, `idempotency_key` única por usuário, `legado`.
+- Tabela `pagamentos_fatura` (migration `supabase/migrations/20261124000001_pagamentos_fatura.sql`): valor > 0, `ano_mes` (competência = mês de fechamento), data, origem (`saldo_principal` ou `outra_conta`), status `ativo` ou `estornado`, `idempotency_key` única por usuário, `legado`.
 - RLS: o usuário só lê as próprias linhas. Não existe INSERT/UPDATE/DELETE direto para `authenticated`.
 - RPCs `SECURITY DEFINER` com `auth.uid()`: `pagar_fatura_cartao` e `estornar_pagamento_fatura`. A primeira trava o cartão (`FOR UPDATE`), valida o dono, devolve o pagamento original se a chave se repete (duplo clique, retry, outro dispositivo) e recusa pagamento acima do saldo em aberto calculado no servidor (seção 9), data futura, valor <= 0 e origem diferente de `saldo_principal` (`outra_conta` existe só em pagamentos legados migrados).
 - Total do ciclo: calculado no servidor por `total_fatura_ciclo_servidor` (seção 9). O `p_total_ciclo` do cliente não é mais o teto.
@@ -89,7 +89,7 @@ Escrito em `e2e/pagamento-fatura.spec.js` (parcial, reload, duplicidade, excesso
 
 ```
 npm ci
-# aplicar supabase/migrations/2026-11_pagamentos_fatura.sql no SQL Editor do DEV
+# aplicar supabase/migrations/20261124000001_pagamentos_fatura.sql no SQL Editor do DEV
 # criar .env.development.local com VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY do DEV
 npm run test:unit
 npm run test:migrations
@@ -115,7 +115,7 @@ Também é necessário validar visualmente (tema claro e escuro, mobile e deskto
 
 ## 7. Ordem de aplicação
 
-1. DEV: aplicar `2026-11_pagamentos_fatura.sql` (depende de `faturas_cartao` com `pago`/`pago_em`, migrations de 2026-10). Reaplicar para confirmar idempotência.
+1. DEV: aplicar `20261124000001_pagamentos_fatura.sql` (depende de `faturas_cartao` com `pago`/`pago_em`, migrations de 2026-10). Reaplicar para confirmar idempotência.
 2. Rodar a suíte acima no DEV e revisar os resultados.
 3. Somente após aprovação: aplicar a mesma migration em produção e publicar o front-end. O front-end novo sem a migration mostra "migração ainda não aplicada" e segue funcionando sem pagamentos.
 
@@ -219,7 +219,7 @@ Decisão formal do responsável: o total da fatura enviado pelo cliente não é 
 
 ### 9.1 O que mudou
 
-- **Função SQL do total**: `public.total_fatura_ciclo_servidor(cartao, usuario, ano_mes)` em `supabase/migrations/2026-11_pagamentos_fatura.sql`. Recebe o usuário como parâmetro, então `EXECUTE` é revogado de `PUBLIC`, `anon` e `authenticated`; só as RPCs `SECURITY DEFINER` a chamam, sempre com `auth.uid()`. Todas as consultas filtram por `usuario_id`.
+- **Função SQL do total**: `public.total_fatura_ciclo_servidor(cartao, usuario, ano_mes)` em `supabase/migrations/20261124000001_pagamentos_fatura.sql`. Recebe o usuário como parâmetro, então `EXECUTE` é revogado de `PUBLIC`, `anon` e `authenticated`; só as RPCs `SECURITY DEFINER` a chamam, sempre com `auth.uid()`. Todas as consultas filtram por `usuario_id`.
 - **Função pública**: `public.total_fatura_ciclo(cartao, ano_mes)` usa só `auth.uid()` e recusa cartão de outro usuário (erro 42501). Não expõe dados de terceiros.
 - **Regras reproduzidas de `src/lib/faturaCartao.js`**: competência pelo dia de fechamento (limitado ao último dia de meses curtos); parcelas em centavos com o resto na última; parcelamentos pela data da 1ª parcela com a mesma regra de fechamento; parcelamentos quitados fora; dedupe parcelamento x compra (mesmo cartão, descrição normalizada sem acentos latinos, valor e nº de parcelas); pagamentos de um ciclo nunca abatem outro.
 - **Fatura informada (override)**: entra no cálculo, como no app (total = maior entre o informado e as compras). Decisão explícita: é o total que o app exibe e cobra, e o dado pertence ao próprio usuário (RLS), não ao parâmetro da RPC. O boolean legado `pago` não entra (virou pagamento legado no backfill).
@@ -230,7 +230,7 @@ Decisão formal do responsável: o total da fatura enviado pelo cliente não é 
 ### 9.2 Concorrência, idempotência, policy e mensagem de estorno
 
 - **Concorrência**: `pagar` e `estornar` travam primeiro o cartão (`FOR UPDATE`) e depois a linha do pagamento (mesma ordem, sem deadlock). `UNIQUE (usuario_id, idempotency_key)` segue como barreira final e um `unique_violation` concorrente devolve o pagamento original quando os parâmetros coincidem. O `FOR UPDATE` em `cartoes` também bloqueia, pela checagem de chave estrangeira, o `INSERT` de `compras_cartao`, `parcelamentos` e `faturas_cartao` desse cartão até o commit. `UPDATE` e `DELETE` dessas tabelas não são travados: uma remoção que confirme depois da leitura do total permite pagar acima do novo total (risco residual declarado; `FOR NO KEY UPDATE` não resolveria isso e foi descartado). O teste de concorrência do PGlite usa uma conexão e não prova o lock.
-- **Como aplicar a migration**: como transação única. O SQL Editor executa tudo como requisição única. O nome `2026-11_pagamentos_fatura.sql` não tem prefixo numérico de versão, então `supabase db push` não o reconhece. Em `psql`: `psql -1 -v ON_ERROR_STOP=1 -f supabase/migrations/2026-11_pagamentos_fatura.sql`; sem isso, o erro do bloco de pré-requisitos não impede os comandos seguintes. O cabeçalho da migration traz a mesma instrução.
+- **Como aplicar a migration**: como transação única. O SQL Editor executa tudo como requisição única. O nome `20261124000001_pagamentos_fatura.sql` não tem prefixo numérico de versão, então `supabase db push` não o reconhece. Em `psql`: `psql -1 -v ON_ERROR_STOP=1 -f supabase/migrations/20261124000001_pagamentos_fatura.sql`; sem isso, o erro do bloco de pré-requisitos não impede os comandos seguintes. O cabeçalho da migration traz a mesma instrução.
 - **Normalização do dedupe**: `normalizar_texto_fatura` passou a usar `normalize(texto, NFD)` e remover marcas `U+0300-U+036F`, como o `normalizarTexto` do JS (cobre qualquer acento e texto decomposto). Exige PostgreSQL 13+ e banco UTF8. Não foi executado.
 - **Idempotência**: mesma chave e mesmos parâmetros devolve o original; parâmetros diferentes dão 23505; pagamento estornado dá 22023.
 - **Policy `consultor_autorizado`**: avaliada. `public.consultor_autorizado(uuid)` é criada em `2026-10_consultoria_acessos.sql`, que vem antes por ordem de nome. A migration agora verifica a dependência (e as tabelas `cartoes`, `compras_cartao`, `parcelamentos`, `faturas_cartao`) no início, antes de qualquer alteração, e falha com `RAISE EXCEPTION` indicando qual migration aplicar. O script roda numa única transação, então nada fica meio aplicado. A criação da policy continua idempotente.
@@ -262,7 +262,7 @@ Nada abaixo foi executado, e nenhum item é declarado aprovado. Pré-requisito: 
 
 | Item | Como executar |
 |---|---|
-| Migration no DEV e reaplicação (idempotência), incluindo a falha explícita sem `consultor_autorizado` | Aplicar `2026-10_consultoria_acessos.sql` e depois `supabase/migrations/2026-11_pagamentos_fatura.sql` no SQL Editor do DEV; rodar a segunda de novo |
+| Migration no DEV e reaplicação (idempotência), incluindo a falha explícita sem `consultor_autorizado` | Aplicar `2026-10_consultoria_acessos.sql` e depois `supabase/migrations/20261124000001_pagamentos_fatura.sql` no SQL Editor do DEV; rodar a segunda de novo |
 | Conferir `parcelamentos.cartao_id` no DEV | `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'parcelamentos' AND column_name = 'cartao_id';` |
 | Simulação PGlite das migrations (RLS, RPCs, idempotência, backfill, policy do consultor, total inflado recusado, funções internas sem EXECUTE para clientes) | `npm ci && node supabase/tests/simular-migrations.mjs` |
 | Paridade SQL x JS (gabarito, 25 rodadas aleatórias com semente fixa, sequências de pagamento, isolamento) | `npm ci && node supabase/tests/paridade-fatura.mjs` (também em `npm run test:migrations`) |

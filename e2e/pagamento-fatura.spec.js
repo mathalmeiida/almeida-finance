@@ -10,7 +10,7 @@
 // (sem credenciais DEV e DNS do DEV inacessível; ver DEV-BLOQUEADO.md).
 //
 // Pré-requisitos:
-//   1. Migration supabase/migrations/2026-11_pagamentos_fatura.sql aplicada no DEV.
+//   1. Migration supabase/migrations/20261124000001_pagamentos_fatura.sql aplicada no DEV.
 //   2. .env.development.local com VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY do DEV.
 //   3. Usuário de teste do DEV (e outro, para o isolamento): E2E_EMAIL, E2E_SENHA,
 //      E2E_EMAIL_B, E2E_SENHA_B.

@@ -110,6 +110,8 @@ export function usePagamentosFatura(cartaoId = null) {
       })
       if (error) {
         const e = new Error(mensagemAmigavel(error))
+        // Fatura desatualizada (40001) ou conflito abortado (40P01/55P03): nada foi gravado;
+        // recarrega e o modal reaproveita a MESMA chave se valor e ciclo nao mudarem.
         if (ehFaturaDesatualizada(error)) {
           e.desatualizada = true
           buscar({ silencioso: true })

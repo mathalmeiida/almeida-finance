@@ -2,7 +2,7 @@
 // Simulação em memória com dados fictícios: NÃO é teste contra o Supabase DEV.
 import * as F from '../src/lib/faturaCartao.js'
 import { calcularSaldoDisponivel } from '../src/lib/saldoDisponivel.js'
-import { mensagemAmigavel, ehFaturaDesatualizada } from '../src/lib/mensagemPagamentoFatura.js'
+import { mensagemAmigavel, ehFaturaDesatualizada, ehConflitoTransacional } from '../src/lib/mensagemPagamentoFatura.js'
 
 let falhas = 0
 const brl = n => `R$ ${Number(n).toFixed(2)}`
@@ -151,6 +151,8 @@ console.log('\n# Mensagens amigaveis dos erros das RPCs')
   const desat = 'Fatura desatualizada: o total no servidor é 500.00 e a tela mostra 1000.00. Atualize a tela e tente novamente.'
   assert('fatura desatualizada e reconhecida', ehFaturaDesatualizada(new Error(desat)) && ehFaturaDesatualizada({ code: '40001', message: 'x' }))
   assert('fatura desatualizada vira mensagem amigavel sem numeros internos', /fatura mudou/i.test(mensagemAmigavel(new Error(desat))) && !/500\.00/.test(mensagemAmigavel(new Error(desat))))
+  assert('deadlock 40P01 e lock_timeout 55P03 sao conflitos repetiveis', ehConflitoTransacional({ code: '40P01' }) && ehConflitoTransacional({ code: '55P03' }) && ehConflitoTransacional({ code: '40001' }) && !ehConflitoTransacional({ code: '22003' }))
+  assert('conflito 40P01 recarrega a fatura e pede nova tentativa em pt-BR', ehFaturaDesatualizada({ code: '40P01', message: 'deadlock detected' }) && /tente novamente/i.test(mensagemAmigavel({ code: '40P01', message: 'deadlock detected' })) && !/deadlock/i.test(mensagemAmigavel({ code: '40P01', message: 'deadlock detected' })))
   assert('valor acima do em aberto mantem o valor em aberto do servidor', /em aberto: 300\.00/.test(mensagemAmigavel(new Error('Valor excede o saldo em aberto da fatura (em aberto: 300.00)'))))
   assert('fatura quitada', /não tem saldo em aberto/.test(mensagemAmigavel(new Error('Fatura sem saldo em aberto: já está quitada'))))
   assert('ciclo sem valor', /não tem valor a pagar/.test(mensagemAmigavel(new Error('Fatura sem valor a pagar neste ciclo'))))

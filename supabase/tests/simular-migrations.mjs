@@ -11,7 +11,7 @@ import { readFileSync, readdirSync, existsSync } from 'fs'
 const dir = new URL('../', import.meta.url)
 // pgcrypto não existe no PGlite; gen_random_uuid() é nativo desde o PG 13.
 const ler = p => readFileSync(new URL(p, dir), 'utf8').replace(/CREATE EXTENSION IF NOT EXISTS "?pgcrypto"?[^;]*;/gi, '-- (pgcrypto omitido na simulação)')
-const NOVAS = ['2026-11_atalhos_home.sql', '2026-11_onboarding_perfil.sql', '2026-11_importacoes.sql', '2026-11_compras_cartao_cartao_do_dono.sql', '2026-11_pagamentos_fatura.sql']
+const NOVAS = ['2026-11_atalhos_home.sql', '2026-11_onboarding_perfil.sql', '2026-11_importacoes.sql', '2026-11_compras_cartao_cartao_do_dono.sql', '20261124000001_pagamentos_fatura.sql']
 const A = '00000000-0000-4000-8000-00000000000a'
 const B = '00000000-0000-4000-8000-00000000000b'
 
@@ -285,10 +285,20 @@ ok('policy do consultor existe (dependencia consultor_autorizado presente)', r.r
 // Falha explicita se a dependencia do consultor sumir: a migration NAO pode passar em silencio.
 await db.exec(`ALTER FUNCTION public.consultor_autorizado(uuid) RENAME TO consultor_autorizado_tmp`)
 let falhouExplicito = false, msgDep = ''
-try { await db.exec(ler('migrations/2026-11_pagamentos_fatura.sql')) } catch (e) { falhouExplicito = true; msgDep = e.message }
+try { await db.exec(ler('migrations/20261124000001_pagamentos_fatura.sql')) } catch (e) { falhouExplicito = true; msgDep = e.message }
 await db.exec('ROLLBACK').catch(() => {})
 await db.exec(`ALTER FUNCTION public.consultor_autorizado_tmp(uuid) RENAME TO consultor_autorizado`)
 ok('migration falha de forma explicita sem consultor_autorizado', falhouExplicito && /consultor_autorizado/.test(msgDep) && /2026-10_consultoria_acessos/.test(msgDep), msgDep)
+// v5: serializacao por cartao. Verifica a EXISTENCIA dos 6 triggers e do helper e a permissao.
+// NAO prova concorrencia (PGlite tem uma conexao): a prova real e supabase/tests/concorrencia-fatura.mjs.
+r = await db.query(`SELECT count(*)::int AS n FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
+  WHERE NOT t.tgisinternal AND c.relname IN ('compras_cartao','parcelamentos','faturas_cartao')
+    AND t.tgname IN ('aa_fatura_travar_usuario','aa_fatura_travar_cartao')`)
+ok('6 triggers de serializacao por cartao existem (3 tabelas x statement/row)', r.rows[0].n === 6, `(${r.rows[0].n})`)
+r = await db.query(`SELECT to_regprocedure('public.travar_cartoes_fatura(uuid[],uuid)') IS NOT NULL AS ok`)
+ok('travar_cartoes_fatura existe', r.rows[0].ok === true)
+r = await como(A, `SELECT public.travar_cartoes_fatura(ARRAY[$1::uuid], $2::uuid)`, [cartaoA, A])
+ok('authenticated nao executa travar_cartoes_fatura', !!r.erro, r.erro || '')
 // Concorrência: duas chamadas com a MESMA chave não geram duas linhas. Limite: PGlite tem uma
 // conexão e o driver serializa as chamadas; isto NÃO prova o lock FOR UPDATE (PENDENTE no DEV).
 await Promise.all([pagar(A, cartaoA, '2027-01', 50, 'chave-concorrente-1', 500), pagar(A, cartaoA, '2027-01', 50, 'chave-concorrente-1', 500)])
@@ -298,8 +308,8 @@ ok('chamadas simultâneas com a mesma chave geram 1 linha', r.linhas[0].n === 1,
 await db.exec(`SET session_replication_role = replica`)
 await db.exec(`INSERT INTO public.faturas_cartao (id, usuario_id, cartao_id, ano_mes, valor_total, pago, pago_em) VALUES ('00000000-0000-4000-8000-0000000000f1', '${A}', '${cartaoA}', '2026-09', 250, TRUE, '2026-09-28') ON CONFLICT DO NOTHING`)
 await db.exec(`SET session_replication_role = origin`)
-await db.exec(ler('migrations/2026-11_pagamentos_fatura.sql'))
-await db.exec(ler('migrations/2026-11_pagamentos_fatura.sql'))
+await db.exec(ler('migrations/20261124000001_pagamentos_fatura.sql'))
+await db.exec(ler('migrations/20261124000001_pagamentos_fatura.sql'))
 r = await db.query(`SELECT count(*)::int AS n, bool_and(legado) AS l, bool_and(origem = 'outra_conta') AS o FROM public.pagamentos_fatura WHERE ano_mes = '2026-09'`)
 ok('backfill cria 1 pagamento legado sem debitar saldo e é idempotente', r.rows[0].n === 1 && r.rows[0].l && r.rows[0].o, JSON.stringify(r.rows[0]))
 

@@ -3,8 +3,12 @@
 --
 -- Execute no DEV primeiro (SQL Editor > New query > cole TUDO > Run).
 -- COMO APLICAR: como UMA transação única. O SQL Editor executa tudo em uma única requisição.
--- Este arquivo não tem prefixo numérico de versão, então `supabase db push` não o reconhece.
--- Em psql use:  psql -1 -v ON_ERROR_STOP=1 -f supabase/migrations/2026-11_pagamentos_fatura.sql
+-- O nome segue o formato <versão numérica>_<nome>.sql reconhecido pelo Supabase CLI. As
+-- migrations anteriores (2026-10_*, 2026-11_*) NÃO têm prefixo numérico e o CLI não as
+-- reconhece: elas precisam estar aplicadas ANTES (ordem em supabase/migrations/README.md).
+-- O prefixo 20261124000001 é maior que 20261119000002, preservando a ordem das dependências.
+-- NÃO use `supabase db push` contra produção; produção não recebe migration manual aqui.
+-- Em psql use:  psql -1 -v ON_ERROR_STOP=1 -f supabase/migrations/20261124000001_pagamentos_fatura.sql
 -- (sem -1 e ON_ERROR_STOP, o erro do bloco DO de pré-requisitos não impede os comandos
 -- seguintes e a garantia "nada fica meio aplicado" não vale).
 -- PRODUÇÃO somente depois da aprovação dos testes no DEV.
@@ -47,13 +51,35 @@
 --         que o app mostra e cobra; o dado é do próprio usuário (RLS) e não vem do
 --         parâmetro da RPC;
 --       - o boolean legado faturas_cartao.pago NÃO entra: virou pagamento legado no backfill.
---   • Concorrência: pagar e estornar travam primeiro o CARTÃO (FOR UPDATE) e só depois a
---     linha do pagamento (ordem única, sem deadlock). UNIQUE (usuario_id, idempotency_key)
---     é a barreira final; unique_violation concorrente devolve o original se os
---     parâmetros coincidem. O FOR UPDATE em cartoes também bloqueia (pela checagem de chave
---     estrangeira) INSERT de compras_cartao, parcelamentos e faturas_cartao desse cartão
---     até o commit. UPDATE/DELETE dessas tabelas NÃO são travados: vale o total lido sob o
---     lock do cartão (risco residual de pagar acima do novo total após remoção concorrente).
+--   • Concorrência (v5): UM ÚNICO mecanismo de serialização por cartão, a função
+--     public.travar_cartoes_fatura(ids, usuario): SELECT ... FOR UPDATE em public.cartoes, uma
+--     linha por cartão, em ordem ASCENDENTE de id (ids deduplicados, NULL ignorado). Ele é
+--     usado por:
+--       - pagar_fatura_cartao e estornar_pagamento_fatura (cartão primeiro; depois, só no
+--         estorno, a linha do pagamento: ordem global cartão -> pagamento);
+--       - triggers nas três tabelas que compõem o total (compras_cartao, parcelamentos,
+--         faturas_cartao), em INSERT, UPDATE e DELETE:
+--           * BEFORE STATEMENT (trg_fatura_travar_usuario): com auth.uid(), trava TODOS os
+--             cartões do usuário em ordem ascendente. Cobre DML em massa, multi-cartão e
+--             zerar_dados_financeiros com a mesma ordem global, sem deadlock;
+--           * BEFORE ROW (trg_fatura_travar_cartao): trava OLD.cartao_id e NEW.cartao_id
+--             (mudança de cartão trava origem e destino em ordem). Cobre também service role
+--             e SQL Editor, onde auth.uid() é nulo.
+--     Assim o banco serializa independentemente do cliente (supabase-js direto, RPC, service
+--     role, edge function). Não se depende de lock no frontend. Não foi revogado DML direto:
+--     os hooks continuam válidos e a garantia está no banco.
+--     Consequência: o pagamento é validado contra o total COMMITADO sob o lock do cartão;
+--     o total e o pago são recalculados na mesma transação, imediatamente antes do INSERT.
+--     Editar ou remover compra DEPOIS do pagamento é uma operação posterior válida (igual
+--     ao uso sequencial) e NÃO é bloqueada, para que zerar dados e exclusões funcionem.
+--     A RPC exige isolamento READ COMMITTED (em REPEATABLE READ/SERIALIZABLE o snapshot
+--     seria anterior ao lock e o total ficaria obsoleto): fora disso recusa com erro.
+--     Conflitos: 40001 (fatura desatualizada), 40P01 (deadlock) e 55P03 (lock_timeout) abortam
+--     a transação sem pagamento indevido e podem ser repetidos com a MESMA idempotency_key.
+--     Deadlock residual só é possível em transações multi-statement que misturem DML com locks
+--     manuais em cartoes fora desse mecanismo (ex.: SELECT FOR UPDATE próprio em ordem diferente).
+--     UNIQUE (usuario_id, idempotency_key) é a barreira final; unique_violation concorrente
+--     devolve o original se os parâmetros coincidem.
 --   • Origem: somente 'saldo_principal' (não há múltiplas contas). 'outra_conta'
 --     existe só em pagamentos legados migrados, que não debitam saldo.
 --   • Idempotência: mesma chave + mesmos parâmetros devolve o original; mesma chave
@@ -68,8 +94,16 @@
 -- ------------------------------------------------------------
 DO $$
 BEGIN
+  IF current_setting('server_version_num')::int < 130000 THEN
+    RAISE EXCEPTION 'PostgreSQL 13 ou superior é necessário (normalize NFD, gen_random_uuid). Versão atual: %', current_setting('server_version')
+      USING ERRCODE = '0A000';
+  END IF;
+  IF (SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname = current_database()) <> 'UTF8' THEN
+    RAISE EXCEPTION 'O banco deve usar codificação UTF8 (normalize NFD e regex Unicode).'
+      USING ERRCODE = '0A000';
+  END IF;
   IF to_regprocedure('public.consultor_autorizado(uuid)') IS NULL THEN
-    RAISE EXCEPTION 'Dependência ausente: public.consultor_autorizado(uuid). Aplique 2026-10_consultoria_acessos.sql antes de 2026-11_pagamentos_fatura.sql.'
+    RAISE EXCEPTION 'Dependência ausente: public.consultor_autorizado(uuid). Aplique 2026-10_consultoria_acessos.sql antes de 20261124000001_pagamentos_fatura.sql.'
       USING ERRCODE = '42883';
   END IF;
   IF to_regclass('public.cartoes') IS NULL OR to_regclass('public.compras_cartao') IS NULL
@@ -84,6 +118,14 @@ END $$;
 -- declara. Garante a coluna (no-op quando já existe).
 ALTER TABLE public.parcelamentos
   ADD COLUMN IF NOT EXISTS cartao_id UUID REFERENCES public.cartoes(id) ON DELETE RESTRICT;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'parcelamentos' AND column_name = 'cartao_id') THEN
+    RAISE EXCEPTION 'Coluna public.parcelamentos.cartao_id ausente após o ALTER TABLE.' USING ERRCODE = '42703';
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public.pagamentos_fatura (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -144,6 +186,104 @@ END $$;
 -- Escrita somente via RPC (SECURITY DEFINER).
 REVOKE ALL ON public.pagamentos_fatura FROM anon, authenticated;
 GRANT SELECT ON public.pagamentos_fatura TO authenticated;
+
+-- ------------------------------------------------------------
+-- Serialização por cartão (UNICO mecanismo de lock; ver "Concorrência" no cabeçalho).
+-- Trava as linhas de public.cartoes em ordem ASCENDENTE de id, uma a uma, para que
+-- qualquer combinação de cartões (mover compra A->B e B->A, DML em massa) adquira os
+-- locks na mesma ordem global e não gere deadlock. Retorna quantos cartões travou.
+-- Interna: EXECUTE revogado de clientes (recebe ids arbitrários).
+-- ------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.travar_cartoes_fatura(
+  p_ids        UUID[],
+  p_usuario_id UUID DEFAULT NULL
+) RETURNS INT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_id UUID;
+  v_n  INT := 0;
+BEGIN
+  FOR v_id IN
+    SELECT DISTINCT x FROM unnest(COALESCE(p_ids, ARRAY[]::uuid[])) AS t(x)
+     WHERE x IS NOT NULL
+     ORDER BY x ASC
+  LOOP
+    PERFORM 1 FROM public.cartoes c
+     WHERE c.id = v_id
+       AND (p_usuario_id IS NULL OR c.usuario_id = p_usuario_id)
+     FOR UPDATE;
+    IF FOUND THEN v_n := v_n + 1; END IF;
+  END LOOP;
+  RETURN v_n;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.travar_cartoes_fatura(UUID[], UUID) FROM PUBLIC, anon, authenticated;
+
+-- BEFORE STATEMENT: com usuário autenticado, trava todos os cartões dele (ordem ascendente).
+CREATE OR REPLACE FUNCTION public.trg_fatura_travar_usuario()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_uid UUID := auth.uid();
+BEGIN
+  IF v_uid IS NOT NULL THEN
+    PERFORM public.travar_cartoes_fatura(
+      ARRAY(SELECT id FROM public.cartoes WHERE usuario_id = v_uid ORDER BY id), v_uid);
+  END IF;
+  RETURN NULL;
+END;
+$$;
+
+-- BEFORE ROW: trava o cartão antigo e o novo da linha (cobre service role e mudança de cartão).
+CREATE OR REPLACE FUNCTION public.trg_fatura_travar_cartao()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    PERFORM public.travar_cartoes_fatura(ARRAY[NEW.cartao_id]);
+  ELSIF TG_OP = 'DELETE' THEN
+    PERFORM public.travar_cartoes_fatura(ARRAY[OLD.cartao_id]);
+  ELSE
+    PERFORM public.travar_cartoes_fatura(ARRAY[OLD.cartao_id, NEW.cartao_id]);
+  END IF;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.trg_fatura_travar_usuario() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.trg_fatura_travar_cartao() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS aa_fatura_travar_usuario ON public.compras_cartao;
+CREATE TRIGGER aa_fatura_travar_usuario BEFORE INSERT OR UPDATE OR DELETE ON public.compras_cartao
+  FOR EACH STATEMENT EXECUTE FUNCTION public.trg_fatura_travar_usuario();
+DROP TRIGGER IF EXISTS aa_fatura_travar_cartao ON public.compras_cartao;
+CREATE TRIGGER aa_fatura_travar_cartao BEFORE INSERT OR UPDATE OR DELETE ON public.compras_cartao
+  FOR EACH ROW EXECUTE FUNCTION public.trg_fatura_travar_cartao();
+
+DROP TRIGGER IF EXISTS aa_fatura_travar_usuario ON public.parcelamentos;
+CREATE TRIGGER aa_fatura_travar_usuario BEFORE INSERT OR UPDATE OR DELETE ON public.parcelamentos
+  FOR EACH STATEMENT EXECUTE FUNCTION public.trg_fatura_travar_usuario();
+DROP TRIGGER IF EXISTS aa_fatura_travar_cartao ON public.parcelamentos;
+CREATE TRIGGER aa_fatura_travar_cartao BEFORE INSERT OR UPDATE OR DELETE ON public.parcelamentos
+  FOR EACH ROW EXECUTE FUNCTION public.trg_fatura_travar_cartao();
+
+DROP TRIGGER IF EXISTS aa_fatura_travar_usuario ON public.faturas_cartao;
+CREATE TRIGGER aa_fatura_travar_usuario BEFORE INSERT OR UPDATE OR DELETE ON public.faturas_cartao
+  FOR EACH STATEMENT EXECUTE FUNCTION public.trg_fatura_travar_usuario();
+DROP TRIGGER IF EXISTS aa_fatura_travar_cartao ON public.faturas_cartao;
+CREATE TRIGGER aa_fatura_travar_cartao BEFORE INSERT OR UPDATE OR DELETE ON public.faturas_cartao
+  FOR EACH ROW EXECUTE FUNCTION public.trg_fatura_travar_cartao();
 
 -- ------------------------------------------------------------
 -- Total do ciclo calculado no servidor (fonte confiável do teto de pagamento).
@@ -322,11 +462,17 @@ BEGIN
     RAISE EXCEPTION 'Conta de origem inválida: somente saldo_principal' USING ERRCODE = '22023';
   END IF;
 
-  -- Trava o cartão (e valida o dono): serializa pagar x pagar e pagar x estornar.
-  PERFORM 1 FROM public.cartoes
-   WHERE id = p_cartao_id AND usuario_id = v_uid
-   FOR UPDATE;
-  IF NOT FOUND THEN
+  -- Em REPEATABLE READ/SERIALIZABLE o snapshot é anterior ao lock e o total ficaria obsoleto.
+  IF current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'Pagamento de fatura exige isolamento READ COMMITTED (atual: %). Repita em nova transação.',
+      current_setting('transaction_isolation')
+      USING ERRCODE = '25006';
+  END IF;
+
+  -- Trava o cartão (e valida o dono) com o mecanismo único: serializa pagar x pagar,
+  -- pagar x estornar e pagar x qualquer INSERT/UPDATE/DELETE de compras, parcelamentos
+  -- e faturas informadas (triggers).
+  IF public.travar_cartoes_fatura(ARRAY[p_cartao_id], v_uid) = 0 THEN
     RAISE EXCEPTION 'Cartão não encontrado' USING ERRCODE = '42501';
   END IF;
 
@@ -345,7 +491,8 @@ BEGIN
     RAISE EXCEPTION 'Chave de idempotência já usada em outro pagamento' USING ERRCODE = '23505';
   END IF;
 
-  -- Fonte da verdade: total calculado AQUI, sob o lock do cartão.
+  -- Fonte da verdade: total e pago recalculados AQUI, sob o lock do cartão, na mesma transação
+  -- e imediatamente antes do INSERT (writers concorrentes já commitaram ou aguardam o lock).
   v_total := public.total_fatura_ciclo_servidor(p_cartao_id, v_uid, p_ano_mes);
 
   -- Cliente com tela desatualizada (ou total adulterado): recusa em vez de aceitar.
@@ -428,7 +575,9 @@ BEGIN
     RAISE EXCEPTION 'Pagamento não encontrado' USING ERRCODE = '42501';
   END IF;
 
-  PERFORM 1 FROM public.cartoes WHERE id = v_cartao AND usuario_id = v_uid FOR UPDATE;
+  IF public.travar_cartoes_fatura(ARRAY[v_cartao], v_uid) = 0 THEN
+    RAISE EXCEPTION 'Pagamento não encontrado' USING ERRCODE = '42501';
+  END IF;
 
   SELECT * INTO v_pg FROM public.pagamentos_fatura
    WHERE id = p_pagamento_id AND usuario_id = v_uid

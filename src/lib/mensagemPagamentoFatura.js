@@ -1,14 +1,22 @@
 // Mensagens amigaveis para erros das RPCs pagar_fatura_cartao / estornar_pagamento_fatura.
 // Modulo puro (sem React nem supabase) para ser testavel em node.
 
-/** Erro de "fatura desatualizada": o total da tela diverge do total do servidor. */
+/** Conflito transacional (abortado com seguranca, pode repetir): 40001, 40P01 (deadlock), 55P03 (lock_timeout). */
+export function ehConflitoTransacional(err) {
+  return ['40001', '40P01', '55P03'].includes(err?.code)
+}
+
+/** Erro de "fatura desatualizada" ou conflito: o total da tela pode divergir do servidor, recarregar. */
 export function ehFaturaDesatualizada(err) {
   const m = String(err?.message || err || '')
-  return /fatura desatualizada/i.test(m) || err?.code === '40001'
+  return /fatura desatualizada/i.test(m) || ehConflitoTransacional(err)
 }
 
 export function mensagemAmigavel(err) {
   const m = String(err?.message || err || '')
+  if (ehConflitoTransacional(err) && err.code !== '40001') {
+    return 'Outra alteração em andamento no cartão impediu o pagamento. Nada foi cobrado. Atualizamos os dados: confira o total e tente novamente.'
+  }
   if (ehFaturaDesatualizada(err)) {
     return 'A fatura mudou desde que a tela foi carregada. Atualizamos os dados: confira o novo total e tente de novo.'
   }
@@ -24,7 +32,7 @@ export function mensagemAmigavel(err) {
     return 'Esta tentativa de pagamento já foi usada com outros dados. Tente novamente.'
   }
   if (/function .*does not exist|schema cache/i.test(m)) {
-    return 'Pagamento de fatura indisponível: a migração 2026-11_pagamentos_fatura.sql ainda não foi aplicada neste ambiente.'
+    return 'Pagamento de fatura indisponível: a migração 20261124000001_pagamentos_fatura.sql ainda não foi aplicada neste ambiente.'
   }
   return m || 'Erro ao registrar o pagamento.'
 }

@@ -437,7 +437,7 @@ CREATE POLICY "Usuário gerencia apenas as próprias compras de cartão"
 
 
 -- ============================================================
--- 11. TABELA: pagamentos_fatura (migration: 2026-11_pagamentos_fatura.sql)
+-- 11. TABELA: pagamentos_fatura (migration: 20261124000001_pagamentos_fatura.sql)
 -- Pagamentos total/parcial/antecipado de fatura, com histórico e estorno.
 -- RLS: SELECT apenas dos próprios registros; escrita somente pelas RPCs
 -- SECURITY DEFINER pagar_fatura_cartao e estornar_pagamento_fatura.
