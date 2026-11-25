@@ -1,0 +1,17 @@
+=== COMANDOS PARA EXECUTAR NO POWERSHELL ===
+
+1. Instalar dependências:
+cd "c:\Users\MATHEUS\Desktop\App Financas\posso-comprar"
+npm install
+
+2. Testar build:
+npm run build
+
+3. Aplicar migration no Supabase DEV:
+- Abrir: https://supabase.com/dashboard/project/gxfcfpdwyjqcrfssxgbi/sql
+- Colar conteúdo de: supabase/migrations/2026-01_sistema_pagamento_faturas.sql
+- Clicar "Run"
+
+4. Após aplicar migration, fazer commit final:
+git add -A
+git commit -m "fix: alinhamento login + finalizacao faturas e custo de vida"

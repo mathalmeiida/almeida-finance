@@ -84,32 +84,31 @@ export default function Login() {
 
   return (
     // Fundo vinho escuro uniforme — identidade Almeida Finance Premium.
-    // Sem gradientes decorativos azulados.
     <div
-      className="min-h-[100dvh] text-white overflow-x-hidden flex items-start sm:items-center justify-center"
+      className="min-h-[100dvh] text-white overflow-x-hidden flex items-center justify-center"
       style={{ background: 'linear-gradient(160deg, #3d0a18 0%, #250610 100%)' }}
     >
-      <div className="w-full mx-auto px-4 sm:px-8 py-6 sm:py-10 lg:grid lg:grid-cols-[1.2fr_0.8fr] lg:gap-12 xl:gap-16 lg:items-center lg:max-w-[1100px]">
+      <div className="w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 lg:grid lg:grid-cols-2 lg:gap-16 lg:items-center lg:max-w-6xl">
       {/* ── Apresentação (desktop) — alinhada à esquerda ── */}
-      <aside className="hidden lg:flex flex-col justify-center gap-7">
-        <div className="w-full max-w-md">
+      <aside className="hidden lg:flex flex-col justify-center gap-8">
+        <div className="w-full">
           <img src="/branding/af-icone.png" alt="Almeida Finance"
-            className="w-[160px] h-auto" />
-          <h1 className="text-3xl font-extrabold mt-6 leading-tight">Suas finanças em um só lugar</h1>
-          <p className="text-sm text-white/70 mt-2 max-w-md">
+            className="w-32 h-auto mb-6" />
+          <h1 className="text-4xl font-bold leading-tight">Suas finanças em um só lugar</h1>
+          <p className="text-base text-white/80 mt-3 leading-relaxed">
             Organize, planeje e tome decisões melhores com o Almeida Finance.
           </p>
         </div>
 
-        <ul className="grid grid-cols-2 gap-x-6 gap-y-4 w-full max-w-md">
+        <ul className="grid grid-cols-2 gap-x-8 gap-y-5 w-full">
           {BENEFICIOS.map(b => (
-            <li key={b.titulo} className="flex items-start gap-2.5">
-              <span className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
-                <b.icon size={16} className="text-white" />
+            <li key={b.titulo} className="flex items-start gap-3">
+              <span className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <b.icon size={18} className="text-white" />
               </span>
               <div className="min-w-0">
                 <p className="text-sm font-semibold leading-tight">{b.titulo}</p>
-                <p className="text-xs text-slate-300 leading-snug">{b.desc}</p>
+                <p className="text-sm text-white/70 leading-relaxed mt-0.5">{b.desc}</p>
               </div>
             </li>
           ))}
@@ -117,20 +116,18 @@ export default function Login() {
       </aside>
 
       {/* ── Login (direita no desktop; único bloco no mobile) ── */}
-      <main className="flex items-center justify-center lg:justify-end">
-        <div className="w-full max-w-sm lg:max-w-[420px]">
+      <main className="flex items-center justify-center">
+        <div className="w-full max-w-md">
           {/* Mobile: logo e título compactos acima do formulário */}
-          <div className="flex flex-col items-center text-center mb-4 lg:hidden">
-            {/* w-[96px]: o conteudo visual da logo ocupa ~66% da imagem,
-                resultando em ~63px de logo visivel — compacto e proporcional. */}
+          <div className="flex flex-col items-center text-center mb-6 lg:hidden">
             <img src="/branding/af-icone.png" alt="Almeida Finance"
-              className="w-[96px] h-auto" />
-            <p className="text-sm text-white/70 mt-1">Suas finanças em um só lugar</p>
+              className="w-24 h-auto mb-2" />
+            <p className="text-base text-white/80">Suas finanças em um só lugar</p>
           </div>
 
-          <div className="bg-white rounded-t-2xl shadow-2xl shadow-black/30 ring-1 ring-white/10 border-b border-gray-100 p-6">
-            <h2 className="text-xl font-bold text-gray-900">Bem-vindo de volta</h2>
-            <p className="text-sm text-gray-500 mt-1 mb-5">Entre para continuar cuidando das suas finanças.</p>
+          <div className="bg-white rounded-t-2xl shadow-2xl shadow-black/30 ring-1 ring-white/10 border-b border-gray-100 p-7">
+            <h2 className="text-2xl font-bold text-gray-900">Bem-vindo de volta</h2>
+            <p className="text-base text-gray-600 mt-2 mb-6 leading-relaxed">Entre para continuar cuidando das suas finanças.</p>
 
             {erro && (
               <div className="flex items-start gap-2 bg-red-50 border border-red-100 text-red-700 text-sm rounded-xl p-3 mb-4">
@@ -206,27 +203,27 @@ export default function Login() {
           </div>
 
           {/* Card de privacidade — extensão do card, fundo vinho escuro. */}
-          <div className="bg-[#21121F]/95 text-white rounded-b-2xl p-5 border-t border-white/10 shadow-2xl shadow-black/30 ring-1 ring-white/10">
-            <div className="flex items-center gap-2">
-              <ShieldCheck size={16} className="text-white flex-shrink-0" />
-              <h3 className="text-sm font-semibold">Sua privacidade importa</h3>
+          <div className="bg-[#21121F]/95 text-white rounded-b-2xl p-6 border-t border-white/10 shadow-2xl shadow-black/30 ring-1 ring-white/10">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck size={18} className="text-white flex-shrink-0" />
+              <h3 className="text-base font-semibold">Sua privacidade importa</h3>
             </div>
-            <p className="text-xs text-slate-300 mt-1">
+            <p className="text-sm text-white/80 mt-2 leading-relaxed">
               Seus dados financeiros são pessoais e merecem proteção.
             </p>
-            <ul className="mt-3 space-y-1.5">
-              <li className="flex items-start gap-2 text-xs text-slate-200">
-                <CheckCircle2 size={13} className="text-emerald-400 flex-shrink-0 mt-0.5" />
+            <ul className="mt-4 space-y-2.5">
+              <li className="flex items-start gap-2.5 text-sm text-white/90">
+                <CheckCircle2 size={16} className="text-emerald-400 flex-shrink-0 mt-0.5" />
                 Controles de acesso protegem suas informações.
               </li>
-              <li className="flex items-start gap-2 text-xs text-slate-200">
-                <CheckCircle2 size={13} className="text-emerald-400 flex-shrink-0 mt-0.5" />
+              <li className="flex items-start gap-2.5 text-sm text-white/90">
+                <CheckCircle2 size={16} className="text-emerald-400 flex-shrink-0 mt-0.5" />
                 Você pode ocultar valores financeiros no aplicativo.
               </li>
             </ul>
           </div>
 
-          <p className="text-center text-sm text-slate-300 mt-5">
+          <p className="text-center text-base text-white/80 mt-6">
             Não tem conta?{' '}
             <Link to="/cadastro" className="text-white font-semibold underline decoration-white/40 underline-offset-2 hover:decoration-white">
               Criar conta gratuita
