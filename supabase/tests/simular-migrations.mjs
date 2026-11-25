@@ -765,8 +765,14 @@ r = await como(A, `INSERT INTO public._fatura_liberacoes (txid, usuario_id, esco
 ok('liberacoes: authenticated nao forja linha por INSERT (42501)', r.code === '42501', `(${r.code} ${r.erro || 'sem erro'})`)
 r = await como(null, `SELECT public.liberar_historico_zerar()`)
 ok('liberacoes: anon nao executa liberar_historico_zerar (42501)', r.code === '42501', `(${r.code} ${r.erro || 'sem erro'})`)
-r = await como(A, `SELECT set_config('request.jwt.claim.sub', '', true), public.liberar_historico_zerar()`)
-ok('liberacoes: sem identidade (auth.uid() nulo) liberar recusa (28000)', r.code === '28000', `(${r.code} ${r.erro || 'sem erro'})`)
+let codSemId, erroSemId
+try {
+  await db.exec('BEGIN')
+  await db.query(`SELECT set_config('request.jwt.claim.sub', '', true)`); await db.exec('SET LOCAL ROLE authenticated')
+  await db.query(`SELECT public.liberar_historico_zerar()`)
+} catch (e) { codSemId = e.code; erroSemId = e.message }
+finally { await db.exec('ROLLBACK').catch(() => {}) }
+ok('liberacoes: sem identidade (auth.uid() nulo) liberar recusa (28000)', codSemId === '28000', `(${codSemId} ${erroSemId || 'sem erro'})`)
 const cLib = await novoCartaoDe(A, 'Liberacao')
 const kLib = await novaCompraDe(A, cLib, 'LIB', 100)
 r = await pagarSemDica(A, cLib, YM, 100, 'lib-quita-00001')
@@ -778,14 +784,14 @@ try {
   await db.exec('BEGIN')
   await db.query(`SELECT set_config('request.jwt.claim.sub', $1, true)`, [A]); await db.exec('SET LOCAL ROLE authenticated')
   await db.query(`SAVEPOINT l1`); await db.query(`SELECT public.liberar_historico_zerar()`)
-  const ativaDentro = (await db.query(`SELECT public.fatura_liberacao_ativa('zerar') AS a`)).rows[0].a
+  ativaDentro = (await db.query(`SELECT public.fatura_liberacao_ativa('zerar') AS a`)).rows[0].a
   await db.query(`SELECT set_config('request.jwt.claim.sub', $1, true)`, [B])
-  const ativaOutro = (await db.query(`SELECT public.fatura_liberacao_ativa('zerar') AS a`)).rows[0].a
+  ativaOutro = (await db.query(`SELECT public.fatura_liberacao_ativa('zerar') AS a`)).rows[0].a
   await db.query(`SELECT set_config('request.jwt.claim.sub', $1, true)`, [A])
   await db.query(`ROLLBACK TO SAVEPOINT l1`)
-  const ativaApos = (await db.query(`SELECT public.fatura_liberacao_ativa('zerar') AS a`)).rows[0].a
+  ativaApos = (await db.query(`SELECT public.fatura_liberacao_ativa('zerar') AS a`)).rows[0].a
   await db.query(`SELECT public.liberar_historico_zerar()`); await db.query(`SELECT public.encerrar_liberacao_zerar()`)
-  const ativaEncerrada = (await db.query(`SELECT public.fatura_liberacao_ativa('zerar') AS a`)).rows[0].a
+  ativaEncerrada = (await db.query(`SELECT public.fatura_liberacao_ativa('zerar') AS a`)).rows[0].a
 } catch (e) { ok('liberacoes: bloco de transacao e savepoint executou sem erro', false, e.message) }
 finally { await db.exec('ROLLBACK').catch(() => {}) }
 ok('liberacoes: ativa para o proprio usuario na transacao', ativaDentro === true)
@@ -814,18 +820,18 @@ if (process.env.BENCH) {
   await bench('cartao sem pagamento', await novoCartaoDe(A, 'Bench sem pagamento'))
   const cBp = await novoCartaoDe(A, 'Bench com pagamento'); await novaCompraDe(A, cBp, 'base', 100); await pagarSemDica(A, cBp, YM, 100, 'bench-quita-0001')
   await bench('cartao com mes quitado (outro mes)', cBp)
-  // Caso lento: linhas DENTRO do mes quitado (ciclo 2026-11, fechamento dia 20), inseridas sob liberacao (zerar) na mesma transacao.
+  // Caso lento: linhas DENTRO do mes quitado (ciclo 2026-11, fechamento dia 20). Sem liberacao zerar (ela faz guarda e auditoria retornarem cedo)
+  // e sem identidade (auth.uid() nulo, como dono/service role), o que passa pela auditoria e recalcula. Nao validado: se a guarda recusar, o erro e impresso.
   const cBq = await novoCartaoDe(A, 'Bench mes quitado'); await novaCompraDe(A, cBq, 'base', 100); await pagarSemDica(A, cBq, YM, 100, 'bench-quita-0002')
   const t1 = performance.now()
   let msg = ''
   try {
     await db.exec('BEGIN')
-    await db.query(`SELECT set_config('request.jwt.claim.sub', $1, true)`, [A]); await db.exec('SET LOCAL ROLE authenticated')
-    await db.query(`SELECT public.liberar_historico_zerar()`)
+    await db.query(`SELECT set_config('request.jwt.claim.sub', '', true)`)
     await db.query(`INSERT INTO public.compras_cartao (usuario_id, cartao_id, descricao, valor_total, data_compra, numero_parcelas) SELECT $1, $2, 'bench ' || g, 10, DATE '2026-11-01' + (g % 15), 1 FROM generate_series(1, $3::int) g`, [A, cBq, N])
   } catch (e) { msg = e.message }
   finally { await db.exec('ROLLBACK').catch(() => {}) }
-  console.log(`BENCH - cartao com linhas DENTRO do mes quitado: ${N} compras em ${(performance.now() - t1).toFixed(0)} ms ${msg}`)
+  console.log(`BENCH - cartao com linhas DENTRO do mes quitado (sem liberacao, uid nulo): ${N} compras em ${(performance.now() - t1).toFixed(0)} ms ${msg}`)
 }
 
 // Acúmulo de liberações: chamadas soltas repetidas deixam no máximo 1 linha por usuário.
