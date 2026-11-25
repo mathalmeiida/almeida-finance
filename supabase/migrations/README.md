@@ -214,6 +214,6 @@ Em caso de problemas:
   ```bash
   npm i --no-save @electric-sql/pglite pg
   npm run test:migrations      # PGlite: inclui a seção "integridade histórica"
-  PG_TEST_URL=postgres://postgres:x@127.0.0.1:55432/postgres npm run test:concorrencia   # cenários 13b e 18a a 18d
+  PG_TEST_URL=postgres://postgres:x@127.0.0.1:55432/postgres npm run test:concorrencia   # cenários 13b e 18a a 18g
   ```
 - Estado: os cenários novos estão escritos e NÃO foram executados (sem Postgres nem pglite no ambiente de desenvolvimento). Ver `docs/pagamento-faturas-relatorio.md`, seção 11.

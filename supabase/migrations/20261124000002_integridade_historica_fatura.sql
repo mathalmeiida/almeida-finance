@@ -727,6 +727,12 @@ CREATE TRIGGER zz_fatura_auditar_historico AFTER INSERT OR UPDATE OR DELETE ON p
 DROP TRIGGER IF EXISTS ab_fatura_proteger_cartao ON public.cartoes;
 CREATE TRIGGER ab_fatura_proteger_cartao BEFORE DELETE ON public.cartoes
   FOR EACH ROW EXECUTE FUNCTION public.trg_fatura_proteger_cartao();
+-- Trava os cartoes do usuario ANTES da checagem de pagamento ativo (mesmo padrao do DELETE, 000001).
+-- Sem isso, o trigger de linha checava pagamento antes de esperar o lock da linha e perdia um
+-- pagamento ainda nao commitado de outra sessao. Statement trigger roda antes de qualquer row trigger.
+DROP TRIGGER IF EXISTS aa_fatura_travar_usuario_fechamento ON public.cartoes;
+CREATE TRIGGER aa_fatura_travar_usuario_fechamento BEFORE UPDATE OF dia_fechamento ON public.cartoes
+  FOR EACH STATEMENT EXECUTE FUNCTION public.trg_fatura_travar_usuario();
 DROP TRIGGER IF EXISTS ab_fatura_proteger_cartao_fechamento ON public.cartoes;
 CREATE TRIGGER ab_fatura_proteger_cartao_fechamento BEFORE UPDATE OF dia_fechamento ON public.cartoes
   FOR EACH ROW EXECUTE FUNCTION public.trg_fatura_proteger_cartao();

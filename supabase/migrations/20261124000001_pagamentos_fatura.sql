@@ -14,7 +14,9 @@
 -- PRODUÇÃO somente depois da aprovação dos testes no DEV.
 --
 -- SEGURO:
---   • Idempotente (IF NOT EXISTS / CREATE OR REPLACE / ON CONFLICT DO NOTHING).
+--   • Idempotente (IF NOT EXISTS / CREATE OR REPLACE / ON CONFLICT DO NOTHING), EXCETO depois
+--     da 000002: se estornar_pagamento_fatura(uuid,text) existe, o bloco de pre-requisitos
+--     aborta (0A000) para nao apagar a auditoria do estorno. Nao reaplique a 000001 sobre a 000002.
 --   • Sem DROP destrutivo. Não altera faturas_cartao (colunas pago/pago_em seguem
 --     existindo por compatibilidade; deixam de ser a fonte da verdade).
 --   • RLS: o usuário só LÊ os próprios pagamentos. Não há INSERT/UPDATE/DELETE

@@ -877,6 +877,23 @@ await cenario('18f. cartoes: dia_fechamento e DELETE com historico recusados (FP
   ok('18f: razao e pagamento estornado preservados', (await qtdPagamentos(c, 'estornado')) === 1 && (await admin.query(`SELECT count(*)::int AS n FROM public.ajustes_fatura WHERE cartao_id = $1`, [c])).rows[0].n >= 1)
 })
 
+await cenario('18g. Pagamento aberto (nao commitado) x UPDATE cartoes.dia_fechamento: UPDATE espera o commit e e recusado (FP001)', async () => {
+  const u = await novoUsuario(); const c = await novoCartao(u)
+  await novaCompra(u, c, 'Mercado', 1000)
+  const P = await abrir(u)
+  const rp = await P.q(SQL_PAGAR, [c, CICLO, 400, 1000, chave()])
+  ok('18g: pagamento de 400 aceito (sessao aberta, sem commit)', !rp.erro, rp.erro || '')
+  const U = await abrir(u)
+  const pU = U.q(`UPDATE public.cartoes SET dia_fechamento = 3 WHERE id = $1`, [c])
+  await aguardarBloqueio(U, pU, '18g UPDATE dia_fechamento espera o pagamento')
+  await P.commit()
+  const ru = await pU
+  ok('18g: UPDATE recusado apos o commit do pagamento (FP001), sem 40P01', ru.code === 'FP001', `(${ru.code} ${ru.erro || 'sem erro'})`)
+  await U.rollback()
+  const fech = (await admin.query(`SELECT dia_fechamento FROM public.cartoes WHERE id = $1`, [c])).rows[0].dia_fechamento
+  ok('18g: dia_fechamento permanece inalterado com pagamento ativo', Number(fech) === 20, `(dia_fechamento = ${fech})`)
+})
+
 // ---------- Encerramento ----------
 for (const s of [...sessoesAbertas]) await s.rollback().catch(() => {})
 await admin.end()
