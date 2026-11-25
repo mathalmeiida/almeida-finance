@@ -20,14 +20,20 @@ import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
 export function usePagamentosFatura(faturaId = null) {
   const { usuario, idEfetivo, modoConsultoria } = useAuth()
   const [pagamentos, setPagamentos] = useState([])
-  const [carregando, setCarregando] = useState(true)
+  const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState(null)
+
+  // Sistema de pagamentos desabilitado temporariamente (aguardando migration em PROD)
+  const SISTEMA_ATIVO = false
 
   // ─────────────────────────────────────────────────────────
   // Buscar pagamentos
   // ─────────────────────────────────────────────────────────
   const buscar = useCallback(async () => {
-    if (!idEfetivo) return
+    if (!idEfetivo || !SISTEMA_ATIVO) {
+      setCarregando(false)
+      return
+    }
     
     setCarregando(true)
     setErro(null)

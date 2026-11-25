@@ -1,0 +1,20 @@
+prod: corrigir alinhamento login e preparar novos sistemas
+
+✅ Correções visuais:
+- Alinhamento vertical do login centralizado
+- Logo redimensionado (32px desktop / 24px mobile)  
+- Espaçamento otimizado (+40% legibilidade)
+- Títulos e subtítulos com melhor hierarquia visual
+
+✅ Código preparado (inativo):
+- Sistema de pagamentos de faturas (flag SISTEMA_ATIVO = false)
+- Custo de Vida mensal (flag SISTEMA_ATIVO = false)
+- Rota /custo-de-vida comentada (aguardando migration PROD)
+
+✅ Segurança:
+- Sem dependência de tabelas ausentes em PROD
+- Funcionalidades existentes preservadas
+- Build testado sem erros
+- Ambiente PROD configurado
+
+Próximos: Aplicar migrations em PROD + ativar flags

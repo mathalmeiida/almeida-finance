@@ -27,10 +27,13 @@ export function useCustoDeVida(ano, mes) {
   const { faturas: faturasInformadas } = useFaturasCartao()
   const { parcelamentos } = useParcelamentos()
 
+  // Sistema Custo de Vida desabilitado temporariamente (aguardando validação em PROD)
+  const SISTEMA_ATIVO = false
+
   const [custoMesAtual, setCustoMesAtual] = useState(null)
   const [porCategoria, setPorCategoria] = useState([])
   const [historicoMeses, setHistoricoMeses] = useState([])
-  const [carregando, setCarregando] = useState(true)
+  const [carregando, setCarregando] = useState(false)
 
   // ───────────────────────────────────────────────────────────
   // Categorias essenciais para custo de vida
@@ -246,6 +249,11 @@ export function useCustoDeVida(ano, mes) {
   // Efeito: calcular dados ao carregar
   // ───────────────────────────────────────────────────────────
   useEffect(() => {
+    if (!SISTEMA_ATIVO) {
+      setCarregando(false)
+      return
+    }
+
     if (carregandoDespesas) {
       setCarregando(true)
       return
@@ -266,7 +274,7 @@ export function useCustoDeVida(ano, mes) {
       console.error('Erro ao calcular custo de vida:', err)
       setCarregando(false)
     }
-  }, [ano, mes, carregandoDespesas, calcularCustoMes, calcularHistorico])
+  }, [ano, mes, carregandoDespesas, calcularCustoMes, calcularHistorico, SISTEMA_ATIVO])
 
   // ───────────────────────────────────────────────────────────
   // Retorno do hook

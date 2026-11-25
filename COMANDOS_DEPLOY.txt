@@ -1,0 +1,28 @@
+=== DEPLOY PRODUCTION - COMANDOS ===
+
+Execute no terminal (CMD ou PowerShell):
+
+cd "C:\Users\MATHEUS\Desktop\App Financas\posso-comprar"
+
+git add .
+
+git commit -F commit-production.txt
+
+git push origin main
+
+=== VERIFICAR DEPLOY ===
+
+1. Aguarde 2-3 minutos
+2. Acesse: https://almeida-finance.vercel.app
+3. Faça login
+4. Confirme que tudo funciona
+
+=== BUILD LOCAL (OPCIONAL) ===
+
+Se quiser testar antes de publicar:
+
+npm run build
+
+Deve gerar pasta dist/ sem erros.
+
+===================================

@@ -477,7 +477,8 @@ function Rotas() {
 
                 <Route path="/investimentos" element={<Investimentos />} />
 
-                <Route path="/custo-de-vida" element={<CustoDeVida />} />
+                {/* Rota Custo de Vida temporariamente desabilitada (aguardando validação PROD) */}
+                {/* <Route path="/custo-de-vida" element={<CustoDeVida />} /> */}
 
                 <Route path="/familia" element={<AlmeidaFamilia />} />
                 <Route path="/familia/:id" element={<GrupoFamiliar />} />
