@@ -18,6 +18,8 @@ import { useProjecao } from '../hooks/useProjecao'
 
 import { useBeneficios } from '../hooks/useBeneficios'
 
+import { useAnaliseCompra } from '../hooks/usePossoComprar2'
+
 import { useAuth } from '../contexts/AuthContext'
 
 import { useOcultarValores } from '../contexts/OcultarValoresContext'
@@ -166,6 +168,8 @@ function SimuladorCompra() {
   const [mostrarDetalhes, setMostrarDetalhes] = useState(false)
 
   const [mostrarCalculo, setMostrarCalculo] = useState(false)
+
+  const analiseDetalhada = useAnaliseCompra(form.valor, form.tipo, form.parcelas)
 
 
 
@@ -589,6 +593,66 @@ function SimuladorCompra() {
 
             </div>
 
+          )}
+
+          {/* Análise Detalhada (30 dias) */}
+          {analiseDetalhada && resultado.fonte === 'saldo' && (
+            <div>
+              <button 
+                type="button"
+                onClick={() => setMostrarCalculo(v => !v)}
+                className="w-full flex items-center justify-between text-left mb-2"
+              >
+                <h3 className="font-semibold text-gray-900">Análise abrangente (30 dias)</h3>
+                {mostrarCalculo ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              </button>
+              
+              {mostrarCalculo && (
+                <div className="rounded-xl bg-blue-50 border border-blue-200 p-3 space-y-3 text-sm">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-blue-700">Saldo atual</span>
+                    <strong className="text-blue-900">{formatCurrency(analiseDetalhada.saldoAtual)}</strong>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-blue-700">+ Receitas futuras (30 dias)</span>
+                    <strong className="text-green-600">+{formatCurrency(analiseDetalhada.receitasFuturas)}</strong>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-blue-700">− Despesas previstas (30 dias)</span>
+                    <strong className="text-red-600">−{formatCurrency(analiseDetalhada.despesasPrevistas)}</strong>
+                  </div>
+                  {analiseDetalhada.faturasPendentes > 0 && (
+                    <div className="flex justify-between gap-2">
+                      <span className="text-blue-700">− Faturas cartão</span>
+                      <strong className="text-red-600">−{formatCurrency(analiseDetalhada.faturasPendentes)}</strong>
+                    </div>
+                  )}
+                  {analiseDetalhada.parcelasMensais > 0 && (
+                    <div className="flex justify-between gap-2">
+                      <span className="text-blue-700">− Parcelamentos ativos</span>
+                      <strong className="text-red-600">−{formatCurrency(analiseDetalhada.parcelasMensais)}</strong>
+                    </div>
+                  )}
+                  <div className="border-t border-blue-300 pt-2 flex justify-between gap-2">
+                    <span className="font-semibold text-blue-900">Disponível projetado</span>
+                    <strong className="text-blue-900">{formatCurrency(analiseDetalhada.disponivel)}</strong>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-blue-700">− Esta compra</span>
+                    <strong className="text-red-600">−{formatCurrency(analiseDetalhada.valorParcela)}</strong>
+                  </div>
+                  <div className="border-t border-blue-300 pt-2 flex justify-between gap-2">
+                    <span className="font-semibold text-blue-900">Sobraria após compra</span>
+                    <strong className={analiseDetalhada.saldoApos >= 0 ? 'text-green-600' : 'text-red-600'}>
+                      {formatCurrency(analiseDetalhada.saldoApos)}
+                    </strong>
+                  </div>
+                  <div className="rounded-lg bg-white/60 p-2 text-xs text-blue-800">
+                    <strong>Impacto:</strong> {analiseDetalhada.pctImpacto}% do seu orçamento disponível nos próximos 30 dias.
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
                       {/* Prévia dos próximos meses; não altera o cadastro nem os saldos. */}
