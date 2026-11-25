@@ -416,7 +416,7 @@ SELECT is(
 -- ============================================================================
 SET LOCAL role service_role;
 -- Alice autoriza Charlie como consultor
-INSERT INTO public.consultorias_acessos (id, cliente_id, consultor_id, status)
+INSERT INTO public.consultoria_acessos (id, cliente_id, consultor_id, status)
 VALUES 
   ('aacc0000-0000-0000-0000-000000000001'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid, 'c0000000-0000-0000-0000-000000000003'::uuid, 'autorizado')
 ON CONFLICT (id) DO NOTHING;
@@ -426,7 +426,7 @@ SELECT tests.set_auth_uid('c0000000-0000-0000-0000-000000000003'::uuid);
 
 -- Charlie (consultor) vê o acesso autorizado
 SELECT is(
-  (SELECT status FROM public.consultorias_acessos WHERE id = 'aacc0000-0000-0000-0000-000000000001'::uuid),
+  (SELECT status FROM public.consultoria_acessos WHERE id = 'aacc0000-0000-0000-0000-000000000001'::uuid),
   'autorizado',
   'Charlie vê que foi autorizado como consultor de Alice'
 );
@@ -437,7 +437,7 @@ SELECT tests.set_auth_uid('b0000000-0000-0000-0000-000000000002'::uuid);
 
 -- Bob NÃO vê acesso de consultoria entre Alice e Charlie
 SELECT ok(
-  NOT EXISTS(SELECT 1 FROM public.consultorias_acessos WHERE id = 'aacc0000-0000-0000-0000-000000000001'::uuid),
+  NOT EXISTS(SELECT 1 FROM public.consultoria_acessos WHERE id = 'aacc0000-0000-0000-0000-000000000001'::uuid),
   'Bob NÃO vê relação de consultoria entre Alice e Charlie'
 );
 
@@ -531,7 +531,7 @@ SET LOCAL role service_role;
 DELETE FROM public.movimentacoes_beneficios WHERE usuario_id IN ('a0000000-0000-0000-0000-000000000001'::uuid, 'b0000000-0000-0000-0000-000000000002'::uuid, 'c0000000-0000-0000-0000-000000000003'::uuid);
 DELETE FROM public.faturas_cartao_informadas WHERE usuario_id IN ('a0000000-0000-0000-0000-000000000001'::uuid, 'b0000000-0000-0000-0000-000000000002'::uuid);
 DELETE FROM public.despesas_tipo_excecoes WHERE usuario_id IN ('a0000000-0000-0000-0000-000000000001'::uuid, 'b0000000-0000-0000-0000-000000000002'::uuid);
-DELETE FROM public.consultorias_acessos WHERE cliente_id IN ('a0000000-0000-0000-0000-000000000001'::uuid, 'b0000000-0000-0000-0000-000000000002'::uuid) OR consultor_id IN ('c0000000-0000-0000-0000-000000000003'::uuid);
+DELETE FROM public.consultoria_acessos WHERE cliente_id IN ('a0000000-0000-0000-0000-000000000001'::uuid, 'b0000000-0000-0000-0000-000000000002'::uuid) OR consultor_id IN ('c0000000-0000-0000-0000-000000000003'::uuid);
 DELETE FROM public.compras_cartao WHERE usuario_id IN ('a0000000-0000-0000-0000-000000000001'::uuid, 'b0000000-0000-0000-0000-000000000002'::uuid);
 DELETE FROM public.parcelamentos WHERE usuario_id IN ('a0000000-0000-0000-0000-000000000001'::uuid, 'b0000000-0000-0000-0000-000000000002'::uuid);
 DELETE FROM public.beneficios WHERE usuario_id IN ('a0000000-0000-0000-0000-000000000001'::uuid, 'b0000000-0000-0000-0000-000000000002'::uuid);

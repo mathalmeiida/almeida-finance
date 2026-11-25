@@ -478,7 +478,7 @@ Cenários dos itens que estavam sem cobertura (RLS do consultor, cartão com pag
 | Registry | `npm ping` | `npm error 403 on a server you do not have access to` |
 | DNS do DEV `fzawugbiojmtrthmshcc` | `getent hosts fzawugbiojmtrthmshcc.supabase.co` | sem resolução (sem credenciais também) |
 | Docker | `docker info` | `could not find a working conmon binary` |
-| Sintaxe | `node --check supabase/tests/simular-migrations.mjs` | sem erro |
+| Sintaxe | `node --check supabase/tests/simular-migrations.mjs` | sem erro (rodado de novo após a revisão 1 da revisão final) |
 
 Nenhum bloqueio foi contornado. `ievccupeijzuzhomphwn.supabase.co` não foi acessado.
 
@@ -486,10 +486,10 @@ Nenhum bloqueio foi contornado. `ievccupeijzuzhomphwn.supabase.co` não foi aces
 
 | # | Pergunta | Veredito por leitura | Cenários (`simular-migrations.mjs`, seção "revisao final") | Execução |
 |---|---|---|---|---|
-| 1 | RLS do consultor em `ajustes_fatura` | A policy usa `consultor_autorizado(usuario_id)`, a mesma função das demais tabelas financeiras (`2026-10_consultoria_acessos.sql`). Esse critério é só `status = 'autorizado'` para o par consultor/cliente via `auth.uid()`: a tabela `consultoria_acessos` não tem expiração nem permissões por escopo, então não há o que testar além de status. Papel `authenticated` tem apenas SELECT; `anon` sem GRANT. Usa `auth.uid()` (GUC `request.jwt.claim.sub` no simulador; no Supabase real o claim vem de `request.jwt.claims`, o que o simulador não prova). | sem vínculo, pendente, recusado e revogado não leem; autorizado lê só o cliente autorizado; B não lê; consultor sem INSERT/DELETE (42501); anon 42501; revogar tira o acesso | PENDENTE |
-| 2 | Exclusão de cartão com pagamento legado | `trg_fatura_proteger_cartao` testa `EXISTS` em `pagamentos_fatura` sem filtro de `status` e de `legado`, então não depende de pagamentos ativos. Nenhum defeito. | legado ativo e legado estornado recusam (FP001); DELETE em `perfis` pelo usuário; cascata administrativa em `auth.users` funciona | PENDENTE |
+| 1 | RLS do consultor em `ajustes_fatura` | A policy usa `consultor_autorizado(usuario_id)`, a mesma função das demais tabelas financeiras (`2026-10_consultoria_acessos.sql`). Esse critério é só `status = 'autorizado'` para o par consultor/cliente via `auth.uid()`: a tabela `consultoria_acessos` não tem expiração nem permissões por escopo, então não há o que testar além de status. Papel `authenticated` tem apenas SELECT; `anon` sem GRANT. Usa `auth.uid()` (GUC `request.jwt.claim.sub` no simulador; no Supabase real o claim vem de `request.jwt.claims`, o que o simulador não prova). | sem vínculo, pendente, recusado e revogado não leem; autorizado lê só o cliente autorizado; B não lê (com pré-condição de que B e outros usuários têm linhas na razão, semeando uma linha de B como dono se faltar); consultor sem INSERT/DELETE (42501); anon 42501; revogar tira o acesso | PENDENTE |
+| 2 | Exclusão de cartão com pagamento legado | `trg_fatura_proteger_cartao` testa `EXISTS` em `pagamentos_fatura` sem filtro de `status` e de `legado`, então não depende de pagamentos ativos. Nenhum defeito. | legado ativo e legado estornado recusam (FP001); cascata administrativa em `auth.users` funciona. A cascata iniciada pelo próprio usuário não tem cenário: `cartoes.usuario_id` referencia `auth.users` (não `perfis`) e usuário comum não apaga `auth.users`, então o caso não é alcançável (um DELETE em `perfis` não cascateia para `cartoes` e o teste antigo era vacuoso, removido) | PENDENTE |
 | 3 | `alterar_historico_fatura` em savepoint | **Defeito achado e corrigido:** a contagem `ajustes` usava `xmin = txid_current() % 2^32`. Dentro de SAVEPOINT as linhas novas levam o xid da subtransação, então a contagem saía 0. Agora conta por diferença com `criado_em = NOW()` (início da transação de nível superior). A liberação usa `txid_current()` (nível superior), portanto é consistente com savepoint, e o ROLLBACK TO desfaz a linha de `_fatura_liberacoes`. | sucesso + ROLLBACK TO; erro de dados (classe 22), 22023, 42501 + ROLLBACK TO; RELEASE + COMMIT; auditoria, ajustes, compra, pagamentos e liberações conferidos; DML direto depois do rollback segue FP001 | PENDENTE |
-| 4 | Custo dos triggers em massa | Ver 12.3. Nenhuma garantia removida e nenhuma mudança de código. | benchmark opcional `BENCH=1 [BENCH_N=2000] npm run test:migrations` (só imprime tempo) | PENDENTE |
+| 4 | Custo dos triggers em massa | Ver 12.3. Nenhuma garantia removida e nenhuma mudança de código. | benchmark opcional `BENCH=1 [BENCH_N=2000] node supabase/tests/simular-migrations.mjs` (só imprime tempo): cartão sem pagamento, mês quitado com inserções em outro mês e, novo, inserções dentro do mês quitado (sob `liberar_historico_zerar` na mesma transação; se a liberação não destravar a guarda, a mensagem de erro é impressa e o caso lento continua sem medida) | PENDENTE |
 | 5 | `liberar_historico_zerar` e `_fatura_liberacoes` | Identidade vem de `auth.uid()` (sem parâmetro); `SECURITY DEFINER` com `search_path = public, pg_temp`; linha vale só para `txid_current()` e o usuário; tabela com RLS sem policy e REVOKE de todos os papéis de cliente; `anon` sem EXECUTE; poda por usuário e por 1 hora. Residual aceito (já na seção 11): quem executa SQL arbitrário como o próprio usuário pode liberar e apagar o próprio histórico na mesma transação; via PostgREST cada RPC é uma transação, então não é alcançável. | authenticated sem SELECT/INSERT; anon sem EXECUTE; sem identidade 28000; liberação não vale na transação seguinte nem para outro usuário; ROLLBACK TO SAVEPOINT e `encerrar_liberacao_zerar` desfazem; linha INFO do residual | PENDENTE |
 
 ### 12.3 Custo dos triggers (leitura)
@@ -500,11 +500,22 @@ Por linha em `compras_cartao`, `parcelamentos` e `faturas_cartao`, de usuário a
 - AFTER `zz_fatura_auditar_historico`: mais 1 `fatura_liberacao_ativa`, de novo `competencias_pagas_registro` para OLD e NEW, `_fatura_contexto` (mais 1 a 2 consultas de liberação) e, só quando há mês com pagamento, soma de pagamentos, `total_fatura_ciclo_servidor` e `reconciliar_credito_fatura` por mês.
 - Statement: `aa_fatura_travar_usuario` trava os cartões do usuário uma vez por comando.
 
-Avaliação: em carga sem mês pago o custo é constante por linha (cerca de 6 a 8 consultas por índice), linear em N. Em cartões com mês quitado, cada linha que cai no mês pago recalcula o total do ciclo (varre as compras do ciclo), o que é O(N x tamanho do ciclo) naquele mês. Esse é o gargalo previsto, e ele é o custo da garantia. Otimização segura sem executar: nenhuma (juntar as duas consultas de liberação ou cachear por transação mudaria a semântica de liberações criadas no meio do comando e não pôde ser verificado). Índices existentes cobrem os acessos (`idx_pagamentos_fatura_cartao_mes`, `idx_ajustes_fatura_cartao_mes`, `idx_fatura_liberacoes_txid`). Recomendação para importação grande: importar em lotes por cartão/mês aberto e medir com o benchmark antes de qualquer mudança. Números reais: PENDENTE.
+Avaliação: em carga sem mês pago o custo é constante por linha (cerca de 6 a 8 consultas por índice), linear em N. Em cartões com mês quitado, cada linha que cai no mês pago recalcula o total do ciclo (varre as compras do ciclo), o que é O(N x tamanho do ciclo) naquele mês. Esse é o gargalo previsto, e ele é o custo da garantia. Otimização segura sem executar: nenhuma (juntar as duas consultas de liberação ou cachear por transação mudaria a semântica de liberações criadas no meio do comando e não pôde ser verificado). Índices existentes cobrem os acessos (`idx_pagamentos_fatura_cartao_mes`, `idx_ajustes_fatura_cartao_mes`, `idx_fatura_liberacoes_txid`). Recomendação para importação grande: importar em lotes por cartão/mês aberto e medir com o benchmark antes de qualquer mudança. O benchmark agora inclui o caso lento (linhas no mês quitado), mas nenhum número foi medido: PENDENTE.
 
 ### 12.4 Achado fora do escopo da 000002
 
-`supabase/tests/rls-security.test.sql` (pré-existente) usa a tabela `public.consultorias_acessos` (linhas 419, 429, 440, 534), mas a migration cria `public.consultoria_acessos`. O bloco 14 desse arquivo falharia em Postgres real. Não foi alterado nesta etapa (arquivo grande, usa pgTAP e não pôde ser executado). Os cenários novos de RLS do consultor ficam em `simular-migrations.mjs`.
+`supabase/tests/rls-security.test.sql` (pré-existente) usava a tabela inexistente `public.consultorias_acessos` (linhas 419, 429, 440, 534); a migration cria `public.consultoria_acessos`. **Corrigido** por renomeação nas 4 linhas (colunas `id`, `cliente_id`, `consultor_id`, `status` conferem com a migration). A correção é por leitura: o arquivo (pgTAP) não foi executado e pode ter outros defeitos. Os cenários novos de RLS do consultor ficam em `simular-migrations.mjs`.
+
+### 12.4b Tratamento da revisão (iteração 1)
+
+- Cascata do próprio usuário: cenário vacuoso removido; caso declarado inalcançável (12.2).
+- Asserções negativas de RLS: pré-condições de linhas de B e de outros usuários adicionadas.
+- `rls-security.test.sql`: nome da tabela corrigido (12.4).
+- Bloco de liberações e residual: agora com try/catch/finally e ROLLBACK; falha vira FALHA registrada e não derruba o script.
+- Linha final do simulador agora diz "simulação sem falhas (PGlite; não é aprovação de banco)".
+- Benchmark: caso com linhas no mês quitado adicionado, sem números.
+- Não corrigido: o cenário "sem identidade" chama `set_config` e `liberar_historico_zerar()` no mesmo SELECT e depende da ordem de avaliação da lista (apontado como possível). Falharia de forma visível se a ordem mudasse; mantido por falta de execução para validar uma alternativa.
+- Nada disso foi executado em Postgres; PGlite também não rodou.
 
 ### 12.5 Não executado
 
@@ -513,7 +524,7 @@ Migrations 000001 e 000002 em Postgres, `npm run test:migrations`, `npm run test
 ### 12.6 Riscos residuais
 
 - Nenhum SQL das migrations 000001 e 000002 nem dos cenários novos foi executado (erros de sintaxe, de ordem ou de SQLSTATE são possíveis). A correção do item 3 também não foi executada.
-- O simulador define `auth.uid()` lendo `request.jwt.claim.sub`; o Supabase real lê `request.jwt.claims`. Teste de RLS com JWT real (`rls-security.test.sql` corrigido, ou PostgREST) segue pendente.
+- O simulador define `auth.uid()` lendo `request.jwt.claim.sub`; o Supabase real lê `request.jwt.claims`. Teste de RLS com JWT real (`rls-security.test.sql` corrigido por leitura, ou PostgREST) segue pendente.
 - Sem expiração de acesso do consultor no modelo atual (só `status`).
 - Custo O(N x ciclo) em importação em meses já quitados (12.3).
 - Liberação transacional abusável por SQL arbitrário do próprio usuário (residual aceito).
@@ -530,6 +541,6 @@ Migrations 000001 e 000002 em Postgres, `npm run test:migrations`, `npm run test
    - `npm ci`
    - `npm run test:migrations` (simulador, paridade SQL/JS, compras); opcional `BENCH=1 BENCH_N=2000 node supabase/tests/simular-migrations.mjs`
    - `PG_TEST_URL=... npm run test:concorrencia`
-   - `psql "$PG_TEST_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls-security.test.sql` (corrigir antes o nome `consultorias_acessos`, ver 12.4)
+   - `psql "$PG_TEST_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls-security.test.sql` (nome da tabela já corrigido por leitura, ver 12.4; ainda não executado, pode falhar por outros motivos)
    - `npm run build`, `npm run test:unit` (esperar as 4 falhas antigas), `npm run test:e2e` (com `npx playwright install`) e validação visual manual.
 8. Só marque como aprovado o que tiver saída real registrada nesta seção.
