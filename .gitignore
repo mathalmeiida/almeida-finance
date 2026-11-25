@@ -63,3 +63,9 @@ public/ocr/
 
 # Test credentials
 .env.test
+
+# Scripts administrativos com potencial de conter credenciais
+aplicar-sql-dev.mjs
+aplicar-rls-dev.mjs
+testar-schema-dev.mjs
+INSTRUCOES_SERVICE_ROLE.md
