@@ -65,6 +65,12 @@ import ReverApresentacao from './pages/ReverApresentacao'
 import Investimentos from './pages/Investimentos'
 
 import CustoDeVida from './pages/CustoDeVida'
+import SaudeFinanceira from './pages/SaudeFinanceira'
+import AlertasFinanceiros from './pages/AlertasFinanceiros'
+import AssinaturasPage from './pages/AssinaturasPage'
+import ReservaEmergenciaPage from './pages/ReservaEmergenciaPage'
+import FechamentoMensal from './pages/FechamentoMensal'
+import PlanejadorDividas from './pages/PlanejadorDividas'
 
 import AlmeidaFamilia from './pages/AlmeidaFamilia'
 import GrupoFamiliar from './pages/GrupoFamiliar'
@@ -479,6 +485,14 @@ function Rotas() {
 
                 {/* Rota Custo de Vida temporariamente desabilitada (aguardando validação PROD) */}
                 {/* <Route path="/custo-de-vida" element={<CustoDeVida />} /> */}
+
+                {/* Novas funcionalidades */}
+                <Route path="/saude-financeira" element={<SaudeFinanceira />} />
+                <Route path="/alertas" element={<AlertasFinanceiros />} />
+                <Route path="/assinaturas" element={<AssinaturasPage />} />
+                <Route path="/reserva-emergencia" element={<ReservaEmergenciaPage />} />
+                <Route path="/fechamento" element={<FechamentoMensal />} />
+                <Route path="/planejador-dividas" element={<PlanejadorDividas />} />
 
                 <Route path="/familia" element={<AlmeidaFamilia />} />
                 <Route path="/familia/:id" element={<GrupoFamiliar />} />

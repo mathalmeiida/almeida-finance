@@ -6,34 +6,23 @@ import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
 /**
  * Hook para gerenciar pagamentos de faturas de cartão de crédito.
  * 
- * Funcionalidades:
- * - Registrar pagamento parcial, total ou antecipado
- * - Estornar pagamento
- * - Buscar histórico de pagamentos
- * - Calcular limite liberado proporcionalmente
- * 
- * O sistema atualiza automaticamente:
- * - valor_pago_acumulado na fatura
- * - limite_liberado (proporcional ao % pago)
- * - flag "pago" (TRUE quando valor_pago >= valor_total)
+ * SISTEMA TEMPORARIAMENTE DESABILITADO - aguardando políticas RLS.
  */
+
+// Flag de controle do sistema
+const SISTEMA_ATIVO = false
+
 export function usePagamentosFatura(faturaId = null) {
   const { usuario, idEfetivo, modoConsultoria } = useAuth()
   const [pagamentos, setPagamentos] = useState([])
   const [carregando, setCarregando] = useState(false)
-  const [erro, setErro] = useState(null)
-
-  // Sistema de pagamentos desabilitado temporariamente (aguardando migration em PROD)
-  const SISTEMA_ATIVO = false
+  const [erro, setErro] = useState(SISTEMA_ATIVO ? null : 'Sistema de pagamentos temporariamente indisponível')
 
   // ─────────────────────────────────────────────────────────
   // Buscar pagamentos
   // ─────────────────────────────────────────────────────────
   const buscar = useCallback(async () => {
-    if (!idEfetivo || !SISTEMA_ATIVO) {
-      setCarregando(false)
-      return
-    }
+    if (!SISTEMA_ATIVO || !idEfetivo) return
     
     setCarregando(true)
     setErro(null)

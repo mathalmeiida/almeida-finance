@@ -31,17 +31,21 @@ import {
   Info,
   Upload,
   Users,
+  Bell,
+  Heart,
+  Shield,
+  FileText,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import NavegacaoInferior from './NavegacaoInferior'
 import LogoMarca from './LogoMarca'
 import FotoPerfil from './FotoPerfil'
 import MenusMobileAlmeidaFinance from './MenusMobileAlmeidaFinance'
-// Agrupamento VISUAL da sidebar desktop (mesmas rotas/itens de navItems,
-// apenas organizados em seções). As permissões seguem iguais: itens com
-// adminOnly só aparecem quando ehAdmin (filtrado na renderização).
+
+const DividaIcon = TrendingDown
+
 const navGrupos = [
-  { titulo: 'Principal', itens: [
+  { titulo: 'Início', itens: [
     { to: '/',              label: 'Início',         icon: LayoutDashboard, corIcone: 'text-marca'       },
   ]},
   { titulo: 'Finanças', itens: [
@@ -49,26 +53,32 @@ const navGrupos = [
     { to: '/despesas',      label: 'Despesas',       icon: TrendingDown,  corIcone: 'text-rose-400'     },
     { to: '/cartoes',       label: 'Cartões',        icon: CreditCard,    corIcone: 'text-sky-400'      },
     { to: '/beneficios',    label: 'Benefícios',     icon: UtensilsCrossed, corIcone: 'text-emerald-400' },
-    { to: '/investimentos', label: 'Investimentos',  icon: TrendingUp,    corIcone: 'text-green-400'    },
-    { to: '/projecao',      label: 'Projeção',       icon: BarChart2,     corIcone: 'text-marca'   },
-    { to: '/minha-evolucao', label: 'Minha evolução', icon: Activity, corIcone: 'text-marca' },
+    { to: '/investimentos', label: 'Investimentos',  icon: PiggyBank,     corIcone: 'text-green-400'    },
+    { to: '/assinaturas',   label: 'Assinaturas',    icon: Receipt,       corIcone: 'text-purple-400'   },
+    { to: '/projecao',      label: 'Projeção',       icon: BarChart2,     corIcone: 'text-marca'        },
+    { to: '/fechamento',    label: 'Fechamento',     icon: FileText,      corIcone: 'text-marca'        },
   ]},
-  { titulo: 'Planejamento', itens: [
-    { to: '/posso-comprar', label: 'Simular compra', icon: ShoppingCart,  corIcone: 'text-marca'        },
-    { to: '/e-se',          label: 'E se...?',       icon: Sparkles,     corIcone: 'text-marca' },
-    { to: '/metas',         label: 'Metas',          icon: Target,        corIcone: 'text-amber-400'    },
+  { titulo: 'Simular', itens: [
+    { to: '/posso-comprar', label: 'Posso comprar?', icon: ShoppingCart,  corIcone: 'text-marca'        },
+    { to: '/e-se',          label: 'E se...?',       icon: Sparkles,      corIcone: 'text-marca'        },
+    { to: '/planejador-dividas', label: 'Dívidas',   icon: DividaIcon,    corIcone: 'text-red-400'      },
+  ]},
+  { titulo: 'Metas', itens: [
+    { to: '/metas',              label: 'Minhas metas',       icon: Target,  corIcone: 'text-amber-400'    },
+    { to: '/saude-financeira',   label: 'Saúde Financeira',   icon: Heart,   corIcone: 'text-pink-400'     },
+    { to: '/reserva-emergencia', label: 'Reserva Emergência', icon: Shield,  corIcone: 'text-blue-400'     },
+  ]},
+  { titulo: 'Mais', itens: [
+    { to: '/alertas',       label: 'Alertas',        icon: Bell,          corIcone: 'text-red-400'      },
+    { to: '/minha-evolucao', label: 'Minha evolução', icon: Activity,     corIcone: 'text-marca'        },
     { to: '/familia',       label: 'Almeida Família', icon: Users,        corIcone: 'text-marca', premiumOnly: true },
-    { to: '/consultoria',   label: 'Consultoria',    icon: MessagesSquare, corIcone: 'text-marca' },
-  ]},
-  { titulo: 'Conta', itens: [
+    { to: '/consultoria',   label: 'Consultoria',    icon: MessagesSquare, corIcone: 'text-marca'       },
     { to: '/mais/perfil',   label: 'Meu perfil',     icon: UserRound,     corIcone: 'text-marca'        },
     { to: '/configuracoes', label: 'Configurações',  icon: Settings,      corIcone: 'text-gray-400'     },
     { to: '/mais/funcionalidades', label: 'Funcionalidades', icon: Grid2X2, corIcone: 'text-marca'    },
-    { to: '/central-importacao', label: 'Central de Importação', icon: Upload, corIcone: 'text-marca' },
+    { to: '/central-importacao', label: 'Importação', icon: Upload,       corIcone: 'text-marca'        },
     { to: '/mais/ajuda',    label: 'Ajuda & feedback', icon: CircleHelp,  corIcone: 'text-amber-400'    },
-    { to: '/mais/sobre',    label: 'Sobre o app',    icon: Info,          corIcone: 'text-marca'     },
-  ]},
-  { titulo: 'Administração', itens: [
+    { to: '/mais/sobre',    label: 'Sobre o app',    icon: Info,          corIcone: 'text-marca'        },
     { to: '/admin',         label: 'Admin',          icon: ShieldCheck,   corIcone: 'text-marca', adminOnly: true },
   ]},
 ]

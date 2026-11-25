@@ -2766,11 +2766,6 @@ const carregandoLimite = carregando
     muted:     '#643F4F',
   }
 
-  const { beneficios, carregando: carregandoBeneficios } = useBeneficios()
-  const { investimentos, carregando: carregandoInvestimentos } = useInvestimentos()
-  // const { dados: custoDeVida, carregando: carregandoCusto } = useCustoDeVida(anoHojeNum, mesHojeNum)
-  const navigate = useNavigate()
-
   const variaveisHome = {
     '--af-home-bg':      paletaHome.fundo,
     '--af-home-light':   paletaHome.claro,
