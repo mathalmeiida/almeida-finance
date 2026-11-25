@@ -64,16 +64,16 @@ function ColunaMes({ mes }) {
 // Props: dados brutos vindos do useProjecao + saldo inicial.
 export default function HorizonteFinanceiro({
   receitas, despesas, recorrentes, parcelamentos,
-  cartoes, comprasCartao, faturasInformadas,
+  cartoes, comprasCartao, faturasInformadas, pagamentosFatura,
  reservaPct, saldoInicial, dataReferencia,
 }) {
   const horizonte = useMemo(() => gerarHorizonte({
   receitas, despesas, recorrentes, parcelamentos,
-  cartoes, comprasCartao, faturasInformadas,
+  cartoes, comprasCartao, faturasInformadas, pagamentosFatura,
   saldoInicial, reservaPct, meses: 12,
 }), [
   receitas, despesas, recorrentes, parcelamentos,
-  cartoes, comprasCartao, faturasInformadas,
+  cartoes, comprasCartao, faturasInformadas, pagamentosFatura,
   saldoInicial, reservaPct
 ])
   // Mês selecionado para o RESUMO do topo. Atualiza conforme o carrossel desliza.

@@ -175,3 +175,45 @@ Em caso de problemas:
 
 **Data de criação**: 19/11/2026  
 **Status**: ⚠️ **NÃO APLICADA** - Aguardando revisão e teste
+
+---
+
+# Pagamentos de fatura: `20261124000001_pagamentos_fatura.sql`
+
+- Nome no formato `<versão numérica>_<nome>.sql`, reconhecido pelo Supabase CLI. As migrations `2026-10_*` e `2026-11_*` não têm prefixo numérico: precisam estar aplicadas antes (`2026-10_consultoria_acessos.sql`, `2026-10_faturas_cartao_total.sql`). O prefixo é maior que `20261119000002`, então a ordem das dependências é preservada.
+- Produção NÃO recebe migration manual deste trabalho, e `supabase db push` não deve ser usado contra produção.
+- Aplicar somente no DEV (projeto `fzawugbiojmtrthmshcc`, por quem tem acesso), como transação única:
+  - SQL Editor: colar o arquivo inteiro e executar; ou
+  - `psql "$DATABASE_URL_DEV" -1 -v ON_ERROR_STOP=1 -f supabase/migrations/20261124000001_pagamentos_fatura.sql`
+- Pré-checagens (a própria migration também falha com mensagem clara):
+  ```sql
+  SHOW server_version_num;  -- >= 130000 (PostgreSQL 13+)
+  SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname = current_database();  -- UTF8
+  SELECT column_name FROM information_schema.columns
+   WHERE table_name = 'parcelamentos' AND column_name = 'cartao_id';  -- 1 linha (a migration cria se faltar)
+  ```
+- Reaplicar a migration é seguro (idempotente).
+- Teste de concorrência com PostgreSQL real e duas ou mais sessões (Postgres local descartável, nunca produção):
+  ```bash
+  docker run --rm -e POSTGRES_PASSWORD=x -p 55432:5432 postgres:16
+  npm i --no-save pg
+  PG_TEST_URL=postgres://postgres:x@127.0.0.1:55432/postgres node supabase/tests/concorrencia-fatura.mjs
+  ```
+  Código de saída 0 somente se todos os cenários rodaram; 2 se não executou (PENDENTE); 1 se algum falhou.
+
+---
+
+# Integridade histórica das faturas: `20261124000002_integridade_historica_fatura.sql`
+
+- Ordem: aplicar `20261124000001_pagamentos_fatura.sql` e DEPOIS `20261124000002_integridade_historica_fatura.sql`. A 000002 falha com mensagem clara se a 000001 não estiver aplicada. Reaplicar a 000001 depois da 000002 passou a FALHAR de propósito (mensagem clara), porque restauraria em silêncio o estorno de 1 argumento sem auditoria. A 000002 pode ser reaplicada.
+- A 000002 também redefine `zerar_dados_financeiros()` (com a exceção transacional do histórico). Ela ordena depois de `2026-11_rpc_zerar_dados_financeiros_CORRECAO_FINAL.sql`, então é a definição final.
+- Efeito: DML direto em compras, parcelamentos e faturas informadas de uma competência quitada passa a ser recusado com SQLSTATE `FP001`. O caminho permitido é a RPC `alterar_historico_fatura` (motivo obrigatório, com auditoria em `ajustes_fatura`). Cartão com qualquer pagamento (inclusive estornado) ou linha na razão não pode ser excluído (a cascata apagaria a rastreabilidade), e `dia_fechamento` não pode mudar enquanto houver pagamento ativo (FP001). `zerar_dados_financeiros` continua apagando tudo.
+- Produção NÃO recebe esta migration manual, e `supabase db push` não deve ser usado contra produção. Aplicar somente no DEV, por quem tem acesso, como transação única:
+  `psql "$DATABASE_URL_DEV" -1 -v ON_ERROR_STOP=1 -f supabase/migrations/20261124000002_integridade_historica_fatura.sql`
+- Validação (Postgres descartável, nunca produção):
+  ```bash
+  npm i --no-save @electric-sql/pglite pg
+  npm run test:migrations      # PGlite: inclui a seção "integridade histórica"
+  PG_TEST_URL=postgres://postgres:x@127.0.0.1:55432/postgres npm run test:concorrencia   # cenários 13b e 18a a 18g
+  ```
+- Estado: os cenários novos estão escritos e NÃO foram executados (sem Postgres nem pglite no ambiente de desenvolvimento). Ver `docs/pagamento-faturas-relatorio.md`, seção 11.

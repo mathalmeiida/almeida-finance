@@ -29,7 +29,7 @@ export default function Calendario() {
   const { despesas: despesasMes, recorrentes: despesasRecorrentes } = useDespesas(mes, ano)
   const { receitas: receitasMes, recorrentes: receitasRecorrentes } = useReceitas(mes, ano)
   const { cartoes } = useCartoes()
-  const { projecao } = useProjecao()
+  const { projecao, parcelamentos = [], comprasCartao = [], faturasInformadas = [], pagamentosFatura = [] } = useProjecao()
   
   // Verifica acesso Premium ANTES de executar hooks Família
   const temAcessoFamilia = perfil?.subscription_plan && perfil.subscription_plan !== 'free' 
@@ -75,10 +75,14 @@ export default function Calendario() {
       despesasRecorrentes: modoFamilia ? [] : despesasRecorrentes,
       receitas: modoFamilia ? [] : receitasMes,
       receitasRecorrentes: modoFamilia ? [] : receitasRecorrentes,
+      parcelamentos: modoFamilia ? [] : parcelamentos,
       cartoes: modoFamilia ? [] : cartoes,
+      comprasCartao: modoFamilia ? [] : comprasCartao,
+      faturasInformadas: modoFamilia ? [] : faturasInformadas,
+      pagamentosFatura: modoFamilia ? [] : pagamentosFatura,
       perfil: null,
     })
-  }, [idEfetivo, ano, mes, modoFamilia, divisoes, despesasMes, despesasRecorrentes, receitasMes, receitasRecorrentes, cartoes, user])
+  }, [idEfetivo, ano, mes, modoFamilia, divisoes, despesasMes, despesasRecorrentes, receitasMes, receitasRecorrentes, cartoes, parcelamentos, comprasCartao, faturasInformadas, pagamentosFatura, user])
   
   const mesNome = mesVisivel.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
   

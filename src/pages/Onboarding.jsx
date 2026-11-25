@@ -977,7 +977,7 @@ export default function Onboarding({ aoConcluir, etapaInicial = '' }) {
       await removerCartao(c.id)
       if (cartaoEditId === c.id) limparCartaoForm()
     } catch (e) {
-      setErro(`Não foi possível excluir o cartão. ${e?.message || ''}`)
+      setErro(`Não foi possível excluir o cartão. ${e?.message || ''}${e?.hint ? ' ' + e.hint : ''}`)
     } finally {
       setSalvando(false)
       emGravacao.current = false

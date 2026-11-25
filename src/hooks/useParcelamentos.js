@@ -2,29 +2,14 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
+import { alterarHistoricoFatura } from '../lib/historicoFatura'
 import { labelMes, hojeISO } from '../lib/utils'
 import { classificarDespesa } from '../lib/classificarDespesa'
 import { amortizarSaldoDevedor } from '../lib/financiamento'
 
-/**
- * Distribui o valor total em parcelas em centavos, ajustando a diferença
- * de arredondamento na ÚLTIMA parcela, de modo que a soma seja exatamente
- * igual ao valor total.
- * Ex: 1000 / 9 → 8x de 111,11 + 1x de 111,12 (soma = 1000,00)
- *
- * @returns {{ base: number, ultima: number }} valores em reais
- */
-export function calcularParcelas(valorTotal, numeroParcelas) {
-  const totalCentavos = Math.round(Number(valorTotal) * 100)
-  const n = Number(numeroParcelas)
-  if (!n || n <= 0) return { base: 0, ultima: 0 }
-  const baseCentavos = Math.floor(totalCentavos / n)
-  const ultimaCentavos = totalCentavos - baseCentavos * (n - 1)
-  return {
-    base: baseCentavos / 100,
-    ultima: ultimaCentavos / 100,
-  }
-}
+import { calcularParcelas } from '../lib/parcelas.js'
+// Reexportado: a implementação vive em lib/parcelas.js (pura, testável em node).
+export { calcularParcelas }
 
 /**
  * Retorna o valor da parcela de um parcelamento devida em um mês/ano específico.
@@ -309,6 +294,22 @@ export function useParcelamentos() {
     setParcelamentos(prev => prev.filter(p => p.id !== id))
   }
 
+  // Fatura quitada: o banco recusa o DML direto (FP001). Estes métodos usam a RPC
+  // alterar_historico_fatura, que exige motivo e audita.
+  async function atualizarComMotivo(id, dados, motivo) {
+    bloquearSeConsultoria(modoConsultoria)
+    const r = await alterarHistoricoFatura(supabase, { tabela: 'parcelamentos', id, acao: 'editar', dados, motivo })
+    await buscar()
+    return r
+  }
+
+  async function removerComMotivo(id, motivo) {
+    bloquearSeConsultoria(modoConsultoria)
+    const r = await alterarHistoricoFatura(supabase, { tabela: 'parcelamentos', id, acao: 'excluir', motivo })
+    setParcelamentos(prev => prev.filter(p => p.id !== id))
+    return r
+  }
+
   // Total das parcelas devidas no mês atual (com arredondamento correto)
   const _hoje = new Date()
   const totalMesAtual = parcelamentos
@@ -323,6 +324,8 @@ export function useParcelamentos() {
     atualizar,
     quitar,
     remover,
+    atualizarComMotivo,
+    removerComMotivo,
     registrarAmortizacao,
     listarAmortizacoes,
     recarregar: buscar,

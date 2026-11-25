@@ -12,6 +12,7 @@ import { useCartoes } from '../hooks/useCartoes'
 import { useComprasCartao } from '../hooks/useComprasCartao'
 import { useProjecao } from '../hooks/useProjecao'
 import Modal from '../components/Modal'
+import { ehErroFaturaQuitada, MENSAGEM_FATURA_QUITADA, filtrarCamposEditaveis, MOTIVO_MIN, MOTIVO_MAX } from '../lib/historicoFatura'
 import InputMoeda from '../components/InputMoeda'
 import ModalAnteciparPagamento from '../components/ModalAnteciparPagamento'
 import ImportacaoInteligente from './ImportacaoInteligente'
@@ -1253,6 +1254,8 @@ export default function Despesas() {
     atualizar: atualizarParcelamento,
     quitar,
     remover: removerParcelamento,
+    atualizarComMotivo: atualizarParcelamentoComMotivo,
+    removerComMotivo: removerParcelamentoComMotivo,
     registrarAmortizacao,
   } = useParcelamentos()
   const { resumoMes } = useProjecao()
@@ -1277,6 +1280,10 @@ export default function Despesas() {
   const [removendoParc, setRemovendoParc] = useState(null)
   const [quitando, setQuitando] = useState(null)
   const [erroAcao, setErroAcao] = useState('')
+  // Parcelamento de cartão com parcela em fatura quitada: o banco recusa (FP001); repete pela RPC com motivo.
+  const [pendenteParc, setPendenteParc] = useState(null)
+  const [motivoParc, setMotivoParc] = useState('')
+  const [enviandoParc, setEnviandoParc] = useState(false)
   const [avisoSalvo, setAvisoSalvo] = useState('')
   const [mostrarTodosCadastros, setMostrarTodosCadastros] = useState(false)
   const [ultimaDespesa, setUltimaDespesa] = useState(null)
@@ -1610,8 +1617,13 @@ export default function Despesas() {
     try {
       await atualizarParcelamento(parcelamentoEditando.id, dados)
       setParcelamentoEditando(null)
-    } catch {
-      setErroAcao('Erro ao salvar alterações do parcelamento. Tente novamente.')
+    } catch (err) {
+      if (ehErroFaturaQuitada(err)) {
+        setPendenteParc({ acao: 'editar', id: parcelamentoEditando.id, dados: filtrarCamposEditaveis('parcelamentos', dados) })
+        setParcelamentoEditando(null)
+      } else {
+        setErroAcao('Erro ao salvar alterações do parcelamento. Tente novamente.')
+      }
     } finally {
       setSalvandoEdicaoParc(false)
     }
@@ -1623,8 +1635,9 @@ export default function Despesas() {
     setErroAcao('')
     try {
       await quitar(id)
-    } catch {
-      setErroAcao('Erro ao quitar parcelamento. Tente novamente.')
+    } catch (err) {
+      if (ehErroFaturaQuitada(err)) setPendenteParc({ acao: 'editar', id, dados: { quitado_em: hojeISO() } })
+      else setErroAcao('Erro ao quitar parcelamento. Tente novamente.')
     } finally {
       setQuitando(null)
     }
@@ -1636,10 +1649,30 @@ export default function Despesas() {
     setErroAcao('')
     try {
       await removerParcelamento(id)
-    } catch {
-      setErroAcao('Erro ao remover. Tente novamente.')
+    } catch (err) {
+      if (ehErroFaturaQuitada(err)) setPendenteParc({ acao: 'excluir', id, dados: null })
+      else setErroAcao('Erro ao remover. Tente novamente.')
     } finally {
       setRemovendoParc(null)
+    }
+  }
+
+  function fecharMotivoParc() {
+    setPendenteParc(null); setMotivoParc('')
+  }
+
+  async function confirmarMotivoParc() {
+    if (!pendenteParc) return
+    setEnviandoParc(true)
+    setErroAcao('')
+    try {
+      if (pendenteParc.acao === 'editar') await atualizarParcelamentoComMotivo(pendenteParc.id, pendenteParc.dados, motivoParc)
+      else await removerParcelamentoComMotivo(pendenteParc.id, motivoParc)
+      fecharMotivoParc()
+    } catch (err) {
+      setErroAcao(err.message || 'Não foi possível registrar a alteração.')
+    } finally {
+      setEnviandoParc(false)
     }
   }
 
@@ -2255,6 +2288,26 @@ export default function Despesas() {
             salvando={registrandoAmort}
           />
         )}
+      </Modal>
+
+      {/* Modal: motivo para alterar parcelamento com parcela em fatura quitada */}
+      <Modal aberto={Boolean(pendenteParc)} onFechar={fecharMotivoParc} titulo="Alterar fatura quitada">
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">{MENSAGEM_FATURA_QUITADA}</p>
+          <label className="block text-sm font-medium text-gray-700" htmlFor="motivo-parcelamento">Motivo</label>
+          <textarea id="motivo-parcelamento" className="input w-full" rows={3} maxLength={MOTIVO_MAX}
+            value={motivoParc} onChange={e => setMotivoParc(e.target.value)} />
+          <p className="text-xs text-gray-400">Mínimo de {MOTIVO_MIN} caracteres.</p>
+          {erroAcao && <p className="text-sm text-red-600">{erroAcao}</p>}
+          <div className="flex gap-3">
+            <button type="button" onClick={fecharMotivoParc} className="btn-secondary flex-1">Cancelar</button>
+            <button type="button" onClick={confirmarMotivoParc}
+              disabled={enviandoParc || motivoParc.trim().length < MOTIVO_MIN}
+              className="btn-primary flex-1 flex items-center justify-center gap-2">
+              {enviandoParc ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : 'Confirmar alteração'}
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* Modal: confirmar antecipação de pagamento */}

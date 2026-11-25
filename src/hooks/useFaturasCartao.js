@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
+import { alterarHistoricoFatura } from '../lib/historicoFatura'
 
 // ─── Faturas informadas por TOTAL (tabela faturas_cartao) ─────────────────────
 // Guarda o total da fatura por (cartao_id, ano_mes). Quando existe um total
@@ -95,4 +96,21 @@ async function marcarFaturaPaga(id, pago = true) {
 
   return data
   }
-return { faturas, carregando, erro, salvarFatura, removerFatura, marcarFaturaPaga, recarregar: buscar }}
+
+  // Fatura quitada: o banco recusa o DML direto (FP001). Estes métodos usam a RPC
+  // alterar_historico_fatura (motivo obrigatório, com auditoria). Na RPC, so valor_total é editável.
+  async function atualizarComMotivo(id, dados, motivo) {
+    bloquearSeConsultoria(modoConsultoria)
+    const r = await alterarHistoricoFatura(supabase, { tabela: 'faturas_cartao', id, acao: 'editar', dados, motivo })
+    await buscar()
+    return r
+  }
+
+  async function removerComMotivo(id, motivo) {
+    bloquearSeConsultoria(modoConsultoria)
+    const r = await alterarHistoricoFatura(supabase, { tabela: 'faturas_cartao', id, acao: 'excluir', motivo })
+    setFaturas(prev => prev.filter(f => f.id !== id))
+    return r
+  }
+
+return { faturas, carregando, erro, salvarFatura, removerFatura, marcarFaturaPaga, atualizarComMotivo, removerComMotivo, recarregar: buscar }}

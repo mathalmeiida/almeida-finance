@@ -437,5 +437,25 @@ CREATE POLICY "Usuário gerencia apenas as próprias compras de cartão"
 
 
 -- ============================================================
+-- 11. TABELA: pagamentos_fatura (migration: 20261124000001_pagamentos_fatura.sql)
+-- Pagamentos total/parcial/antecipado de fatura, com histórico e estorno.
+-- RLS: SELECT apenas dos próprios registros; escrita somente pelas RPCs
+-- SECURITY DEFINER pagar_fatura_cartao e estornar_pagamento_fatura.
+-- Ver o arquivo da migração para o CREATE TABLE, as RPCs e o backfill.
+-- ============================================================
+
+
+-- ============================================================
+-- 12. TABELAS: ajustes_fatura e _fatura_liberacoes (migration: 20261124000002_integridade_historica_fatura.sql)
+-- Integridade histórica das faturas pagas. ajustes_fatura é a razão append-only (inclusão, edição,
+-- exclusão, crédito e estorno) com RLS de leitura para o dono e o consultor autorizado; a escrita é
+-- feita só por triggers e RPCs SECURITY DEFINER. _fatura_liberacoes guarda as liberações por
+-- transação (zerar_dados_financeiros e alterar_historico_fatura) e não tem acesso para clientes.
+-- Fatura quitada recusa DML direto (SQLSTATE FP001); o caminho é a RPC alterar_historico_fatura.
+-- Ver o arquivo da migração para o CREATE TABLE, os triggers e as RPCs.
+-- ============================================================
+
+
+-- ============================================================
 -- FIM DO SCRIPT
 -- ============================================================

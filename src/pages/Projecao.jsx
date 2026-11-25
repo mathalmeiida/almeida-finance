@@ -62,7 +62,7 @@ export default function Projecao() {
 
     projecao = [], carregando, resumoMes = {}, receitas = [], despesas = [], recorrentes = [],
 
-    parcelamentos = [], cartoes = [], comprasCartao = [], faturasInformadas = [], reservaPct,
+    parcelamentos = [], cartoes = [], comprasCartao = [], faturasInformadas = [], pagamentosFatura = [], reservaPct,
 
   } = useProjecao()
 
@@ -130,7 +130,7 @@ export default function Projecao() {
 
       receitas: receitasCalendario, despesas: despesasCalendario, recorrentes, parcelamentos,
 
-      cartoes, comprasCartao, faturasInformadas,
+      cartoes, comprasCartao, faturasInformadas, pagamentosFatura,
 
       saldoInicial: saldoAgora, reservaPct, meses: 12,
 
@@ -140,7 +140,7 @@ export default function Projecao() {
 
     saldoConfigurado, saldoAgora, receitasCalendario, despesasCalendario,
 
-    recorrentes, parcelamentos, cartoes, comprasCartao, faturasInformadas, reservaPct])
+    recorrentes, parcelamentos, cartoes, comprasCartao, faturasInformadas, pagamentosFatura, reservaPct])
 
   const diasProjetados = useMemo(() => {
 
@@ -478,7 +478,7 @@ const eventosSelecionados = eventosPorData.get(diaSelecionado) || []
 
       </section>
 
-      {verFluxo && projecao.length > 0 && <section className="card"><h2 className="font-semibold text-gray-900 mb-3">Fluxo de caixa detalhado</h2><HorizonteFinanceiro receitas={receitas} despesas={despesas} recorrentes={recorrentes} parcelamentos={parcelamentos} cartoes={cartoes} comprasCartao={comprasCartao} faturasInformadas={faturasInformadas} reservaPct={reservaPct} saldoInicial={saldoConfigurado ? saldoAgora : 0}/></section>}
+      {verFluxo && projecao.length > 0 && <section className="card"><h2 className="font-semibold text-gray-900 mb-3">Fluxo de caixa detalhado</h2><HorizonteFinanceiro receitas={receitas} despesas={despesas} recorrentes={recorrentes} parcelamentos={parcelamentos} cartoes={cartoes} comprasCartao={comprasCartao} faturasInformadas={faturasInformadas} pagamentosFatura={pagamentosFatura} reservaPct={reservaPct} saldoInicial={saldoConfigurado ? saldoAgora : 0}/></section>}
 
       <section className="card space-y-3"><div className="flex items-center gap-2"><List size={19} className="text-marca"/><div><h2 className="font-semibold text-gray-900">Projeção dos próximos 12 meses</h2><p className="text-xs text-gray-500">Valores do motor financeiro atual, sem novos cálculos.</p></div></div>
 

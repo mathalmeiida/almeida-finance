@@ -1,14 +1,18 @@
 import React, { useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import {
-  CreditCard, Plus, Pencil, Trash2, Loader2, ArrowLeft, Calendar, Receipt, FileText, CheckCircle2, ShoppingCart, Layers3, Settings2, Upload
+  CreditCard, Plus, Pencil, Trash2, Loader2, ArrowLeft, Calendar, Receipt, FileText, CheckCircle2, RotateCcw, AlertTriangle, ShoppingCart, Layers3, Settings2, Upload
 } from 'lucide-react'
 import { useCartoes } from '../hooks/useCartoes'
 import { useComprasCartao } from '../hooks/useComprasCartao'
 import { useFaturasCartao } from '../hooks/useFaturasCartao'
+import { usePagamentosFatura } from '../hooks/usePagamentosFatura'
+import ModalPagarFatura from '../components/ModalPagarFatura'
 import { useCategorias } from '../hooks/useCategorias'
 import SeletorCategoriaModerno from '../components/SeletorCategoriaModerno'
 import Modal from '../components/Modal'
+import { useAjustesFatura } from '../hooks/useAjustesFatura'
+import { ehErroFaturaQuitada, MENSAGEM_FATURA_QUITADA, filtrarCamposEditaveis, MOTIVO_MIN, MOTIVO_MAX } from '../lib/historicoFatura'
 import InputMoeda from '../components/InputMoeda'
 import ImportacaoInteligente from './ImportacaoInteligente'
 import { CORES_CARTAO } from '../lib/coresCartao'
@@ -25,6 +29,8 @@ import {
   totalFaturaComOverride,
   totalParcelasFuturas,
   competenciaPrimeiraParcela,
+  cicloFatura,
+  STATUS_FATURA,
 } from '../lib/faturaCartao'
 const hoje = new Date()
 const mesAtual = hoje.getMonth() + 1
@@ -322,10 +328,14 @@ function FormFatura({ cartao, faturaInicial, refData, onSalvar, onCancelar, carr
 }
 // ─── Visão: Ver fatura de um cartão (atual ou projetada) ──────────────────────
 function VerFatura({ cartao, onVoltar, onEditarCartao }) {
-  const { compras, carregando, criar, atualizar, remover } = useComprasCartao(cartao.id)
-  const { parcelamentos } = useParcelamentos()
+  const { compras, carregando, criar, atualizar, remover, atualizarComMotivo: atualizarCompraComMotivo, removerComMotivo: removerCompraComMotivo, recarregar: recarregarCompras } = useComprasCartao(cartao.id)
+  const { parcelamentos, recarregar: recarregarParcelamentos } = useParcelamentos()
 // Faturas informadas por total (deste cartão).
-const { faturas: faturasInformadas, salvarFatura, removerFatura, marcarFaturaPaga } = useFaturasCartao(cartao.id)
+const { faturas: faturasInformadas, salvarFatura, removerFatura, atualizarComMotivo: atualizarFaturaComMotivo, removerComMotivo: removerFaturaComMotivo, recarregar: recarregarFaturasInformadas } = useFaturasCartao(cartao.id)
+// Pagamentos de fatura (RPC transacional, histórico e estorno).
+  const { pagamentos, pagar, estornar, enviando: enviandoPagamento, erro: erroPagamentos } = usePagamentosFatura(cartao.id)
+  const [cicloPagando, setCicloPagando] = useState(null)
+  const [estornando, setEstornando] = useState(null)
 const [modalCompra, setModalCompra] = useState(false)
   const [compraEditando, setCompraEditando] = useState(null) // /* AF_EDICAO_COMPRAS_2026 */
 const [modalFatura, setModalFatura] = useState(false)
@@ -333,8 +343,14 @@ const [modalFatura, setModalFatura] = useState(false)
   const [salvandoFatura, setSalvandoFatura] = useState(false)
   const [removendo, setRemovendo] = useState(null)
   const [erro, setErro] = useState('')
+  // Fatura quitada: o banco recusa DML direto (FP001). Guardamos a operação pendente
+  // e pedimos o motivo antes de repetir pela RPC alterar_historico_fatura.
+  const [pendenteHistorico, setPendenteHistorico] = useState(null) // { acao, id, dados }
+  const [motivoHistorico, setMotivoHistorico] = useState('')
+  const [enviandoHistorico, setEnviandoHistorico] = useState(false)
 // Mês/ano exibido: começa no atual; "Próximas faturas" muda isto
   const [refData, setRefData] = useState({ ano: anoAtual, mes: mesAtual })
+  const { ajustes, credito: creditoVigenteFatura, recarregar: recarregarAjustes } = useAjustesFatura(cartao.id, anoMesChave(refData.ano, refData.mes))
 // Categoria expandida (mostra os lançamentos dela ao tocar). null = nenhuma.
   const [categoriaAberta, setCategoriaAberta] = useState(null)
 // Visão da seção "Meus gastos": 'categoria' (padrão) ou 'data'.
@@ -343,22 +359,28 @@ const [modalFatura, setModalFatura] = useState(false)
   const parcelamentosDoCartao = parcelamentos.filter(p => p.cartao_id === cartao.id)
 // Linhas da fatura do mês/ano em foco (compras + parcelamentos), reutilizável
   const linhas = linhasFaturaCompleta(
-    compras, parcelamentosDoCartao, cartao.dia_fechamento, refData.ano, refData.mes
+    compras, parcelamentosDoCartao, cartao.dia_fechamento, refData.ano, refData.mes, cartao.id
   )
-// Soma das compras/parcelas DETALHADAS no mês em foco.
-  const totalDetalhado = linhas.reduce((a, l) => a + l.valor, 0)
-// Total informado para este mês (se houver) e o total EXIBIDO (override).
+// Visão do ciclo em foco: total, detalhamento, pago, em aberto e status.
+  const cicloFoco = cicloFatura({
+    cartao, compras, parcelamentos: parcelamentosDoCartao, faturasInformadas, pagamentos,
+    ano: refData.ano, mes: refData.mes, hoje,
+  })
+// Soma das compras/parcelas DETALHADAS no mês em foco (somente deste ciclo).
+  const totalDetalhado = cicloFoco.comprasDetalhadas
+// Total informado para este mês (se houver) e o total EXIBIDO (mesma regra da projeção).
   const faturaInformada = faturaInformadaNoMes(faturasInformadas, cartao.id, refData.ano, refData.mes)
-  const faturaEstaPaga = faturaInformada?.pago === true
-  const totalFatura = faturaInformada ? (Number(faturaInformada.valor_total) || 0) : totalDetalhado
+  const totalFatura = cicloFoco.total
 // Quanto da fatura informada ainda não foi detalhado em compras.
-  const naoDetalhado = faturaInformada ? Math.max(0, totalFatura - totalDetalhado) : 0
-  const faturaCompleta = faturaInformada && totalDetalhado >= totalFatura - 0.005
+  const naoDetalhado = cicloFoco.naoDetalhado
+// "100% detalhada" só quando a soma do ciclo bate com o total ao centavo.
+  const faturaCompleta = Boolean(faturaInformada) && cicloFoco.situacaoDetalhamento === 'completo'
+  const faturaDivergente = Boolean(faturaInformada) && cicloFoco.situacaoDetalhamento === 'divergente'
 // Limite disponível do cartão (mesma função usada nos cards da lista).
 // Desconta TODAS as compras/parcelas não quitadas (override-aware; libera só
 // quando a fatura do mês está marcada como paga).
   const comprometido = limiteComprometido(compras, cartao.dia_fechamento, hoje, {
-    cartaoId: cartao.id, parcelamentos: parcelamentosDoCartao, faturasInformadas,
+    cartaoId: cartao.id, parcelamentos: parcelamentosDoCartao, faturasInformadas, pagamentos,
   })
   const limiteDisponivelCartao = Math.max(0, Number(cartao.limite_total) - comprometido)
   const pctUsado = Number(cartao.limite_total) > 0
@@ -420,9 +442,10 @@ const [modalFatura, setModalFatura] = useState(false)
   const [mesesVisiveis, setMesesVisiveis] = useState(6)
   const proximosMeses = Array.from({ length: mesesVisiveis }, (_, i) => {
     const { ano, mes } = somaMeses(anoAtual, mesAtual, i)
-    const ls = linhasFaturaCompleta(compras, parcelamentosDoCartao, cartao.dia_fechamento, ano, mes)
+    const ls = linhasFaturaCompleta(compras, parcelamentosDoCartao, cartao.dia_fechamento, ano, mes, cartao.id)
 // Total respeitando o override (total informado substitui a soma no mês).
-    const total = totalFaturaComOverride(compras, parcelamentosDoCartao, faturasInformadas, cartao.id, cartao.dia_fechamento, ano, mes)
+    const cicloMes = cicloFatura({ cartao, compras, parcelamentos: parcelamentosDoCartao, faturasInformadas, pagamentos, ano, mes, hoje })
+    const total = cicloMes.total
     const qtdParcelas = ls.filter(l => l.totalParcelas > 1).length
     const qtdAvista = ls.length - qtdParcelas
     const informadaMes = faturaInformadaNoMes(faturasInformadas, cartao.id, ano, mes)
@@ -445,7 +468,7 @@ const [modalFatura, setModalFatura] = useState(false)
 
     const dataPagamento = `${String(vencimento.dia).padStart(2, '0')}/${String(vencimento.mes).padStart(2, '0')}/${vencimento.ano}`
     return {
-      ano, mes, total,
+      ano, mes, total, ciclo: cicloMes,
 
       dataPagamento,
       qtd: ls.length,
@@ -495,8 +518,21 @@ const [modalFatura, setModalFatura] = useState(false)
       }
       setModalCompra(false)
       setCompraEditando(null)
-    } catch {
-      setErro('Erro ao salvar compra ou alteração. Tente novamente.')
+    } catch (err) {
+      if (ehErroFaturaQuitada(err)) {
+        if (compraEditando) {
+          const payload = Number(compraEditando.numero_parcelas || 1) > 1
+            ? { descricao: dados.descricao, categoria_id: dados.categoria_id, subcategoria_id: dados.subcategoria_id }
+            : dados
+          setModalCompra(false)
+          setPendenteHistorico({ acao: 'editar', id: compraEditando.id, dados: filtrarCamposEditaveis('compras_cartao', payload) })
+          setCompraEditando(null)
+        } else {
+          setErro('Esta compra cai em uma fatura já quitada e não pode ser incluída diretamente. Estorne o pagamento ou use uma data de outra fatura.')
+        }
+      } else {
+        setErro('Erro ao salvar compra ou alteração. Tente novamente.')
+      }
     } finally {
       setSalvando(false)
     }
@@ -507,8 +543,19 @@ const [modalFatura, setModalFatura] = useState(false)
     try {
       await salvarFatura({ cartao_id: cartao.id, ano_mes, valor_total, vencimento_dia })
       setModalFatura(false)
-    } catch {
-      setErro('Erro ao salvar a fatura. Tente novamente.')
+    } catch (err) {
+      if (ehErroFaturaQuitada(err)) {
+        // Fatura quitada: só o total já informado pode ser alterado, pela RPC controlada (com motivo).
+        const existente = faturasInformadas.find(f => f.ano_mes === ano_mes)
+        if (existente) {
+          setModalFatura(false)
+          setPendenteHistorico({ acao: 'editar', id: existente.id, dados: filtrarCamposEditaveis('faturas_cartao', { valor_total }), tabela: 'faturas_cartao' })
+        } else {
+          setErro('Esta fatura já foi quitada e não aceita um novo total informado. Estorne o pagamento para ajustar o total.')
+        }
+      } else {
+        setErro('Erro ao salvar a fatura. Tente novamente.')
+      }
     } finally {
       setSalvandoFatura(false)
     }
@@ -517,13 +564,64 @@ const [modalFatura, setModalFatura] = useState(false)
   async function handleRemoverFaturaInformada() {
     if (!faturaInformada) return
     if (!confirm('Remover o total informado desta fatura? Voltará a valer a soma das compras.')) return
-    try { await removerFatura(faturaInformada.id) } catch { setErro('Erro ao remover o total informado.') }
+    try {
+      await removerFatura(faturaInformada.id)
+    } catch (err) {
+      if (ehErroFaturaQuitada(err)) setPendenteHistorico({ acao: 'excluir', id: faturaInformada.id, dados: null, tabela: 'faturas_cartao' })
+      else setErro('Erro ao remover o total informado.')
+    }
+  }
+  function fecharMotivoHistorico() {
+    setPendenteHistorico(null); setMotivoHistorico('')
+  }
+  // Repete a operação recusada pela RPC controlada, com motivo obrigatório.
+  async function confirmarHistorico() {
+    if (!pendenteHistorico) return
+    const { acao, id, dados, tabela } = pendenteHistorico
+    setEnviandoHistorico(true); setErro('')
+    try {
+      if (tabela === 'faturas_cartao' && acao === 'editar') await atualizarFaturaComMotivo(id, dados, motivoHistorico)
+      else if (tabela === 'faturas_cartao') await removerFaturaComMotivo(id, motivoHistorico)
+      else if (acao === 'editar') await atualizarCompraComMotivo(id, dados, motivoHistorico)
+      else await removerCompraComMotivo(id, motivoHistorico)
+      fecharMotivoHistorico()
+      recarregarAjustes()
+      recarregarFaturasInformadas?.()
+    } catch (err) {
+      setErro(err.message || 'Não foi possível registrar a alteração.')
+    } finally { setEnviandoHistorico(false) }
   }
   function iniciarEdicao(linha) {
     const compra = compras.find(c => String(c.id) === String(linha.id))
     if (!compra || linha.origemParcelamento) return
     setCompraEditando(compra)
     setModalCompra(true)
+  }
+  async function handlePagar(dados) {
+    setErro('')
+    try {
+      await pagar({ cartaoId: cartao.id, ...dados })
+    } catch (err) {
+      // Servidor recusou por total divergente: refaz a leitura de tudo que compoe o total
+      // (compras, parcelamentos e faturas informadas) e fecha o modal para o usuario
+      // conferir o novo total antes de pagar.
+      if (err?.desatualizada) {
+        recarregarCompras()
+        recarregarParcelamentos?.()
+        recarregarFaturasInformadas?.()
+        setCicloPagando(null)
+        setErro(err.message)
+        return
+      }
+      throw err
+    }
+    setCicloPagando(null)
+  }
+  async function handleEstornar(pg) {
+    if (!confirm(`Estornar o pagamento de ${formatCurrency(pg.valor)} feito em ${formatDate(pg.data_pagamento)}? O valor volta ao saldo em aberto da fatura${pg.legado || pg.origem !== 'saldo_principal' ? '. Este pagamento anterior não debitou o saldo da conta, então o saldo não muda.' : ' e o saldo da conta é restaurado.'}`)) return
+    setErro('')
+    setEstornando(pg.id)
+    try { await estornar(pg.id) } catch (err) { setErro(err.message || 'Erro ao estornar o pagamento.') } finally { setEstornando(null) }
   }
   async function handleRemover(id) {
     const compra = compras.find(c => String(c.id) === String(id))
@@ -537,8 +635,8 @@ const [modalFatura, setModalFatura] = useState(false)
       const chave = ({ ano, mes }) => ano * 12 + mes
       const aberto = chave(competenciaPrimeiraParcela(hojeISO(), cartao.dia_fechamento))
       const inicio = chave(competenciaPrimeiraParcela(compra.data_compra, cartao.dia_fechamento))
-      const temPaga = faturasInformadas.some(f => {
-        if (f.pago !== true || String(f.cartao_id) !== String(cartao.id)) return false
+      const temPaga = [...faturasInformadas.filter(f => f.pago === true), ...pagamentos.filter(pg => pg.status !== 'estornado')].some(f => {
+        if (String(f.cartao_id) !== String(cartao.id)) return false
         const [a, m] = String(f.ano_mes).split('-').map(Number)
         const k = a * 12 + m
         return k >= inicio && k < inicio + n
@@ -552,7 +650,12 @@ const [modalFatura, setModalFatura] = useState(false)
       return
     }
     setRemovendo(id)
-    try { await remover(id) } catch { setErro('Erro ao remover.') } finally { setRemovendo(null) }
+    try {
+      await remover(id)
+    } catch (err) {
+      if (ehErroFaturaQuitada(err)) setPendenteHistorico({ acao: 'excluir', id, dados: null })
+      else setErro('Erro ao remover.')
+    } finally { setRemovendo(null) }
   }
   return (
     <div className="space-y-6">
@@ -638,6 +741,15 @@ const [modalFatura, setModalFatura] = useState(false)
                 <CheckCircle2 size={14} /> Fatura 100% detalhada
               </p>
             )}
+            {!faturaCompleta && !faturaDivergente && (
+              <p className="mt-2 text-center text-xs text-gray-500">{cicloFoco.percentualDetalhado}% detalhada</p>
+            )}
+            {faturaDivergente && (
+              <p className="mt-2 flex items-start justify-center gap-1.5 text-xs font-medium text-amber-700" role="alert">
+                <AlertTriangle size={14} className="flex-shrink-0 mt-px" />
+                <span>As compras detalhadas somam {formatCurrency(totalDetalhado)}, {formatCurrency(cicloFoco.divergencia)} a mais que o total informado. Confira o total ou as compras deste ciclo.</span>
+              </p>
+            )}
             {faturaInformada && (
               <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
                 <button onClick={() => setModalFatura(true)}
@@ -677,18 +789,77 @@ const [modalFatura, setModalFatura] = useState(false)
           <span className="text-sm font-semibold text-gray-900">Editar cartão</span>
         </button>
       </div>
-      {faturaInformada && (
-        <button type="button" disabled={salvandoFatura} onClick={async () => {
-          try {
-            setSalvandoFatura(true)
-            setErro('')
-            await marcarFaturaPaga(faturaInformada.id, !faturaEstaPaga)
-          } catch (err) { setErro(err.message || 'Erro ao atualizar pagamento') }
-          finally { setSalvandoFatura(false) }
-        }} className="btn-secondary inline-flex items-center justify-center gap-2">
-          <CheckCircle2 size={16} /> {salvandoFatura ? 'Salvando...' : faturaEstaPaga ? 'Desfazer pagamento' : 'Marcar fatura como paga'}
+      {/* Pagamento do ciclo em foco: status, saldo em aberto, pagar e histórico. */}
+      <div className="card !p-4 sm:!p-5 space-y-3" id="pagamento-fatura">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p className="text-sm font-semibold text-gray-900 capitalize">Pagamento · {nomeMes}</p>
+          <BadgeStatusFatura status={cicloFoco.status} />
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="min-w-0"><p className="text-xs text-gray-400">Total</p><p className="text-sm font-bold text-gray-900 break-words">{formatCurrency(cicloFoco.total)}</p></div>
+          <div className="min-w-0"><p className="text-xs text-gray-400">Pago</p><p className="text-sm font-bold text-emerald-700 break-words">{formatCurrency(cicloFoco.pago)}</p></div>
+          <div className="min-w-0"><p className="text-xs text-gray-400">Em aberto</p><p className="text-sm font-bold text-marca break-words">{formatCurrency(cicloFoco.emAberto)}</p></div>
+        </div>
+        {cicloFoco.saldoAnterior > 0 && (
+          <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+            Saldo anterior em aberto: {formatCurrency(cicloFoco.saldoAnterior)} (pertence ao ciclo anterior e não está somado a este total).
+          </p>
+        )}
+        {cicloFoco.excedentePago > 0 && (
+          <p className="text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2" data-testid="alerta-excedente-pago">
+            Os pagamentos ativos superam o total atual da fatura em {formatCurrency(cicloFoco.excedentePago)}. Confira as compras deste ciclo e, se algum pagamento foi duplicado, estorne-o no histórico.
+          </p>
+        )}
+        <p className="text-xs text-gray-400">Vencimento: {formatDate(cicloFoco.vencimento)}</p>
+        <button type="button" data-testid="pagar-fatura"
+          disabled={cicloFoco.emAberto <= 0 || enviandoPagamento}
+          onClick={() => setCicloPagando(cicloFoco)}
+          className="btn-primary w-full inline-flex items-center justify-center gap-2">
+          <CheckCircle2 size={16} /> {cicloFoco.emAberto <= 0 && cicloFoco.total > 0 ? 'Fatura paga' : 'Pagar fatura'}
         </button>
-      )}
+        {erroPagamentos && <p className="text-xs text-red-600">{erroPagamentos}</p>}
+        {cicloFoco.pagamentos.length > 0 && (
+          <div className="pt-3 border-t border-gray-100" data-testid="historico-pagamentos">
+            <p className="text-xs font-semibold text-gray-500 mb-2">Histórico de pagamentos</p>
+            <ul className="space-y-2">
+              {cicloFoco.pagamentos.map(pg => (
+                <li key={pg.id} className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className={`text-sm font-medium ${pg.status === 'estornado' ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{formatCurrency(pg.valor)}</p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {formatDate(pg.data_pagamento)} · {pg.origem === 'saldo_principal' ? 'Saldo principal' : (pg.conta_nome || 'Pagamento anterior, sem débito no saldo')}
+                      {pg.legado ? ' · migrado' : ''}{pg.status === 'estornado' ? ' · estornado' : ''}
+                    </p>
+                  </div>
+                  {pg.status !== 'estornado' && (
+                    <button type="button" onClick={() => handleEstornar(pg)} disabled={estornando === pg.id || enviandoPagamento}
+                      className="text-xs font-medium text-marca hover:text-marca-hover inline-flex items-center gap-1 flex-shrink-0">
+                      {estornando === pg.id ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />} Estornar
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {creditoVigenteFatura > 0 && (
+          <p data-testid="credito-fatura" className="text-xs text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">
+            Crédito de {formatCurrency(creditoVigenteFatura)}: a fatura foi alterada depois de paga e o total ficou abaixo do valor pago. O crédito não é aplicado automaticamente a outra fatura.
+          </p>
+        )}
+        {ajustes.length > 0 && (
+          <details data-testid="historico-alteracoes" className="pt-3 border-t border-gray-100">
+            <summary className="text-xs font-semibold text-gray-500 cursor-pointer">Alterações da fatura ({ajustes.length})</summary>
+            <ul className="mt-2 space-y-1">
+              {ajustes.map(a => (
+                <li key={a.id} className="text-xs text-gray-500">
+                  {formatDate(String(a.criado_em).slice(0, 10))} · {a.tipo}{a.valor != null ? ` ${formatCurrency(a.valor)}` : ''}{a.motivo ? ` · ${a.motivo}` : ''}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </div>
       {/* Aviso de previsão quando não é o mês atual */}
       {!ehMesAtual && (
         <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl p-3">
@@ -879,23 +1050,32 @@ const [modalFatura, setModalFatura] = useState(false)
           {proximosMeses.map(m => {
             const emFoco = m.ano === refData.ano && m.mes === refData.mes
             return (
-              <button
+              <div
                 key={`${m.ano}-${m.mes}`}
-                onClick={() => setRefData({ ano: m.ano, mes: m.mes })}
                 className={`card text-left transition-all ${emFoco ? 'ring-2 ring-marca' : 'hover:bg-gray-100'}`}
               >
-                <p className="text-xs text-gray-400">{m.label}</p>
-                <p className="text-base font-bold text-gray-900 mt-0.5">{formatCurrency(m.total)}</p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {m.ehAtual ? 'Fatura atual' : textoPrevisto(m)}
-                </p>
-
-              <p className="text-xs text-marca mt-1">
-
-                Vencimento previsto: {m.dataPagamento}
-
-              </p>
-              </button>
+                <button type="button" onClick={() => setRefData({ ano: m.ano, mes: m.mes })} className="w-full text-left">
+                  <p className="text-xs text-gray-400">{m.label}</p>
+                  <p className="text-base font-bold text-gray-900 mt-0.5">{formatCurrency(m.total)}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {m.ehAtual ? 'Fatura atual' : textoPrevisto(m)}
+                  </p>
+                  <p className="text-xs text-marca mt-1">
+                    Vencimento previsto: {m.dataPagamento}
+                  </p>
+                </button>
+                {m.total > 0 && (
+                  <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
+                    <BadgeStatusFatura status={m.ciclo.status} />
+                    <button type="button" data-testid={`pagar-fatura-${m.ano}-${String(m.mes).padStart(2, '0')}`}
+                      disabled={m.ciclo.emAberto <= 0 || enviandoPagamento}
+                      onClick={() => { setRefData({ ano: m.ano, mes: m.mes }); setCicloPagando(m.ciclo) }}
+                      className="text-xs font-semibold text-marca hover:text-marca-hover disabled:text-gray-300 disabled:cursor-not-allowed">
+                      Pagar fatura
+                    </button>
+                  </div>
+                )}
+              </div>
             )
           })}
         </div>
@@ -924,6 +1104,25 @@ const [modalFatura, setModalFatura] = useState(false)
         <FormCompra key={compraEditando?.id || "nova"} compraInicial={compraEditando} cartoes={[cartao]} cartaoIdFixo={cartao.id} onSalvar={handleSalvar} onCancelar={() => { setModalCompra(false); setCompraEditando(null) }} carregando={salvando}
           limiteLivre={Number(cartao.limite_total) - comprometido + (compraEditando ? Number(compraEditando.valor_total) || 0 : 0)} />
       </Modal>
+      <Modal aberto={Boolean(pendenteHistorico)} onFechar={fecharMotivoHistorico} titulo="Alterar fatura quitada">
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">{MENSAGEM_FATURA_QUITADA}</p>
+          <label className="block text-sm font-medium text-gray-700" htmlFor="motivo-historico">Motivo</label>
+          <textarea id="motivo-historico" data-testid="motivo-historico" className="input w-full" rows={3} maxLength={MOTIVO_MAX}
+            value={motivoHistorico} onChange={e => setMotivoHistorico(e.target.value)} />
+          <p className="text-xs text-gray-400">Mínimo de {MOTIVO_MIN} caracteres.</p>
+          {erro && <p className="text-sm text-red-600">{erro}</p>}
+          <div className="flex gap-3">
+            <button type="button" onClick={fecharMotivoHistorico} className="btn-secondary flex-1">Cancelar</button>
+            <button type="button" data-testid="confirmar-historico" onClick={confirmarHistorico}
+              disabled={enviandoHistorico || motivoHistorico.trim().length < MOTIVO_MIN}
+              className="btn-primary flex-1 flex items-center justify-center gap-2">
+              {enviandoHistorico ? <><Loader2 size={15} className="animate-spin" /> Salvando...</> : 'Confirmar alteração'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+      <ModalPagarFatura aberto={Boolean(cicloPagando)} ciclo={cicloPagando} cartao={cartao} onConfirmar={handlePagar} onFechar={() => setCicloPagando(null)} />
       <Modal aberto={modalFatura} onFechar={() => setModalFatura(false)} titulo="Informar total da fatura">
         <FormFatura
           cartao={cartao}
@@ -937,15 +1136,30 @@ const [modalFatura, setModalFatura] = useState(false)
     </div>
   )
 }
+// ─── Badge de status da fatura (Aberta, Fechada, Parcialmente paga, Paga, Vencida) ──
+const CLASSE_STATUS = {
+  [STATUS_FATURA.ABERTA]: 'bg-marca-100 text-marca',
+  [STATUS_FATURA.FECHADA]: 'bg-gray-100 text-gray-600',
+  [STATUS_FATURA.PARCIAL]: 'bg-amber-50 text-amber-700',
+  [STATUS_FATURA.PAGA]: 'bg-emerald-50 text-emerald-700',
+  [STATUS_FATURA.VENCIDA]: 'bg-red-50 text-red-600',
+}
+function BadgeStatusFatura({ status }) {
+  return (
+    <span data-testid="status-fatura" className={`text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap ${CLASSE_STATUS[status] || 'bg-gray-100 text-gray-600'}`}>
+      {status}
+    </span>
+  )
+}
 // ─── Card individual de cartão ────────────────────────────────────────────────
-function CardCartao({ cartao, compras, parcelamentos = [], faturasInformadas = [], faturaMes, onVerFatura, onEditar, onRemover, removendo }) {
+function CardCartao({ cartao, compras, parcelamentos = [], faturasInformadas = [], pagamentos = [], faturaMes, onVerFatura, onEditar, onRemover, removendo }) {
 // "Fatura atual" respeita o total informado (override) quando houver; o
 // fallback usa a soma das compras (comportamento anterior).
   const fatura = faturaMes != null
     ? faturaMes
     : valorFaturaCartaoNoMes(compras, cartao.dia_fechamento, anoAtual, mesAtual)
   const comprometido = limiteComprometido(compras, cartao.dia_fechamento, hoje, {
-    cartaoId: cartao.id, parcelamentos, faturasInformadas,
+    cartaoId: cartao.id, parcelamentos, faturasInformadas, pagamentos,
   })
   const disponivel = Math.max(0, Number(cartao.limite_total) - comprometido)
   return (
@@ -1004,6 +1218,7 @@ export default function Cartoes() {
   const { compras } = useComprasCartao() //todas as compras (para resumo e cards)
   const { parcelamentos } = useParcelamentos()
   const { faturas: faturasInformadas } = useFaturasCartao() //totais informados
+  const { pagamentos } = usePagamentosFatura() // pagamentos ativos liberam limite
   const [modalCartao, setModalCartao] = useState(false)
   const [modalImportacao, setModalImportacao] = useState(false)
   const [cartaoEditando, setCartaoEditando] = useState(null)
@@ -1040,7 +1255,7 @@ export default function Cartoes() {
   const limiteTotal = cartoes.reduce((acc, c) => acc + Number(c.limite_total), 0)
   const limiteDisponivel = cartoes.reduce((acc, c) =>
     acc + Math.max(0, Number(c.limite_total) - limiteComprometido(comprasPorCartao(c.id), c.dia_fechamento, hoje, {
-      cartaoId: c.id, parcelamentos: parcelamentosPorCartao(c.id), faturasInformadas,
+      cartaoId: c.id, parcelamentos: parcelamentosPorCartao(c.id), faturasInformadas, pagamentos,
     })), 0)
   function abrirNovo() { setCartaoEditando(null); setModalCartao(true) }
   function abrirEdicao(c) { setCartaoEditando(c); setModalCartao(true) }
@@ -1051,8 +1266,9 @@ export default function Cartoes() {
       if (cartaoEditando) await atualizar(cartaoEditando.id, dados)
       else await criar(dados)
       fecharModal()
-    } catch {
-      setErro('Erro ao salvar cartão. Tente novamente.')
+    } catch (err) {
+      // FP001: o banco recusa mudar o dia de fechamento com pagamento ativo (a mensagem já vem em português).
+      setErro(ehErroFaturaQuitada(err) && err.message ? err.message : 'Erro ao salvar cartão. Tente novamente.')
     } finally {
       setSalvando(false)
     }
@@ -1060,7 +1276,7 @@ export default function Cartoes() {
   async function handleRemover(id) {
     if (!confirm('Excluir este cartão? As compras vinculadas também serão removidas.')) return
     setRemovendo(id)
-    try { await remover(id) } catch { setErro('Erro ao excluir cartão.') } finally { setRemovendo(null) }
+    try { await remover(id) } catch (err) { setErro(ehErroFaturaQuitada(err) && err.message ? `${err.message}${err.hint ? ' ' + err.hint : ''}` : 'Erro ao excluir cartão.') } finally { setRemovendo(null) }
   }
 // Visão de fatura de um cartão
   if (faturaAberta) {
@@ -1147,6 +1363,7 @@ export default function Cartoes() {
               cartao={c}
               compras={comprasPorCartao(c.id)}
               parcelamentos={parcelamentosPorCartao(c.id)}
+              pagamentos={pagamentos}
               faturasInformadas={faturasInformadas}
               faturaMes={faturaMesAtualCartao(c)}
               onVerFatura={abrirFatura}

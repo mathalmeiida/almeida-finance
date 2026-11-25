@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
+import { alterarHistoricoFatura } from '../lib/historicoFatura'
 
 /**
  * Compras de cartão do usuário.
@@ -79,5 +80,21 @@ export function useComprasCartao(cartaoId = null) {
     setCompras(prev => prev.filter(c => c.id !== id))
   }
 
-  return { compras, carregando, erro, criar, atualizar, remover, recarregar: buscar }
+  // Fatura quitada: o banco recusa o DML direto (FP001). Estes métodos usam a RPC
+  // alterar_historico_fatura, que exige motivo e audita. Recarrega a lista depois.
+  async function atualizarComMotivo(id, dados, motivo) {
+    bloquearSeConsultoria(modoConsultoria)
+    const r = await alterarHistoricoFatura(supabase, { tabela: 'compras_cartao', id, acao: 'editar', dados, motivo })
+    await buscar()
+    return r
+  }
+
+  async function removerComMotivo(id, motivo) {
+    bloquearSeConsultoria(modoConsultoria)
+    const r = await alterarHistoricoFatura(supabase, { tabela: 'compras_cartao', id, acao: 'excluir', motivo })
+    setCompras(prev => prev.filter(c => c.id !== id))
+    return r
+  }
+
+  return { compras, carregando, erro, criar, atualizar, remover, atualizarComMotivo, removerComMotivo, recarregar: buscar }
 }

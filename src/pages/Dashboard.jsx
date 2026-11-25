@@ -21,7 +21,7 @@ import InputMoeda from '../components/InputMoeda'
 import SeletorCategoriaModerno from '../components/SeletorCategoriaModerno'
 import { formatCurrency, exibirMoeda, FORMAS_PAGAMENTO, hojeISO as hojeISOBrasil, hojeDateBrasil } from '../lib/utils'
 import { classificarDespesa } from '../lib/classificarDespesa'
-import { parcelaCompraNoMes, totalFaturaComOverride } from '../lib/faturaCartao'
+import { parcelaCompraNoMes, totalFaturaComOverride, saldoEmAbertoFatura } from '../lib/faturaCartao'
 import Modal from '../components/Modal'
 import ModalAnteciparPagamento from '../components/ModalAnteciparPagamento'
 import HorizonteFinanceiro from '../components/HorizonteFinanceiro'
@@ -2032,7 +2032,7 @@ export default function Dashboard() {
   const {
     resumoMes, projecao, carregando, receitas, despesas, parcelamentos, criarDespesa,
     // dados brutos para o Horizonte financeiro (fluxo de caixa diário)
-    recorrentes, cartoes, comprasCartao, faturasInformadas, reservaPct,
+    recorrentes, cartoes, comprasCartao, faturasInformadas, pagamentosFatura, reservaPct,
     // antecipação reaproveitada no card "Próximos 7 dias"
     anteciparPagamento,
   } = useProjecao()
@@ -2255,7 +2255,7 @@ export default function Dashboard() {
     if (carregando || carregandoReceitasCalendario || carregandoDespesasCalendario || !resumoMes.saldoConfigurado) return []
     return gerarHorizonte({
       receitas: receitasCalendario, despesas: despesasCalendario, recorrentes, parcelamentos,
-      cartoes, comprasCartao, faturasInformadas,
+      cartoes, comprasCartao, faturasInformadas, pagamentosFatura,
       saldoInicial: Number(saldoDisponivelAgora) || 0,
       reservaPct,
       meses: 12,
@@ -2263,7 +2263,7 @@ export default function Dashboard() {
   }, [
     carregando, carregandoReceitasCalendario, carregandoDespesasCalendario, resumoMes.saldoConfigurado, saldoDisponivelAgora,
     receitasCalendario, despesasCalendario, recorrentes, parcelamentos,
-    cartoes, comprasCartao, faturasInformadas, reservaPct,
+    cartoes, comprasCartao, faturasInformadas, pagamentosFatura, reservaPct,
   ])
   const previsaoFimMes = resumoMes.previsaoFimMes
   const saldoSeguroHoje = resumoMes.saldoSeguroHoje ?? 0
@@ -2385,9 +2385,12 @@ const carregandoLimite = carregando
         const comprasDoCartao = (comprasCartao || []).filter(cp => cp.cartao_id === c.id)
         const parcelamentosDoCartao = (parcelamentos || []).filter(p => p.cartao_id === c.id)
         // Fatura referente à competência do mês de vencimento.
-        const total = totalFaturaComOverride(
-          comprasDoCartao, parcelamentosDoCartao, faturasInformadas,
-          c.id, c.dia_fechamento, venc.getFullYear(), venc.getMonth() + 1
+        const total = saldoEmAbertoFatura(
+          totalFaturaComOverride(
+            comprasDoCartao, parcelamentosDoCartao, faturasInformadas,
+            c.id, c.dia_fechamento, venc.getFullYear(), venc.getMonth() + 1
+          ),
+          pagamentosFatura, faturasInformadas, c.id, venc.getFullYear(), venc.getMonth() + 1
         )
         if (total <= 0) return null
         return {
@@ -2690,7 +2693,7 @@ const carregandoLimite = carregando
     const saldoInicial = resumoMes.saldoConfigurado ? resumoMes.saldoDisponivelAgora : 0
     const meses = gerarHorizonte({
       receitas: receitasCalendario, despesas: despesasCalendario, recorrentes, parcelamentos,
-      cartoes, comprasCartao, faturasInformadas,
+      cartoes, comprasCartao, faturasInformadas, pagamentosFatura,
       saldoInicial, reservaPct, meses: 3,
     })
     if (!meses.length) return null
@@ -3414,6 +3417,7 @@ const carregandoLimite = carregando
           cartoes={cartoes}
           comprasCartao={comprasCartao}
           faturasInformadas={faturasInformadas}
+          pagamentosFatura={pagamentosFatura}
           reservaPct={reservaPct}
      saldoInicial={resumoMes.saldoConfigurado ? resumoMes.saldoDisponivelAgora : 0}
 dataReferencia={hojeISO}

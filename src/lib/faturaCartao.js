@@ -9,12 +9,14 @@
  * - Compras parceladas sao distribuidas por competencia.
  * - Valores manuais nao sao somados em duplicidade.
  * - Valores manuais nao criam parcelas futuras.
- * - Faturas pagas nao comprometem o limite.
+ * - Pagamentos ativos (total, parcial, antecipado) reduzem a divida e liberam limite.
+ * - Cada ciclo (competencia = mes de fechamento) so contem as proprias compras:
+ *   pagamentos de um ciclo nunca abatem compras de outro.
  *
  * Mantem as assinaturas das funcoes existentes.
  */
 
-import { calcularParcelas } from '../hooks/useParcelamentos'
+import { calcularParcelas } from './parcelas.js'
 
 // ============================================================
 // FUNCOES AUXILIARES
@@ -240,6 +242,77 @@ export function linhasFaturaNoMes(
 }
 
 // ============================================================
+// 4B. PARCELAMENTOS DO CARTAO (ciclo correto, sem duplicar)
+// ============================================================
+
+function normalizarTexto(t) {
+  return String(t || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Competencia (mes de fechamento) da 1a parcela de um parcelamento.
+ * A data da 1a parcela segue a MESMA regra de fechamento das compras:
+ * depois do dia de fechamento, entra no ciclo seguinte.
+ */
+export function competenciaParcelamento(parcelamento, diaFechamento) {
+  const inicio = dataLocal(parcelamento?.primeira_parcela)
+  if (!inicio) return null
+  return competenciaPrimeiraParcela(inicio, diaFechamento)
+}
+
+/**
+ * Parcelamentos que realmente compoem a fatura do cartao:
+ * - apenas os vinculados ao cartao (quando cartaoId informado);
+ * - nao quitados;
+ * - que nao repetem uma compra ja cadastrada em compras_cartao
+ *   (mesmo cartao, descricao, valor total e numero de parcelas).
+ */
+export function parcelamentosDaFatura(compras, parcelamentos, cartaoId = null) {
+  const chaves = new Set(
+    (compras || []).map(c =>
+      [
+        String(c.cartao_id ?? ''),
+        normalizarTexto(c.descricao),
+        centavos(c.valor_total),
+        parcelasValidas(c.numero_parcelas)
+      ].join('|')
+    )
+  )
+
+  return (parcelamentos || []).filter(p => {
+    if (!p || p.quitado_em) return false
+
+    if (
+      cartaoId &&
+      String(p.cartao_id) !== String(cartaoId)
+    ) {
+      return false
+    }
+
+    const chave = [
+      String(p.cartao_id ?? ''),
+      normalizarTexto(p.descricao),
+      centavos(p.valor_total),
+      parcelasValidas(p.numero_parcelas)
+    ].join('|')
+
+    return !chaves.has(chave)
+  })
+}
+
+function comprasDoCartao(compras, cartaoId) {
+  if (!cartaoId) return compras || []
+  return (compras || []).filter(
+    c => c.cartao_id == null || String(c.cartao_id) === String(cartaoId)
+  )
+}
+
+// ============================================================
 // 5. FATURA COMPLETA
 // ============================================================
 
@@ -256,10 +329,13 @@ export function linhasFaturaCompleta(
   parcelamentos,
   diaFechamento,
   ano,
-  mes
+  mes,
+  cartaoId = null
 ) {
+  const comprasCartao = comprasDoCartao(compras, cartaoId)
+
   const deCompras = linhasFaturaNoMes(
-    compras,
+    comprasCartao,
     diaFechamento,
     ano,
     mes
@@ -274,19 +350,19 @@ export function linhasFaturaCompleta(
     origemParcelamento: false
   }))
 
-  const deParcelamentos = (parcelamentos || [])
-    .filter(p => !p.quitado_em)
+  const deParcelamentos = parcelamentosDaFatura(
+    comprasCartao,
+    parcelamentos,
+    cartaoId
+  )
     .map(p => {
-      const inicio = dataLocal(p.primeira_parcela)
+      const inicio = competenciaParcelamento(p, diaFechamento)
 
       if (!inicio) return null
 
       const indice =
         chaveNumerica(ano, mes) -
-        chaveNumerica(
-          inicio.getFullYear(),
-          inicio.getMonth() + 1
-        )
+        chaveNumerica(inicio.ano, inicio.mes)
 
       const n = parcelasValidas(p.numero_parcelas)
 
@@ -326,14 +402,16 @@ export function totalFaturaCompleta(
   parcelamentos,
   diaFechamento,
   ano,
-  mes
+  mes,
+  cartaoId = null
 ) {
   const totalCentavos = linhasFaturaCompleta(
     compras,
     parcelamentos,
     diaFechamento,
     ano,
-    mes
+    mes,
+    cartaoId
   ).reduce(
     (acc, linha) => acc + centavos(linha.valor),
     0
@@ -411,7 +489,8 @@ export function totalFaturaComOverride(
     parcelamentos,
     diaFechamento,
     ano,
-    mes
+    mes,
+    cartaoId
   )
 
   const informada = faturaInformadaNoMes(
@@ -461,7 +540,8 @@ export function resumoFaturaCartao(
     parcelamentos,
     diaFechamento,
     ano,
-    mes
+    mes,
+    cartaoId
   )
 
   const informada = faturaInformadaNoMes(
@@ -497,6 +577,43 @@ export function resumoFaturaCartao(
     naoDetalhado: Math.max(0, diferenca) / 100,
     divergencia: possuiManual
       ? Math.max(0, -diferenca) / 100
+      : 0,
+    ...statusDetalhamento(totalManual, comprasDetalhadas, possuiManual)
+  }
+}
+
+/**
+ * Situacao do detalhamento de uma fatura com total informado.
+ * - 'sem_total'  : nao ha total informado (nada a comparar)
+ * - 'parcial'    : compras detalhadas < total informado
+ * - 'completo'   : compras detalhadas == total informado (ao centavo)
+ * - 'divergente' : compras detalhadas > total informado (nunca e "100%")
+ * percentualDetalhado fica sempre entre 0 e 100.
+ */
+export function statusDetalhamento(
+  totalInformado,
+  comprasDetalhadas,
+  possuiManual = true
+) {
+  if (!possuiManual) {
+    return { situacaoDetalhamento: 'sem_total', percentualDetalhado: 0 }
+  }
+
+  const total = centavos(totalInformado)
+  const detalhado = centavos(comprasDetalhadas)
+
+  if (detalhado > total) {
+    return { situacaoDetalhamento: 'divergente', percentualDetalhado: 100 }
+  }
+
+  if (detalhado === total) {
+    return { situacaoDetalhamento: 'completo', percentualDetalhado: 100 }
+  }
+
+  return {
+    situacaoDetalhamento: 'parcial',
+    percentualDetalhado: total > 0
+      ? Math.min(99, Math.floor((detalhado / total) * 100))
       : 0
   }
 }
@@ -554,18 +671,13 @@ export function totalParcelasFuturas(
     }
   }
 
-  for (const p of parcelamentos || []) {
-    if (p.quitado_em) continue
-
+  for (const p of parcelamentosDaFatura(compras, parcelamentos)) {
     const n = parcelasValidas(p.numero_parcelas)
-    const inicio = dataLocal(p.primeira_parcela)
+    const inicio = competenciaParcelamento(p, diaFechamento)
 
     if (!inicio || n <= 1) continue
 
-    const primeira = chaveNumerica(
-      inicio.getFullYear(),
-      inicio.getMonth() + 1
-    )
+    const primeira = chaveNumerica(inicio.ano, inicio.mes)
 
     for (let indice = 0; indice < n; indice++) {
       if (primeira + indice <= referencia) continue
@@ -588,8 +700,8 @@ export function totalParcelasFuturas(
 // ============================================================
 
 /**
- * Soma obrigacoes cujas faturas nao foram
- * marcadas como pagas.
+ * Soma o saldo em aberto das obrigacoes do cartao
+ * (total de cada ciclo menos pagamentos ativos).
  *
  * Inclui:
  * - compras a vista
@@ -603,8 +715,8 @@ export function totalParcelasFuturas(
  * O resultado e uma estimativa baseada nos
  * registros do aplicativo.
  *
- * Pagamentos parciais, estornos e ajustes
- * nao registrados nao sao considerados.
+ * Ajustes feitos fora do aplicativo nao sao
+ * considerados.
  */
 
 export function limiteComprometido(
@@ -616,15 +728,12 @@ export function limiteComprometido(
   const {
     cartaoId = null,
     parcelamentos = [],
-    faturasInformadas = []
+    faturasInformadas = [],
+    pagamentos = []
   } = extras
 
   const parcsDoCartao = cartaoId
-    ? (parcelamentos || []).filter(
-        p =>
-          String(p.cartao_id) === String(cartaoId) &&
-          !p.quitado_em
-      )
+    ? parcelamentosDaFatura(compras, parcelamentos, cartaoId)
     : []
 
   const manuaisDoCartao = cartaoId
@@ -670,14 +779,11 @@ export function limiteComprometido(
 
   // Parcelamentos associados ao cartao
   for (const p of parcsDoCartao) {
-    const inicio = dataLocal(p.primeira_parcela)
+    const inicio = competenciaParcelamento(p, diaFechamento)
 
     if (!inicio) continue
 
-    const primeiro = chaveNumerica(
-      inicio.getFullYear(),
-      inicio.getMonth() + 1
-    )
+    const primeiro = chaveNumerica(inicio.ano, inicio.mes)
 
     const n = parcelasValidas(p.numero_parcelas)
 
@@ -723,12 +829,6 @@ export function limiteComprometido(
       mes
     )
 
-    // Uma fatura marcada como paga nao
-    // compromete mais o limite.
-    if (informada?.pago === true) {
-      continue
-    }
-
     const totalMes = totalFaturaComOverride(
       compras,
       parcsDoCartao,
@@ -739,8 +839,249 @@ export function limiteComprometido(
       mes
     )
 
-    totalCentavos += centavos(totalMes)
+    // Pagamentos ativos do ciclo liberam o limite na mesma
+    // proporcao (parcial libera parcial; total libera tudo).
+    totalCentavos += centavos(
+      saldoEmAbertoFatura(totalMes, pagamentos, manuaisDoCartao, cartaoId, ano, mes)
+    )
   }
 
   return totalCentavos / 100
+}
+
+// ============================================================
+// 13. PAGAMENTOS DE FATURA
+// ============================================================
+
+/**
+ * Pagamentos de um ciclo (cartao + competencia 'YYYY-MM').
+ * Estornados ficam no historico, mas nao contam como pagos.
+ */
+export function pagamentosDoCiclo(
+  pagamentos,
+  cartaoId,
+  ano,
+  mes,
+  { incluirEstornados = false } = {}
+) {
+  const chave = anoMesChave(ano, mes)
+
+  return (pagamentos || []).filter(pg =>
+    String(pg.cartao_id) === String(cartaoId) &&
+    pg.ano_mes === chave &&
+    (incluirEstornados || pg.status !== 'estornado')
+  )
+}
+
+/**
+ * Valor ja pago de um ciclo, limitado ao total do ciclo.
+ *
+ * Compatibilidade: faturas antigas marcadas como pagas (boolean) e
+ * sem nenhum registro de pagamento contam como totalmente pagas.
+ * Se existir qualquer registro (mesmo estornado), o boolean e ignorado.
+ */
+export function valorPagoFatura(
+  totalCiclo,
+  pagamentos,
+  faturasInformadas,
+  cartaoId,
+  ano,
+  mes
+) {
+  const total = centavos(totalCiclo)
+
+  const todos = pagamentosDoCiclo(
+    pagamentos, cartaoId, ano, mes, { incluirEstornados: true }
+  )
+
+  if (todos.length === 0) {
+    const informada = faturaInformadaNoMes(
+      faturasInformadas, cartaoId, ano, mes
+    )
+    return informada?.pago === true ? total / 100 : 0
+  }
+
+  const ativos = todos
+    .filter(pg => pg.status !== 'estornado')
+    .reduce((acc, pg) => acc + centavos(pg.valor), 0)
+
+  return Math.min(total, ativos) / 100
+}
+
+/** Saldo em aberto do ciclo: total - pagamentos ativos (nunca negativo). */
+export function saldoEmAbertoFatura(
+  totalCiclo,
+  pagamentos,
+  faturasInformadas,
+  cartaoId,
+  ano,
+  mes
+) {
+  const pago = valorPagoFatura(
+    totalCiclo, pagamentos, faturasInformadas, cartaoId, ano, mes
+  )
+
+  return Math.max(0, centavos(totalCiclo) - centavos(pago)) / 100
+}
+
+function isoData(valor) {
+  if (valor instanceof Date) {
+    const y = valor.getFullYear()
+    const m = String(valor.getMonth() + 1).padStart(2, '0')
+    const d = String(valor.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+  return String(valor || '').slice(0, 10)
+}
+
+function dataDoDia(ano, mes, dia) {
+  const ultimo = new Date(ano, mes, 0).getDate()
+  const d = Math.max(1, Math.min(ultimo, numero(dia, 1)))
+  return `${ano}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+
+/**
+ * Datas de fechamento e vencimento (nominal) de um ciclo.
+ * O vencimento cai no mes seguinte ao do fechamento quando o dia de
+ * vencimento e menor que o de fechamento (mesma regra usada na
+ * projecao e no calendario).
+ */
+export function datasCiclo(cartao, ano, mes, vencimentoDia = null) {
+  const diaFech = numero(cartao?.dia_fechamento, 20)
+  const diaVenc = numero(vencimentoDia, 0) || numero(cartao?.dia_vencimento, 1)
+
+  const mesVenc = diaVenc < diaFech
+    ? competenciaPorIndice(chaveNumerica(ano, mes) + 1)
+    : { ano, mes }
+
+  return {
+    fechamento: dataDoDia(ano, mes, diaFech),
+    vencimento: dataDoDia(mesVenc.ano, mesVenc.mes, diaVenc)
+  }
+}
+
+export const STATUS_FATURA = {
+  ABERTA: 'Aberta',
+  FECHADA: 'Fechada',
+  PARCIAL: 'Parcialmente paga',
+  PAGA: 'Paga',
+  VENCIDA: 'Vencida'
+}
+
+/**
+ * Status de um ciclo:
+ * - Paga: ha pagamento e nada em aberto
+ * - Vencida: saldo em aberto depois do vencimento
+ * - Parcialmente paga: ha pagamento e ainda resta saldo
+ * - Fechada: passou o fechamento, sem pagamento
+ * - Aberta: ainda recebendo compras
+ */
+export function statusFatura({
+  total,
+  pago,
+  fechamento,
+  vencimento,
+  hoje = new Date()
+}) {
+  const hojeIso = isoData(hoje)
+  const totalC = centavos(total)
+  const pagoC = centavos(pago)
+  const emAberto = Math.max(0, totalC - pagoC)
+
+  if (totalC > 0 && emAberto === 0) return STATUS_FATURA.PAGA
+  if (emAberto > 0 && hojeIso > vencimento) return STATUS_FATURA.VENCIDA
+  if (emAberto > 0 && pagoC > 0) return STATUS_FATURA.PARCIAL
+  if (hojeIso > fechamento) return STATUS_FATURA.FECHADA
+
+  return STATUS_FATURA.ABERTA
+}
+
+/**
+ * Visao completa de um ciclo para a tela e para o modal de pagamento.
+ *
+ * Saldo anterior: saldo em aberto do ciclo imediatamente anterior, apenas
+ * informativo (para o usuario saber quanto ainda deve). NAO e somado ao
+ * total do ciclo nem a divida: esse valor continua pertencendo ao ciclo
+ * anterior ate ser pago, e por isso nunca e contado duas vezes.
+ */
+export function cicloFatura({
+  cartao,
+  compras,
+  parcelamentos,
+  faturasInformadas,
+  pagamentos,
+  ano,
+  mes,
+  hoje = new Date()
+}) {
+  const cartaoId = cartao.id
+  const fech = cartao.dia_fechamento
+
+  const resumo = resumoFaturaCartao(
+    compras, parcelamentos, faturasInformadas, cartaoId, fech, ano, mes
+  )
+
+  const informada = faturaInformadaNoMes(faturasInformadas, cartaoId, ano, mes)
+  const datas = datasCiclo(cartao, ano, mes, informada?.vencimento_dia)
+
+  const pago = valorPagoFatura(
+    resumo.total, pagamentos, faturasInformadas, cartaoId, ano, mes
+  )
+  const emAberto = saldoEmAbertoFatura(
+    resumo.total, pagamentos, faturasInformadas, cartaoId, ano, mes
+  )
+
+  // Se o total cair abaixo do que ja foi pago (ex.: compra removida), o excedente
+  // e apenas exibido: nao gera debito extra nem estorno automatico.
+  const ativosC = pagamentosDoCiclo(pagamentos, cartaoId, ano, mes)
+    .reduce((acc, pg) => acc + centavos(pg.valor), 0)
+  const excedentePago = pagamentos?.length && ativosC > 0
+    ? Math.max(0, ativosC - centavos(resumo.total)) / 100
+    : 0
+
+  const anterior = competenciaPorIndice(chaveNumerica(ano, mes) - 1)
+  const totalAnterior = totalFaturaComOverride(
+    compras, parcelamentos, faturasInformadas, cartaoId, fech,
+    anterior.ano, anterior.mes
+  )
+  const saldoAnterior = saldoEmAbertoFatura(
+    totalAnterior, pagamentos, faturasInformadas, cartaoId,
+    anterior.ano, anterior.mes
+  )
+
+  return {
+    ano,
+    mes,
+    ...resumo,
+    ...datas,
+    pago,
+    emAberto,
+    excedentePago,
+    saldoAnterior,
+    status: statusFatura({
+      total: resumo.total,
+      pago,
+      fechamento: datas.fechamento,
+      vencimento: datas.vencimento,
+      hoje
+    }),
+    pagamentos: pagamentosDoCiclo(
+      pagamentos, cartaoId, ano, mes, { incluirEstornados: true }
+    )
+  }
+}
+
+/**
+ * Valida um pagamento antes de enviar ao servidor.
+ * Retorna mensagem de erro ou null.
+ */
+export function validarPagamento({ valor, emAberto, data, hoje = new Date() }) {
+  const v = centavos(valor)
+
+  if (!(v > 0)) return 'Informe um valor maior que zero.'
+  if (v > centavos(emAberto)) return 'O valor não pode ser maior que o saldo em aberto da fatura.'
+  if (!data) return 'Informe a data do pagamento.'
+  if (isoData(data) > isoData(hoje)) return 'A data do pagamento não pode ser futura.'
+
+  return null
 }
