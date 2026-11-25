@@ -770,6 +770,7 @@ DECLARE
   v_permit  TEXT[];
   v_ref     JSONB;
   v_ajustes INT;
+  v_aj_antes INT;
 BEGIN
   IF v_uid IS NULL THEN
     RAISE EXCEPTION 'Não autenticado' USING ERRCODE = '28000';
@@ -875,6 +876,12 @@ BEGIN
   INSERT INTO public._fatura_liberacoes (txid, usuario_id, escopo, motivo)
   VALUES (txid_current(), v_uid, 'controlado', v_motivo);
 
+  -- Contagem por diferença com criado_em = NOW() (início da transação de nível superior, igual dentro
+  -- de SAVEPOINT). Não usar xmin: dentro de um SAVEPOINT as linhas novas levam o xid da subtransação,
+  -- diferente de txid_current(), e a contagem sairia 0.
+  SELECT count(*)::int INTO v_aj_antes FROM public.ajustes_fatura a
+   WHERE a.usuario_id = v_uid AND a.criado_em = NOW();
+
   IF p_acao = 'excluir' THEN
     EXECUTE format('DELETE FROM public.%I WHERE id = $1 AND usuario_id = $2', p_tabela)
       USING p_id, v_uid;
@@ -899,10 +906,9 @@ BEGIN
      WHERE t.id = p_id AND t.usuario_id = v_uid;
   END IF;
 
-  -- Linhas da razão geradas nesta transação (xmin é o xid de 32 bits da transação atual).
-  SELECT count(*)::int INTO v_ajustes FROM public.ajustes_fatura a
-   WHERE a.usuario_id = v_uid
-     AND a.xmin::text::bigint = (txid_current() % 4294967296);
+  -- Linhas da razão geradas por esta chamada.
+  SELECT count(*)::int - v_aj_antes INTO v_ajustes FROM public.ajustes_fatura a
+   WHERE a.usuario_id = v_uid AND a.criado_em = NOW();
 
   DELETE FROM public._fatura_liberacoes
    WHERE txid = txid_current() AND usuario_id = v_uid AND escopo = 'controlado';

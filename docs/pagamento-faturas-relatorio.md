@@ -462,4 +462,74 @@ Nada abaixo foi executado em PostgreSQL ou PGlite (sem Postgres, sem `node_modul
 | 3 | Documentação desatualizada | **Corrigido.** O cabeçalho da 000001 (linha "Idempotente") agora ressalva que, depois da 000002, o bloco de pré-requisitos aborta com 0A000 e a 000001 não deve ser reaplicada. `supabase/migrations/README.md` agora cita "13b e 18a a 18g". |
 | 4 | Nenhum teste de banco executado | **Continua PENDENTE.** `npm run test:migrations` e `npm run test:concorrencia` (incluindo 18e, 18f e 18g) precisam rodar num Postgres descartável antes de qualquer aprovação de banco. Sem isso, a aprovação vale só para a leitura estática. |
 
-Ainda sem cenário: RLS do consultor em `ajustes_fatura`, exclusão de cartão que só tem pagamento `legado`, e `alterar_historico_fatura` dentro de savepoint (a contagem `ajustes` devolvida pode ser 0, campo apenas informativo).
+Cenários dos itens que estavam sem cobertura (RLS do consultor, cartão com pagamento `legado`, savepoint) foram escritos na seção 12, todos PENDENTES; a contagem `ajustes` em savepoint foi corrigida (seção 12.2).
+
+## 12. Revisão final direcionada (banco) e requisitos de validação
+
+**Estado: nenhuma migration foi executada.** Nenhum item abaixo é aprovação de banco. Veredito "por leitura" significa só leitura do código.
+
+### 12.1 O que foi executado (reverificado nesta etapa)
+
+| Verificação | Comando | Saída real |
+|---|---|---|
+| Postgres local | `which psql initdb postgres pg_ctl` | nenhum encontrado |
+| `PG_TEST_URL` | `echo $PG_TEST_URL` | vazio |
+| Dependências npm | `ls node_modules` | `No such file or directory` |
+| Registry | `npm ping` | `npm error 403 on a server you do not have access to` |
+| DNS do DEV `fzawugbiojmtrthmshcc` | `getent hosts fzawugbiojmtrthmshcc.supabase.co` | sem resolução (sem credenciais também) |
+| Docker | `docker info` | `could not find a working conmon binary` |
+| Sintaxe | `node --check supabase/tests/simular-migrations.mjs` | sem erro |
+
+Nenhum bloqueio foi contornado. `ievccupeijzuzhomphwn.supabase.co` não foi acessado.
+
+### 12.2 Resultado por item (leitura + cenário escrito)
+
+| # | Pergunta | Veredito por leitura | Cenários (`simular-migrations.mjs`, seção "revisao final") | Execução |
+|---|---|---|---|---|
+| 1 | RLS do consultor em `ajustes_fatura` | A policy usa `consultor_autorizado(usuario_id)`, a mesma função das demais tabelas financeiras (`2026-10_consultoria_acessos.sql`). Esse critério é só `status = 'autorizado'` para o par consultor/cliente via `auth.uid()`: a tabela `consultoria_acessos` não tem expiração nem permissões por escopo, então não há o que testar além de status. Papel `authenticated` tem apenas SELECT; `anon` sem GRANT. Usa `auth.uid()` (GUC `request.jwt.claim.sub` no simulador; no Supabase real o claim vem de `request.jwt.claims`, o que o simulador não prova). | sem vínculo, pendente, recusado e revogado não leem; autorizado lê só o cliente autorizado; B não lê; consultor sem INSERT/DELETE (42501); anon 42501; revogar tira o acesso | PENDENTE |
+| 2 | Exclusão de cartão com pagamento legado | `trg_fatura_proteger_cartao` testa `EXISTS` em `pagamentos_fatura` sem filtro de `status` e de `legado`, então não depende de pagamentos ativos. Nenhum defeito. | legado ativo e legado estornado recusam (FP001); DELETE em `perfis` pelo usuário; cascata administrativa em `auth.users` funciona | PENDENTE |
+| 3 | `alterar_historico_fatura` em savepoint | **Defeito achado e corrigido:** a contagem `ajustes` usava `xmin = txid_current() % 2^32`. Dentro de SAVEPOINT as linhas novas levam o xid da subtransação, então a contagem saía 0. Agora conta por diferença com `criado_em = NOW()` (início da transação de nível superior). A liberação usa `txid_current()` (nível superior), portanto é consistente com savepoint, e o ROLLBACK TO desfaz a linha de `_fatura_liberacoes`. | sucesso + ROLLBACK TO; erro de dados (classe 22), 22023, 42501 + ROLLBACK TO; RELEASE + COMMIT; auditoria, ajustes, compra, pagamentos e liberações conferidos; DML direto depois do rollback segue FP001 | PENDENTE |
+| 4 | Custo dos triggers em massa | Ver 12.3. Nenhuma garantia removida e nenhuma mudança de código. | benchmark opcional `BENCH=1 [BENCH_N=2000] npm run test:migrations` (só imprime tempo) | PENDENTE |
+| 5 | `liberar_historico_zerar` e `_fatura_liberacoes` | Identidade vem de `auth.uid()` (sem parâmetro); `SECURITY DEFINER` com `search_path = public, pg_temp`; linha vale só para `txid_current()` e o usuário; tabela com RLS sem policy e REVOKE de todos os papéis de cliente; `anon` sem EXECUTE; poda por usuário e por 1 hora. Residual aceito (já na seção 11): quem executa SQL arbitrário como o próprio usuário pode liberar e apagar o próprio histórico na mesma transação; via PostgREST cada RPC é uma transação, então não é alcançável. | authenticated sem SELECT/INSERT; anon sem EXECUTE; sem identidade 28000; liberação não vale na transação seguinte nem para outro usuário; ROLLBACK TO SAVEPOINT e `encerrar_liberacao_zerar` desfazem; linha INFO do residual | PENDENTE |
+
+### 12.3 Custo dos triggers (leitura)
+
+Por linha em `compras_cartao`, `parcelamentos` e `faturas_cartao`, de usuário autenticado:
+
+- BEFORE `ab_fatura_guardar_historico`: até 2 chamadas a `fatura_liberacao_ativa` (consulta indexada por `txid` em `_fatura_liberacoes`), `competencias_pagas_registro` para OLD e NEW (leitura de `cartoes` por id e de `pagamentos_fatura` por `(cartao_id, ano_mes)`), e `_fatura_recusar_se_quitada` só para meses com pagamento.
+- AFTER `zz_fatura_auditar_historico`: mais 1 `fatura_liberacao_ativa`, de novo `competencias_pagas_registro` para OLD e NEW, `_fatura_contexto` (mais 1 a 2 consultas de liberação) e, só quando há mês com pagamento, soma de pagamentos, `total_fatura_ciclo_servidor` e `reconciliar_credito_fatura` por mês.
+- Statement: `aa_fatura_travar_usuario` trava os cartões do usuário uma vez por comando.
+
+Avaliação: em carga sem mês pago o custo é constante por linha (cerca de 6 a 8 consultas por índice), linear em N. Em cartões com mês quitado, cada linha que cai no mês pago recalcula o total do ciclo (varre as compras do ciclo), o que é O(N x tamanho do ciclo) naquele mês. Esse é o gargalo previsto, e ele é o custo da garantia. Otimização segura sem executar: nenhuma (juntar as duas consultas de liberação ou cachear por transação mudaria a semântica de liberações criadas no meio do comando e não pôde ser verificado). Índices existentes cobrem os acessos (`idx_pagamentos_fatura_cartao_mes`, `idx_ajustes_fatura_cartao_mes`, `idx_fatura_liberacoes_txid`). Recomendação para importação grande: importar em lotes por cartão/mês aberto e medir com o benchmark antes de qualquer mudança. Números reais: PENDENTE.
+
+### 12.4 Achado fora do escopo da 000002
+
+`supabase/tests/rls-security.test.sql` (pré-existente) usa a tabela `public.consultorias_acessos` (linhas 419, 429, 440, 534), mas a migration cria `public.consultoria_acessos`. O bloco 14 desse arquivo falharia em Postgres real. Não foi alterado nesta etapa (arquivo grande, usa pgTAP e não pôde ser executado). Os cenários novos de RLS do consultor ficam em `simular-migrations.mjs`.
+
+### 12.5 Não executado
+
+Migrations 000001 e 000002 em Postgres, `npm run test:migrations`, `npm run test:concorrencia`, `rls-security.test.sql`, paridade SQL/JS (`supabase/tests/paridade-fatura.mjs`), `npm run build`, `npm run test:unit` completo, E2E e validação visual. Todos PENDENTE por falta de Postgres, `node_modules`, registry, Docker e acesso ao DEV. Quatro testes unitários antigos (icones, investimentos-page, investimentos-robustez, onboarding-componente) falham também em `main`; não foram mascarados.
+
+### 12.6 Riscos residuais
+
+- Nenhum SQL das migrations 000001 e 000002 nem dos cenários novos foi executado (erros de sintaxe, de ordem ou de SQLSTATE são possíveis). A correção do item 3 também não foi executada.
+- O simulador define `auth.uid()` lendo `request.jwt.claim.sub`; o Supabase real lê `request.jwt.claims`. Teste de RLS com JWT real (`rls-security.test.sql` corrigido, ou PostgREST) segue pendente.
+- Sem expiração de acesso do consultor no modelo atual (só `status`).
+- Custo O(N x ciclo) em importação em meses já quitados (12.3).
+- Liberação transacional abusável por SQL arbitrário do próprio usuário (residual aceito).
+
+### 12.7 Requisitos mínimos para validar em PostgreSQL 13+ descartável (UTF8)
+
+1. PostgreSQL 13 ou superior, banco novo e descartável, nunca produção nem DEV compartilhado: `initdb -D /tmp/pgdata --encoding=UTF8 --locale=C.UTF-8` (ou `createdb -E UTF8 -T template0 --locale=C.UTF-8 af_teste`). `SHOW server_encoding;` deve retornar `UTF8` (os nomes de policies e mensagens têm acentos).
+2. Extensões: `uuid-ossp` e `pgcrypto` (`gen_random_uuid()` é nativo desde o PG 13); `pgtap` só para `rls-security.test.sql`.
+3. Papéis: `CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN BYPASSRLS;` e um papel de conexão que não seja superusuário para testar RLS (ou `SET LOCAL ROLE`).
+4. Schema `auth` com `auth.users (id uuid primary key, email text, raw_user_meta_data jsonb, created_at timestamptz)`, `auth.uid()` (lendo `request.jwt.claim.sub` e, para paridade com o Supabase, `request.jwt.claims->>'sub'`), `auth.role()` e `auth.jwt()`; schema `storage` com `buckets`, `objects` e `foldername`; `GRANT USAGE` nos schemas e `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES, FUNCTIONS TO anon, authenticated, service_role` (como no Supabase). Pré-requisito do consultor: `public.e_admin()`.
+5. Ordem: `supabase/schema.sql` (ou os `staging/*.sql` quando existirem), depois as migrations por ordem de nome, com `2026-10_consultoria_acessos.sql` antes de `20261124000001_pagamentos_fatura.sql` e a 000001 antes da 000002. Nunca reaplique a 000001 depois da 000002.
+6. Variável: `PG_TEST_URL=postgres://usuario:senha@host:5432/af_teste` para `test:concorrencia` (conexões reais). `test:migrations` usa PGlite e não precisa de servidor.
+7. Comandos, nesta ordem, registrando cada saída:
+   - `npm ci`
+   - `npm run test:migrations` (simulador, paridade SQL/JS, compras); opcional `BENCH=1 BENCH_N=2000 node supabase/tests/simular-migrations.mjs`
+   - `PG_TEST_URL=... npm run test:concorrencia`
+   - `psql "$PG_TEST_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls-security.test.sql` (corrigir antes o nome `consultorias_acessos`, ver 12.4)
+   - `npm run build`, `npm run test:unit` (esperar as 4 falhas antigas), `npm run test:e2e` (com `npx playwright install`) e validação visual manual.
+8. Só marque como aprovado o que tiver saída real registrada nesta seção.

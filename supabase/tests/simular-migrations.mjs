@@ -619,6 +619,188 @@ ok('dedupe: compra duplicata em outra competência recusada (FP001)', r.code ===
 r = await insCompra(A, cD, 'Notebook gamer', 300, '2027-03-05', 3)
 ok('dedupe: compra com descrição diferente (sem dedupe) é permitida', !r.erro, r.erro || '')
 
+// ------------------------------------------------------------
+// Revisao final (itens 1 a 5) - cenarios ESCRITOS, NAO EXECUTADOS (sem Postgres/PGlite no ambiente
+// em que foram escritos). PENDENTES ate rodar com `npm run test:migrations`.
+// ------------------------------------------------------------
+console.log('\n# revisao final: RLS consultor, cartao com legado, SAVEPOINT, liberacoes (PENDENTE de execucao)')
+const C = '00000000-0000-4000-8000-00000000000c'
+const D = '00000000-0000-4000-8000-00000000000d'
+await db.exec(`SET session_replication_role = replica`)
+await db.exec(`INSERT INTO auth.users (id, email) VALUES ('${C}', 'c@exemplo.invalid'), ('${D}', 'd@exemplo.invalid') ON CONFLICT DO NOTHING;
+  INSERT INTO public.perfis (id, nome, email) VALUES ('${C}', 'C', 'c@exemplo.invalid'), ('${D}', 'D', 'd@exemplo.invalid') ON CONFLICT DO NOTHING;`)
+await db.exec(`SET session_replication_role = origin`)
+
+// Item 1: RLS do consultor em ajustes_fatura. consultoria_acessos so tem status (sem expiracao nem permissoes por escopo).
+const nAjA = (await db.query(`SELECT count(*)::int AS n FROM public.ajustes_fatura WHERE usuario_id = $1`, [A])).rows[0].n
+ok('consultor: pre-condicao, A tem ajustes na razao', nAjA > 0, `(${nAjA})`)
+const contaAj = (uid, dono) => como(uid, `SELECT count(*)::int AS n FROM public.ajustes_fatura WHERE usuario_id = $1`, [dono])
+r = await contaAj(C, A)
+ok('consultor: sem vinculo, C nao le ajustes de A', !r.erro && r.linhas[0].n === 0, r.erro || '')
+for (const st of ['pendente', 'recusado', 'revogado']) {
+  await db.query(`INSERT INTO public.consultoria_acessos (consultor_id, cliente_id, status) VALUES ($1, $2, $3) ON CONFLICT (consultor_id, cliente_id) DO UPDATE SET status = EXCLUDED.status`, [C, A, st])
+  r = await contaAj(C, A)
+  ok(`consultor: status ${st} nao le ajustes de A`, !r.erro && r.linhas[0].n === 0, r.erro || '')
+}
+await db.query(`UPDATE public.consultoria_acessos SET status = 'autorizado' WHERE consultor_id = $1 AND cliente_id = $2`, [C, A])
+r = await contaAj(C, A)
+ok('consultor: autorizado le todos os ajustes de A', !r.erro && r.linhas[0].n === nAjA, `(${r.linhas?.[0]?.n} de ${nAjA}) ${r.erro || ''}`)
+r = await contaAj(C, B)
+ok('consultor: autorizado para A nao le ajustes de B', !r.erro && r.linhas[0].n === 0, r.erro || '')
+r = await como(C, `SELECT count(*)::int AS n FROM public.ajustes_fatura WHERE usuario_id <> $1`, [A])
+ok('consultor: sem filtro, so enxerga linhas de A (RLS)', !r.erro && r.linhas[0].n === 0, r.erro || '')
+r = await como(C, `INSERT INTO public.ajustes_fatura (usuario_id, cartao_id, ano_mes, tipo, via) VALUES ($1, $2, '2026-11', 'credito', 'direto')`, [A, cI])
+ok('consultor: INSERT direto em ajustes_fatura negado (42501)', r.code === '42501', `(${r.code} ${r.erro || 'sem erro'})`)
+r = await como(C, `DELETE FROM public.ajustes_fatura WHERE usuario_id = $1`, [A])
+ok('consultor: DELETE direto em ajustes_fatura negado (42501)', r.code === '42501', `(${r.code} ${r.erro || 'sem erro'})`)
+r = await contaAj(B, A)
+ok('usuario comum: B nao le ajustes de A mesmo com C autorizado', !r.erro && r.linhas[0].n === 0, r.erro || '')
+r = await como(null, `SELECT count(*)::int AS n FROM public.ajustes_fatura`)
+ok('anon: sem GRANT de SELECT em ajustes_fatura (42501)', r.code === '42501', `(${r.code} ${r.erro || 'sem erro'})`)
+await db.query(`UPDATE public.consultoria_acessos SET status = 'revogado' WHERE consultor_id = $1 AND cliente_id = $2`, [C, A])
+r = await contaAj(C, A)
+ok('consultor: apos revogar, perde o acesso a ajustes de A', !r.erro && r.linhas[0].n === 0, r.erro || '')
+
+// Item 2: cartao com pagamento legado (ativo e estornado) nao pode ser excluido; cascata de usuario como administrador funciona.
+const nl = async (uid, nome, key) => {
+  const c = await novoCartaoDe(uid, nome)
+  await db.query(`INSERT INTO public.pagamentos_fatura (usuario_id, cartao_id, ano_mes, valor, data_pagamento, origem, status, legado, idempotency_key) VALUES ($1, $2, '2026-08', 120, '2026-08-20', 'outra_conta', 'ativo', TRUE, $3)`, [uid, c, key])
+  return c
+}
+const cLeg = await nl(A, 'Legado ativo', 'legado-ativo-0001')
+r = await como(A, `DELETE FROM public.cartoes WHERE id = $1`, [cLeg])
+ok('cartao so com pagamento legado ATIVO nao e excluido (FP001)', r.code === FP, FP_(r))
+await db.query(`UPDATE public.pagamentos_fatura SET status = 'estornado', estornado_em = now() WHERE cartao_id = $1`, [cLeg])
+r = await como(A, `DELETE FROM public.cartoes WHERE id = $1`, [cLeg])
+ok('cartao so com pagamento legado ESTORNADO nao e excluido (FP001, protecao nao depende de ativos)', r.code === FP, FP_(r))
+r = (await db.query(`SELECT count(*)::int AS n FROM public.cartoes WHERE id = $1`, [cLeg])).rows[0]
+ok('cartao com legado segue existindo apos as tentativas', r.n === 1)
+const cLegD = await nl(D, 'Legado de D', 'legado-d-000001')
+r = await como(D, `DELETE FROM public.perfis WHERE id = $1`, [D])
+ok('cascata iniciada pelo proprio usuario (DELETE em perfis) nao apaga o cartao com legado', (await db.query(`SELECT count(*)::int AS n FROM public.cartoes WHERE id = $1`, [cLegD])).rows[0].n === 1, `(${r.code || 'sem erro'} ${r.erro || ''})`)
+r = await db.query(`SELECT 1`).then(() => db.exec(`DELETE FROM auth.users WHERE id = '${D}'`)).then(() => ({}), e => ({ erro: e.message, code: e.code }))
+ok('cascata administrativa (DELETE em auth.users, auth.uid() nulo) remove cartoes e pagamentos legados', !r.erro && (await db.query(`SELECT (SELECT count(*) FROM public.cartoes WHERE usuario_id = $1)::int AS c, (SELECT count(*) FROM public.pagamentos_fatura WHERE usuario_id = $1)::int AS p`, [D])).rows.every(x => x.c === 0 && x.p === 0), r.erro || '')
+
+// Item 3: alterar_historico_fatura dentro de SAVEPOINT.
+const cSP = await novoCartaoDe(A, 'Savepoint')
+const kSP = await novaCompraDe(A, cSP, 'SP', 1000)
+r = await pagarSemDica(A, cSP, YM, 1000, 'sp-quita-00001')
+ok('savepoint: fatura de 1000 quitada (pre-condicao)', !r.erro, r.erro || '')
+const snapSP = async () => ({
+  valor: await valorCompra(kSP),
+  ajustes: (await db.query(`SELECT count(*)::int AS n FROM public.ajustes_fatura WHERE cartao_id = $1`, [cSP])).rows[0].n,
+  pagos: (await pagosAtivos(cSP)).n
+})
+const baseSP = await snapSP()
+// Executa passos numa unica transacao como A; o snapshot e lido como dono (RESET ROLE) e o papel volta em seguida.
+async function emTx(fn) {
+  await db.exec('BEGIN')
+  try {
+    await db.query(`SELECT set_config('request.jwt.claim.sub', $1, true), set_config('request.jwt.claim.role', 'authenticated', true)`, [A])
+    await db.exec(`SET LOCAL ROLE authenticated`)
+    const q = async (sql, p) => { try { return { ...(await db.query(sql, p)) } } catch (e) { return { erro: e.message, code: e.code } } }
+    const dono = async () => { await db.exec('RESET ROLE'); const s = { ...(await snapSP()), lib: (await db.query(`SELECT count(*)::int AS n FROM public._fatura_liberacoes WHERE txid = txid_current()`)).rows[0].n }; await db.exec('SET LOCAL ROLE authenticated'); return s }
+    const out = await fn(q, dono)
+    await db.exec('COMMIT')
+    return out
+  } catch (e) { await db.exec('ROLLBACK').catch(() => {}); return { falhou: e.message } }
+}
+const ed = (valor) => [ 'compras_cartao', kSP, 'editar', JSON.stringify({ valor_total: valor }), 'Teste de savepoint' ]
+// 3a: sucesso dentro do savepoint, ROLLBACK TO SAVEPOINT desfaz tudo e a liberacao nao vaza.
+let o = await emTx(async (q, dono) => {
+  await q('SAVEPOINT s1')
+  const a = await q(ALTERAR, ed(900))
+  const dentro = await dono()
+  await q('ROLLBACK TO SAVEPOINT s1')
+  const depois = await dono()
+  await q('SAVEPOINT s2')
+  const dml = await q(`UPDATE public.compras_cartao SET valor_total = 1 WHERE id = $1`, [kSP])
+  await q('ROLLBACK TO SAVEPOINT s2')
+  return { a, dentro, depois, dml }
+})
+ok('savepoint/sucesso: alterar_historico_fatura aceito dentro do savepoint', !o.falhou && !o.a.erro && o.a.rows[0].r.ok === true, o.falhou || o.a?.erro || '')
+ok('savepoint/sucesso: contagem de ajustes correta dentro do savepoint (edicao + credito = 2)', o.a?.rows?.[0]?.r?.ajustes === 2, JSON.stringify(o.a?.rows?.[0]?.r))
+ok('savepoint/sucesso: dentro do savepoint valor 900 e 2 ajustes novos', o.dentro?.valor === 900 && o.dentro.ajustes === baseSP.ajustes + 2, JSON.stringify(o.dentro))
+ok('savepoint/rollback: valor, ajustes e pagamentos voltam ao estado anterior', JSON.stringify({ valor: o.depois?.valor, ajustes: o.depois?.ajustes, pagos: o.depois?.pagos }) === JSON.stringify(baseSP), JSON.stringify(o.depois))
+ok('savepoint/rollback: nenhuma liberacao da transacao sobra', o.depois?.lib === 0, JSON.stringify(o.depois))
+ok('savepoint/rollback: DML direto depois do rollback segue recusado (liberacao nao vazou, FP001)', o.dml?.code === FP, `(${o.dml?.code} ${o.dml?.erro || 'sem erro'})`)
+ok('savepoint: apos COMMIT o estado e o original', JSON.stringify(await snapSP()) === JSON.stringify(baseSP))
+// 3b: erro DEPOIS de gravar a liberacao (data invalida estoura em jsonb_populate_record), rollback do savepoint.
+o = await emTx(async (q, dono) => {
+  await q('SAVEPOINT s3')
+  const e1 = await q(ALTERAR, [ 'compras_cartao', kSP, 'editar', JSON.stringify({ data_compra: 'nao-e-data' }), 'Teste de erro' ])
+  await q('ROLLBACK TO SAVEPOINT s3')
+  const depois = await dono()
+  await q('SAVEPOINT s4')
+  const e2 = await q(ALTERAR, [ 'compras_cartao', kSP, 'editar', JSON.stringify({ valor_total: 900 }), 'abc' ])
+  await q('ROLLBACK TO SAVEPOINT s4')
+  await q('SAVEPOINT s5')
+  const e3 = await q(ALTERAR, [ 'compras_cartao', kSP, 'editar', JSON.stringify({ valor_total: 900, cartao_id: cartaoB }), 'Teste de erro' ])
+  await q('ROLLBACK TO SAVEPOINT s5')
+  return { e1, e2, e3, depois, final: await dono() }
+})
+ok('savepoint/erro: data invalida falha com erro de dados (classe 22)', /^22/.test(o.e1?.code || ''), `(${o.e1?.code} ${o.e1?.erro || 'sem erro'})`)
+ok('savepoint/erro: motivo curto falha com 22023 e cartao alheio com 42501', o.e2?.code === '22023' && o.e3?.code === '42501', `(${o.e2?.code}, ${o.e3?.code})`)
+ok('savepoint/erro: apos ROLLBACK TO, auditoria, valor, pagamentos e liberacoes intactos', JSON.stringify({ valor: o.final?.valor, ajustes: o.final?.ajustes, pagos: o.final?.pagos, lib: o.final?.lib }) === JSON.stringify({ ...baseSP, lib: 0 }), JSON.stringify(o.final))
+// 3c: sucesso com RELEASE e COMMIT: a razao fica consistente com o valor.
+o = await emTx(async q => { await q('SAVEPOINT s6'); const a = await q(ALTERAR, ed(900)); await q('RELEASE SAVEPOINT s6'); return a })
+const fim = await snapSP()
+ok('savepoint/release+commit: valor 900, 2 ajustes novos, pagamento preservado', !o.falhou && fim.valor === 900 && fim.ajustes === baseSP.ajustes + 2 && fim.pagos === 1, JSON.stringify(fim))
+r = await db.query(`SELECT count(*)::int AS n FROM public.ajustes_fatura WHERE cartao_id = $1 AND via = 'controlado' AND motivo = 'Teste de savepoint'`, [cSP])
+ok('savepoint/release+commit: ajustes com via controlado e motivo', r.rows[0].n === 2, `(${r.rows[0].n})`)
+
+// Item 5: _fatura_liberacoes e liberar_historico_zerar.
+r = await como(A, `SELECT count(*)::int AS n FROM public._fatura_liberacoes`)
+ok('liberacoes: authenticated nao le a tabela (42501)', r.code === '42501', `(${r.code} ${r.erro || 'sem erro'})`)
+r = await como(A, `INSERT INTO public._fatura_liberacoes (txid, usuario_id, escopo) VALUES (txid_current(), $1, 'zerar')`, [A])
+ok('liberacoes: authenticated nao forja linha por INSERT (42501)', r.code === '42501', `(${r.code} ${r.erro || 'sem erro'})`)
+r = await como(null, `SELECT public.liberar_historico_zerar()`)
+ok('liberacoes: anon nao executa liberar_historico_zerar (42501)', r.code === '42501', `(${r.code} ${r.erro || 'sem erro'})`)
+r = await como(A, `SELECT set_config('request.jwt.claim.sub', '', true), public.liberar_historico_zerar()`)
+ok('liberacoes: sem identidade (auth.uid() nulo) liberar recusa (28000)', r.code === '28000', `(${r.code} ${r.erro || 'sem erro'})`)
+const cLib = await novoCartaoDe(A, 'Liberacao')
+const kLib = await novaCompraDe(A, cLib, 'LIB', 100)
+r = await pagarSemDica(A, cLib, YM, 100, 'lib-quita-00001')
+await como(A, `SELECT public.liberar_historico_zerar()`)
+r = await como(A, `DELETE FROM public.compras_cartao WHERE id = $1`, [kLib])
+ok('liberacoes: liberacao de transacao ja encerrada nao vale na seguinte (FP001)', r.code === FP, FP_(r))
+await db.exec('BEGIN')
+await db.query(`SELECT set_config('request.jwt.claim.sub', $1, true)`, [A]); await db.exec('SET LOCAL ROLE authenticated')
+await db.query(`SAVEPOINT l1`); await db.query(`SELECT public.liberar_historico_zerar()`)
+const ativaDentro = (await db.query(`SELECT public.fatura_liberacao_ativa('zerar') AS a`)).rows[0].a
+await db.query(`SELECT set_config('request.jwt.claim.sub', $1, true)`, [B])
+const ativaOutro = (await db.query(`SELECT public.fatura_liberacao_ativa('zerar') AS a`)).rows[0].a
+await db.query(`SELECT set_config('request.jwt.claim.sub', $1, true)`, [A])
+await db.query(`ROLLBACK TO SAVEPOINT l1`)
+const ativaApos = (await db.query(`SELECT public.fatura_liberacao_ativa('zerar') AS a`)).rows[0].a
+await db.query(`SELECT public.liberar_historico_zerar()`); await db.query(`SELECT public.encerrar_liberacao_zerar()`)
+const ativaEncerrada = (await db.query(`SELECT public.fatura_liberacao_ativa('zerar') AS a`)).rows[0].a
+await db.exec('ROLLBACK')
+ok('liberacoes: ativa para o proprio usuario na transacao', ativaDentro === true)
+ok('liberacoes: nao vale para outro usuario na mesma transacao', ativaOutro === false)
+ok('liberacoes: ROLLBACK TO SAVEPOINT desfaz a liberacao', ativaApos === false)
+ok('liberacoes: encerrar_liberacao_zerar desfaz a liberacao', ativaEncerrada === false)
+// Residual documentado (nao e assercao): quem executa SQL arbitrario como o proprio usuario pode liberar e apagar o proprio historico.
+await db.exec('BEGIN')
+await db.query(`SELECT set_config('request.jwt.claim.sub', $1, true)`, [A]); await db.exec('SET LOCAL ROLE authenticated')
+await db.query(`SELECT public.liberar_historico_zerar()`)
+const resid = await db.query(`DELETE FROM public.compras_cartao WHERE id = $1`, [kLib]).then(x => `apagou ${x.affectedRows}`, e => `recusado ${e.code}`)
+await db.exec('ROLLBACK')
+console.log(`INFO - residual documentado (SQL arbitrario do proprio usuario: liberar + DELETE na mesma transacao): ${resid}`)
+
+// Item 4: custo dos triggers em carga (so mede e imprime, sem assercao de tempo). Ative com BENCH=1 (BENCH_N, padrao 2000).
+if (process.env.BENCH) {
+  const N = Number(process.env.BENCH_N || 2000)
+  const bench = async (rotulo, cartao) => {
+    const t0 = performance.now()
+    const x = await como(A, `INSERT INTO public.compras_cartao (usuario_id, cartao_id, descricao, valor_total, data_compra, numero_parcelas) SELECT $1, $2, 'bench ' || g, 10, DATE '2026-12-05' + (g % 20), 1 FROM generate_series(1, $3::int) g`, [A, cartao, N])
+    console.log(`BENCH - ${rotulo}: ${N} compras em ${(performance.now() - t0).toFixed(0)} ms ${x.erro || ''}`)
+  }
+  await bench('cartao sem pagamento', await novoCartaoDe(A, 'Bench sem pagamento'))
+  const cBp = await novoCartaoDe(A, 'Bench com pagamento'); await novaCompraDe(A, cBp, 'base', 100); await pagarSemDica(A, cBp, YM, 100, 'bench-quita-0001')
+  await bench('cartao com mes quitado (outro mes)', cBp)
+}
+
 // Acúmulo de liberações: chamadas soltas repetidas deixam no máximo 1 linha por usuário.
 for (let i = 0; i < 3; i++) await como(A, `SELECT public.liberar_historico_zerar()`)
 r = await db.query(`SELECT count(*)::int AS n FROM public._fatura_liberacoes WHERE usuario_id = $1`, [A])
