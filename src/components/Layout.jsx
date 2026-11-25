@@ -69,6 +69,7 @@ const navGrupos = [
     { to: '/reserva-emergencia', label: 'Reserva Emergência', icon: Shield,  corIcone: 'text-blue-400'     },
   ]},
   { titulo: 'Mais', itens: [
+    { to: '/custo-de-vida',  label: 'Custo de Vida',  icon: Receipt,       corIcone: 'text-marca'        },
     { to: '/alertas',       label: 'Alertas',        icon: Bell,          corIcone: 'text-red-400'      },
     { to: '/minha-evolucao', label: 'Minha evolução', icon: Activity,     corIcone: 'text-marca'        },
     { to: '/familia',       label: 'Almeida Família', icon: Users,        corIcone: 'text-marca', premiumOnly: true },

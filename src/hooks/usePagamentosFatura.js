@@ -6,7 +6,7 @@ import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
 /**
  * Hook para gerenciar pagamentos de faturas de cartão de crédito.
  * 
- * SISTEMA TEMPORARIAMENTE DESABILITADO - aguardando políticas RLS.
+ * SISTEMA DESABILITADO - aguardando validação completa
  */
 
 // Flag de controle do sistema
@@ -16,7 +16,7 @@ export function usePagamentosFatura(faturaId = null) {
   const { usuario, idEfetivo, modoConsultoria } = useAuth()
   const [pagamentos, setPagamentos] = useState([])
   const [carregando, setCarregando] = useState(false)
-  const [erro, setErro] = useState(SISTEMA_ATIVO ? null : 'Sistema de pagamentos temporariamente indisponível')
+  const [erro, setErro] = useState('Sistema de pagamentos em desenvolvimento')
 
   // ─────────────────────────────────────────────────────────
   // Buscar pagamentos

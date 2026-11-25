@@ -6,26 +6,17 @@ import { useCartoes } from './useCartoes'
 import { useParcelamentos } from './useParcelamentos'
 
 /**
- * Hook: Posso Comprar 2.0
- * 
- * Simula impacto de uma compra considerando:
- * - Saldo atual
- * - Receitas futuras (próximos 30 dias)
- * - Despesas previstas (próximos 30 dias)
- * - Faturas de cartão (próximas)
- * - Parcelamentos ativos
- * - Impacto na reserva de emergência
- * 
- * Retorna: pode comprar / cautela / melhor esperar / não cabe
+ * Hook auxiliar: Análise abrangente para Posso Comprar
+ * Integrado ao simulador existente
  */
-export function usePossoComprar2(valorCompra, opcaoPagamento = 'avista', numeroParcelas = 1) {
+export function useAnaliseCompra(valorCompra, opcaoPagamento = 'avista', numeroParcelas = 1) {
   const { projecao, resumoMes } = useProjecao()
   const { receitas } = useReceitas()
   const { despesas } = useDespesas()
   const { cartoes } = useCartoes()
   const { parcelamentos } = useParcelamentos()
 
-  const simulacao = useMemo(() => {
+  return useMemo(() => {
     if (!valorCompra || valorCompra <= 0) return null
 
     const valor = Number(valorCompra)
@@ -33,15 +24,9 @@ export function usePossoComprar2(valorCompra, opcaoPagamento = 'avista', numeroP
     const data30Dias = new Date(hoje)
     data30Dias.setDate(hoje.getDate() + 30)
 
-    // ═══════════════════════════════════════════════════════
-    // 1. SALDO ATUAL
-    // ═══════════════════════════════════════════════════════
     const saldoAtual = resumoMes.saldoAtual || 0
     const reservaAtual = resumoMes.reservaAtual || 0
 
-    // ═══════════════════════════════════════════════════════
-    // 2. RECEITAS FUTURAS (próximos 30 dias)
-    // ═══════════════════════════════════════════════════════
     const receitasFuturas = receitas
       .filter(r => {
         if (!r.data_recebimento) return false
@@ -50,9 +35,6 @@ export function usePossoComprar2(valorCompra, opcaoPagamento = 'avista', numeroP
       })
       .reduce((acc, r) => acc + (Number(r.valor) || 0), 0)
 
-    // ═══════════════════════════════════════════════════════
-    // 3. DESPESAS PREVISTAS (próximos 30 dias)
-    // ═══════════════════════════════════════════════════════
     const despesasPrevistas = despesas
       .filter(d => {
         if (d.pago || !d.data_vencimento) return false
@@ -61,23 +43,34 @@ export function usePossoComprar2(valorCompra, opcaoPagamento = 'avista', numeroP
       })
       .reduce((acc, d) => acc + (Number(d.valor) || 0), 0)
 
-    // ═══════════════════════════════════════════════════════
-    // 4. FATURAS DE CARTÃO (próximas)
-    // ═══════════════════════════════════════════════════════
     const faturasPendentes = cartoes
       .filter(c => c.fatura_atual > 0)
       .reduce((acc, c) => acc + (Number(c.fatura_atual) || 0), 0)
 
-    // ═══════════════════════════════════════════════════════
-    // 5. PARCELAMENTOS ATIVOS (parcela mensal)
-    // ═══════════════════════════════════════════════════════
     const parcelasMensais = parcelamentos
       .filter(p => !p.quitado)
       .reduce((acc, p) => acc + (Number(p.valor_parcela) || 0), 0)
 
-    // ═══════════════════════════════════════════════════════
-    // 6. CÁLCULO DA DISPONIBILIDADE
-    // ═══════════════════════════════════════════════════════
+    const disponivel = saldoAtual + receitasFuturas - despesasPrevistas - faturasPendentes - parcelasMensais
+    const valorParcela = opcaoPagamento === 'parcelado' ? (valor / numeroParcelas) : valor
+    const saldoApos = disponivel - valorParcela
+    const pctImpacto = disponivel > 0 ? (valorParcela / disponivel) * 100 : 100
+
+    return {
+      saldoAtual,
+      receitasFuturas,
+      despesasPrevistas,
+      faturasPendentes,
+      parcelasMensais,
+      disponivel,
+      saldoApos,
+      pctImpacto: Math.round(pctImpacto),
+      reservaAtual,
+      valorCompra: valor,
+      valorParcela
+    }
+  }, [valorCompra, opcaoPagamento, numeroParcelas, resumoMes, receitas, despesas, cartoes, parcelamentos])
+}
     const disponivel = saldoAtual + receitasFuturas - despesasPrevistas - faturasPendentes - parcelasMensais
     
     // Valor que sobraria após a compra

@@ -9,23 +9,28 @@ import { linhasFaturaCompleta, totalFaturaComOverride } from '../lib/faturaCarta
 /**
  * Hook para calcular o Custo de Vida mensal usando APENAS dados reais.
  * 
- * SISTEMA TEMPORARIAMENTE DESABILITADO - aguardando políticas RLS.
+ * Sistema ATIVO - usa despesas disponíveis, integra faturas quando RLS ativo
  */
 
 // Flag de controle do sistema
-const SISTEMA_ATIVO = false
+const SISTEMA_ATIVO = true
 
 export function useCustoDeVida(ano, mes) {
   const { despesas, carregando: carregandoDespesas } = useDespesas()
   const { cartoes } = useCartoes()
   const { compras: todasComprasCartao } = useComprasCartao()
-  const { faturas: faturasInformadas } = useFaturasCartao()
+  const { faturas: faturasInformadas, carregando: carregandoFaturas } = useFaturasCartao()
   const { parcelamentos } = useParcelamentos()
 
   const [custoMesAtual, setCustoMesAtual] = useState(null)
   const [porCategoria, setPorCategoria] = useState([])
   const [historicoMeses, setHistoricoMeses] = useState([])
-  const [carregando, setCarregando] = useState(false)
+  const [carregando, setCarregando] = useState(true)
+  const [fontesDados, setFontesDados] = useState({
+    despesas: true,
+    faturas: false,
+    comprasCartao: true
+  })
 
   // ───────────────────────────────────────────────────────────
   // Categorias essenciais para custo de vida
