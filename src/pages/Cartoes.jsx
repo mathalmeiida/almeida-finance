@@ -1276,7 +1276,7 @@ export default function Cartoes() {
   async function handleRemover(id) {
     if (!confirm('Excluir este cartão? As compras vinculadas também serão removidas.')) return
     setRemovendo(id)
-    try { await remover(id) } catch (err) { setErro(ehErroFaturaQuitada(err) && err.message ? err.message : 'Erro ao excluir cartão.') } finally { setRemovendo(null) }
+    try { await remover(id) } catch (err) { setErro(ehErroFaturaQuitada(err) && err.message ? `${err.message}${err.hint ? ' ' + err.hint : ''}` : 'Erro ao excluir cartão.') } finally { setRemovendo(null) }
   }
 // Visão de fatura de um cartão
   if (faturaAberta) {

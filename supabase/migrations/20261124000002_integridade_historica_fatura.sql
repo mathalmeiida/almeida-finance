@@ -300,6 +300,14 @@ BEGIN
    WHERE c.id = v_cartao AND c.usuario_id = v_uid;
   IF NOT FOUND THEN RETURN; END IF;
 
+  -- Saida cedo: a funcao so devolve meses com pagamento ativo do cartao. Sem nenhum, o resultado
+  -- e vazio e as varreduras da contraparte do dedupe (parcelamentos/compras_cartao) sao puladas.
+  -- Mesma semantica: o SELECT final ja filtra pg.status = 'ativo' do mesmo usuario e cartao.
+  IF NOT EXISTS (SELECT 1 FROM public.pagamentos_fatura pg
+                  WHERE pg.usuario_id = v_uid AND pg.cartao_id = v_cartao AND pg.status = 'ativo') THEN
+    RETURN;
+  END IF;
+
   v_idx := public.competencia_fatura_indice(v_data, v_fech);
 
   -- Faixas de competências afetadas: a do próprio registro e as da contraparte do dedupe de
