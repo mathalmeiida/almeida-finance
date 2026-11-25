@@ -50,6 +50,7 @@ const navGrupos = [
     { to: '/cartoes',       label: 'Cartões',        icon: CreditCard,    corIcone: 'text-sky-400'      },
     { to: '/beneficios',    label: 'Benefícios',     icon: UtensilsCrossed, corIcone: 'text-emerald-400' },
     { to: '/investimentos', label: 'Investimentos',  icon: TrendingUp,    corIcone: 'text-green-400'    },
+    { to: '/custo-de-vida', label: 'Custo de Vida',  icon: Receipt,       corIcone: 'text-amber-400'    },
     { to: '/projecao',      label: 'Projeção',       icon: BarChart2,     corIcone: 'text-marca'   },
     { to: '/minha-evolucao', label: 'Minha evolução', icon: Activity, corIcone: 'text-marca' },
   ]},

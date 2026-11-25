@@ -14,6 +14,7 @@ import { useComprasCartao } from '../hooks/useComprasCartao'
 import { useConsultoriaInteresses } from '../hooks/useConsultoria'
 import { useBeneficios } from '../hooks/useBeneficios'
 import { useInvestimentos } from '../hooks/useInvestimentos'
+import { useCustoDeVida } from '../hooks/useCustoDeVida'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useOcultarValores } from '../contexts/OcultarValoresContext'
@@ -2764,6 +2765,12 @@ const carregandoLimite = carregando
     text:      '#25141B',
     muted:     '#643F4F',
   }
+
+  const { beneficios, carregando: carregandoBeneficios } = useBeneficios()
+  const { investimentos, carregando: carregandoInvestimentos } = useInvestimentos()
+  const { dados: custoDeVida, carregando: carregandoCusto } = useCustoDeVida(anoHojeNum, mesHojeNum)
+  const navigate = useNavigate()
+
   const variaveisHome = {
     '--af-home-bg':      paletaHome.fundo,
     '--af-home-light':   paletaHome.claro,
