@@ -5,7 +5,7 @@
 
 import {
   detectarFormato, decodificarTexto, parseCSV, parseOFX, tabelaParaTransacoes,
-  textoPDFParaTransacoes, aplicarLimite,
+  textoPDFParaTransacoes, aplicarLimite, TAMANHO_MAXIMO_BYTES,
 } from './importacaoLeitura.js'
 
 const MAX_PAGINAS_PDF = 60
@@ -127,6 +127,16 @@ async function lerPDF(bytes, opcoes) {
 // Devolve { formato, transacoes, descartadas, erro, conta?, ehCartao?, truncado?,
 //           precisaSenha?, senhaIncorreta?, instituicao?, tipoDocumento?, ocr? }
 export async function lerArquivoImportacao(arquivo, { anoPadrao = new Date().getFullYear(), senha, aoProgresso, cancelado } = {}) {
+  // Validação de tamanho
+  if (arquivo.size > TAMANHO_MAXIMO_BYTES) {
+    return {
+      formato: null,
+      transacoes: [],
+      descartadas: [],
+      erro: `Arquivo muito grande (${(arquivo.size / 1024 / 1024).toFixed(1)} MB). Máximo: ${TAMANHO_MAXIMO_BYTES / 1024 / 1024} MB`
+    }
+  }
+
   const bytes = new Uint8Array(await arquivo.arrayBuffer())
   const { formato, erro } = detectarFormato(arquivo.name, bytes)
   if (erro) return { formato: null, transacoes: [], descartadas: [], erro }

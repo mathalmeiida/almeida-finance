@@ -16,6 +16,12 @@ import InputMoeda from '../components/InputMoeda'
 import ImportacaoInteligente from './ImportacaoInteligente'
 import { CORES_CARTAO } from '../lib/coresCartao'
 import { formatCurrency, formatDate, labelMes, hojeISO } from '../lib/utils'
+import { useNotificacao } from '../contexts/NotificacaoContext'
+import { useErroAmigavel } from '../lib/errosAmigaveis'
+import { useDesfazer } from '../contexts/DesfazerContext'
+import { BarraDesfazer } from '../hooks/useDesfazer'
+import BotaoOcultarValores from '../components/BotaoOcultarValores'
+import { SkeletonLista } from '../components/Skeleton'
 
 import { vencimentoEfetivo } from '../lib/calendarioBancario'
 import { calcularParcelas, useParcelamentos } from '../hooks/useParcelamentos'
@@ -325,6 +331,11 @@ function FormFatura({ cartao, faturaInicial, refData, onSalvar, onCancelar, carr
 }
 // ─── Visão: Ver fatura de um cartão (atual ou projetada) ──────────────────────
 function VerFatura({ cartao, onVoltar, onEditarCartao }) {
+  // Hooks UX
+  const { notificar } = useNotificacao()
+  const { tratarErro } = useErroAmigavel()
+  const { registrarAcao } = useDesfazer()
+  
   const { compras, carregando, criar, atualizar, remover } = useComprasCartao(cartao.id)
   const { parcelamentos } = useParcelamentos()
 // Faturas informadas por total (deste cartão).
@@ -506,13 +517,17 @@ const [resumoPagamentos, setResumoPagamentos] = useState(null)
           ? { descricao: dados.descricao, categoria_id: dados.categoria_id, subcategoria_id: dados.subcategoria_id }
           : dados
         await atualizar(compraEditando.id, payload)
+        notificar.sucesso('Alterações salvas')
       } else {
         await criar(dados)
+        notificar.sucesso('Compra cadastrada')
       }
       setModalCompra(false)
       setCompraEditando(null)
-    } catch {
-      setErro('Erro ao salvar compra ou alteração. Tente novamente.')
+    } catch (e) {
+      const mensagem = tratarErro(e, 'Cartões')
+      notificar.erro(mensagem)
+      setErro(mensagem)
     } finally {
       setSalvando(false)
     }
@@ -616,7 +631,16 @@ function iniciarEdicao(linha) {
       return
     }
     setRemovendo(id)
-    try { await remover(id) } catch { setErro('Erro ao remover.') } finally { setRemovendo(null) }
+    try {
+      await remover(id)
+      notificar.sucesso('Compra excluída')
+    } catch (e) {
+      const mensagem = tratarErro(e, 'Cartões')
+      notificar.erro(mensagem)
+      setErro(mensagem)
+    } finally {
+      setRemovendo(null)
+    }
   }
   return (
     <div className="space-y-6">
@@ -1126,6 +1150,10 @@ function CardCartao({ cartao, compras, parcelamentos = [], faturasInformadas = [
 }
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Cartoes() {
+  // Hooks UX
+  const { notificar } = useNotificacao()
+  const { tratarErro } = useErroAmigavel()
+  
   const { cartoes, carregando, criar, atualizar, remover } = useCartoes()
   const { compras } = useComprasCartao() //todas as compras (para resumo e cards)
   const { parcelamentos } = useParcelamentos()
@@ -1174,11 +1202,18 @@ export default function Cartoes() {
   async function handleSalvar(dados) {
     setSalvando(true); setErro('')
     try {
-      if (cartaoEditando) await atualizar(cartaoEditando.id, dados)
-      else await criar(dados)
+      if (cartaoEditando) {
+        await atualizar(cartaoEditando.id, dados)
+        notificar.sucesso('Alterações salvas')
+      } else {
+        await criar(dados)
+        notificar.sucesso('Cartão cadastrado')
+      }
       fecharModal()
-    } catch {
-      setErro('Erro ao salvar cartão. Tente novamente.')
+    } catch (e) {
+      const mensagem = tratarErro(e, 'Cartões')
+      notificar.erro(mensagem)
+      setErro(mensagem)
     } finally {
       setSalvando(false)
     }
@@ -1186,7 +1221,16 @@ export default function Cartoes() {
   async function handleRemover(id) {
     if (!confirm('Excluir este cartão? As compras vinculadas também serão removidas.')) return
     setRemovendo(id)
-    try { await remover(id) } catch { setErro('Erro ao excluir cartão.') } finally { setRemovendo(null) }
+    try {
+      await remover(id)
+      notificar.sucesso('Cartão excluído')
+    } catch (e) {
+      const mensagem = tratarErro(e, 'Cartões')
+      notificar.erro(mensagem)
+      setErro(mensagem)
+    } finally {
+      setRemovendo(null)
+    }
   }
 // Visão de fatura de um cartão
   if (faturaAberta) {
@@ -1302,6 +1346,8 @@ export default function Cartoes() {
           onCancelar={() => setModalImportacao(false)}
         />
       </Modal>
+
+      <BarraDesfazer />
     </div>
   )
 }

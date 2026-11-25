@@ -10,7 +10,7 @@ import { bloquearSeConsultoria } from '../lib/consultoriaGuard'
  */
 
 // Flag de controle do sistema
-const SISTEMA_ATIVO = false
+const SISTEMA_ATIVO = true
 
 export function usePagamentosFatura(faturaId = null) {
   const { usuario, idEfetivo, modoConsultoria } = useAuth()

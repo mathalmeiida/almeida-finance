@@ -22,6 +22,7 @@ import SelectCustomizado from '../components/SelectCustomizado'
 
 import { formatCurrency, hojeISO } from '../lib/utils'
 import { lerArquivoImportacao } from '../lib/importacaoArquivos'
+import { TAMANHO_MAXIMO_BYTES, MAXIMO_ARQUIVOS_SIMULTANEOS, detectarInstituicao } from '../lib/importacaoLeitura'
 import { buscarExistentes, gravarRegistros } from '../lib/importacaoGravar'
 
 import {
@@ -498,6 +499,21 @@ export default function ImportacaoInteligente({
     evento.target.value = ''
 
     if (!arquivos.length) return
+
+    // Validação de quantidade
+    if (arquivos.length > MAXIMO_ARQUIVOS_SIMULTANEOS) {
+      setErro(`Máximo de ${MAXIMO_ARQUIVOS_SIMULTANEOS} arquivos por vez. Você selecionou ${arquivos.length}.`)
+      return
+    }
+
+    // Validação de tamanho individual
+    const muitoGrandes = arquivos.filter(f => f.size > TAMANHO_MAXIMO_BYTES)
+    if (muitoGrandes.length > 0) {
+      const limite = (TAMANHO_MAXIMO_BYTES / 1024 / 1024).toFixed(0)
+      const nomes = muitoGrandes.map(f => `${f.name} (${(f.size / 1024 / 1024).toFixed(1)} MB)`).join(', ')
+      setErro(`Arquivo(s) muito grande(s): ${nomes}. Máximo: ${limite} MB por arquivo.`)
+      return
+    }
 
     setPendenteSenha(null)
     setSenhaPdf('')
@@ -1440,7 +1456,7 @@ export default function ImportacaoInteligente({
                 Adicione seus documentos
               </h2>
               <p className="mt-1 text-xs text-gray-500">
-                PDF, CSV, OFX, XLS ou XLSX.
+                PDF, CSV, OFX, XLS ou XLSX. Até 10 arquivos simultâneos, máximo 50 MB cada.
               </p>
             </div>
 
@@ -1534,6 +1550,9 @@ export default function ImportacaoInteligente({
                     : ''}
                   {leitura?.intervalo
                     ? ` · ${dataBR(leitura.intervalo.inicio)} a ${dataBR(leitura.intervalo.fim)}`
+                    : ''}
+                  {leitura?.instituicao
+                    ? ` · ${leitura.instituicao}`
                     : ''}
                 </p>
               </div>

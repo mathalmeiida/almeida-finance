@@ -10,6 +10,12 @@ import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
 import { formatCurrency, formatDate } from '../lib/utils'
 import { Link2, AlertTriangle } from 'lucide-react'
+import { useNotificacao } from '../contexts/NotificacaoContext'
+import { useErroAmigavel } from '../lib/errosAmigaveis'
+import { useDesfazer } from '../contexts/DesfazerContext'
+import { BarraDesfazer } from '../hooks/useDesfazer'
+import BotaoOcultarValores from '../components/BotaoOcultarValores'
+import { SkeletonLista } from '../components/Skeleton'
 
 const CORES_PRESET = ['#059669', '#2563eb', '#7c3aed', '#d97706', '#dc2626', '#0891b2', '#be185d']
 const numero = value => Number(value) || 0
@@ -298,6 +304,10 @@ function Indicador({ titulo, valor, icone: Icone, cor }) {
 }
 
 export default function Metas() {
+  // Hooks UX
+  const { notificar } = useNotificacao()
+  const { tratarErro } = useErroAmigavel()
+  
   const { metas, carregando, criar, atualizar, remover, ajustarValor } = useMetas()
   const { investimentos } = useInvestimentos()
   const inv = useMetaInvestimentos()
@@ -342,26 +352,49 @@ export default function Metas() {
   async function salvarMeta(dados) {
     setSalvando(true); setErroAcao('')
     try {
-      if (modal === 'nova') await criar(dados)
-      else if (modal?.tipo === 'editar') await atualizar(modal.meta.id, dados)
+      if (modal === 'nova') {
+        await criar(dados)
+        notificar.sucesso('Meta criada')
+      } else if (modal?.tipo === 'editar') {
+        await atualizar(modal.meta.id, dados)
+        notificar.sucesso('Alterações salvas')
+      }
       setModal(null)
-    } catch (e) { setErroAcao(e?.message || 'Não foi possível salvar. Tente novamente.') }
-    finally { setSalvando(false) }
+    } catch (e) {
+      const mensagem = tratarErro(e, 'Metas')
+      notificar.erro(mensagem)
+      setErroAcao(mensagem)
+    } finally {
+      setSalvando(false)
+    }
   }
   async function salvarMovimento(delta) {
     setSalvando(true); setErroAcao('')
     try {
       await ajustarValor(modal.meta.id, delta)
+      notificar.sucesso(delta > 0 ? 'Aporte registrado' : 'Retirada registrada')
       setModal(null)
-    } catch (e) { setErroAcao(e?.message || 'Não foi possível registrar a operação.') }
-    finally { setSalvando(false) }
+    } catch (e) {
+      const mensagem = tratarErro(e, 'Metas')
+      notificar.erro(mensagem)
+      setErroAcao(mensagem)
+    } finally {
+      setSalvando(false)
+    }
   }
   async function excluir(id) {
     if (!window.confirm('Remover esta meta?')) return
     setRemovendo(id); setErroAcao('')
-    try { await remover(id) }
-    catch (e) { setErroAcao(e?.message || 'Não foi possível excluir a meta.') }
-    finally { setRemovendo(null) }
+    try {
+      await remover(id)
+      notificar.sucesso('Meta excluída')
+    } catch (e) {
+      const mensagem = tratarErro(e, 'Metas')
+      notificar.erro(mensagem)
+      setErroAcao(mensagem)
+    } finally {
+      setRemovendo(null)
+    }
   }
 
   return (
@@ -513,6 +546,8 @@ export default function Metas() {
           />
         )}
       </Modal>
+
+      <BarraDesfazer />
     </div>
   )
 }

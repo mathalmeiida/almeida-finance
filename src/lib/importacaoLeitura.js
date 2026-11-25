@@ -15,8 +15,9 @@
  * - Cabeçalhos e totais ignorados
  */
 
-export const TAMANHO_MAXIMO_BYTES = 5 * 1024 * 1024
-export const MAXIMO_TRANSACOES = 2000
+export const TAMANHO_MAXIMO_BYTES = 50 * 1024 * 1024
+export const MAXIMO_ARQUIVOS_SIMULTANEOS = 10
+export const MAXIMO_TRANSACOES = 5000
 export const FORMATOS_SUPORTADOS = [
   'csv', 'ofx', 'xlsx', 'xls', 'pdf'
 ]
@@ -1057,7 +1058,7 @@ export function detectarFormato(nome, bytes) {
   if (u8.length > TAMANHO_MAXIMO_BYTES) {
     return {
       formato: null,
-      erro: 'O arquivo passa de 5 MB. Exporte um período menor.'
+      erro: `O arquivo passa de ${TAMANHO_MAXIMO_BYTES / 1024 / 1024} MB. Exporte um período menor.`
     }
   }
 

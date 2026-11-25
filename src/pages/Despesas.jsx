@@ -21,6 +21,12 @@ import { FormParcelamento, CardParcelamento } from '../components/ParcelamentosS
 import SimuladorAmortizacao from '../components/SimuladorAmortizacao'
 import SimuladorCustoVida from '../components/SimuladorCustoVida'
 import { taxaAnualParaMensal, amortizarSaldoDevedor } from '../lib/financiamento'
+import { useNotificacao } from '../contexts/NotificacaoContext'
+import { useErroAmigavel } from '../lib/errosAmigaveis'
+import { useDesfazer } from '../contexts/DesfazerContext'
+import { BarraDesfazer } from '../hooks/useDesfazer'
+import BotaoOcultarValores from '../components/BotaoOcultarValores'
+import { SkeletonLista } from '../components/Skeleton'
 
 const mesAtual = new Date().getMonth() + 1
 const anoAtual = new Date().getFullYear()
@@ -1236,6 +1242,11 @@ function ResumoMetaEconomia({ competencia, onAbrir }) {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function Despesas() {
+  // Hooks UX
+  const { notificar } = useNotificacao()
+  const { tratarErro } = useErroAmigavel()
+  const { registrarAcao } = useDesfazer()
+  
   const {
     despesas, total, carregando, criar, atualizar, remover, alterarTipo,
     anteciparPagamento, desfazerAntecipacao,
@@ -1472,11 +1483,13 @@ export default function Despesas() {
           // registro normalmente — o tipo_despesa do payload já reflete a escolha.
           await atualizar(despesaEditando.id, payload)
         }
+        notificar.sucesso('Alterações salvas')
       } else {
         // Remove metadados de controle (não são colunas da tabela despesas).
         const { _escopoTipo, _tipoAlterado, ...payload } = dados
         const nova = await criar(payload)
         setUltimaDespesa(nova)
+        notificar.sucesso('Despesa cadastrada')
       }
       await recarregarTodos().catch(e => console.warn('Falha ao atualizar histórico:', e))
       const mesRegistro = dados.data?.slice(0, 7)
@@ -1486,7 +1499,9 @@ export default function Despesas() {
       fecharModal()
     } catch (e) {
       console.error('[Despesas] Erro ao salvar:', e)
-      setErroAcao(`Não foi possível salvar: ${e?.message || 'erro desconhecido'}`)
+      const mensagem = tratarErro(e, 'Despesas')
+      notificar.erro(mensagem)
+      setErroAcao(mensagem)
     } finally {
       setSalvando(false)
     }
@@ -1516,13 +1531,28 @@ export default function Despesas() {
 
   async function handleRemover(id) {
     if (!confirm('Remover esta despesa?')) return
+    const backup = despesas.find(d => d.id === id)
     setRemovendo(id)
     try {
       await remover(id)
       await recarregarTodos().catch(e => console.warn('Falha ao atualizar histórico:', e))
       if (ultimaDespesa?.id === id) setUltimaDespesa(null)
-    } catch {
-      setErroAcao('Erro ao remover. Tente novamente.')
+      notificar.sucesso('Despesa excluída')
+      
+      if (backup) {
+        registrarAcao({
+          tipo: 'exclusao',
+          descricao: `${backup.descricao} excluída`,
+          desfazer: async () => {
+            await criar(backup)
+            notificar.sucesso('Despesa restaurada')
+          }
+        })
+      }
+    } catch (e) {
+      const mensagem = tratarErro(e, 'Despesas')
+      notificar.erro(mensagem)
+      setErroAcao(mensagem)
     } finally {
       setRemovendo(null)
     }
@@ -1643,6 +1673,21 @@ export default function Despesas() {
     }
   }
 
+  if (carregando) {
+    return (
+      <div className="af-container space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="h-8 w-32 bg-gray-200 rounded animate-pulse" />
+            <div className="h-5 w-48 bg-gray-200 rounded animate-pulse mt-2" />
+          </div>
+          <BotaoOcultarValores tamanho="md" variante="ghost" />
+        </div>
+        <SkeletonLista linhas={5} />
+      </div>
+    )
+  }
+
   return (
     <div className="af-container space-y-6 pb-mobilenav md:pb-0">
       {/* Cabeçalho */}
@@ -1652,6 +1697,7 @@ export default function Despesas() {
           <p className="text-sm text-gray-500 mt-1 capitalize">{nomeMes}</p>
         </div>
         <div className="flex gap-2">
+          <BotaoOcultarValores tamanho="md" variante="ghost" />
           <button onClick={() => setModalImportacao(true)}
             className="btn-secondary flex items-center gap-2">
             <Upload size={16} /> Importar
@@ -2278,6 +2324,8 @@ export default function Despesas() {
           onCancelar={() => setModalImportacao(false)}
         />
       </Modal>
+
+      <BarraDesfazer />
     </div>
   )
 }

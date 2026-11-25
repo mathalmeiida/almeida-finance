@@ -8,11 +8,25 @@ import { useReceitas } from '../hooks/useReceitas'
 
 import { useCategorias } from '../hooks/useCategorias'
 
+import { useNotificacao } from '../contexts/NotificacaoContext'
+
+import { useErroAmigavel } from '../lib/errosAmigaveis'
+
+import { useDesfazer } from '../contexts/DesfazerContext'
+
+import { BarraDesfazer } from '../hooks/useDesfazer'
+
+import { useRascunho } from '../hooks/useRascunho'
+
 import Modal from '../components/Modal'
 
 import InputMoeda from '../components/InputMoeda'
 
 import ImportacaoInteligente from './ImportacaoInteligente'
+
+import BotaoOcultarValores from '../components/BotaoOcultarValores'
+
+import { SkeletonLista } from '../components/Skeleton'
 
 import { formatCurrency, formatDate, corCategoria, hojeISO, partesHojeBrasil } from '../lib/utils'
 
@@ -37,30 +51,22 @@ function FormReceita({ onSalvar, onCancelar, carregando, receitaInicial, textoBo
 
     : receitaInicial?.data_fim ? 'data' : 'sem_fim'
 
-
-
-  const [form, setForm] = useState({
-
-    descricao: receitaInicial?.descricao ?? '',
-
-    valor: receitaInicial != null ? String(receitaInicial.valor) : '',
-
-    data: receitaInicial?.data ?? dataPadrao ?? hojeISO(),
-
-    categoria: receitaInicial?.categoria ?? '',
-
-    frequencia: freqInicial,
-
-    // intervalo em meses (só para "personalizado")
-    recorrencia_meses: receitaInicial?.recorrencia_meses != null ? String(receitaInicial.recorrencia_meses) : '2',
-
-    termino: terminoInicial,
-
-    ocorrencias: receitaInicial?.ocorrencias != null ? String(receitaInicial.ocorrencias) : '12',
-
-    data_fim: receitaInicial?.data_fim ?? '',
-
-  })
+  // ✅ Rascunho automático (não salva se editando)
+  const chaveRascunho = receitaInicial ? null : 'receita-form'
+  const [form, setForm, { salvo: rascunhoSalvo, limpar: limparRascunho }] = useRascunho(
+    chaveRascunho || 'receita-form-temp',
+    {
+      descricao: receitaInicial?.descricao ?? '',
+      valor: receitaInicial != null ? String(receitaInicial.valor) : '',
+      data: receitaInicial?.data ?? dataPadrao ?? hojeISO(),
+      categoria: receitaInicial?.categoria ?? '',
+      frequencia: freqInicial,
+      recorrencia_meses: receitaInicial?.recorrencia_meses != null ? String(receitaInicial.recorrencia_meses) : '2',
+      termino: terminoInicial,
+      ocorrencias: receitaInicial?.ocorrencias != null ? String(receitaInicial.ocorrencias) : '12',
+      data_fim: receitaInicial?.data_fim ?? '',
+    }
+  )
 
 
 
@@ -306,7 +312,11 @@ function FormReceita({ onSalvar, onCancelar, carregando, receitaInicial, textoBo
 
 
 export default function Receitas() {
-
+  // ✅ Hooks UX
+  const { notificar } = useNotificacao()
+  const { tratarErro } = useErroAmigavel()
+  const { acaoAtual, desfazer, cancelar, registrarAcao } = useDesfazer()
+  
   // Mês/ano navegáveis: permite ver receitas cadastradas para meses futuros
   // (ou passados) sem alterar nenhum dado — apenas o período consultado.
   const [ref, setRef] = useState({ mes: mesAtual, ano: anoAtual })
@@ -474,18 +484,18 @@ export default function Receitas() {
       } else {
 
         await criar(dados)
+        // ✅ Notificação de sucesso
+        notificar.sucesso(receitaEditando ? 'Alterações salvas' : 'Receita cadastrada')
 
       }
 
       fecharModal()
 
     } catch (err) {
-
-      setErroAcao(receitaEditando
-
-        ? 'Erro ao salvar alterações. Tente novamente.'
-
-        : 'Erro ao salvar receita. Tente novamente.')
+      // ✅ Erro amigável
+      const mensagem = tratarErro(err, 'Receitas')
+      notificar.erro(mensagem)
+      setErroAcao(mensagem)
 
     } finally {
 
@@ -500,16 +510,34 @@ export default function Receitas() {
   async function handleRemover(id) {
 
     if (!confirm('Remover esta receita?')) return
+    
+    // ✅ Backup para desfazer
+    const backup = receitas.find(r => r.id === id)
 
     setRemovendo(id)
 
     try {
 
       await remover(id)
+      // ✅ Notificação + Desfazer
+      notificar.sucesso('Receita excluída')
+      
+      if (backup) {
+        registrarAcao({
+          tipo: 'exclusao',
+          descricao: `${backup.descricao} excluída`,
+          desfazer: async () => {
+            await criar(backup)
+            notificar.sucesso('Receita restaurada')
+          }
+        })
+      }
 
-    } catch {
-
-      setErroAcao('Erro ao remover. Tente novamente.')
+    } catch (err) {
+      // ✅ Erro amigável
+      const mensagem = tratarErro(err, 'Receitas')
+      notificar.erro(mensagem)
+      setErroAcao(mensagem)
 
     } finally {
 
@@ -526,6 +554,22 @@ export default function Receitas() {
     .filter(r => r.recorrente)
     .reduce((soma, r) => soma + Number(r.valor || 0), 0)
   const totalPontual = totalExibido - totalRecorrente
+
+  // ✅ Skeleton durante carregamento
+  if (carregando) {
+    return (
+      <div className="af-container space-y-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="h-8 w-32 bg-gray-200 rounded animate-pulse" />
+            <div className="h-5 w-48 bg-gray-200 rounded animate-pulse mt-2" />
+          </div>
+          <BotaoOcultarValores tamanho="md" variante="ghost" />
+        </div>
+        <SkeletonLista linhas={5} />
+      </div>
+    )
+  }
 
   return (
     <div className="af-container space-y-5">
@@ -545,6 +589,8 @@ export default function Receitas() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
+          {/* ✅ Botão ocultar valores */}
+          <BotaoOcultarValores tamanho="md" variante="ghost" />
           <button type="button" onClick={() => setModalImportacao(true)} className="btn-secondary flex items-center gap-2 whitespace-nowrap">
             <Upload size={16} /> Importar
           </button>
@@ -715,6 +761,9 @@ export default function Receitas() {
           onCancelar={() => setModalImportacao(false)}
         />
       </Modal>
+
+      {/* Barra de desfazer ações */}
+      <BarraDesfazer />
     </div>
   )
 }

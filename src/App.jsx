@@ -5,6 +5,8 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 
 import { OcultarValoresProvider } from './contexts/OcultarValoresContext'
+import { NotificacaoProvider } from './contexts/NotificacaoContext'
+import { DesfazerProvider } from './contexts/DesfazerContext'
 
 import { useOnboarding } from './hooks/useOnboarding'
 
@@ -78,6 +80,7 @@ import Planos from './pages/Planos'
 
 import ImportacaoInteligente from './pages/ImportacaoInteligente'
 import CentralImportacao from './pages/CentralImportacao'
+import ExportarDados from './pages/ExportarDados'
 
 import Admin from './pages/Admin'
 
@@ -503,6 +506,9 @@ function Rotas() {
                 {/* Redirect legado */}
                 <Route path="/importacao" element={<Navigate to="/central-importacao" replace />} />
 
+                {/* Exportação de dados */}
+                <Route path="/exportar-dados" element={<ExportarDados />} />
+
                 <Route path="/projecao" element={<Projecao />} />
                 <Route path="/minha-evolucao" element={<MinhaEvolucao />} />
 
@@ -596,7 +602,15 @@ export default function App() {
 
           <OcultarValoresProvider>
 
-            <Rotas />
+            <NotificacaoProvider>
+
+              <DesfazerProvider>
+
+                <Rotas />
+
+              </DesfazerProvider>
+
+            </NotificacaoProvider>
 
           </OcultarValoresProvider>
 
