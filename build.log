@@ -1,0 +1,23 @@
+
+> posso-comprar@0.0.0 build
+> vite build
+
+[36mvite v5.4.21 [32mbuilding for production...[36m[39m
+transforming...
+[32m✓[39m 1734 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                          [39m[1m[2m    3.45 kB[22m[1m[22m[2m │ gzip:   1.36 kB[22m
+[2mdist/[22m[32massets/pdf.worker.min-DjJoeDqY.mjs  [39m[1m[2m1,103.95 kB[22m[1m[22m
+[2mdist/[22m[35massets/index-Bp3DKJLs.css           [39m[1m[2m   93.17 kB[22m[1m[22m[2m │ gzip:  16.53 kB[22m
+[2mdist/[22m[36massets/pdf.worker.min-B3QhnGq-.js   [39m[1m[2m    0.07 kB[22m[1m[22m[2m │ gzip:   0.09 kB[22m
+[2mdist/[22m[36massets/index-C2BXNto2.js            [39m[1m[2m   14.86 kB[22m[1m[22m[2m │ gzip:   6.45 kB[22m
+[2mdist/[22m[36massets/xlsx-CVny20fG.js             [39m[1m[2m  499.54 kB[22m[1m[22m[2m │ gzip: 163.12 kB[22m
+[2mdist/[22m[36massets/pdf-T9__9xN8.js              [39m[1m[33m  501.84 kB[39m[22m[2m │ gzip: 150.33 kB[22m
+[2mdist/[22m[36massets/index-B0IvEW0y.js            [39m[1m[33m1,354.32 kB[39m[22m[2m │ gzip: 348.39 kB[22m
+[33m
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+[32m✓ built in 8.00s[39m

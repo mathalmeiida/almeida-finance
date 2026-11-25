@@ -1,0 +1,67 @@
+=============================================================================
+COMANDOS PARA FINALIZAÇÃO - ALMEIDA FINANCE
+=============================================================================
+
+Execute no PowerShell do Windows:
+
+cd "C:\Users\MATHEUS\Desktop\App Financas\posso-comprar"
+
+# 1. BUILD PRODUÇÃO
+npm run build
+
+# 2. VERIFICAR BUILD
+dir dist\index.html
+
+# 3. PUSH COMMITS
+git push origin main
+
+# 4. DEPLOY VERCEL
+vercel --prod
+
+# 5. VERIFICAR DEPLOY
+# Acesse: https://almeida-finance.vercel.app
+# Confirme versão do commit no console do navegador ou footer
+
+=============================================================================
+TESTES PÓS-DEPLOY
+=============================================================================
+
+TESTE 1 - Botão "Não utilizo" (Mobile + Desktop)
+1. Acesse onboarding em celular
+2. Configure saldo R$ 5.000
+3. Clique "Não utilizo" em Receitas
+4. Verificar: botão vira outlined azul com ícone círculo-menos
+5. Card deve mostrar badge "Não utilizo"
+6. Clique "Desfazer" 
+7. Verificar: botão volta ao estado inicial
+8. Repetir teste em desktop
+
+TESTE 2 - Banner configuração
+1. Configure apenas saldo
+2. Marque todos módulos como "Não utilizo"
+3. Clique "Concluir configuração"
+4. Verificar: banner NÃO aparece na Home
+5. Recarregar página → banner continua oculto
+6. Fazer logout e login → banner continua oculto
+
+TESTE 3 - Persistência dados
+1. Cadastrar receita R$ 5.000
+2. Cadastrar despesa R$ 1.000
+3. Fechar navegador
+4. Abrir novamente
+5. Verificar: dados permanecem
+6. Testar em outro dispositivo com mesma conta
+
+=============================================================================
+COMMITS APLICADOS
+=============================================================================
+
+b146454 - fix(onboarding): corrigir hooks e loop de redirecionamento
+fe72c51 - feat(onboarding): melhorar UI botão Não utilizo
+
+=============================================================================
+PRÓXIMOS PASSOS
+=============================================================================
+
+Após validação dos testes acima, executar auditoria completa dos bugs
+existentes no aplicativo conforme relatório gerado.

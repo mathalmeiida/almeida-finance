@@ -1,0 +1,124 @@
+════════════════════════════════════════════════════════════════════════
+  TESTES RLS - ALMEIDA FINANCE DEV
+════════════════════════════════════════════════════════════════════════
+
+🎯 OBJETIVO
+Executar 11 testes de RLS para validar isolamento entre usuários Alice e Bob
+no ambiente DEV (gxfcfpdwyjqcrfssxgbi).
+
+════════════════════════════════════════════════════════════════════════
+  INÍCIO RÁPIDO (escolha uma opção)
+════════════════════════════════════════════════════════════════════════
+
+┌─ OPÇÃO 1: Script PowerShell Interativo (RECOMENDADO) ─────────────────┐
+│                                                                        │
+│  1. Abra PowerShell na pasta do projeto                               │
+│  2. Execute:  powershell -ExecutionPolicy Bypass -File .\Executar-TestesRLS.ps1
+│  3. Siga as instruções na tela                                         │
+│                                                                        │
+│  O script oferecerá opções interativas para configurar credenciais.   │
+│                                                                        │
+│  🔐 Segurança: Senhas lidas via SecureString, limpas com try/finally  │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌─ OPÇÃO 2: Arquivo .env.test.local ─────────────────────────────────────┐
+│                                                                        │
+│  1. Copie o template:                                                  │
+│     copy .env.test.local.example .env.test.local                       │
+│                                                                        │
+│  2. Edite o arquivo .env.test.local com as senhas reais:              │
+│     notepad .env.test.local                                            │
+│                                                                        │
+│     ALICE_EMAIL=alice@example.com                                      │
+│     ALICE_PASSWORD=senha_real_alice                                    │
+│     BOB_EMAIL=bob@example.com                                          │
+│     BOB_PASSWORD=senha_real_bob                                        │
+│                                                                        │
+│  3. Execute:  node testes-rls-com-credenciais.js                       │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌─ OPÇÃO 3: Variáveis de Ambiente ───────────────────────────────────────┐
+│                                                                        │
+│  No PowerShell:                                                        │
+│                                                                        │
+│  $env:ALICE_EMAIL="alice@example.com"                                  │
+│  $env:ALICE_PASSWORD="senha_real_alice"                                │
+│  $env:BOB_EMAIL="bob@example.com"                                      │
+│  $env:BOB_PASSWORD="senha_real_bob"                                    │
+│  node testes-rls-com-credenciais.js                                    │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+
+════════════════════════════════════════════════════════════════════════
+  INFORMAÇÕES IMPORTANTES
+════════════════════════════════════════════════════════════════════════
+
+✅ Usuários já existem no DEV:
+   - Alice: alice@example.com
+   - Bob: bob@example.com
+
+✅ Schema base já foi executado:
+   - 10 tabelas criadas
+   - 24 políticas RLS ativas
+   - 19 categorias padrão
+   - GRANTs corrigidos
+
+⚠️  AVISOS:
+   - NÃO execute na produção (ievccupeijzuzhomphwn)
+   - NÃO use service_role nos testes
+   - NÃO commite o arquivo .env.test.local
+   - NÃO execute as 38 migrations ainda
+
+════════════════════════════════════════════════════════════════════════
+  O QUE SERÁ TESTADO
+════════════════════════════════════════════════════════════════════════
+
+ 1. Categorias públicas acessíveis sem auth
+ 2. Trigger cria perfil automaticamente
+ 3. Alice cria meta pessoal
+ 4. 🔒 Bob NÃO vê meta de Alice (isolamento)
+ 5. Alice cria cartão
+ 6. Bob cria cartão
+ 7. 🔒 Alice NÃO vê cartão de Bob (isolamento)
+ 8. 🔐 Alice NÃO cria despesa com cartão de Bob (ownership)
+ 9. Alice cria despesa com próprio cartão
+10. 🔐 Alice NÃO cria compra com cartão de Bob (ownership)
+11. Alice cria compra com próprio cartão
+
+════════════════════════════════════════════════════════════════════════
+  RESULTADO ESPERADO
+════════════════════════════════════════════════════════════════════════
+
+✅ 11/11 PASS = RLS funcionando perfeitamente
+⚠️  Com SKIP   = Problema de autenticação
+❌ Com FAIL   = Vulnerabilidade encontrada (NÃO prossiga!)
+
+════════════════════════════════════════════════════════════════════════
+  DOCUMENTAÇÃO COMPLETA
+════════════════════════════════════════════════════════════════════════
+
+📖 Guia detalhado: COMO_EXECUTAR_TESTES_RLS.md
+📋 Resumo rápido: RESUMO_TESTES_RLS.md
+🔧 Troubleshooting: Veja seção no guia completo
+
+════════════════════════════════════════════════════════════════════════
+  PRÓXIMOS PASSOS
+════════════════════════════════════════════════════════════════════════
+
+1. Configure as credenciais (escolha uma opção acima)
+2. Execute os testes
+3. Aguarde o resultado (11 testes, ~10-20 segundos)
+4. Verifique o relatório final
+5. Se tudo passar: RLS validado! ✅
+6. Se algo falhar: relate o erro e NÃO prossiga ❌
+
+════════════════════════════════════════════════════════════════════════
+
+Precisa de ajuda? Consulte COMO_EXECUTAR_TESTES_RLS.md
+
+Pronto para começar? Execute:
+  powershell -ExecutionPolicy Bypass -File .\Executar-TestesRLS.ps1
+
+════════════════════════════════════════════════════════════════════════
