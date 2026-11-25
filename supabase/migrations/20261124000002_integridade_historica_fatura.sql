@@ -15,8 +15,9 @@
 --   • Idempotente (IF NOT EXISTS / CREATE OR REPLACE / DROP TRIGGER IF EXISTS).
 --   • Sem DROP de tabela, coluna ou dado. Nenhum DML foi revogado: os hooks atuais seguem
 --     funcionando para faturas abertas e parciais.
---   • ATENÇÃO À ORDEM: reaplicar a 000001 DEPOIS desta restaura a versão de 1 argumento de
---     estornar_pagamento_fatura sem auditoria. Se isso ocorrer, reaplique esta migration.
+--   • ATENÇÃO À ORDEM: a 000001 agora FALHA com mensagem clara se esta migration já estiver
+--     aplicada (to_regprocedure de estornar_pagamento_fatura(uuid,text)), para não restaurar em
+--     silêncio o estorno de 1 argumento sem auditoria. Esta migration, sim, pode ser reaplicada.
 --
 -- Regras por competência (cartao_id, ano_mes). P = soma dos pagamentos ativos; T = total do
 -- ciclo calculado no servidor (total_fatura_ciclo_servidor).
@@ -218,7 +219,14 @@ BEGIN
   IF v_uid IS NULL THEN
     RAISE EXCEPTION 'Não autenticado' USING ERRCODE = '28000';
   END IF;
-  DELETE FROM public._fatura_liberacoes WHERE criado_em < NOW() - INTERVAL '1 hour';
+  -- No máximo uma linha 'zerar' por transação e usuário. Linhas commitadas de outras transações
+  -- do mesmo usuário são sempre sobras (a liberação legítima é apagada na própria transação e nunca
+  -- chega a ser commitada; txid de 64 bits não se repete), então podem ser apagadas aqui. Isso limita
+  -- o acúmulo a no máximo uma linha por usuário, mesmo com chamadas repetidas.
+  DELETE FROM public._fatura_liberacoes
+   WHERE criado_em < NOW() - INTERVAL '1 hour'
+      OR (usuario_id = v_uid AND txid <> txid_current())
+      OR (usuario_id = v_uid AND txid = txid_current() AND escopo = 'zerar');
   INSERT INTO public._fatura_liberacoes (txid, usuario_id, escopo, motivo)
   VALUES (txid_current(), v_uid, 'zerar', 'zerar_dados_financeiros');
 END;
@@ -237,7 +245,8 @@ BEGIN
     RAISE EXCEPTION 'Não autenticado' USING ERRCODE = '28000';
   END IF;
   DELETE FROM public._fatura_liberacoes
-   WHERE txid = txid_current() AND usuario_id = v_uid AND escopo = 'zerar';
+   WHERE (txid = txid_current() AND usuario_id = v_uid AND escopo = 'zerar')
+      OR criado_em < NOW() - INTERVAL '1 hour';
 END;
 $$;
 
@@ -262,6 +271,7 @@ DECLARE
   v_n      INT;
   v_fech   INT;
   v_idx    INT;
+  v_np     INT;
 BEGIN
   IF p_reg IS NULL THEN RETURN; END IF;
   v_uid    := NULLIF(p_reg->>'usuario_id', '')::uuid;
@@ -283,7 +293,8 @@ BEGIN
   END IF;
   IF v_data IS NULL THEN RETURN; END IF;
 
-  v_n := LEAST(GREATEST(COALESCE(NULLIF(p_reg->>'numero_parcelas', '')::int, 1), 1), 600);
+  v_np := GREATEST(COALESCE(NULLIF(p_reg->>'numero_parcelas', '')::int, 1), 1);
+  v_n  := LEAST(v_np, 600);
 
   SELECT c.dia_fechamento INTO v_fech FROM public.cartoes c
    WHERE c.id = v_cartao AND c.usuario_id = v_uid;
@@ -291,11 +302,39 @@ BEGIN
 
   v_idx := public.competencia_fatura_indice(v_data, v_fech);
 
+  -- Faixas de competências afetadas: a do próprio registro e as da contraparte do dedupe de
+  -- total_fatura_ciclo_servidor (parcelamento ignorado quando existe compra do mesmo cartão com a
+  -- mesma descrição normalizada, valor e nº de parcelas). Mexer num lado muda o total dos meses
+  -- do outro lado, mesmo com datas em competências diferentes.
   RETURN QUERY
+    WITH faixas(ini, n) AS (
+      SELECT v_idx, v_n
+      UNION ALL
+      SELECT public.competencia_fatura_indice(p.primeira_parcela, v_fech),
+             LEAST(GREATEST(p.numero_parcelas, 1), 600)
+        FROM public.parcelamentos p
+       WHERE p_tabela = 'compras_cartao'
+         AND p.cartao_id = v_cartao AND p.usuario_id = v_uid AND p.quitado_em IS NULL
+         AND p.primeira_parcela IS NOT NULL
+         AND public.normalizar_texto_fatura(p.descricao) = public.normalizar_texto_fatura(p_reg->>'descricao')
+         AND round(p.valor_total * 100) = round(NULLIF(p_reg->>'valor_total', '')::numeric * 100)
+         AND GREATEST(1, p.numero_parcelas) = v_np
+      UNION ALL
+      SELECT public.competencia_fatura_indice(c.data_compra, v_fech),
+             LEAST(GREATEST(c.numero_parcelas, 1), 600)
+        FROM public.compras_cartao c
+       WHERE p_tabela = 'parcelamentos'
+         AND c.cartao_id = v_cartao AND c.usuario_id = v_uid
+         AND c.data_compra IS NOT NULL
+         AND public.normalizar_texto_fatura(c.descricao) = public.normalizar_texto_fatura(p_reg->>'descricao')
+         AND round(c.valor_total * 100) = round(NULLIF(p_reg->>'valor_total', '')::numeric * 100)
+         AND GREATEST(1, c.numero_parcelas) = v_np
+    )
     SELECT DISTINCT pg.ano_mes FROM public.pagamentos_fatura pg
-     WHERE pg.usuario_id = v_uid AND pg.cartao_id = v_cartao AND pg.status = 'ativo'
-       AND (split_part(pg.ano_mes, '-', 1)::int * 12 + split_part(pg.ano_mes, '-', 2)::int - 1)
-           BETWEEN v_idx AND v_idx + v_n - 1;
+      JOIN faixas f
+        ON (split_part(pg.ano_mes, '-', 1)::int * 12 + split_part(pg.ano_mes, '-', 2)::int - 1)
+           BETWEEN f.ini AND f.ini + f.n - 1
+     WHERE pg.usuario_id = v_uid AND pg.cartao_id = v_cartao AND pg.status = 'ativo';
 END;
 $$;
 
@@ -570,7 +609,11 @@ BEGIN
 END;
 $$;
 
--- cartoes: recusa excluir cartão com pagamento ativo (salvo zerar ou contexto administrativo).
+-- cartoes: (a) recusa excluir cartão que tenha QUALQUER pagamento (inclusive estornado) ou linha na
+-- razão, porque a cascata de FK apagaria a rastreabilidade; (b) recusa mudar dia_fechamento com
+-- pagamento ativo, porque isso reclassifica compras entre competências e muda o total de faturas
+-- pagas sem guarda nem razão. Exceções: zerar_dados_financeiros (liberação 'zerar') e contexto
+-- administrativo (auth.uid() nulo, incluindo a exclusão de usuário em auth.users).
 CREATE OR REPLACE FUNCTION public.trg_fatura_proteger_cartao()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -581,16 +624,33 @@ DECLARE
   v_uid UUID := auth.uid();
 BEGIN
   IF v_uid IS NULL OR public.fatura_liberacao_ativa('zerar') THEN
+    IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.usuario_id = v_uid AND (
+         EXISTS (SELECT 1 FROM public.pagamentos_fatura pg
+                  WHERE pg.cartao_id = OLD.id AND pg.usuario_id = OLD.usuario_id)
+         OR EXISTS (SELECT 1 FROM public.ajustes_fatura a
+                     WHERE a.cartao_id = OLD.id AND a.usuario_id = OLD.usuario_id)) THEN
+      RAISE EXCEPTION 'Este cartão tem histórico de pagamentos ou ajustes de fatura e não pode ser excluído.'
+        USING ERRCODE = 'FP001',
+              HINT = 'O histórico de faturas é preservado. Para apagar tudo, use "Zerar dados".';
+    END IF;
     RETURN OLD;
   END IF;
-  IF OLD.usuario_id = v_uid AND EXISTS (
-       SELECT 1 FROM public.pagamentos_fatura pg
-        WHERE pg.cartao_id = OLD.id AND pg.usuario_id = OLD.usuario_id AND pg.status = 'ativo') THEN
-    RAISE EXCEPTION 'Este cartão tem pagamentos de fatura ativos e não pode ser excluído.'
+
+  -- UPDATE OF dia_fechamento
+  IF NEW.dia_fechamento IS DISTINCT FROM OLD.dia_fechamento
+     AND OLD.usuario_id = v_uid
+     AND EXISTS (SELECT 1 FROM public.pagamentos_fatura pg
+                  WHERE pg.cartao_id = OLD.id AND pg.usuario_id = OLD.usuario_id AND pg.status = 'ativo') THEN
+    RAISE EXCEPTION 'O dia de fechamento não pode ser alterado enquanto o cartão tiver pagamentos de fatura ativos.'
       USING ERRCODE = 'FP001',
-            HINT = 'Estorne os pagamentos do cartão antes de excluí-lo, ou use "Zerar dados" para apagar tudo.';
+            HINT = 'A mudança reclassificaria compras entre faturas já pagas. Estorne os pagamentos antes de alterar.';
   END IF;
-  RETURN OLD;
+  RETURN NEW;
 END;
 $$;
 
@@ -666,6 +726,9 @@ CREATE TRIGGER zz_fatura_auditar_historico AFTER INSERT OR UPDATE OR DELETE ON p
 
 DROP TRIGGER IF EXISTS ab_fatura_proteger_cartao ON public.cartoes;
 CREATE TRIGGER ab_fatura_proteger_cartao BEFORE DELETE ON public.cartoes
+  FOR EACH ROW EXECUTE FUNCTION public.trg_fatura_proteger_cartao();
+DROP TRIGGER IF EXISTS ab_fatura_proteger_cartao_fechamento ON public.cartoes;
+CREATE TRIGGER ab_fatura_proteger_cartao_fechamento BEFORE UPDATE OF dia_fechamento ON public.cartoes
   FOR EACH ROW EXECUTE FUNCTION public.trg_fatura_proteger_cartao();
 
 DROP TRIGGER IF EXISTS ab_ajustes_fatura_imutavel ON public.ajustes_fatura;
@@ -754,8 +817,13 @@ BEGIN
     END IF;
   END IF;
 
-  -- Mesmo mecanismo de lock da 000001: origem e destino, em ordem ascendente.
-  PERFORM public.travar_cartoes_fatura(ARRAY[v_orig, v_dest], v_uid);
+  -- Mesma ordem global dos triggers aa_fatura_travar_usuario da 000001: TODOS os cartões do
+  -- usuário em ordem ascendente de id, antes de qualquer DML. Travar só origem e destino e deixar
+  -- o trigger de statement travar o resto depois inverteria a ordem (deadlock com DML comum do
+  -- mesmo usuário). Cobre também o cartão de destino. Os travamentos seguintes do trigger
+  -- reaproveitam locks que esta transação já tem.
+  PERFORM public.travar_cartoes_fatura(
+    ARRAY(SELECT c.id FROM public.cartoes c WHERE c.usuario_id = v_uid ORDER BY c.id), v_uid);
 
   -- Relê já sob lock (o registro pode ter mudado ou sumido enquanto esperava).
   v_reg := NULL;
@@ -763,6 +831,12 @@ BEGIN
     INTO v_reg USING p_id, v_uid;
   IF v_reg IS NULL THEN
     RAISE EXCEPTION 'Registro não encontrado' USING ERRCODE = '42501';
+  END IF;
+  -- O cartão do registro não pode ter mudado entre a leitura prévia e o lock (só ocorreria por DML
+  -- sem auth.uid(), que não segue o lock por usuário): se mudou, a decisão foi tomada com dados
+  -- velhos. Erro repetível (mesmo código de "fatura desatualizada").
+  IF NULLIF(v_reg->>'cartao_id', '')::uuid IS DISTINCT FROM v_orig THEN
+    RAISE EXCEPTION 'O registro mudou de cartão durante a operação. Repita.' USING ERRCODE = '40001';
   END IF;
 
   IF p_acao = 'editar' THEN
@@ -787,7 +861,11 @@ BEGIN
     v_novo := v_reg || p_dados;
   END IF;
 
-  DELETE FROM public._fatura_liberacoes WHERE criado_em < NOW() - INTERVAL '1 hour';
+  -- Mesma poda de liberar_historico_zerar: sobras de outras transações do usuário e linhas antigas.
+  DELETE FROM public._fatura_liberacoes
+   WHERE criado_em < NOW() - INTERVAL '1 hour'
+      OR (usuario_id = v_uid AND txid <> txid_current())
+      OR (usuario_id = v_uid AND txid = txid_current() AND escopo = 'controlado');
   INSERT INTO public._fatura_liberacoes (txid, usuario_id, escopo, motivo)
   VALUES (txid_current(), v_uid, 'controlado', v_motivo);
 

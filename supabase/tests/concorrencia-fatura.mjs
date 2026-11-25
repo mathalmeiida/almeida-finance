@@ -827,6 +827,56 @@ await cenario('18d. Liberacao nao forjavel: sem a transacao do zerar/controlado 
   await V.rollback()
 })
 
+await cenario('18e. alterar_historico_fatura x DML comum do mesmo usuario com 2 cartoes: mesma ordem de locks, sem 40P01', async () => {
+  const rodar = async (sess, sql, params) => {
+    const r = await sess.q(sql, params)
+    if (r.erro) await sess.rollback(); else await sess.commit()
+    return r
+  }
+  for (let rodada = 1; rodada <= 8; rodada++) {
+    const u = await novoUsuario()
+    const [lo, hi] = ordenar(await novoCartao(u, 'Lo'), await novoCartao(u, 'Hi'))
+    const kHi = await novaCompra(u, hi, 'No maior', 1000)
+    await novaCompra(u, lo, 'No menor', 100)
+    const S0 = await abrir(u)
+    const r0 = await S0.q(SQL_PAGAR, [hi, CICLO, 1000, 1000, chave()])
+    ok(`18e rodada ${rodada}: fatura do cartao de MAIOR id quitada`, !r0.erro, r0.erro || '')
+    await S0.commit()
+    // X edita (via RPC controlada) a compra do cartao de MAIOR id; Y faz DML comum no de MENOR id. Antes da correcao,
+    // X segurava so o maior e pedia o menor depois, enquanto Y segurava o menor e pedia o maior.
+    const X = await abrir(u); const Y = await abrir(u)
+    const [rx, ry] = await Promise.all([
+      rodar(X, SQL_ALTERAR, ['compras_cartao', kHi, 'editar', JSON.stringify({ descricao: 'Renomeada', valor_total: 900 }), 'Correcao concorrente']),
+      rodar(Y, INS_COMPRA, [u, lo]),
+    ])
+    ok(`18e rodada ${rodada}: nenhuma das duas sessoes recebeu 40P01 ou 55P03`, ![rx.code, ry.code].some(c => c === '40P01' || c === '55P03'), `(X ${rx.code || 'ok'} ${rx.erro || ''}; Y ${ry.code || 'ok'} ${ry.erro || ''})`)
+    ok(`18e rodada ${rodada}: ambas concluiram sem erro`, !rx.erro && !ry.erro, `(X ${rx.erro || 'ok'}; Y ${ry.erro || 'ok'})`)
+  }
+})
+
+await cenario('18f. cartoes: dia_fechamento e DELETE com historico recusados (FP001) em conexao real', async () => {
+  const u = await novoUsuario(); const c = await novoCartao(u)
+  const b = await novaCompra(u, c, 'Mercado', 1000)
+  const S0 = await abrir(u)
+  const r0 = await S0.q(SQL_PAGAR, [c, CICLO, 400, 1000, chave()])
+  ok('18f: pagamento de 400 aceito', !r0.erro, r0.erro || '')
+  await S0.commit()
+  const W = await abrir(u)
+  const rf = await W.q(`UPDATE public.cartoes SET dia_fechamento = 3 WHERE id = $1`, [c])
+  ok('18f: alterar dia_fechamento com pagamento ativo recusado (FP001)', rf.code === 'FP001', `(${rf.code} ${rf.erro || 'sem erro'})`)
+  await W.rollback()
+  const E = await abrir(u)
+  const re = await E.q(`SELECT * FROM public.estornar_pagamento_fatura($1, 'Estorno de teste')`, [r0.linhas[0].id])
+  ok('18f: estorno aceito', !re.erro, re.erro || '')
+  await E.commit()
+  const X = await abrir(u)
+  await X.q(`DELETE FROM public.compras_cartao WHERE id = $1`, [b])
+  const rd = await X.q(`DELETE FROM public.cartoes WHERE id = $1`, [c])
+  ok('18f: cartao com pagamento estornado e razao nao pode ser excluido (FP001)', rd.code === 'FP001', `(${rd.code} ${rd.erro || 'sem erro'})`)
+  await X.rollback()
+  ok('18f: razao e pagamento estornado preservados', (await qtdPagamentos(c, 'estornado')) === 1 && (await admin.query(`SELECT count(*)::int AS n FROM public.ajustes_fatura WHERE cartao_id = $1`, [c])).rows[0].n >= 1)
+})
+
 // ---------- Encerramento ----------
 for (const s of [...sessoesAbertas]) await s.rollback().catch(() => {})
 await admin.end()

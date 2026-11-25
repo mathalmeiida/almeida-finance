@@ -137,6 +137,13 @@ BEGIN
     RAISE EXCEPTION 'Dependência ausente: tabelas cartoes, compras_cartao, parcelamentos e faturas_cartao devem existir (schema.sql e 2026-10_faturas_cartao_total.sql).'
       USING ERRCODE = '42P01';
   END IF;
+  -- Reaplicar esta migration DEPOIS da 20261124000002 restauraria estornar_pagamento_fatura(uuid)
+  -- sem razão nem reconciliação de crédito (o app chama exatamente essa assinatura), em silêncio.
+  -- Falha explícita: a 000002 já aplicada significa que esta migration não deve rodar de novo.
+  IF to_regprocedure('public.estornar_pagamento_fatura(uuid,text)') IS NOT NULL THEN
+    RAISE EXCEPTION 'A migration 20261124000002_integridade_historica_fatura.sql já está aplicada. Reaplicar 20261124000001_pagamentos_fatura.sql restauraria o estorno sem auditoria. Não reaplique a 000001.'
+      USING ERRCODE = '0A000';
+  END IF;
 END $$;
 
 -- parcelamentos.cartao_id: o app já usa a coluna (parcelamento vinculado ao cartão) e a

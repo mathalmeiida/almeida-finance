@@ -331,7 +331,7 @@ function VerFatura({ cartao, onVoltar, onEditarCartao }) {
   const { compras, carregando, criar, atualizar, remover, atualizarComMotivo: atualizarCompraComMotivo, removerComMotivo: removerCompraComMotivo, recarregar: recarregarCompras } = useComprasCartao(cartao.id)
   const { parcelamentos, recarregar: recarregarParcelamentos } = useParcelamentos()
 // Faturas informadas por total (deste cartão).
-const { faturas: faturasInformadas, salvarFatura, removerFatura, removerComMotivo: removerFaturaComMotivo, recarregar: recarregarFaturasInformadas } = useFaturasCartao(cartao.id)
+const { faturas: faturasInformadas, salvarFatura, removerFatura, atualizarComMotivo: atualizarFaturaComMotivo, removerComMotivo: removerFaturaComMotivo, recarregar: recarregarFaturasInformadas } = useFaturasCartao(cartao.id)
 // Pagamentos de fatura (RPC transacional, histórico e estorno).
   const { pagamentos, pagar, estornar, enviando: enviandoPagamento, erro: erroPagamentos } = usePagamentosFatura(cartao.id)
   const [cicloPagando, setCicloPagando] = useState(null)
@@ -543,8 +543,19 @@ const [modalFatura, setModalFatura] = useState(false)
     try {
       await salvarFatura({ cartao_id: cartao.id, ano_mes, valor_total, vencimento_dia })
       setModalFatura(false)
-    } catch {
-      setErro('Erro ao salvar a fatura. Tente novamente.')
+    } catch (err) {
+      if (ehErroFaturaQuitada(err)) {
+        // Fatura quitada: só o total já informado pode ser alterado, pela RPC controlada (com motivo).
+        const existente = faturasInformadas.find(f => f.ano_mes === ano_mes)
+        if (existente) {
+          setModalFatura(false)
+          setPendenteHistorico({ acao: 'editar', id: existente.id, dados: filtrarCamposEditaveis('faturas_cartao', { valor_total }), tabela: 'faturas_cartao' })
+        } else {
+          setErro('Esta fatura já foi quitada e não aceita um novo total informado. Estorne o pagamento para ajustar o total.')
+        }
+      } else {
+        setErro('Erro ao salvar a fatura. Tente novamente.')
+      }
     } finally {
       setSalvandoFatura(false)
     }
@@ -569,7 +580,8 @@ const [modalFatura, setModalFatura] = useState(false)
     const { acao, id, dados, tabela } = pendenteHistorico
     setEnviandoHistorico(true); setErro('')
     try {
-      if (tabela === 'faturas_cartao') await removerFaturaComMotivo(id, motivoHistorico)
+      if (tabela === 'faturas_cartao' && acao === 'editar') await atualizarFaturaComMotivo(id, dados, motivoHistorico)
+      else if (tabela === 'faturas_cartao') await removerFaturaComMotivo(id, motivoHistorico)
       else if (acao === 'editar') await atualizarCompraComMotivo(id, dados, motivoHistorico)
       else await removerCompraComMotivo(id, motivoHistorico)
       fecharMotivoHistorico()
@@ -1254,8 +1266,9 @@ export default function Cartoes() {
       if (cartaoEditando) await atualizar(cartaoEditando.id, dados)
       else await criar(dados)
       fecharModal()
-    } catch {
-      setErro('Erro ao salvar cartão. Tente novamente.')
+    } catch (err) {
+      // FP001: o banco recusa mudar o dia de fechamento com pagamento ativo (a mensagem já vem em português).
+      setErro(ehErroFaturaQuitada(err) && err.message ? err.message : 'Erro ao salvar cartão. Tente novamente.')
     } finally {
       setSalvando(false)
     }
@@ -1263,7 +1276,7 @@ export default function Cartoes() {
   async function handleRemover(id) {
     if (!confirm('Excluir este cartão? As compras vinculadas também serão removidas.')) return
     setRemovendo(id)
-    try { await remover(id) } catch { setErro('Erro ao excluir cartão.') } finally { setRemovendo(null) }
+    try { await remover(id) } catch (err) { setErro(ehErroFaturaQuitada(err) && err.message ? err.message : 'Erro ao excluir cartão.') } finally { setRemovendo(null) }
   }
 // Visão de fatura de um cartão
   if (faturaAberta) {
