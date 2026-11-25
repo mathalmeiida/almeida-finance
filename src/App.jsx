@@ -64,6 +64,8 @@ import ReverApresentacao from './pages/ReverApresentacao'
 
 import Investimentos from './pages/Investimentos'
 
+import CustoDeVida from './pages/CustoDeVida'
+
 import AlmeidaFamilia from './pages/AlmeidaFamilia'
 import GrupoFamiliar from './pages/GrupoFamiliar'
 import Planos from './pages/Planos'
@@ -474,6 +476,8 @@ function Rotas() {
                 <Route path="/beneficios" element={<Beneficios />} />
 
                 <Route path="/investimentos" element={<Investimentos />} />
+
+                <Route path="/custo-de-vida" element={<CustoDeVida />} />
 
                 <Route path="/familia" element={<AlmeidaFamilia />} />
                 <Route path="/familia/:id" element={<GrupoFamiliar />} />

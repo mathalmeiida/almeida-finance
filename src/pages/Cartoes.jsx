@@ -1,14 +1,17 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import {
-  CreditCard, Plus, Pencil, Trash2, Loader2, ArrowLeft, Calendar, Receipt, FileText, CheckCircle2, ShoppingCart, Layers3, Settings2, Upload
+  CreditCard, Plus, Pencil, Trash2, Loader2, ArrowLeft, Calendar, Receipt, FileText, CheckCircle2, ShoppingCart, Layers3, Settings2, Upload, DollarSign
 } from 'lucide-react'
 import { useCartoes } from '../hooks/useCartoes'
 import { useComprasCartao } from '../hooks/useComprasCartao'
 import { useFaturasCartao } from '../hooks/useFaturasCartao'
+import { usePagamentosFatura } from '../hooks/usePagamentosFatura'
 import { useCategorias } from '../hooks/useCategorias'
 import SeletorCategoriaModerno from '../components/SeletorCategoriaModerno'
 import Modal from '../components/Modal'
+import ModalPagamentoFatura from '../components/ModalPagamentoFatura'
+import HistoricoPagamentos from '../components/HistoricoPagamentos'
 import InputMoeda from '../components/InputMoeda'
 import ImportacaoInteligente from './ImportacaoInteligente'
 import { CORES_CARTAO } from '../lib/coresCartao'
@@ -326,6 +329,14 @@ function VerFatura({ cartao, onVoltar, onEditarCartao }) {
   const { parcelamentos } = useParcelamentos()
 // Faturas informadas por total (deste cartão).
 const { faturas: faturasInformadas, salvarFatura, removerFatura, marcarFaturaPaga } = useFaturasCartao(cartao.id)
+
+// Hook de pagamentos de faturas
+const { 
+  registrarPagamento, 
+  estornarPagamento, 
+  buscarResumoFatura 
+} = usePagamentosFatura(faturaInformada?.id)
+
 const [modalCompra, setModalCompra] = useState(false)
   const [compraEditando, setCompraEditando] = useState(null) // /* AF_EDICAO_COMPRAS_2026 */
 const [modalFatura, setModalFatura] = useState(false)
@@ -333,6 +344,11 @@ const [modalFatura, setModalFatura] = useState(false)
   const [salvandoFatura, setSalvandoFatura] = useState(false)
   const [removendo, setRemovendo] = useState(null)
   const [erro, setErro] = useState('')
+
+// Sistema de pagamentos
+const [modalPagamento, setModalPagamento] = useState(false)
+const [resumoPagamentos, setResumoPagamentos] = useState(null)
+
 // Mês/ano exibido: começa no atual; "Próximas faturas" muda isto
   const [refData, setRefData] = useState({ ano: anoAtual, mes: mesAtual })
 // Categoria expandida (mostra os lançamentos dela ao tocar). null = nenhuma.
@@ -519,7 +535,55 @@ const [modalFatura, setModalFatura] = useState(false)
     if (!confirm('Remover o total informado desta fatura? Voltará a valer a soma das compras.')) return
     try { await removerFatura(faturaInformada.id) } catch { setErro('Erro ao remover o total informado.') }
   }
-  function iniciarEdicao(linha) {
+
+// Handlers do sistema de pagamentos
+async function handleRegistrarPagamento(dados) {
+  setSalvandoFatura(true)
+  setErro('')
+  try {
+    await registrarPagamento(dados)
+    setModalPagamento(false)
+    // Recarregar resumo
+    if (faturaInformada?.id) {
+      const novoResumo = await buscarResumoFatura(faturaInformada.id)
+      setResumoPagamentos(novoResumo)
+    }
+  } catch (err) {
+    setErro(err.message || 'Erro ao registrar pagamento')
+  } finally {
+    setSalvandoFatura(false)
+  }
+}
+
+async function handleEstornarPagamento(pagamentoId, motivo) {
+  setSalvandoFatura(true)
+  setErro('')
+  try {
+    await estornarPagamento(pagamentoId, motivo)
+    // Recarregar resumo
+    if (faturaInformada?.id) {
+      const novoResumo = await buscarResumoFatura(faturaInformada.id)
+      setResumoPagamentos(novoResumo)
+    }
+  } catch (err) {
+    setErro(err.message || 'Erro ao estornar pagamento')
+  } finally {
+    setSalvandoFatura(false)
+  }
+}
+
+// Carregar resumo de pagamentos ao abrir fatura
+useEffect(() => {
+  if (faturaInformada?.id && buscarResumoFatura) {
+    buscarResumoFatura(faturaInformada.id)
+      .then(setResumoPagamentos)
+      .catch(() => setResumoPagamentos(null))
+  } else {
+    setResumoPagamentos(null)
+  }
+}, [faturaInformada?.id, buscarResumoFatura])
+
+function iniciarEdicao(linha) {
     const compra = compras.find(c => String(c.id) === String(linha.id))
     if (!compra || linha.origemParcelamento) return
     setCompraEditando(compra)
@@ -678,16 +742,78 @@ const [modalFatura, setModalFatura] = useState(false)
         </button>
       </div>
       {faturaInformada && (
-        <button type="button" disabled={salvandoFatura} onClick={async () => {
-          try {
-            setSalvandoFatura(true)
-            setErro('')
-            await marcarFaturaPaga(faturaInformada.id, !faturaEstaPaga)
-          } catch (err) { setErro(err.message || 'Erro ao atualizar pagamento') }
-          finally { setSalvandoFatura(false) }
-        }} className="btn-secondary inline-flex items-center justify-center gap-2">
-          <CheckCircle2 size={16} /> {salvandoFatura ? 'Salvando...' : faturaEstaPaga ? 'Desfazer pagamento' : 'Marcar fatura como paga'}
-        </button>
+        <>
+          {/* Sistema de pagamentos simplificado */}
+          <div className="card bg-gradient-to-br from-marca to-marca-hover text-white">
+            <h3 className="text-base font-semibold mb-3">💳 Pagamento da Fatura</h3>
+            
+            {/* Quanto devo? */}
+            <div className="mb-4">
+              <p className="text-xs opacity-90 mb-1">Quanto devo?</p>
+              <p className="text-3xl font-bold">{formatCurrency(totalFatura)}</p>
+            </div>
+
+            {/* Quanto já paguei? Quanto falta? */}
+            {resumoPagamentos && resumoPagamentos.valorPagoAcumulado > 0 && (
+              <div className="grid grid-cols-2 gap-3 mb-4 pt-4 border-t border-white/20">
+                <div>
+                  <p className="text-xs opacity-90 mb-1">Quanto já paguei?</p>
+                  <p className="text-xl font-bold">{formatCurrency(resumoPagamentos.valorPagoAcumulado)}</p>
+                  <p className="text-xs opacity-75 mt-0.5">{resumoPagamentos.percentualPago}% pago</p>
+                </div>
+                <div>
+                  <p className="text-xs opacity-90 mb-1">Quanto falta?</p>
+                  <p className="text-xl font-bold">{formatCurrency(resumoPagamentos.valorRestante)}</p>
+                  {resumoPagamentos.quitada && (
+                    <p className="text-xs opacity-90 mt-0.5 flex items-center gap-1">
+                      <CheckCircle2 size={12} /> Quitada!
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Botão de pagamento */}
+            <button 
+              type="button" 
+              onClick={() => setModalPagamento(true)}
+              disabled={resumoPagamentos?.quitada || salvandoFatura}
+              className={`w-full py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
+                resumoPagamentos?.quitada 
+                  ? 'bg-white/20 cursor-not-allowed' 
+                  : 'bg-white text-marca hover:bg-white/90'
+              }`}
+            >
+              <DollarSign size={18} />
+              {resumoPagamentos?.quitada ? 'Fatura Quitada' : 'Pagar Fatura'}
+            </button>
+          </div>
+
+          {/* Histórico de pagamentos */}
+          {resumoPagamentos?.pagamentos && resumoPagamentos.pagamentos.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                📋 Histórico de pagamentos
+              </h3>
+              <HistoricoPagamentos
+                pagamentos={resumoPagamentos.pagamentos}
+                onEstornar={handleEstornarPagamento}
+                carregando={salvandoFatura}
+              />
+            </div>
+          )}
+
+          {/* Modal de pagamento */}
+          <ModalPagamentoFatura
+            aberto={modalPagamento}
+            onFechar={() => setModalPagamento(false)}
+            onSalvar={handleRegistrarPagamento}
+            carregando={salvandoFatura}
+            fatura={faturaInformada}
+            limiteCartao={Number(cartao.limite_total)}
+            erro={erro}
+          />
+        </>
       )}
       {/* Aviso de previsão quando não é o mês atual */}
       {!ehMesAtual && (
