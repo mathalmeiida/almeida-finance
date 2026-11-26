@@ -1,244 +1,675 @@
-import { useState, useEffect, useMemo } from 'react'
+
+import { useMemo } from 'react'
 import { useDespesas } from './useDespesas'
 import { useCartoes } from './useCartoes'
 import { useComprasCartao } from './useComprasCartao'
 import { useFaturasCartao } from './useFaturasCartao'
 import { useParcelamentos } from './useParcelamentos'
-import { linhasFaturaCompleta, totalFaturaComOverride } from '../lib/faturaCartao'
 
-/**
- * Hook para calcular o Custo de Vida mensal usando APENAS dados reais.
- * 
- * Sistema ATIVO - usa despesas disponíveis, integra faturas quando RLS ativo
- */
+import {
+  linhasFaturaCompleta,
+  totalFaturaComOverride
+} from '../lib/faturaCartao'
 
-// Flag de controle do sistema
-const SISTEMA_ATIVO = true
+const CATEGORIAS_ESSENCIAIS = [
+  { id: 'moradia', nome: 'Moradia', icone: '🏠' },
+  { id: 'condominio', nome: 'Condomínio e IPTU', icone: '🏢' },
+  { id: 'utilidades', nome: 'Água, energia e gás', icone: '💡' },
+  { id: 'alimentacao', nome: 'Alimentação', icone: '🍽️' },
+  { id: 'transporte', nome: 'Transporte', icone: '🚗' },
+  { id: 'saude', nome: 'Saúde', icone: '🏥' },
+  { id: 'internet', nome: 'Internet e telefone', icone: '📱' },
+  { id: 'assinaturas', nome: 'Assinaturas e streaming', icone: '📺' },
+  { id: 'educacao', nome: 'Educação', icone: '📚' },
+  { id: 'seguros', nome: 'Seguros', icone: '🛡️' },
+  { id: 'dividas', nome: 'Dívidas e empréstimos', icone: '💳' },
+  { id: 'lazer', nome: 'Lazer e entretenimento', icone: '🎮' },
+  { id: 'outros', nome: 'Outros', icone: '📦' }
+]
 
-export function useCustoDeVida(ano, mes) {
-  const { despesas, carregando: carregandoDespesas } = useDespesas()
-  const { cartoes } = useCartoes()
-  const { compras: todasComprasCartao } = useComprasCartao()
-  const { faturas: faturasInformadas, carregando: carregandoFaturas } = useFaturasCartao()
-  const { parcelamentos } = useParcelamentos()
+function normalizar(valor) {
+  return String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
 
-  const [custoMesAtual, setCustoMesAtual] = useState(null)
-  const [porCategoria, setPorCategoria] = useState([])
-  const [historicoMeses, setHistoricoMeses] = useState([])
-  const [carregando, setCarregando] = useState(true)
-  const [fontesDados, setFontesDados] = useState({
-    despesas: true,
-    faturas: false,
-    comprasCartao: true
-  })
+function lista(valor) {
+  return Array.isArray(valor) ? valor : []
+}
 
-  // ───────────────────────────────────────────────────────────
-  // Categorias essenciais para custo de vida
-  // ───────────────────────────────────────────────────────────
-  const CATEGORIAS_ESSENCIAIS = [
-    { id: 'alimentacao', nome: 'Alimentação', icone: '🍽️' },
-    { id: 'moradia', nome: 'Moradia', icone: '🏠' },
-    { id: 'transporte', nome: 'Transporte', icone: '🚗' },
-    { id: 'saude', nome: 'Saúde', icone: '🏥' },
-    { id: 'educacao', nome: 'Educação', icone: '📚' },
-    { id: 'outros', nome: 'Outros', icone: '📦' }
-  ]
+function centavos(valor) {
+  const numero = Number(valor)
 
-  // ───────────────────────────────────────────────────────────
-  // Mapear categoria real para categoria essencial
-  // ───────────────────────────────────────────────────────────
-  function mapearCategoria(nomeCategoria) {
-    if (!nomeCategoria) return 'outros'
+  return Number.isFinite(numero)
+    ? Math.round(numero * 100)
+    : 0
+}
 
-    const nome = nomeCategoria.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+function categoriaNome(item) {
+  return (
+    item?.categorias?.nome ||
+    item?.categoria?.nome ||
+    (
+      typeof item?.categoria === 'string'
+        ? item.categoria
+        : ''
+    ) ||
+    'Sem categoria'
+  )
+}
 
-    if (nome.includes('alimenta') || nome.includes('mercado') || nome.includes('comida') || nome.includes('restaurante') || nome.includes('lanche')) {
-      return 'alimentacao'
-    }
-    if (nome.includes('moradia') || nome.includes('aluguel') || nome.includes('condominio') || nome.includes('iptu') || nome.includes('agua') || nome.includes('luz') || nome.includes('gas') || nome.includes('internet')) {
-      return 'moradia'
-    }
-    if (nome.includes('transporte') || nome.includes('combustivel') || nome.includes('gasolina') || nome.includes('onibus') || nome.includes('metro') || nome.includes('uber') || nome.includes('taxi') || nome.includes('estacionamento')) {
-      return 'transporte'
-    }
-    if (nome.includes('saude') || nome.includes('medico') || nome.includes('farmacia') || nome.includes('remedio') || nome.includes('plano') || nome.includes('consulta') || nome.includes('exame')) {
-      return 'saude'
-    }
-    if (nome.includes('educacao') || nome.includes('escola') || nome.includes('faculdade') || nome.includes('curso') || nome.includes('livro')) {
-      return 'educacao'
-    }
+function possui(texto, palavras) {
+  const limpo = normalizar(texto)
+    .replace(/[^a-z0-9]+/g, ' ')
 
-    return 'outros'
+  return palavras.some(palavra =>
+    (` ${limpo} `).includes(
+      ` ${normalizar(palavra)} `
+    )
+  )
+}
+
+export function mapearCategoria(
+  nomeCategoria,
+  descricao = ''
+) {
+  const texto = normalizar(descricao)
+  const categoria = normalizar(nomeCategoria)
+
+  // A descrição específica tem prioridade.
+  // Evita classificar celular como aluguel.
+
+  if (possui(texto, [
+    'internet', 'celular', 'telefonia',
+    'telefone', 'banda larga'
+  ])) return 'internet'
+
+  if (possui(texto, [
+    'netflix', 'spotify', 'disney',
+    'hbo', 'youcine', 'streaming',
+    'amazon prime', 'youtube premium',
+    'apple music', 'icloud', 'tv',
+    'assinatura'
+  ])) return 'assinaturas'
+
+  if (possui(texto, [
+    'gasolina', 'combustivel', 'etanol',
+    'diesel', 'uber', 'taxi',
+    'estacionamento', 'onibus', 'metro'
+  ])) return 'transporte'
+
+  if (possui(texto, [
+    'emprestimo', 'divida', 'consorcio'
+  ])) return 'dividas'
+
+  if (possui(texto, [
+    'seguro', 'seguros'
+  ])) return 'seguros'
+
+  if (possui(texto, [
+    'aluguel', 'prestacao do imovel',
+    'financiamento imobiliario'
+  ])) return 'moradia'
+
+  if (possui(texto, [
+    'condominio', 'iptu'
+  ])) return 'condominio'
+
+  if (possui(texto, [
+    'agua', 'energia', 'luz',
+    'gas', 'eletricidade'
+  ])) return 'utilidades'
+
+  if (possui(texto, [
+    'mercado', 'supermercado',
+    'alimentacao', 'restaurante',
+    'lanche', 'padaria'
+  ])) return 'alimentacao'
+
+  if (possui(texto, [
+    'farmacia', 'medico', 'remedio',
+    'plano de saude', 'consulta',
+    'exame', 'dentista'
+  ])) return 'saude'
+
+  // Classificação pela categoria cadastrada.
+
+  if (/internet|telefon|celular/.test(categoria)) {
+    return 'internet'
   }
 
-  // ───────────────────────────────────────────────────────────
-  // Calcular custo do mês específico
-  // ───────────────────────────────────────────────────────────
+  if (/assinatura|streaming/.test(categoria)) {
+    return 'assinaturas'
+  }
+
+  if (/emprestimo|divida|consorcio|financiamento/.test(categoria)) {
+    return 'dividas'
+  }
+
+  if (/seguro/.test(categoria)) {
+    return 'seguros'
+  }
+
+  if (/condominio|iptu/.test(categoria)) {
+    return 'condominio'
+  }
+
+  if (/agua|energia|eletricidade|gas|luz/.test(categoria)) {
+    return 'utilidades'
+  }
+
+  if (/moradia|aluguel|habitacao/.test(categoria)) {
+    return 'moradia'
+  }
+
+  if (/alimenta|mercado|comida|restaurante/.test(categoria)) {
+    return 'alimentacao'
+  }
+
+  if (/transporte|combustivel|gasolina/.test(categoria)) {
+    return 'transporte'
+  }
+
+  if (/saude|medico|farmacia|odontolog/.test(categoria)) {
+    return 'saude'
+  }
+
+  if (/educacao|escola|faculdade|curso/.test(categoria)) {
+    return 'educacao'
+  }
+
+  if (/lazer|entretenimento|cinema|jogos/.test(categoria)) {
+    return 'lazer'
+  }
+
+  return 'outros'
+}
+
+function dataValida(valor) {
+  if (typeof valor !== 'string') return null
+
+  const partes = /^(\d{4})-(\d{2})-(\d{2})(?:$|T| )/
+    .exec(valor)
+
+  if (!partes) return null
+
+  const [, ano, mes, dia] = partes
+
+  const data = new Date(
+    Date.UTC(+ano, +mes - 1, +dia)
+  )
+
+  if (
+    data.getUTCFullYear() !== +ano ||
+    data.getUTCMonth() !== +mes - 1 ||
+    data.getUTCDate() !== +dia
+  ) return null
+
+  return {
+    ano: +ano,
+    mes: +mes,
+    dia: +dia,
+    iso: `${ano}-${mes}-${dia}`
+  }
+}
+
+function chaveMes(ano, mes) {
+  return ano * 12 + mes - 1
+}
+
+function dataDoMes(ano, mes, dia) {
+  const ultimoDia = new Date(
+    Date.UTC(ano, mes, 0)
+  ).getUTCDate()
+
+  return [
+    ano,
+    String(mes).padStart(2, '0'),
+    String(
+      Math.max(1, Math.min(dia, ultimoDia))
+    ).padStart(2, '0')
+  ].join('-')
+}
+
+function registroValido(item) {
+  if (!item) return false
+
+  if (
+    item.deleted_at ||
+    item.excluido_em ||
+    item.excluido === true ||
+    item.is_deleted === true ||
+    item.cancelado === true ||
+    item.cancelada === true
+  ) return false
+
+  return ![
+    'cancelado',
+    'cancelada',
+    'excluido',
+    'excluida',
+    'deleted',
+    'canceled',
+    'cancelled'
+  ].includes(normalizar(item.status))
+}
+
+function pagamentoDeFatura(item) {
+  const descricao = normalizar(item.descricao)
+  const tipo = normalizar(item.tipo)
+  const origem = normalizar(item.origem)
+
+  return (
+    tipo === 'pagamento_fatura' ||
+    origem === 'pagamento_fatura' ||
+    /pagamento\s+(de\s+|da\s+)?fatura/.test(
+      descricao
+    )
+  )
+}
+
+export function useCustoDeVida(ano, mes) {
+  const hoje = new Date()
+
+  const anoAtual = hoje.getFullYear()
+  const mesAtual = hoje.getMonth() + 1
+
+  const anoRef = Number(ano) || anoAtual
+  const mesRef = Number(mes) || mesAtual
+
+  const hookDespesas = useDespesas()
+  const hookCartoes = useCartoes()
+  const hookCompras = useComprasCartao()
+  const hookFaturas = useFaturasCartao()
+  const hookParcelamentos = useParcelamentos()
+
+  const despesas = hookDespesas.despesas
+  const cartoes = hookCartoes.cartoes
+  const compras = hookCompras.compras
+  const faturas = hookFaturas.faturas
+  const parcelamentos = hookParcelamentos.parcelamentos
+
+  const carregando = Boolean(
+    hookDespesas.carregando ||
+    hookCartoes.carregando ||
+    hookCompras.carregando ||
+    hookFaturas.carregando ||
+    hookParcelamentos.carregando
+  )
+
+  const erro =
+    hookDespesas.erro ||
+    hookCartoes.erro ||
+    hookCompras.erro ||
+    hookFaturas.erro ||
+    hookParcelamentos.erro ||
+    null
+
   const calcularCustoMes = useMemo(() => {
-    return (anoRef, mesRef) => {
+
+    const despesasValidas = lista(despesas)
+      .filter(registroValido)
+      .filter(d => !pagamentoDeFatura(d))
+
+    const cartoesValidos = lista(cartoes)
+      .filter(registroValido)
+
+    const comprasValidas = lista(compras)
+      .filter(registroValido)
+
+    const faturasValidas = lista(faturas)
+      .filter(registroValido)
+
+    const parcelasValidas = lista(parcelamentos)
+      .filter(registroValido)
+
+    return (anoCalculo, mesCalculo) => {
+
       const categoriasMap = new Map()
 
-      // Inicializa todas as categorias essenciais com 0
+      const futuro =
+        chaveMes(anoCalculo, mesCalculo) >
+        chaveMes(anoAtual, mesAtual)
+
       CATEGORIAS_ESSENCIAIS.forEach(cat => {
         categoriasMap.set(cat.id, {
           ...cat,
-          total: 0,
+          totalCentavos: 0,
           itens: []
         })
       })
 
-      // 1. DESPESAS FIXAS E VARIÁVEIS (tabela despesas)
-      const despesasDoMes = despesas.filter(d => {
-        // Excluir pagamentos de fatura para evitar duplicacao
-        const descricao = (d.descricao || '').toLowerCase()
-        if (descricao.includes('pagamento fatura')) {
-          return false
-        }
-        
-        if (!d.data) return false
-        const data = new Date(d.data + 'T12:00:00')
-        return data.getFullYear() === anoRef && data.getMonth() + 1 === mesRef
+      let totalRegistradoCentavos = 0
+
+      function adicionarItem(categoriaId, item) {
+
+        const valorCentavos = centavos(item.valor)
+
+        if (valorCentavos <= 0) return
+
+        const categoria =
+          categoriasMap.get(categoriaId) ||
+          categoriasMap.get('outros')
+
+        categoria.totalCentavos += valorCentavos
+
+        categoria.itens.push({
+          ...item,
+          valor: valorCentavos / 100,
+          projetado: futuro
+        })
+
+        totalRegistradoCentavos += valorCentavos
+      }
+
+      // 1. Despesas cadastradas para o mês.
+
+      despesasValidas.forEach(despesa => {
+
+        const data =
+          dataValida(despesa.data) ||
+          dataValida(despesa.data_vencimento)
+
+        if (
+          !data ||
+          data.ano !== anoCalculo ||
+          data.mes !== mesCalculo
+        ) return
+
+        const nome = categoriaNome(despesa)
+
+        const categoriaId = mapearCategoria(
+          nome,
+          despesa.descricao
+        )
+
+        adicionarItem(categoriaId, {
+          id: despesa.id,
+          descricao: despesa.descricao,
+          valor: despesa.valor,
+          data: data.iso,
+          tipo: 'despesa',
+          categoriaOriginal: nome
+        })
       })
 
-      despesasDoMes.forEach(despesa => {
-        const categoriaId = mapearCategoria(despesa.categorias?.nome)
-        const cat = categoriasMap.get(categoriaId)
-        
-        if (cat) {
-          cat.total += Number(despesa.valor) || 0
-          cat.itens.push({
-            id: despesa.id,
-            descricao: despesa.descricao,
-            valor: Number(despesa.valor) || 0,
-            data: despesa.data,
-            tipo: 'despesa',
-            categoriaOriginal: despesa.categorias?.nome || 'Sem categoria'
+      // 2. Compras, parcelas e faturas de cartões.
+      // O total informado substitui o detalhamento.
+
+      cartoesValidos.forEach(cartao => {
+
+        const comprasCartao = comprasValidas.filter(
+          c => String(c.cartao_id) === String(cartao.id)
+        )
+
+        const parcelasCartao = parcelasValidas.filter(
+          p => String(p.cartao_id) === String(cartao.id)
+        )
+
+        const linhas = lista(
+          linhasFaturaCompleta(
+            comprasCartao,
+            parcelasCartao,
+            cartao.dia_fechamento,
+            anoCalculo,
+            mesCalculo
+          )
+        ).filter(linha =>
+          centavos(linha.valor) > 0
+        )
+
+        const totalDetalhado = linhas.reduce(
+          (soma, linha) =>
+            soma + centavos(linha.valor),
+          0
+        )
+
+        const totalFatura = Math.max(
+          0,
+          centavos(
+            totalFaturaComOverride(
+              comprasCartao,
+              parcelasCartao,
+              faturasValidas,
+              cartao.id,
+              cartao.dia_fechamento,
+              anoCalculo,
+              mesCalculo
+            )
+          )
+        )
+
+        let restante = totalFatura
+
+        // Caso o total informado seja inferior
+        // ao detalhamento, distribui proporcionalmente
+        // sem ultrapassar o valor oficial da fatura.
+
+        linhas.forEach((linha, indice) => {
+
+          if (restante <= 0) return
+
+          const original = centavos(linha.valor)
+
+          let valor = original
+
+          if (
+            totalDetalhado > totalFatura &&
+            totalDetalhado > 0
+          ) {
+            valor =
+              indice === linhas.length - 1
+                ? restante
+                : Math.round(
+                    original *
+                    totalFatura /
+                    totalDetalhado
+                  )
+          }
+
+          valor = Math.max(
+            0,
+            Math.min(restante, valor)
+          )
+
+          restante -= valor
+
+          const nome = categoriaNome(linha)
+
+          const categoriaId = mapearCategoria(
+            nome,
+            linha.descricao
+          )
+
+          adicionarItem(categoriaId, {
+            id: `cartao-${cartao.id}-${linha.id}-${indice}`,
+            descricao: linha.descricao,
+            valor: valor / 100,
+            data:
+              dataValida(linha.data)?.iso ||
+              dataDoMes(anoCalculo, mesCalculo, 1),
+            tipo: 'cartao',
+            cartao: cartao.nome,
+            parcela: linha.parcela,
+            totalParcelas: linha.totalParcelas,
+            categoriaOriginal: nome
+          })
+        })
+
+        // Inclui o valor da fatura que ainda
+        // não possui compras detalhadas.
+
+        if (restante > 0) {
+          adicionarItem('outros', {
+            id: `fatura-${cartao.id}-${anoCalculo}-${mesCalculo}`,
+            descricao:
+              `Fatura ${cartao.nome} — não detalhada`,
+            valor: restante / 100,
+            data: dataDoMes(
+              anoCalculo,
+              mesCalculo,
+              Number(cartao.dia_vencimento) || 1
+            ),
+            tipo: 'cartao',
+            cartao: cartao.nome,
+            categoriaOriginal: 'Fatura não detalhada'
           })
         }
       })
 
-      // 2. COMPRAS NO CARTÃO (linhas de fatura do mês)
-      cartoes.forEach(cartao => {
-        const comprasCartao = todasComprasCartao.filter(c => 
-          String(c.cartao_id) === String(cartao.id)
+      // 3. Total consolidado em centavos.
+
+      const totalGeralCentavos = Array
+        .from(categoriasMap.values())
+        .reduce(
+          (soma, categoria) =>
+            soma + categoria.totalCentavos,
+          0
         )
 
-        const parcelamentosCartao = parcelamentos.filter(p => 
-          String(p.cartao_id) === String(cartao.id)
-        )
-
-        const linhasDoMes = linhasFaturaCompleta(
-          comprasCartao,
-          parcelamentosCartao,
-          cartao.dia_fechamento,
-          anoRef,
-          mesRef
-        )
-
-        linhasDoMes.forEach(linha => {
-          const categoriaId = mapearCategoria(linha.categorias?.nome)
-          const cat = categoriasMap.get(categoriaId)
-
-          if (cat) {
-            cat.total += linha.valor
-            cat.itens.push({
-              id: linha.id,
-              descricao: linha.descricao,
-              valor: linha.valor,
-              data: linha.data,
-              tipo: 'cartao',
-              cartao: cartao.nome,
-              parcela: linha.parcela,
-              totalParcelas: linha.totalParcelas,
-              categoriaOriginal: linha.categorias?.nome || 'Sem categoria'
-            })
-          }
-        })
-      })
-
-      // 3. TOTAL GERAL
-      const totalGeral = Array.from(categoriasMap.values())
-        .reduce((acc, cat) => acc + cat.total, 0)
-
-      // 4. Converter Map em array e calcular percentuais
-      const categorias = Array.from(categoriasMap.values())
+      const categorias = Array
+        .from(categoriasMap.values())
         .map(cat => ({
-          ...cat,
-          percentual: totalGeral > 0 
-            ? Math.round((cat.total / totalGeral) * 100) 
-            : 0
+          id: cat.id,
+          nome: cat.nome,
+          icone: cat.icone,
+          itens: cat.itens,
+          total: cat.totalCentavos / 100,
+
+          percentual:
+            totalGeralCentavos > 0
+              ? Math.round(
+                  cat.totalCentavos /
+                  totalGeralCentavos * 100
+                )
+              : 0
         }))
         .sort((a, b) => b.total - a.total)
 
       return {
-        ano: anoRef,
-        mes: mesRef,
-        total: totalGeral,
+        ano: anoCalculo,
+        mes: mesCalculo,
+        total: totalGeralCentavos / 100,
+        totalRegistrado: totalRegistradoCentavos / 100,
         categorias,
-        temDados: totalGeral > 0
+        projetado: futuro,
+        temDados: categorias.some(
+          cat => cat.itens.length > 0
+        )
       }
     }
-  }, [despesas, cartoes, todasComprasCartao, parcelamentos])
 
-  // ───────────────────────────────────────────────────────────
-  // Calcular média de períodos anteriores
-  // ───────────────────────────────────────────────────────────
+  }, [
+    despesas,
+    cartoes,
+    compras,
+    faturas,
+    parcelamentos,
+    anoAtual,
+    mesAtual
+  ])
+
+  // Custo do mês selecionado.
+
+  const custoMesAtual = useMemo(() => {
+    return calcularCustoMes(anoRef, mesRef)
+  }, [
+    calcularCustoMes,
+    anoRef,
+    mesRef
+  ])
+
+  // Média dos meses anteriores com dados.
+  // Não utiliza meses futuros como histórico.
+
   const calcularMediaPeriodo = useMemo(() => {
-    return (mesesAtras) => {
+
+    return (mesesAtras = 3) => {
+
       const custos = []
-      const dataRef = new Date(ano, mes - 1, 1)
+
+      const referencia = Math.min(
+        chaveMes(anoRef, mesRef),
+        chaveMes(anoAtual, mesAtual)
+      )
 
       for (let i = 1; i <= mesesAtras; i++) {
-        const dataAnterior = new Date(dataRef)
-        dataAnterior.setMonth(dataAnterior.getMonth() - i)
-        
-        const anoAnterior = dataAnterior.getFullYear()
-        const mesAnterior = dataAnterior.getMonth() + 1
 
-        const custo = calcularCustoMes(anoAnterior, mesAnterior)
-        
+        const chave = referencia - i
+        const anoHistorico = Math.floor(chave / 12)
+        const mesHistorico = chave % 12 + 1
+
+        const custo = calcularCustoMes(
+          anoHistorico,
+          mesHistorico
+        )
+
         if (custo.temDados) {
           custos.push(custo.total)
         }
       }
 
-      if (custos.length === 0) return null
-
-      const soma = custos.reduce((acc, val) => acc + val, 0)
-      const media = soma / custos.length
+      if (!custos.length) return null
 
       return {
-        media,
+        media: custos.reduce(
+          (soma, valor) => soma + valor,
+          0
+        ) / custos.length,
+
         mesesComDados: custos.length,
         mesesAnalisados: mesesAtras
       }
     }
-  }, [ano, mes, calcularCustoMes])
 
-  // ───────────────────────────────────────────────────────────
-  // Calcular histórico dos últimos N meses
-  // ───────────────────────────────────────────────────────────
+  }, [
+    anoRef,
+    mesRef,
+    anoAtual,
+    mesAtual,
+    calcularCustoMes
+  ])
+
+  // Histórico dos últimos meses.
+
   const calcularHistorico = useMemo(() => {
+
     return (numeroMeses = 12) => {
+
       const historico = []
-      const dataRef = new Date(ano, mes - 1, 1)
 
-      for (let i = 0; i < numeroMeses; i++) {
-        const dataAtual = new Date(dataRef)
-        dataAtual.setMonth(dataAtual.getMonth() - i)
+      const referencia = Math.min(
+        chaveMes(anoRef, mesRef),
+        chaveMes(anoAtual, mesAtual)
+      )
 
-        const anoAtual = dataAtual.getFullYear()
-        const mesAtual = dataAtual.getMonth() + 1
+      for (let i = numeroMeses - 1; i >= 0; i--) {
 
-        const custo = calcularCustoMes(anoAtual, mesAtual)
-        
-        historico.unshift({
-          ano: anoAtual,
-          mes: mesAtual,
-          label: new Date(anoAtual, mesAtual - 1).toLocaleDateString('pt-BR', { 
-            month: 'short', 
-            year: '2-digit' 
+        const chave = referencia - i
+
+        const anoHistorico = Math.floor(chave / 12)
+        const mesHistorico = chave % 12 + 1
+
+        const custo = calcularCustoMes(
+          anoHistorico,
+          mesHistorico
+        )
+
+        historico.push({
+          ano: anoHistorico,
+          mes: mesHistorico,
+
+          label: new Date(
+            anoHistorico,
+            mesHistorico - 1,
+            1
+          ).toLocaleDateString('pt-BR', {
+            month: 'short',
+            year: '2-digit'
           }),
+
           total: custo.total,
           temDados: custo.temDados
         })
@@ -246,49 +677,72 @@ export function useCustoDeVida(ano, mes) {
 
       return historico
     }
-  }, [ano, mes, calcularCustoMes])
 
-  // ───────────────────────────────────────────────────────────
-  // Efeito: calcular dados ao carregar
-  // ───────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!SISTEMA_ATIVO) {
-      setCarregando(false)
-      return
-    }
+  }, [
+    anoRef,
+    mesRef,
+    anoAtual,
+    mesAtual,
+    calcularCustoMes
+  ])
 
-    if (carregandoDespesas) {
-      setCarregando(true)
-      return
-    }
+  const historicoMeses = useMemo(() => {
+    return calcularHistorico(12)
+  }, [calcularHistorico])
 
-    try {
-      // Custo do mês atual
-      const custoAtual = calcularCustoMes(ano, mes)
-      setCustoMesAtual(custoAtual)
-      setPorCategoria(custoAtual.categorias)
+  // Projeção do mês atual e dos próximos 12 meses,
+  // com base nos compromissos já cadastrados.
 
-      // Histórico
-      const historico = calcularHistorico(12)
-      setHistoricoMeses(historico)
+  const projecaoMeses = useMemo(() => {
 
-      setCarregando(false)
-    } catch (err) {
-      console.error('Erro ao calcular custo de vida:', err)
-      setCarregando(false)
-    }
-  }, [ano, mes, carregandoDespesas, calcularCustoMes, calcularHistorico, SISTEMA_ATIVO])
+    return Array.from({ length: 13 }, (_, i) => {
 
-  // ───────────────────────────────────────────────────────────
-  // Retorno do hook
-  // ───────────────────────────────────────────────────────────
+      const chave =
+        chaveMes(anoAtual, mesAtual) + i
+
+      const anoProjecao = Math.floor(chave / 12)
+      const mesProjecao = chave % 12 + 1
+
+      const custo = calcularCustoMes(
+        anoProjecao,
+        mesProjecao
+      )
+
+      return {
+        ...custo,
+
+        label: new Date(
+          anoProjecao,
+          mesProjecao - 1,
+          1
+        ).toLocaleDateString('pt-BR', {
+          month: 'long',
+          year: 'numeric'
+        })
+      }
+    })
+
+  }, [
+    calcularCustoMes,
+    anoAtual,
+    mesAtual
+  ])
+
   return {
     custoMesAtual,
-    porCategoria,
+
+    porCategoria:
+      custoMesAtual?.categorias || [],
+
     historicoMeses,
+    projecaoMeses,
     carregando,
+    erro,
+    calcularCustoMes,
     calcularMediaPeriodo,
     calcularHistorico,
-    temDados: custoMesAtual?.temDados || false
+
+    temDados:
+      custoMesAtual?.temDados || false
   }
 }

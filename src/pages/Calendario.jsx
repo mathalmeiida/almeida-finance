@@ -5,6 +5,9 @@ import { useProjecao } from '../hooks/useProjecao'
 import { useDespesas } from '../hooks/useDespesas'
 import { useReceitas } from '../hooks/useReceitas'
 import { useCartoes } from '../hooks/useCartoes'
+import { useParcelamentos } from '../hooks/useParcelamentos'
+import { useComprasCartao } from '../hooks/useComprasCartao'
+import { useFaturasCartao } from '../hooks/useFaturasCartao'
 import { useFamilyGroups } from '../hooks/useFamilyGroups'
 import { useFamilyExpenseSplits } from '../hooks/useFamilyExpenseSplits'
 import { useAuth } from '../contexts/AuthContext'
@@ -29,6 +32,9 @@ export default function Calendario() {
   const { despesas: despesasMes, recorrentes: despesasRecorrentes } = useDespesas(mes, ano)
   const { receitas: receitasMes, recorrentes: receitasRecorrentes } = useReceitas(mes, ano)
   const { cartoes } = useCartoes()
+  const { parcelamentos } = useParcelamentos()
+  const { compras: comprasCartao } = useComprasCartao()
+  const { faturas: faturasInformadas } = useFaturasCartao()
   const { projecao } = useProjecao()
   
   // Verifica acesso Premium ANTES de executar hooks Família
@@ -43,9 +49,6 @@ export default function Calendario() {
   
   const horizonte = useMemo(() => {
     if (!idEfetivo) return []
-    
-    const inicio = new Date(ano, mes - 1, 1)
-    const fim = new Date(ano, mes, 0)
     
     // Se modo família, usar divisões em vez de despesas pessoais
     const despesasCalendario = modoFamilia && divisoes && divisoes.length > 0
@@ -69,16 +72,17 @@ export default function Calendario() {
       : despesasMes
     
     return gerarHorizonte({
-      dataInicio: inicio.toISOString().slice(0, 10),
-      dataFim: fim.toISOString().slice(0, 10),
       despesas: despesasCalendario,
-      despesasRecorrentes: modoFamilia ? [] : despesasRecorrentes,
+      recorrentes: modoFamilia ? [] : despesasRecorrentes,
       receitas: modoFamilia ? [] : receitasMes,
-      receitasRecorrentes: modoFamilia ? [] : receitasRecorrentes,
+      parcelamentos: modoFamilia ? [] : (parcelamentos || []),
       cartoes: modoFamilia ? [] : cartoes,
-      perfil: null,
+      comprasCartao: modoFamilia ? [] : (comprasCartao || []),
+      faturasInformadas: modoFamilia ? [] : (faturasInformadas || []),
+      meses: 3,
     })
-  }, [idEfetivo, ano, mes, modoFamilia, divisoes, despesasMes, despesasRecorrentes, receitasMes, receitasRecorrentes, cartoes, user])
+  }, [idEfetivo, ano, mes, modoFamilia, divisoes, despesasMes, despesasRecorrentes,
+      receitasMes, receitasRecorrentes, parcelamentos, cartoes, comprasCartao, faturasInformadas, user])
   
   const mesNome = mesVisivel.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
   
@@ -152,7 +156,7 @@ export default function Calendario() {
         </div>
       </div>
       
-      <div className="max-w-7xl mx-auto p-4">
+      <div className="max-w-[1200px] mx-auto p-4">
         <CalendarioFinanceiroHome
           horizonte={horizonte}
           mesVisivel={mesVisivel}

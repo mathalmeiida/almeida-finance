@@ -1,115 +1,363 @@
-import { useMemo } from 'react'
+
 import { useDespesas } from './useDespesas'
 
-/**
- * Hook: Assinaturas
- * 
- * Identifica despesas recorrentes (assinaturas) com base em:
- * - Despesas marcadas como fixas
- * - Descrição contém palavras-chave de serviços de assinatura
- * - Mesmo valor e descrição se repetem mensalmente
- * 
- * Agrupa por status: ativas, canceladas (últimos 3 meses)
- */
-export function useAssinaturas() {
-  const { despesas } = useDespesas()
+const PALAVRAS = [
+  'netflix', 'spotify', 'amazon prime', 'disney',
+  'hbo', 'max', 'apple music', 'apple one',
+  'youtube', 'google one', 'microsoft 365',
+  'adobe', 'dropbox', 'icloud', 'onedrive',
+  'assinatura', 'mensalidade', 'academia',
+  'gym', 'internet', 'celular', 'telefonia',
+  'tv', 'streaming', 'subscription',
+  'seguro', 'antivirus', 'telemedicina',
+  'plano de saude', 'plano odontologico'
+]
 
-  const assinaturas = useMemo(() => {
-    const hoje = new Date()
-    const mesAtual = hoje.getMonth() + 1
-    const anoAtual = hoje.getFullYear()
+const EXCLUIR = [
+  'aluguel', 'emprestimo', 'financiamento',
+  'gasolina', 'combustivel', 'etanol',
+  'diesel', 'supermercado', 'mercado',
+  'alimentacao', 'restaurante', 'farmacia',
+  'condominio', 'iptu', 'ipva',
+  'energia eletrica', 'conta de luz',
+  'conta de agua', 'fatura de cartao',
+  'consorcio', 'prestacao'
+]
 
-    // Palavras-chave para identificar assinaturas
-    const palavrasChave = [
-      'netflix', 'spotify', 'amazon prime', 'disney', 'hbo', 'apple', 'youtube',
-      'google', 'microsoft', 'adobe', 'dropbox', 'icloud', 'onedrive',
-      'assinatura', 'mensalidade', 'academia', 'gym', 'internet', 'celular',
-      'tv', 'streaming', 'plano', 'subscription'
-    ]
+const CATEGORIAS_ASSINATURAS = [
+  'assinaturas',
+  'streaming',
+  'telefonia',
+  'internet',
+  'seguros',
+  'academia',
+  'servicos digitais'
+]
 
-    // Identificar despesas que são assinaturas
-    const candidatas = despesas.filter(d => {
-      // 1. Despesas fixas são automaticamente assinaturas
-      if (d.fixa) return true
+const CATEGORIAS_EXCLUIDAS = [
+  'emprestimos',
+  'financiamentos',
+  'dividas',
+  'transporte',
+  'combustivel',
+  'alimentacao',
+  'supermercado',
+  'impostos'
+]
 
-      // 2. Descrição contém palavra-chave de assinatura
-      const descricao = (d.descricao || '').toLowerCase()
-      return palavrasChave.some(palavra => descricao.includes(palavra))
-    })
+const DIA = 86400000
 
-    // Agrupar por descrição similar e calcular recorrência
-    const grupos = {}
-    candidatas.forEach(d => {
-      const chave = (d.descricao || '').toLowerCase().trim()
-      if (!grupos[chave]) {
-        grupos[chave] = []
-      }
-      grupos[chave].push(d)
-    })
+function normalizar(valor) {
+  return String(valor || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ')
+}
 
-    // Montar lista de assinaturas com status
-    const resultado = []
-    Object.entries(grupos).forEach(([descricao, despesasGrupo]) => {
-      // Ordenar por data
-      const ordenadas = despesasGrupo.sort((a, b) => {
-        const dataA = a.data_vencimento ? new Date(a.data_vencimento) : new Date(0)
-        const dataB = b.data_vencimento ? new Date(b.data_vencimento) : new Date(0)
-        return dataB - dataA
-      })
+function contemPalavra(texto, palavra) {
+  const textoLimpo = normalizar(texto)
+    .replace(/[^a-z0-9]+/g, ' ')
 
-      const maisRecente = ordenadas[0]
-      const dataMaisRecente = maisRecente.data_vencimento 
-        ? new Date(maisRecente.data_vencimento + 'T12:00:00')
-        : null
+  return (` ${textoLimpo} `)
+    .includes(` ${normalizar(palavra)} `)
+}
 
-      // Considerar ativa se última ocorrência foi nos últimos 60 dias
-      const diasDesdeUltima = dataMaisRecente 
-        ? Math.ceil((hoje - dataMaisRecente) / 86400000)
-        : 999
+function obterCategoria(d) {
+  return typeof d.categoria === 'string'
+    ? d.categoria
+    : d.categoria?.nome ||
+      d.categorias?.nome ||
+      ''
+}
 
-      const ativa = diasDesdeUltima <= 60
+function dataValida(valor) {
+  if (typeof valor !== 'string') return null
 
-      // Calcular valor mensal (média se houver variação)
-      const valores = despesasGrupo.map(d => Number(d.valor) || 0)
-      const valorMedio = valores.reduce((a, b) => a + b, 0) / valores.length
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:$|T| )/
+    .exec(valor)
 
-      // Próximo vencimento (se ativa)
-      let proximoVencimento = null
-      if (ativa && dataMaisRecente) {
-        proximoVencimento = new Date(dataMaisRecente)
-        proximoVencimento.setMonth(proximoVencimento.getMonth() + 1)
-      }
+  if (!m) return null
 
-      resultado.push({
-        id: maisRecente.id,
-        descricao: maisRecente.descricao,
-        valorMensal: valorMedio,
-        ativa,
-        proximoVencimento: proximoVencimento ? proximoVencimento.toISOString().split('T')[0] : null,
-        ultimaOcorrencia: maisRecente.data_vencimento,
-        categoria: maisRecente.categoria,
-        fixa: maisRecente.fixa,
-        ocorrencias: despesasGrupo.length,
-        diasDesdeUltima
-      })
-    })
+  const [, a, b, c] = m
+  const d = new Date(Date.UTC(+a, +b - 1, +c))
 
-    // Separar ativas e canceladas
-    const ativas = resultado.filter(a => a.ativa).sort((a, b) => b.valorMensal - a.valorMensal)
-    const canceladas = resultado.filter(a => !a.ativa).sort((a, b) => a.diasDesdeUltima - b.diasDesdeUltima)
+  return (
+    d.getUTCFullYear() === +a &&
+    d.getUTCMonth() === +b - 1 &&
+    d.getUTCDate() === +c
+  ) ? d : null
+}
 
-    // Total mensal (apenas ativas)
-    const totalMensal = ativas.reduce((acc, a) => acc + a.valorMensal, 0)
+function iso(data) {
+  return data.toISOString().slice(0, 10)
+}
 
-    return {
-      ativas,
-      canceladas,
-      todas: resultado,
-      totalMensal,
-      totalAtivas: ativas.length,
-      totalCanceladas: canceladas.length
+function adicionarMeses(data, quantidade) {
+  const ano = data.getUTCFullYear()
+  const mes = data.getUTCMonth() + quantidade
+
+  const ultimoDia = new Date(
+    Date.UTC(ano, mes + 1, 0)
+  ).getUTCDate()
+
+  return new Date(
+    Date.UTC(
+      ano,
+      mes,
+      Math.min(data.getUTCDate(), ultimoDia)
+    )
+  )
+}
+
+export function calcularAssinaturas(
+  despesas,
+  agora = new Date()
+) {
+  const hoje = new Date(
+    Date.UTC(
+      agora.getFullYear(),
+      agora.getMonth(),
+      agora.getDate()
+    )
+  )
+
+  const grupos = new Map()
+
+  for (const d of Array.isArray(despesas)
+    ? despesas
+    : []) {
+
+    if (
+      !d ||
+      d.deleted_at ||
+      d.excluido_em ||
+      d.excluido === true ||
+      d.is_deleted === true
+    ) continue
+
+    const status = normalizar(d.status)
+
+    if (
+      ['excluido', 'excluida', 'deleted']
+        .includes(status)
+    ) continue
+
+    const descricao = normalizar(d.descricao)
+    const categoria = normalizar(obterCategoria(d))
+    const valor = Number(d.valor)
+
+    if (
+      !descricao ||
+      !Number.isFinite(valor) ||
+      valor <= 0
+    ) continue
+
+    // Excluir despesas que nao sao assinaturas
+    const despesaExcluida = EXCLUIR.some(
+      p => contemPalavra(descricao, p)
+    )
+
+    const categoriaExcluida =
+      CATEGORIAS_EXCLUIDAS.some(
+        c => contemPalavra(categoria, c)
+      )
+
+    if (despesaExcluida || categoriaExcluida) {
+      continue
     }
-  }, [despesas])
 
-  return assinaturas
+    // Identificar exclusivamente servicos recorrentes
+    const palavraAssinatura = PALAVRAS.some(
+      p => contemPalavra(descricao, p)
+    )
+
+    const categoriaAssinatura =
+      CATEGORIAS_ASSINATURAS.some(
+        c => contemPalavra(categoria, c)
+      )
+
+    // Ser uma despesa fixa nao basta
+    if (!palavraAssinatura && !categoriaAssinatura) {
+      continue
+    }
+
+    const data =
+      dataValida(d.data_vencimento) ||
+      dataValida(d.data)
+
+    const cancelada =
+      d.cancelado === true ||
+      d.cancelada === true ||
+      [
+        'cancelado',
+        'cancelada',
+        'canceled',
+        'cancelled'
+      ].includes(status)
+
+    const fixa =
+      d.fixa === true ||
+      d.recorrente === true ||
+      normalizar(d.tipo) === 'fixa'
+
+    const item = {
+      d,
+      data,
+      valor,
+      cancelada,
+      fixa
+    }
+
+    if (!grupos.has(descricao)) {
+      grupos.set(descricao, [])
+    }
+
+    grupos.get(descricao).push(item)
+  }
+
+  const resultado = []
+
+  for (const [chave, grupo] of grupos) {
+
+    const validas = grupo
+      .filter(x => !x.cancelada)
+      .sort((a, b) =>
+        (b.data?.getTime() || 0) -
+        (a.data?.getTime() || 0)
+      )
+
+    const historico = validas.filter(
+      x => x.data && x.data <= hoje
+    )
+
+    const futuros = validas
+      .filter(x => x.data && x.data > hoje)
+      .sort((a, b) => a.data - b.data)
+
+    const ultima = historico[0]
+
+    const atual =
+      futuros[0] ||
+      validas[0] ||
+      grupo[0]
+
+    const dias = ultima
+      ? Math.round((hoje - ultima.data) / DIA)
+      : null
+
+    const cancelada = validas.length === 0
+
+    const ativa =
+      !cancelada &&
+      (
+        validas.some(x => x.fixa) ||
+        futuros.length > 0 ||
+        (dias !== null && dias <= 60)
+      )
+
+    const situacao = cancelada
+      ? 'cancelada'
+      : ativa
+        ? (
+          futuros.length > 0 && !ultima
+            ? 'prevista'
+            : 'ativa'
+        )
+        : 'inativa'
+
+    let proximo = futuros[0]?.data || null
+
+    // Projetar vencimentos apenas de despesas recorrentes
+    if (
+      !proximo &&
+      ativa &&
+      ultima &&
+      validas.some(x => x.fixa)
+    ) {
+      const base = ultima.data
+      let quantidade = 1
+      let candidato = adicionarMeses(base, quantidade)
+
+      while (
+        candidato <= hoje &&
+        quantidade < 1200
+      ) {
+        quantidade++
+        candidato = adicionarMeses(base, quantidade)
+      }
+
+      if (candidato > hoje) {
+        proximo = candidato
+      }
+    }
+
+    resultado.push({
+      id: atual.d.id ?? chave,
+      descricao: atual.d.descricao,
+      valorMensal: atual.valor,
+      ativa,
+      situacao,
+
+      proximoVencimento: proximo
+        ? iso(proximo)
+        : null,
+
+      ultimaOcorrencia: ultima
+        ? iso(ultima.data)
+        : null,
+
+      categoria: obterCategoria(atual.d) || null,
+
+      fixa: atual.fixa,
+
+      ocorrencias: validas.length || grupo.length,
+
+      diasDesdeUltima: dias
+    })
+  }
+
+  const ativas = resultado
+    .filter(a => a.ativa)
+    .sort((a, b) => b.valorMensal - a.valorMensal)
+
+  const canceladas = resultado.filter(
+    a => a.situacao === 'cancelada'
+  )
+
+  const inativas = resultado.filter(
+    a => a.situacao === 'inativa'
+  )
+
+  const totalMensal = ativas.reduce(
+    (total, a) =>
+      total + Math.round(a.valorMensal * 100),
+    0
+  ) / 100
+
+  return {
+    ativas,
+    canceladas,
+    inativas,
+    todas: resultado,
+    totalMensal,
+    totalAtivas: ativas.length,
+    totalCanceladas: canceladas.length,
+    totalInativas: inativas.length
+  }
+}
+
+export function useAssinaturas() {
+  const {
+    despesas,
+    carregando,
+    erro
+  } = useDespesas()
+
+  return {
+    ...calcularAssinaturas(despesas),
+    carregando,
+    erro
+  }
 }

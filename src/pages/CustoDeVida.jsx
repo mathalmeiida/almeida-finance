@@ -5,15 +5,13 @@ import {
   Loader2, AlertCircle, BarChart2, PieChart, Info, ArrowLeft
 } from 'lucide-react'
 import { useCustoDeVida } from '../hooks/useCustoDeVida'
-import { formatCurrency } from '../lib/utils'
+import { formatCurrency, partesHojeBrasil } from '../lib/utils'
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, Legend 
 } from 'recharts'
 
-const hoje = new Date()
-const mesAtual = hoje.getMonth() + 1
-const anoAtual = hoje.getFullYear()
+const { ano: anoAtual, mes: mesAtual } = partesHojeBrasil()
 
 // Cores para o gráfico de pizza
 const CORES_CATEGORIAS = [

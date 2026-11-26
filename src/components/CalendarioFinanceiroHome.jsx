@@ -208,8 +208,8 @@ export default function CalendarioFinanceiroHome({
           <span className="ml-1 h-2 w-2 rounded-full bg-accent" /> Faturas
         </div>
       </header>
-      <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-5">
-        <div className="min-w-0 xl:col-span-3">
+      <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-5">
+        <div className="min-w-0 lg:col-span-3">
           <div className="af-month-bar mb-3 flex items-center justify-between rounded-xl border border-marca bg-slate-900 px-2 py-2 text-marca"
               style={{ backgroundColor: 'color-mix(in srgb, currentColor 12%, #111827)' }}>
             <button type="button" aria-label="Mês anterior" onClick={() => mudarMes(-1)}
@@ -270,7 +270,7 @@ export default function CalendarioFinanceiroHome({
             Números: saldo projetado abreviado · Verde: receitas · Vermelho: despesas (fixas e variáveis) · Azul: faturas de cartão · Traço: sem projeção ou data passada.
           </p>
         </div>
-        <aside className="af-day-details min-w-0 rounded-xl border border-marca bg-slate-900/80 p-3 text-marca sm:p-4 xl:col-span-2"
+        <aside className="af-day-details min-w-0 rounded-xl border border-marca bg-slate-900/80 p-3 text-marca sm:p-4 lg:col-span-2"
           style={{ backgroundColor: 'color-mix(in srgb, currentColor 13%, #111827)' }} aria-label="Detalhes do dia selecionado">
           <div className="mb-3 flex items-center gap-2 text-marca">
             <CalendarClock size={17} />

@@ -29,7 +29,7 @@ import HorizonteFinanceiro from '../components/HorizonteFinanceiro'
 import { gerarHorizonte } from '../lib/horizonteFinanceiro'
 import CalendarioFinanceiroHome from '../components/CalendarioFinanceiroHome'
 import AtalhosHome from '../components/AtalhosHome'
-import ImportacaoInteligente from '../pages/ImportacaoInteligente'
+
 import { useMetas } from '../hooks/useMetas'
 import FotoPerfil from '../components/FotoPerfil'
 import SeletorFotoPerfil from '../components/SeletorFotoPerfil'
@@ -2094,7 +2094,6 @@ export default function Dashboard() {
   }
   const [dataGastoCalendario, setDataGastoCalendario] = useState(null)
   const [modalGasto, setModalGasto] = useState(false)
-  const [modalImportacao, setModalImportacao] = useState(false)
   const [salvandoGasto, setSalvandoGasto] = useState(false)
   const salvamentoGastoEmAndamento = useRef(false)
   const [erroGasto, setErroGasto] = useState('')
@@ -3230,7 +3229,7 @@ const carregandoLimite = carregando
 
       {/* Modal: Calendário financeiro (preservado, mas não aberto pelo card da Home). Reutiliza o MESMO componente e os mesmos dados —
           nenhum cálculo novo, nada removido. */}
-      <Modal aberto={modalCalendario} onFechar={() => setModalCalendario(false)} titulo="Calendário financeiro">
+      <Modal aberto={modalCalendario} onFechar={() => setModalCalendario(false)} titulo="Calendário financeiro" tamanho="xl">
         {!carregando && (
           <CalendarioFinanceiroHome
             receitas={receitasCalendario}
@@ -3485,10 +3484,6 @@ dataReferencia={hojeISO}
         onSalvar={handleSalvarSaldo}
         salvando={salvandoSaldo}
       />
-
-      <Modal aberto={modalImportacao} onFechar={() => setModalImportacao(false)} titulo="Importar Documentos Financeiros" tamanho="lg">
-        <ImportacaoInteligente embutido onConcluir={() => setModalImportacao(false)} onCancelar={() => setModalImportacao(false)} />
-      </Modal>
 
       {/* Modal de editar foto */}
       {modalEditarFoto && (

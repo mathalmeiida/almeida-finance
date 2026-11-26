@@ -204,7 +204,7 @@ export function ConfigurarBiometria() {
         setSuportaBio(suporta)
 
         // Lista credenciais existentes do usuário
-        if (usuario && suporta) {
+        if (usuario && suporta && supabase.auth?.passkey?.list) {
           const { data, error } = await supabase.auth.passkey.list()
           if (!error && data) {
             setCredenciais(data.all_passkey_identities || [])
@@ -224,6 +224,9 @@ export function ConfigurarBiometria() {
     setErro('')
     setRegistrando(true)
     try {
+      if (!supabase.auth?.passkey?.startRegistration) {
+        throw new Error('Passkeys não disponível nesta versão. Tente atualizar o app.')
+      }
       // Usa API nativa do Supabase para registrar passkey
       const { data, error } = await supabase.auth.passkey.startRegistration({
         // Opcionalmente, pode passar um nome personalizado:
@@ -247,6 +250,7 @@ export function ConfigurarBiometria() {
 
   async function removerCredencial(id) {
     try {
+      if (!supabase.auth?.passkey?.delete) throw new Error('API de passkeys não disponível')
       const { error } = await supabase.auth.passkey.delete({ id })
       if (error) throw error
       setCredenciais(prev => prev.filter(c => c.id !== id))

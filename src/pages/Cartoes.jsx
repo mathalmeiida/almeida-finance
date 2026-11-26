@@ -341,13 +341,6 @@ function VerFatura({ cartao, onVoltar, onEditarCartao }) {
 // Faturas informadas por total (deste cartão).
 const { faturas: faturasInformadas, salvarFatura, removerFatura, marcarFaturaPaga } = useFaturasCartao(cartao.id)
 
-// Hook de pagamentos de faturas
-const { 
-  registrarPagamento, 
-  estornarPagamento, 
-  buscarResumoFatura 
-} = usePagamentosFatura(faturaInformada?.id)
-
 const [modalCompra, setModalCompra] = useState(false)
   const [compraEditando, setCompraEditando] = useState(null) // /* AF_EDICAO_COMPRAS_2026 */
 const [modalFatura, setModalFatura] = useState(false)
@@ -376,6 +369,13 @@ const [resumoPagamentos, setResumoPagamentos] = useState(null)
   const totalDetalhado = linhas.reduce((a, l) => a + l.valor, 0)
 // Total informado para este mês (se houver) e o total EXIBIDO (override).
   const faturaInformada = faturaInformadaNoMes(faturasInformadas, cartao.id, refData.ano, refData.mes)
+// Hook de pagamentos de faturas
+const { 
+  registrarPagamento, 
+  estornarPagamento, 
+  buscarResumoFatura 
+} = usePagamentosFatura(faturaInformada?.id)
+
   const faturaEstaPaga = faturaInformada?.pago === true
   const totalFatura = faturaInformada ? (Number(faturaInformada.valor_total) || 0) : totalDetalhado
 // Quanto da fatura informada ainda não foi detalhado em compras.

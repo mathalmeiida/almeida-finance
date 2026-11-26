@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { TrendingDown, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, CreditCard, CheckCircle2, ChevronDown, ChevronUp, CalendarClock, Zap, Lightbulb, Target, Wallet, ArrowDownRight, Upload } from 'lucide-react'
+import { TrendingDown, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, CreditCard, CheckCircle2, ChevronDown, ChevronUp, CalendarClock, Zap, Lightbulb, Target, Wallet, ArrowDownRight } from 'lucide-react'
 import { useDespesas } from '../hooks/useDespesas'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -14,7 +14,7 @@ import { useProjecao } from '../hooks/useProjecao'
 import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
 import ModalAnteciparPagamento from '../components/ModalAnteciparPagamento'
-import ImportacaoInteligente from './ImportacaoInteligente'
+
 import { formatCurrency, formatDate, corCategoria, FORMAS_PAGAMENTO, formaPagamentoLabel, hojeISO } from '../lib/utils'
 import { classificarDespesa, labelTipoDespesa } from '../lib/classificarDespesa'
 import { FormParcelamento, CardParcelamento } from '../components/ParcelamentosShared'
@@ -1281,7 +1281,6 @@ export default function Despesas() {
   const [ordemDespesas, setOrdemDespesas] = useState('maior')
   const [ordemParceladas, setOrdemParceladas] = useState('maior_saldo')
   const [modalAberto, setModalAberto] = useState(false)
-  const [modalImportacao, setModalImportacao] = useState(false)
   const [salvando, setSalvando] = useState(false)
   const [salvandoParc, setSalvandoParc] = useState(false)
   const [removendo, setRemovendo] = useState(null)
@@ -1698,10 +1697,6 @@ export default function Despesas() {
         </div>
         <div className="flex gap-2">
           <BotaoOcultarValores tamanho="md" variante="ghost" />
-          <button onClick={() => setModalImportacao(true)}
-            className="btn-secondary flex items-center gap-2">
-            <Upload size={16} /> Importar
-          </button>
           <button onClick={handleAbrirNova}
             className="btn-primary flex items-center gap-2">
             <Plus size={16} /> Nova despesa
@@ -2311,19 +2306,6 @@ export default function Despesas() {
         onFechar={() => setDespesaAntecipar(null)}
         salvando={antecipando}
       />
-
-      {/* Modal: Importação de despesas */}
-      <Modal aberto={modalImportacao} onFechar={() => setModalImportacao(false)} titulo="Importar Despesas" tamanho="lg">
-        <ImportacaoInteligente
-          embutido
-          onConcluir={() => {
-            setModalImportacao(false)
-            // Recarrega todas as despesas para atualizar lista
-            recarregarTodos().catch(e => console.warn('Falha ao recarregar:', e))
-          }}
-          onCancelar={() => setModalImportacao(false)}
-        />
-      </Modal>
 
       <BarraDesfazer />
     </div>

@@ -2,7 +2,7 @@
 import { useSearchParams, Link } from 'react-router-dom'
 import {
   UtensilsCrossed, ShoppingBag, Plus, Pencil, Trash2, Loader2, ArrowLeft,
-  ArrowDownCircle, ArrowUpCircle, RotateCcw, SlidersHorizontal, Upload,
+  ArrowDownCircle, ArrowUpCircle, RotateCcw, SlidersHorizontal,
 } from 'lucide-react'
 import { useBeneficios } from '../hooks/useBeneficios'
 import { useAuth } from '../contexts/AuthContext'
@@ -11,7 +11,7 @@ import { formatCurrency, exibirMoeda, hojeISO, formatDate } from '../lib/utils'
 import Modal from '../components/Modal'
 import InputMoeda from '../components/InputMoeda'
 import { supabase } from '../lib/supabase'
-import ImportacaoInteligente from './ImportacaoInteligente'
+
 // Rótulos dos tipos de movimentação (visual).
 const TIPO_MOV = {
   compra:  { label: 'Compra',  icon: ArrowDownCircle, cor: 'text-red-500' },
@@ -452,7 +452,6 @@ export default function Beneficios() {
     finally { setSalvandoExtra(false) }
   }
   const [modalBeneficio, setModalBeneficio] = useState(false)
-  const [modalImportacao, setModalImportacao] = useState(false)
   const [editando, setEditando] = useState(null)       // benefício em edição
   const [ajustandoSaldo, setAjustandoSaldo] = useState(null)
   const [gastoRapidoDe, setGastoRapidoDe] = useState(null)
@@ -535,10 +534,6 @@ export default function Beneficios() {
         </div>
         {!somenteLeitura && (
           <div className="flex items-center gap-2">
-            <button onClick={() => setModalImportacao(true)}
-              className="btn-secondary flex items-center gap-2 flex-shrink-0 text-sm">
-              <Upload size={16} /> Importar
-            </button>
             <button onClick={() => { setEditando(null); setModalBeneficio(true) }}
               className="btn-primary flex items-center gap-2 flex-shrink-0 text-sm">
               <Plus size={16} /> Novo
@@ -688,10 +683,6 @@ export default function Beneficios() {
             </ul>
           )
         })()}
-      </Modal>
-
-      <Modal aberto={modalImportacao} onFechar={() => setModalImportacao(false)} titulo="Importar Documentos Financeiros" tamanho="lg">
-        <ImportacaoInteligente embutido onConcluir={() => setModalImportacao(false)} onCancelar={() => setModalImportacao(false)} />
       </Modal>
 
     </div>

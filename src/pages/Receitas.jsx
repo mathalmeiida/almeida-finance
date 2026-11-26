@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 
 import { useSearchParams } from 'react-router-dom'
 
-import { TrendingUp, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, BarChart3, Upload } from 'lucide-react'
+import { TrendingUp, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react'
 
 import { useReceitas } from '../hooks/useReceitas'
 
@@ -22,7 +22,7 @@ import Modal from '../components/Modal'
 
 import InputMoeda from '../components/InputMoeda'
 
-import ImportacaoInteligente from './ImportacaoInteligente'
+
 
 import BotaoOcultarValores from '../components/BotaoOcultarValores'
 
@@ -324,7 +324,6 @@ export default function Receitas() {
   const { receitas, recorrentes, total, carregando, erro, criar, atualizar, remover } = useReceitas(ref.mes, ref.ano)
 
   const [modalAberto, setModalAberto] = useState(false)
-  const [modalImportacao, setModalImportacao] = useState(false)
 
   const [salvando, setSalvando] = useState(false)
 
@@ -591,9 +590,6 @@ export default function Receitas() {
         <div className="flex flex-wrap gap-2">
           {/* ✅ Botão ocultar valores */}
           <BotaoOcultarValores tamanho="md" variante="ghost" />
-          <button type="button" onClick={() => setModalImportacao(true)} className="btn-secondary flex items-center gap-2 whitespace-nowrap">
-            <Upload size={16} /> Importar
-          </button>
           <button type="button" onClick={handleAbrirNova} className="btn-primary flex items-center gap-2 whitespace-nowrap">
             <Plus size={16} /> Nova receita
           </button>
@@ -745,21 +741,6 @@ export default function Receitas() {
         <FormReceita key={receitaEditando ? receitaEditando.id : 'nova'} onSalvar={handleSalvar} onCancelar={fecharModal}
           carregando={salvando} receitaInicial={receitaEditando} dataPadrao={dataPadraoNova}
           textoBotao={receitaEditando ? 'Salvar alterações' : 'Salvar receita'}/>
-      </Modal>
-
-      {/* Modal de Importação */}
-      <Modal aberto={modalImportacao} onFechar={() => setModalImportacao(false)} titulo="Importar Receitas" tamanho="lg">
-        <ImportacaoInteligente
-          embutido
-          onConcluir={() => {
-            setModalImportacao(false)
-            // Recarrega receitas do mês atual
-            if (ref.mes !== mesAtual || ref.ano !== anoAtual) {
-              setRef({ mes: mesAtual, ano: anoAtual })
-            }
-          }}
-          onCancelar={() => setModalImportacao(false)}
-        />
       </Modal>
 
       {/* Barra de desfazer ações */}
