@@ -89,8 +89,14 @@ export function useCustoDeVida(ano, mes) {
 
       // 1. DESPESAS FIXAS E VARIÁVEIS (tabela despesas)
       const despesasDoMes = despesas.filter(d => {
-        if (!d.data_vencimento) return false
-        const data = new Date(d.data_vencimento + 'T12:00:00')
+        // Excluir pagamentos de fatura para evitar duplicacao
+        const descricao = (d.descricao || '').toLowerCase()
+        if (descricao.includes('pagamento fatura')) {
+          return false
+        }
+        
+        if (!d.data) return false
+        const data = new Date(d.data + 'T12:00:00')
         return data.getFullYear() === anoRef && data.getMonth() + 1 === mesRef
       })
 
@@ -104,7 +110,7 @@ export function useCustoDeVida(ano, mes) {
             id: despesa.id,
             descricao: despesa.descricao,
             valor: Number(despesa.valor) || 0,
-            data: despesa.data_vencimento,
+            data: despesa.data,
             tipo: 'despesa',
             categoriaOriginal: despesa.categorias?.nome || 'Sem categoria'
           })
