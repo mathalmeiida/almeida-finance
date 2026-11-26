@@ -7,6 +7,7 @@ import {
   detectarFormato, decodificarTexto, parseCSV, parseOFX, tabelaParaTransacoes,
   textoPDFParaTransacoes, aplicarLimite, TAMANHO_MAXIMO_BYTES,
 } from './importacaoLeitura.js'
+import { processarImagemFinanceira } from './importacaoOCR.js'
 
 const MAX_PAGINAS_PDF = 60
 
@@ -122,6 +123,56 @@ async function lerPDF(bytes, opcoes) {
   return { ...textoPDFParaTransacoes(linhasFinais, { ...opcoes, ocr: usouOcr }), truncado }
 }
 
+// Processa arquivos de imagem (JPG, PNG, WEBP) com OCR
+async function lerImagem(arquivo, opcoes) {
+  const { anoPadrao, aoProgresso, cancelado } = opcoes
+  
+  try {
+    aoProgresso?.({ fase: 'ocr', pagina: 1, total: 1 })
+    
+    const resultado = await processarImagemFinanceira(arquivo, (progresso) => {
+      aoProgresso?.({ fase: 'ocr', pagina: 1, total: 1, progresso })
+    })
+    
+    if (cancelado?.()) {
+      return { transacoes: [], descartadas: [], erro: 'Operação cancelada.' }
+    }
+    
+    if (!resultado.transacoes || resultado.transacoes.length === 0) {
+      return {
+        transacoes: [],
+        descartadas: [],
+        erro: 'Não foi possível identificar transações nesta imagem. Verifique se é uma fatura ou extrato legível.',
+        ocr: true
+      }
+    }
+    
+    // Converter transações OCR para formato padrão
+    const transacoes = resultado.transacoes.map(t => ({
+      data: t.data,
+      descricao: t.descricao,
+      valor: t.valor,
+      tipo: t.valor < 0 ? 'despesa' : 'receita',
+      confianca: t.confianca
+    }))
+    
+    return {
+      transacoes,
+      descartadas: [],
+      erro: null,
+      ocr: true,
+      confiancaGeral: resultado.confianca_geral,
+      tipoDocumento: 'imagem'
+    }
+  } catch (e) {
+    return {
+      transacoes: [],
+      descartadas: [],
+      erro: e?.message || 'Não foi possível processar a imagem. Tente outro formato (PDF, CSV, planilha).'
+    }
+  }
+}
+
 // arquivo: File/Blob do <input type="file">.
 // opcoes: { anoPadrao, senha (PDF), aoProgresso({fase,pagina,total}), cancelado() }
 // Devolve { formato, transacoes, descartadas, erro, conta?, ehCartao?, truncado?,
@@ -140,12 +191,19 @@ export async function lerArquivoImportacao(arquivo, { anoPadrao = new Date().get
   const bytes = new Uint8Array(await arquivo.arrayBuffer())
   const { formato, erro } = detectarFormato(arquivo.name, bytes)
   if (erro) return { formato: null, transacoes: [], descartadas: [], erro }
+  
+  // Processar imagens (JPG, PNG, WEBP)
+  if (['jpg', 'jpeg', 'png', 'webp'].includes(formato)) {
+    return await lerImagem(arquivo, { anoPadrao, aoProgresso, cancelado })
+  }
+  
   const opcoes = { anoPadrao, senha, aoProgresso, cancelado }
   let r
   try {
     if (formato === 'csv') r = tabelaParaTransacoes(parseCSV(decodificarTexto(bytes)), opcoes)
-    else if (formato === 'ofx') r = parseOFX(decodificarTexto(bytes))
+    else if (formato === 'ofx' || formato === 'qfx') r = parseOFX(decodificarTexto(bytes))
     else if (formato === 'xlsx' || formato === 'xls') r = await lerPlanilha(bytes, opcoes)
+    else if (formato === 'txt') r = tabelaParaTransacoes(decodificarTexto(bytes).split('\n').map(l => l.split(/\t|;|,/)), opcoes)
     else r = await lerPDF(bytes, opcoes)
   } catch (e) {
     return { formato, transacoes: [], descartadas: [], erro: e?.message || 'Não foi possível ler o arquivo.' }

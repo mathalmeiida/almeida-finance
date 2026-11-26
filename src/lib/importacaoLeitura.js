@@ -1080,6 +1080,29 @@ export function detectarFormato(nome, bytes) {
   if (inicio.startsWith('%PDF-')) {
     return { formato: 'pdf', erro: null }
   }
+  
+  // Detectar imagens
+  if (u8[0] === 0xff && u8[1] === 0xd8 && u8[2] === 0xff) {
+    // JPEG
+    return ext === 'jpg' || ext === 'jpeg'
+      ? { formato: ext, erro: null }
+      : { formato: 'jpg', erro: null }
+  }
+  
+  if (u8[0] === 0x89 && u8[1] === 0x50 && u8[2] === 0x4e && u8[3] === 0x47) {
+    // PNG
+    return { formato: 'png', erro: null }
+  }
+  
+  if (u8.slice(0, 4).every((b, i) => b === [0x52, 0x49, 0x46, 0x46][i]) &&
+      u8.slice(8, 12).every((b, i) => b === [0x57, 0x45, 0x42, 0x50][i])) {
+    // WEBP
+    return { formato: 'webp', erro: null }
+  }
+  
+  if (ext === 'heic') {
+    return { formato: null, erro: 'HEIC não é suportado. Use JPG, PNG, WEBP ou PDF.' }
+  }
 
   if (ehZip) {
     return ext === 'xlsx'
@@ -1111,6 +1134,10 @@ export function detectarFormato(nome, bytes) {
   if (/OFXHEADER|<OFX>/i.test(texto) || ext === 'ofx') {
     return { formato: 'ofx', erro: null }
   }
+  
+  if (ext === 'qfx') {
+    return { formato: 'qfx', erro: null }
+  }
 
   if (ext === 'csv' || ext === 'txt') {
     return { formato: 'csv', erro: null }
@@ -1125,7 +1152,7 @@ export function detectarFormato(nome, bytes) {
 
   return {
     formato: null,
-    erro: 'Formato não suportado. Use CSV, OFX, XLS, XLSX ou PDF.'
+    erro: 'Formato não suportado. Use CSV, OFX, XLS, XLSX, PDF ou imagens (JPG, PNG, WEBP).'
   }
 }
 

@@ -352,7 +352,7 @@ function AreaAutenticada({ children }) {
   if (verificando) return <Carregando />
   
   if (emOnboarding) {
-    return <OnboardingSimples aoConcluir={encerrarOnboarding} etapaInicial={etapaInicial} />
+    return <OnboardingNovo6Etapas aoConcluir={encerrarOnboarding} etapaInicial={etapaInicial} />
   }
 
   // consultoria (visualizando outra conta) — ali ele é o consultor, não o alvo.

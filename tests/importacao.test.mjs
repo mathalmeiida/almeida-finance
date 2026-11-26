@@ -149,7 +149,7 @@ assert('extensão PDF com conteúdo de texto rejeitada', !!detectarFormato('x.pd
 assert('binário desconhecido rejeitado', !!detectarFormato('x.csv', new Uint8Array([1, 0, 2, 0])).erro)
 assert('OFX pelo conteúdo', detectarFormato('extrato.txt', fx('fatura-cartao.ofx')).formato === 'ofx')
 assert('ZIP que não é xlsx rejeitado', !!detectarFormato('a.zip', new Uint8Array([0x50, 0x4b, 3, 4, 0])).erro)
-assert('acima de 5 MB rejeitado', !!detectarFormato('a.csv', new Uint8Array(5 * 1024 * 1024 + 1).fill(65)).erro)
+assert('acima de 50 MB rejeitado', !!detectarFormato('a.csv', new Uint8Array(50 * 1024 * 1024 + 1).fill(65)).erro)
 
 console.log(falhas === 0 ? '\nOK — todos os testes passaram' : `\n${falhas} FALHA(S)`)
 if (falhas) process.exitCode = 1

@@ -5,6 +5,9 @@ import {
   Upload, Plus, X, Loader2
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { useCartoes } from '../hooks/useCartoes'
+import { useInvestimentos } from '../hooks/useInvestimentos'
+import { useCategorias } from '../hooks/useCategorias'
 import { supabase } from '../lib/supabase'
 import Modal from '../components/Modal'
 import ImportacaoInteligente from '../pages/ImportacaoInteligente'
