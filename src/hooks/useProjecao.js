@@ -1,69 +1,128 @@
 import { useEffect, useMemo, useState } from 'react'
+
 import { supabase } from '../lib/supabase'
+
 import { calcularSaldoDisponivel, precisaBuscarAnteriores, inicioDoMes } from '../lib/saldoDisponivel'
+
 import { useReceitas, valorReceitaRecorrenteNoMes } from './useReceitas'
+
 import { useDespesas, valorDespesaRecorrenteNoMes } from './useDespesas'
+
 import { useParcelamentos, valorParcelaNoMes } from './useParcelamentos'
+
 import { useCartoes } from './useCartoes'
+
 import { useComprasCartao } from './useComprasCartao'
+
 import { useFaturasCartao } from './useFaturasCartao'
-import { totalFaturaComOverride, faturaInformadaNoMes } from '../lib/faturaCartao'
+
+import { totalFaturaPendente, faturaInformadaNoMes } from '../lib/faturaCartao'
+
 import { useAuth } from '../contexts/AuthContext'
+
 import { labelMes, hojeISO, partesHojeBrasil } from '../lib/utils'
+
 import { vencimentoEfetivo } from '../lib/calendarioBancario'
 
+
+
 /**
- * Hook central de projeção financeira.
- * Gera os dados dos próximos 12 meses a partir dos dados reais do usuário.
- *
- * Lógica por mês:
- *   receitas  = receitas recorrentes + receitas não-recorrentes do mês atual (se for o mês atual)
- *   despesas  = despesas recorrentes + despesas não-recorrentes do mês atual (se for o mês atual)
- *   parcelas  = soma das parcelas ainda ativas naquele mês
- *   saldo     = receitas - despesas - parcelas
- */
+* * Hook central de projeção financeira.*
+
+* * Gera os dados dos próximos 12 meses a partir dos dados reais do usuário.*
+
+* **
+
+* * Lógica por mês:*
+
+* *   receitas  = receitas recorrentes + receitas não-recorrentes do mês atual (se for o mês atual)*
+
+* *   despesas  = despesas recorrentes + despesas não-recorrentes do mês atual (se for o mês atual)*
+
+* *   parcelas  = soma das parcelas ainda ativas naquele mês*
+
+* *   saldo     = receitas - despesas - parcelas*
+
+*/
+
 export function useProjecao() {
+
   // Busca dados do mês atual (para não-recorrentes). Mês/ano no fuso de Brasília
   // para o "mês atual" não virar antes da hora perto da virada do dia/mês.
   const { ano: anoAtual, mes: mesAtual, dia: diaAtual } = partesHojeBrasil()
 
+
+
   const { receitas, recorrentes: receitasRecorrentesLista, carregando: carregandoR } = useReceitas(mesAtual, anoAtual)
+
   const { despesas, recorrentes, carregando: carregandoD, criar: criarDespesa, recarregar: recarregarDespesas, anteciparPagamento } = useDespesas(mesAtual, anoAtual)
+
   const { parcelamentos, carregando: carregandoP } = useParcelamentos()
+
   const { cartoes, carregando: carregandoCartoes } = useCartoes()
+
   const { compras: comprasCartao, carregando: carregandoCompras } = useComprasCartao()
+
   // Faturas informadas por total (substituem a soma das compras no mês/cartão).
   const { faturas: faturasInformadas, carregando: carregandoFaturas } = useFaturasCartao()
+
   const { perfil, idEfetivo } = useAuth()
+
+
 
   // Lançamentos entre a data do saldo informado e o início do mês atual (as
   // listas acima só trazem o mês corrente). Só leitura, por usuário (RLS).
   const [anteriores, setAnteriores] = useState({ receitas: [], despesas: [] })
+
   const marcoSaldo = perfil?.saldo_base_data || null
+
   const hojeRef = hojeISO()
+
   useEffect(() => {
+
     let ativo = true
+
     if (!idEfetivo || perfil?.saldo_base == null || !precisaBuscarAnteriores(marcoSaldo, hojeRef)) {
+
       setAnteriores({ receitas: [], despesas: [] })
+
       return undefined
+
     }
-    const ler = tabela => supabase.from(tabela).select('id, data, valor').eq('usuario_id', idEfetivo)
-      .gt('data', marcoSaldo).lt('data', inicioDoMes(hojeRef))
+
+    const ler = tabela => supabase.from(tabela)
+      .select(tabela === 'despesas' ? 'id, data, valor, criado_em, pago_em' : 'id, data, valor, criado_em')
+      .eq('usuario_id', idEfetivo)
+      .gte('data', marcoSaldo).lt('data', inicioDoMes(hojeRef))
+
     Promise.all([ler('receitas'), ler('despesas')]).then(([r, d]) => {
+
       if (!ativo) return
+
       setAnteriores({ receitas: r.error ? [] : (r.data || []), despesas: d.error ? [] : (d.data || []) })
+
     }, () => {})
+
     return () => { ativo = false }
+
     // receitas/despesas.length: relê após cadastros/importações.
-  }, [idEfetivo, perfil?.saldo_base, marcoSaldo, hojeRef, receitas.length, despesas.length])
+  }, [idEfetivo, perfil?.saldo_base, marcoSaldo, perfil?.saldo_base_atualizado_em, hojeRef, receitas.length, despesas.length])
+
+
 
   // Percentual de reserva de emergência escolhido no Dashboard (padrão 20%).
   // Mesma fonte usada no card de reserva — projeção e Dashboard nunca divergem.
   const reservaPct = perfil?.reserva_percentual != null
+
     ? Number(perfil.reserva_percentual)
+
     : 20
 
+
+
   const carregando = carregandoR || carregandoD || carregandoP || carregandoCartoes || carregandoCompras || carregandoFaturas
+
+
 
   // Soma das faturas de todos os cartões em um mês/ano específico.
   // USA A MESMA FONTE da tela Cartões → "Ver fatura"/"Próximas faturas"
@@ -76,46 +135,84 @@ export function useProjecao() {
   //   (2) parcelamentos vinculados por cartao_id — competência pela 1ª parcela
   // Nada é duplicado: parcelamentos COM cartao_id entram SÓ aqui; os sem
   // cartão entram em parcelasAvulsasNoMes.
-  
 function faturasNoMes(ano, mes) {
+
   return cartoes.reduce((acc, c) => {
+
     const diaVenc = Number(c.dia_vencimento) || 1
+
     const diaFech = Number(c.dia_fechamento) || 1
+
+
 
     // Identifica o ciclo cujo pagamento ocorre no mês solicitado.
     let compAno = ano
+
     let compMes = mes
 
+
+
     if (diaVenc < diaFech) {
+
       compMes -= 1
 
+
+
       if (compMes < 1) {
+
         compMes = 12
+
         compAno -= 1
+
       }
+
     }
 
+
+
     const comprasDoCartao = comprasCartao.filter(
+
       cp => cp.cartao_id === c.id
+
     )
+
+
 
     const parcelamentosDoCartao = parcelamentos.filter(
+
       p => p.cartao_id === c.id
+
     )
 
-    const total = totalFaturaComOverride(
+
+
+    const total = totalFaturaPendente(
+
       comprasDoCartao,
+
       parcelamentosDoCartao,
+
       faturasInformadas,
+
       c.id,
+
       c.dia_fechamento,
+
       compAno,
+
       compMes
+
     )
+
+
 
     return acc + total
+
   }, 0)
+
 }
+
+
 
   // FONTE ÚNICA das parcelas avulsas (SEM cartão) devidas em um mês/ano.
   // Usada tanto no total do mês (Dashboard) quanto na projeção de 12 meses,
@@ -123,106 +220,169 @@ function faturasNoMes(ano, mes) {
   // entram via faturasNoMes (evita dupla contagem). valorParcelaNoMes já
   // respeita início, quantidade de parcelas e término do parcelamento.
   function parcelasAvulsasNoMes(ano, mes) {
+
     return parcelamentos
+
       .filter(p => !p.quitado_em && !p.cartao_id)
+
       .reduce((acc, p) => acc + valorParcelaNoMes(p, ano, mes), 0)
+
   }
+
+
 
   // ─── Versões "A VENCER" (compromissos ainda a pagar) ────────────────────────
   // Usadas SOMENTE em compromissosFuturosMes (previsão/limite diário). Mantêm a
   // competência mensal, mas descartam o que já venceu até hoje — alinhando o
   // critério de data ao de despesasFuturasMes (que já filtra "> hoje").
   //
-  // Por que isto NÃO gera dupla baixa de caixa: faturas de cartão e parcelas
-  // NÃO são lançadas na tabela "despesas"; logo, nunca entram em
-  // despesasAteHoje/saldoDisponivelAgora. Não há pagamento a "desfazer" — só
-  // deixamos de tratar como futuro o que já passou do vencimento neste mês.
+  // Pagamentos de fatura podem gerar despesas vinculadas. Para compromissos
+  // futuros usamos apenas o saldo pendente, sem repetir a saída bancária.
   //
   // Parcela avulsa a vencer: competência do mês atual com dia de vencimento
   // (dia da primeira_parcela) ainda > hoje. quitado_em já é tratado por
   // valorParcelaNoMes.
   function parcelasAvulsasAVencer(ano, mes, diaHoje) {
+
     return parcelamentos
+
       .filter(p => !p.quitado_em && !p.cartao_id)
+
       .reduce((acc, p) => {
+
         const valor = valorParcelaNoMes(p, ano, mes)
+
         if (valor <= 0) return acc
+
         const diaVenc = new Date(p.primeira_parcela + 'T12:00:00').getDate()
+
         // Só conta se a parcela deste mês ainda não venceu (vencimento > hoje).
         return diaVenc > diaHoje ? acc + valor : acc
+
       }, 0)
+
   }
+
+
 
   // Fatura de cartão a vencer: total do mês cujo dia_vencimento do cartão ainda
   // é > hoje. Faturas já vencidas no mês saem dos "compromissos futuros".
   // Além disso, uma fatura informada e MARCADA COMO PAGA (pago === true) deixa
-  // de ser compromisso futuro — o usuário já quitou. Isso NÃO mexe no saldo
-  // manual: a fatura paga não é lançada em "despesas", então não há dupla baixa;
-  // apenas paramos de subtraí-la como "a vencer".
+  // de ser compromisso futuro. Pagamentos parciais reduzem o valor pendente.
   function faturasAVencer(ano, mes, diaHoje) {
+
     return cartoes.reduce((acc, c) => {
+
       const diaVenc = Number(c.dia_vencimento)
+
       const diaFech = Number(c.dia_fechamento) || 1
+
       // Calendário bancário: o vencimento efetivo é prorrogado ao próximo dia
       // útil se cair em fim de semana/feriado. Comparamos ESSE dia com "hoje".
       const vefMes = vencimentoEfetivo(ano, mes, diaVenc)
+
       const diaVencUtil = (vefMes.ano === ano && vefMes.mes === mes) ? vefMes.dia : diaVenc
+
       if (!(diaVencUtil > diaHoje)) return acc // fatura já venceu neste mês → não é futura
       // A fatura que VENCE neste mês (ano,mes) é a da competência:
       //   • (ano,mes)        se o vencimento é no mesmo mês do fechamento;
       //   • mês ANTERIOR     se o vencimento é antes do fechamento (vence no mês
       //     seguinte ao que fechou — ex.: fecha 20, vence 01).
       let compAno = ano, compMes = mes
+
       if (diaVenc < diaFech) {
+
         compMes = mes - 1
+
         if (compMes < 1) { compMes = 12; compAno = ano - 1 }
+
       }
+
       const informada = faturaInformadaNoMes(faturasInformadas, c.id, compAno, compMes)
+
       if (informada?.pago === true) return acc // fatura informada já paga → não é futura
       const comprasDoCartao = comprasCartao.filter(cp => cp.cartao_id === c.id)
+
       const parcelamentosDoCartao = parcelamentos.filter(p => p.cartao_id === c.id)
-      const total = totalFaturaComOverride(
+
+      const total = totalFaturaPendente(
+
         comprasDoCartao, parcelamentosDoCartao, faturasInformadas, c.id, c.dia_fechamento, compAno, compMes
+
       )
+
       return acc + total
+
     }, 0)
+
   }
+
+
 
   // SOMENTE PARA EXIBIÇÃO no card "Parcelas do mês": soma TODAS as parcelas
   // devidas no mês — avulsas + vinculadas a cartão. NÃO é usada em nenhum
   // total de compromisso/disponível (as de cartão já entram via faturasNoMes).
   function todasParcelasNoMes(ano, mes) {
+
     return parcelamentos
+
       .filter(p => !p.quitado_em)
+
       .reduce((acc, p) => acc + valorParcelaNoMes(p, ano, mes), 0)
+
   }
+
   // Quantidade de parcelamentos com parcela devida neste mês (avulsos + cartão)
   function qtdParcelamentosNoMes(ano, mes) {
+
     return parcelamentos
+
       .filter(p => !p.quitado_em && valorParcelaNoMes(p, ano, mes) > 0)
+
       .length
+
   }
+
+
 
   // Totais do mês corrente (para o Dashboard)
   const totalReceitas = receitas.reduce((acc, r) => acc + Number(r.valor), 0)
+
   const totalDespesas = despesas.reduce((acc, r) => acc + Number(r.valor), 0)
+
   const totalParcelas = parcelasAvulsasNoMes(anoAtual, mesAtual)
+
   const totalFaturasCartao = faturasNoMes(anoAtual, mesAtual)
+
   const sobraMes = totalReceitas - totalDespesas - totalParcelas - totalFaturasCartao
+
   // Valores apenas de exibição (não entram no cálculo de sobra/compromissos)
   const totalParcelasExibicao = todasParcelasNoMes(anoAtual, mesAtual)
+
   const qtdParcelasExibicao = qtdParcelamentosNoMes(anoAtual, mesAtual)
+
+
 
   // Totais por tipo de despesa (fixa / variavel)
   const totalDespesasFixas = despesas
+
     .filter(d => d.tipo_despesa === 'fixa')
+
     .reduce((acc, d) => acc + Number(d.valor), 0)
+
   const totalDespesasVariaveis = despesas
+
     .filter(d => d.tipo_despesa !== 'fixa')
+
     .reduce((acc, d) => acc + Number(d.valor), 0)
+
   const percentualRendaFixa = totalReceitas > 0
+
     ? Math.round((totalDespesasFixas / totalReceitas) * 100)
+
     : 0
+
+
 
   // Base mensal de receitas recorrentes
   // ─── SALDO ATUAL REAL ───────────────────────────────────────────────────────
@@ -232,9 +392,14 @@ function faturasNoMes(ano, mes) {
   // DATA está entre o marco e hoje (receitas somam, despesas subtraem).
   // A reserva de emergência NUNCA entra aqui — fica separada.
  const saldoConfigurado = perfil?.saldo_base != null
+
 const saldoBase = Number(perfil?.saldo_base) || 0
+
 const hojeStr = hojeISO()
+
 const marcoStr = perfil?.saldo_base_data || hojeStr
+
+
 
 // O saldo informado é a referência.
 // Movimentações anteriores ou do mesmo dia da atualização
@@ -242,22 +407,38 @@ const marcoStr = perfil?.saldo_base_data || hojeStr
 // Regra única em src/lib/saldoDisponivel.js: lançamentos após o marco e até
 // hoje, em qualquer mês (mês atual + meses anteriores desde o marco).
 const calculoSaldo = calcularSaldoDisponivel({
+
   saldoBase: saldoConfigurado ? saldoBase : null, marco: marcoStr, hoje: hojeStr,
+  marcoAtualizadoEm: perfil?.saldo_base_atualizado_em ?? null,
+
   receitas: [receitas, anteriores.receitas], despesas: [despesas, anteriores.despesas],
+
 })
+
 const receitasAteHoje = calculoSaldo.receitas
+
 const despesasAteHoje = calculoSaldo.despesas
+
 const saldoDisponivelAgora = calculoSaldo.saldo
+
+
 
   // Lançamentos FUTUROS dentro do mês atual (efetiva > hoje). Despesas pagas
   // antecipadamente (pago_em <= hoje) saem daqui automaticamente, pois já
   // entraram em "despesasAteHoje" — nunca são subtraídas duas vezes.
   const receitasFuturasMes = receitas
+
     .filter(r => r.data > hojeStr)
+
     .reduce((acc, r) => acc + Number(r.valor), 0)
+
   const despesasFuturasMes = despesas
+
      .filter(d => d.data > hojeStr && !d.pago_em)
+
   .reduce((acc, d) => acc + Number(d.valor), 0)
+
+
 
   // Compromissos de parcelas e faturas AINDA A PAGAR neste mês. Antes somava o
   // mês inteiro (totalParcelas + totalFaturasCartao), o que contava como futuro
@@ -265,110 +446,208 @@ const saldoDisponivelAgora = calculoSaldo.saldo
   // versões "a vencer" (vencimento > hoje), alinhadas ao filtro de despesas
   // futuras. Dia de hoje no fuso de Brasília (mesmo usado no "mês atual").
   const diaHoje = diaAtual
+
   const parcelasFuturasMes = parcelasAvulsasAVencer(anoAtual, mesAtual, diaHoje)
+
   const faturasFuturasMes = faturasAVencer(anoAtual, mesAtual, diaHoje)
+
   const compromissosFuturosMes = despesasFuturasMes + parcelasFuturasMes + faturasFuturasMes
+
+
 
   // Previsão até o fim do mês = saldo agora + entradas futuras − compromissos futuros.
   // NÃO inclui a reserva (patrimônio separado).
 const previsaoFimMes = saldoDisponivelAgora + receitasFuturasMes - compromissosFuturosMes
+
   // Limite seguro: não antecipar dinheiro de receitas futuras.
 // Considera as despesas com vencimento até a próxima entrada.
 const proximaReceita = receitas
+
   .filter(r => r.data > hojeStr)
+
   .sort((a, b) => a.data.localeCompare(b.data))[0]
 
+
+
 const dataLimiteSegura = proximaReceita?.data || 
+
   `${anoAtual}-${String(mesAtual).padStart(2, '0')}-${new Date(anoAtual, mesAtual, 0).getDate()}`
 
+
+
 const despesasAntesReceita = despesas
+
   .filter(d => d.data > hojeStr && d.data < dataLimiteSegura && !d.pago_em)
+
   .reduce((acc, d) => acc + Number(d.valor), 0)
+
+
 
 // Parcelas avulsas que vencem até a próxima receita
 const parcelasAntesReceita = parcelamentos
+
   .filter(p => !p.quitado_em && !p.cartao_id)
+
   .reduce((acc, p) => {
+
     const valor = valorParcelaNoMes(p, anoAtual, mesAtual)
+
     if (valor <= 0) return acc
 
+
+
     const dia = new Date(p.primeira_parcela + 'T12:00:00').getDate()
+
     const dataVencimento =
+
       `${anoAtual}-${String(mesAtual).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
+
     return dataVencimento > hojeStr && dataVencimento < dataLimiteSegura
+
       ? acc + valor
+
       : acc
+
   }, 0)
+
+
 
 // Faturas com vencimento até a próxima receita
 const faturasAntesReceita = cartoes.reduce((acc, c) => {
+
   const diaVenc = Number(c.dia_vencimento)
+
   const venc = vencimentoEfetivo(anoAtual, mesAtual, diaVenc)
 
+
+
   const dataVencimento =
+
     `${venc.ano}-${String(venc.mes).padStart(2, '0')}-${String(venc.dia).padStart(2, '0')}`
 
+
+
 if (dataVencimento <= hojeStr || dataVencimento >= dataLimiteSegura) {    return acc
+
   }
+
+
 
   // Usa a mesma competência da função faturasAVencer
   const diaFech = Number(c.dia_fechamento) || 1
+
   let compAno = anoAtual
+
   let compMes = mesAtual
 
+
+
   if (diaVenc < diaFech) {
+
     compMes -= 1
+
     if (compMes < 1) {
+
       compMes = 12
+
       compAno -= 1
+
     }
+
   }
 
+
+
   const informada = faturaInformadaNoMes(
+
     faturasInformadas, c.id, compAno, compMes
+
   )
+
+
 
   if (informada?.pago === true) return acc
 
+
+
   const comprasDoCartao = comprasCartao.filter(
+
     cp => cp.cartao_id === c.id
-  )
-  const parcelamentosDoCartao = parcelamentos.filter(
-    p => p.cartao_id === c.id
+
   )
 
-  return acc + totalFaturaComOverride(
-    comprasDoCartao,
-    parcelamentosDoCartao,
-    faturasInformadas,
-    c.id,
-    c.dia_fechamento,
-    compAno,
-    compMes
+  const parcelamentosDoCartao = parcelamentos.filter(
+
+    p => p.cartao_id === c.id
+
   )
+
+
+
+  return acc + totalFaturaPendente(
+
+    comprasDoCartao,
+
+    parcelamentosDoCartao,
+
+    faturasInformadas,
+
+    c.id,
+
+    c.dia_fechamento,
+
+    compAno,
+
+    compMes
+
+  )
+
 }, 0)
+
+
 
 const dataProximaReceita = proximaReceita?.data || null
 
+
+
 const saldoSeguroHoje = Math.max(
+
   0,
+
   saldoDisponivelAgora
+
     - despesasAntesReceita
+
     - parcelasAntesReceita
+
     - faturasAntesReceita
+
 )
+
   // Projeção dos próximos 12 meses
   const projecao = useMemo(() => {
+
     if (carregando) return []
 
+
+
     const meses = []
+
     const hoje = new Date()
 
+
+
     for (let i = 0; i < 12; i++) {
+
       const data = new Date(hoje.getFullYear(), hoje.getMonth() + i, 1)
+
       const ano = data.getFullYear()
+
       const mes = data.getMonth() + 1
+
       const ehMesAtual = i === 0
+
+
 
       // Receitas do mês:
       //  • Mês atual: usa o total REAL já carregado do mês (totalReceitas).
@@ -377,110 +656,183 @@ const saldoSeguroHoje = Math.max(
       //    data_fim), somando o valor que cai NAQUELE mês. Isso faz as receitas
       //    aparecerem nos meses e datas corretos, sem contagem duplicada.
       const receitasMes = ehMesAtual
+
         ? totalReceitas
+
         : receitasRecorrentesLista.reduce(
+
             (acc, r) => acc + valorReceitaRecorrenteNoMes(r, ano, mes), 0)
+
+
 
       // Despesas recorrentes NESTE mês — valor convertido conforme a frequência
       // (mensal, semanal × ocorrências, diária × dias do mês, por_meses dentro do prazo)
       const recorrentesMes = recorrentes
+
         .reduce((acc, d) => acc + valorDespesaRecorrenteNoMes(d, ano, mes), 0)
+
+
 
       // No mês atual, soma também as despesas pontuais (não-recorrentes) do mês.
       // As recorrentes do mês atual já entram em recorrentesMes.
       const pontuaisMesAtual = ehMesAtual
+
         ? despesas.filter(d => !d.recorrente).reduce((acc, d) => acc + Number(d.valor), 0)
+
         : 0
 
+
+
       const despesasFixas = recorrentesMes + pontuaisMesAtual
+
+
 
       // Parcelas avulsas (SEM cartão) devidas neste mês — MESMA função do total
       // do mês, para projeção e Dashboard nunca divergirem. Parcelamentos com
       // cartão entram via faturaMesCartao (evita dupla contagem).
       const parcelasMes = parcelasAvulsasNoMes(ano, mes)
 
+
+
       // Fatura dos cartões neste mês (compromisso do mês, sem duplicar despesas)
       const faturaMesCartao = faturasNoMes(ano, mes)
 
+
+
       const despesasTotais = despesasFixas + parcelasMes + faturaMesCartao
+
       // saldo = sobra ANTES da reserva (mantido para compatibilidade com o
       // simulador "Posso Comprar?" e a página de Projeção).
       const saldo = receitasMes - despesasTotais
 
+
+
       // Reserva de emergência prevista do mês: % sobre a RECEITA prevista
       // daquele mês. Mesma regra do card de reserva no Dashboard.
       const reserva = receitasMes > 0 ? receitasMes * (reservaPct / 100) : 0
+
       // Disponível para gastar = Receita − Compromissos − Reserva
       const disponivel = saldo - reserva
 
+
+
       meses.push({
+
         mes: labelMes(data),
+
         ano,
+
         mesNum: mes,
+
         receitas: receitasMes,
+
         despesas: despesasTotais,
+
         parcelas: parcelasMes,
+
         faturaCartao: faturaMesCartao,
+
         saldo,          // sobra antes da reserva (compat.)
         reserva,        // reserva de emergência prevista do mês
         disponivel,     // Receita − Compromissos − Reserva
         ehMesAtual,
+
       })
+
     }
 
+
+
     return meses
+
   }, [carregando, totalReceitas, totalDespesas, totalParcelas, totalFaturasCartao,
+
       receitasRecorrentesLista, despesas, recorrentes, parcelamentos, cartoes, comprasCartao,
+
       faturasInformadas, reservaPct])
 
+
+
   return {
+
     carregando,
+
     projecao,
+
     // resumo do mês atual
     resumoMes: {
+
       receitaTotal: totalReceitas,
+
       despesaTotal: totalDespesas,
+
       parcelasTotal: totalParcelas,          // só avulsas — usado nos cálculos de sobra/compromissos
       faturasTotal: totalFaturasCartao,      // fatura de cartões do mês (compromisso)
       sobraPrevista: sobraMes,
+
       // APENAS EXIBIÇÃO no card "Parcelas do mês" (avulsas + cartão):
       parcelasTotalExibicao: totalParcelasExibicao,
+
       qtdParcelasExibicao,
+
       qtdReceitas: receitas.length,
+
       qtdDespesas: despesas.length,
+
       qtdParcelamentos: parcelamentos.filter(p => p.ativo).length,
+
       // totais por tipo de despesa
       totalDespesasFixas,
+
       totalDespesasVariaveis,
+
       percentualRendaFixa,
+
       // ─── Saldo atual real ───
       saldoConfigurado,                 // false = usuário ainda não informou o saldo
       saldoDisponivelAgora,             // dinheiro disponível HOJE (sem reserva)
       previsaoFimMes,                   // projeção até o fim do mês (sem reserva)
       saldoSeguroHoje,
+
       dataProximaReceita,
+
       compromissosFuturosMes,           // compromissos ainda a pagar neste mês
                    // entradas previstas até o fim do mês
     },
+
     // dados brutos para o simulador
     receitas,
+
     despesas,
+
     recorrentes,
+
     parcelamentos,
+
     // dados brutos de cartão + reserva (para o Horizonte financeiro — fluxo diário)
     cartoes,
+
     comprasCartao,
+
     faturasInformadas,
+
     reservaPct,
+
     // mês/ano de referência
     mesAtual,
+
     anoAtual,
+
     // ações reaproveitáveis (ex: gasto rápido no Dashboard)
     criarDespesa,
+
     recarregarDespesas,
+
     // antecipação de pagamento reaproveitada na Home ("Próximos 7 dias").
     // Mesma instância de useDespesas que alimenta a projeção → ao antecipar,
     // os indicadores da Home recalculam automaticamente (sem recarregar).
     anteciparPagamento,
+
   }
+
 }

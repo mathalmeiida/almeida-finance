@@ -35,6 +35,7 @@ import {
   Heart,
   Shield,
   FileText,
+  ChevronDown,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import NavegacaoInferior from './NavegacaoInferior'
@@ -45,90 +46,84 @@ import MenusMobileAlmeidaFinance from './MenusMobileAlmeidaFinance'
 const DividaIcon = TrendingDown
 
 const navGrupos = [
-  { titulo: 'Início', itens: [
+  { id: 'inicio', titulo: 'Início', icon: LayoutDashboard, direto: true, itens: [
     { to: '/',              label: 'Início',         icon: LayoutDashboard, corIcone: 'text-marca'       },
-  ]},
-  { titulo: 'Finanças', itens: [
+  ] },
+  { id: 'financas', titulo: 'Finanças', icon: CreditCard, direto: false, itens: [
     { to: '/receitas',      label: 'Receitas',       icon: TrendingUp,    corIcone: 'text-green-400'    },
     { to: '/despesas',      label: 'Despesas',       icon: TrendingDown,  corIcone: 'text-rose-400'     },
     { to: '/cartoes',       label: 'Cartões',        icon: CreditCard,    corIcone: 'text-sky-400'      },
     { to: '/beneficios',    label: 'Benefícios',     icon: UtensilsCrossed, corIcone: 'text-emerald-400' },
     { to: '/investimentos', label: 'Investimentos',  icon: PiggyBank,     corIcone: 'text-green-400'    },
     { to: '/assinaturas',   label: 'Assinaturas',    icon: Receipt,       corIcone: 'text-purple-400'   },
+  ] },
+  { id: 'planejamento', titulo: 'Planejamento', icon: CalendarDays, direto: false, itens: [
     { to: '/projecao',      label: 'Projeção',       icon: BarChart2,     corIcone: 'text-marca'        },
     { to: '/fechamento',    label: 'Fechamento',     icon: FileText,      corIcone: 'text-marca'        },
-  ]},
-  { titulo: 'Simular', itens: [
+    { to: '/custo-de-vida',  label: 'Custo de Vida',  icon: Receipt,       corIcone: 'text-marca'        },
+    { to: '/minha-evolucao', label: 'Minha evolução', icon: Activity,     corIcone: 'text-marca'        },
+  ] },
+  { id: 'simuladores', titulo: 'Simuladores', icon: ShoppingCart, direto: false, itens: [
     { to: '/posso-comprar', label: 'Posso comprar?', icon: ShoppingCart,  corIcone: 'text-marca'        },
     { to: '/e-se',          label: 'E se...?',       icon: Sparkles,      corIcone: 'text-marca'        },
     { to: '/planejador-dividas', label: 'Dívidas',   icon: DividaIcon,    corIcone: 'text-red-400'      },
-  ]},
-  { titulo: 'Metas', itens: [
+  ] },
+  { id: 'metas', titulo: 'Metas e patrimônio', icon: Target, direto: false, itens: [
     { to: '/metas',              label: 'Minhas metas',       icon: Target,  corIcone: 'text-amber-400'    },
     { to: '/saude-financeira',   label: 'Saúde Financeira',   icon: Heart,   corIcone: 'text-pink-400'     },
     { to: '/reserva-emergencia', label: 'Reserva Emergência', icon: Shield,  corIcone: 'text-blue-400'     },
-  ]},
-  { titulo: 'Mais', itens: [
-    { to: '/custo-de-vida',  label: 'Custo de Vida',  icon: Receipt,       corIcone: 'text-marca'        },
-    { to: '/alertas',       label: 'Alertas',        icon: Bell,          corIcone: 'text-red-400'      },
-    { to: '/minha-evolucao', label: 'Minha evolução', icon: Activity,     corIcone: 'text-marca'        },
+  ] },
+  { id: 'servicos', titulo: 'Serviços', icon: Users, direto: false, itens: [
     { to: '/familia',       label: 'Almeida Família', icon: Users,        corIcone: 'text-marca', premiumOnly: true },
     { to: '/consultoria',   label: 'Consultoria',    icon: MessagesSquare, corIcone: 'text-marca'       },
+    { to: '/admin/whatsapp', label: 'WhatsApp Financeiro', icon: MessagesSquare, corIcone: 'text-marca', adminOnly: true },
+    { to: '/central-importacao', label: 'Importação', icon: Upload,       corIcone: 'text-marca'        },
+  ] },
+  { id: 'configuracoes', titulo: 'Configurações', icon: Settings, direto: false, itens: [
     { to: '/mais/perfil',   label: 'Meu perfil',     icon: UserRound,     corIcone: 'text-marca'        },
     { to: '/configuracoes', label: 'Configurações',  icon: Settings,      corIcone: 'text-gray-400'     },
+    { to: '/alertas',       label: 'Alertas',        icon: Bell,          corIcone: 'text-red-400'      },
     { to: '/mais/funcionalidades', label: 'Funcionalidades', icon: Grid2X2, corIcone: 'text-marca'    },
-    { to: '/central-importacao', label: 'Importação', icon: Upload,       corIcone: 'text-marca'        },
     { to: '/mais/ajuda',    label: 'Ajuda & feedback', icon: CircleHelp,  corIcone: 'text-amber-400'    },
     { to: '/mais/sobre',    label: 'Sobre o app',    icon: Info,          corIcone: 'text-marca'        },
+  ] },
+  { id: 'admin', titulo: 'Admin', icon: ShieldCheck, direto: true, itens: [
     { to: '/admin',         label: 'Admin',          icon: ShieldCheck,   corIcone: 'text-marca', adminOnly: true },
-  ]},
-]
-function NavItem({ item, onClick }) {
+  ] },
+];
+
+function rotaAtiva(pathname, rota) {
+  return rota === '/' ? pathname === '/' : pathname === rota || pathname.startsWith(rota + '/')
+}
+
+function grupoDaRota(pathname) {
+  return navGrupos.find(g => !g.direto && g.itens.some(i => rotaAtiva(pathname, i.to)))?.id || null
+}
+
+function NavItem({ item, recolhida = false, subitem = false }) {
   return (
-    <NavLink
-      to={item.to}
-      end={item.to === '/'}
-      onClick={onClick}
-      className={({ isActive }) =>
-        `flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors duration-150 ${
-          isActive
-            ? 'bg-marca text-white shadow-sm'
-            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
-        }`
-      }
-    >
-      {({ isActive }) => (
-        <>
-          {/* Só o ÍCONE recebe cor (corIcone) quando inativo; selecionado herda
-              o branco do container. O texto segue a cor do item (nunca colorido). */}
-          <item.icon
-            size={19}
-            className={`flex-shrink-0 ${isActive ? '' : (item.corIcone || '')}`}
-          />
-          <span className="flex-1">{item.label}</span>
-          {item.badge && (
-            <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${
-              isActive ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'
-            }`}>
-              {item.badge}
-            </span>
-          )}
-        </>
-      )}
+    <NavLink to={item.to} end={item.to === '/' || item.to === '/admin'} title={recolhida ? item.label : undefined}
+      aria-label={item.label}
+      className={({ isActive }) => `flex items-center gap-3 rounded-xl text-sm font-medium transition-colors ${recolhida ? 'justify-center px-1 py-3' : subitem ? 'px-3 py-2.5' : 'px-3 py-3'} ${isActive ? 'bg-marca text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>
+      {({ isActive }) => <>
+        <item.icon size={subitem ? 17 : 20} className={`shrink-0 ${isActive ? '' : 'text-marca'}`} />
+        {!recolhida && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
+      </>}
     </NavLink>
   )
 }
+
 function UserFooter({ onSair, perfil, usuario }) {
   const nomeExibido = perfil?.nome || usuario?.email?.split('@')[0] || 'Usuário'
   return (
-    <div className="px-4 pt-3 pb-4 border-t border-gray-100">
-      <div className="flex items-center gap-3 px-1 py-2 mb-1">
+    <div className="shrink-0 px-3 pt-2 pb-2 border-t border-gray-100">
+      <NavLink to="/mais/perfil" className="flex items-center gap-3 px-1 py-2 mb-1 rounded-lg hover:bg-gray-100">
         <FotoPerfil perfil={perfil} usuario={usuario} tamanho="sm" />
         <div className="min-w-0 leading-tight">
           <p className="text-sm font-semibold text-gray-800 truncate">{nomeExibido}</p>
           <p className="text-xs text-gray-400 truncate">{usuario?.email}</p>
         </div>
-      </div>
+      </NavLink>
       <button
         onClick={onSair}
         className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors"
@@ -137,42 +132,6 @@ function UserFooter({ onSair, perfil, usuario }) {
         <span>Sair</span>
       </button>
     </div>
-  )
-}
-// Rótulo discreto de seção na sidebar desktop
-function SecaoLabel({ children }) {
-  return (
-    <p className="px-3 pt-5 pb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
-      {children}
-    </p>
-  )
-}
-// Item da barra inferior mobile (ícone + rótulo, alvo de toque confortável).
-// Suporta tanto NavLink (to) quanto botão de ação (onClick + ativo manual).
-function BottomNavItem({ to, label, icon: Icon, onClick, ativo, corIcone }) {
-  const base = 'bottom-nav-item'
-  if (to) {
-    return (
-      <NavLink
-        to={to}
-        end={to === '/'}
-        className={({ isActive }) => `${base} ${isActive ? 'text-marca' : 'text-gray-400'}`}
-      >
-        {({ isActive }) => (
-          <>
-            {/* Só o ícone recebe cor quando inativo; selecionado fica azul (herdado). */}
-            <Icon size={21} className={isActive ? '' : (corIcone || '')} />
-            <span>{label}</span>
-          </>
-        )}
-      </NavLink>
-    )
-  }
-  return (
-    <button onClick={onClick} className={`${base} ${ativo ? 'text-marca' : 'text-gray-400'}`}>
-      <Icon size={21} className={ativo ? '' : (corIcone || '')} />
-      <span>{label}</span>
-    </button>
   )
 }
 export default function Layout({ children }) {
@@ -192,6 +151,19 @@ export default function Layout({ children }) {
   const { sair, usuario, perfil, ehAdmin, modoConsultoria, consultoriaAlvo, sairModoConsultoria, somenteLeitura } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const [grupoAberto, setGrupoAberto] = useState(() => grupoDaRota(location.pathname))
+  useEffect(() => {
+    setGrupoAberto(grupoDaRota(location.pathname))
+  }, [location.pathname])
+
+  function abrirGrupo(id) {
+    if (recolhida) {
+      toggleSidebar()
+      setGrupoAberto(id)
+    } else {
+      setGrupoAberto(atual => atual === id ? null : id)
+    }
+  }
   const nomeExibido = perfil?.nome || usuario?.email?.split('@')[0] || 'Usuário'
   // Home não tem seta de voltar; as demais telas internas sim.
   const ehHome = location.pathname === '/'
@@ -234,57 +206,43 @@ export default function Layout({ children }) {
     <div className="min-h-[100dvh] flex w-full max-w-full min-w-0 standalone:min-h-screen">
       {/* ── Sidebar desktop recolhível ── */}
       <aside className={`hidden md:flex flex-col bg-white border-r border-gray-200/70 fixed top-0 left-0 h-full z-30 transition-[width] duration-200 ${recolhida ? 'w-16' : 'w-60'}`}>
-        {/* Cabeçalho da sidebar: logo quando expandida, só ícone quando recolhida */}
-        <div className={`border-b border-gray-100 flex items-center ${recolhida ? 'justify-center px-0 py-4' : 'flex-col items-center text-center px-5 pt-6 pb-5'}`}>
-          {!recolhida && (
-            <>
-              <LogoMarca imgClassName="h-16 w-auto" padding="px-5 py-4" />
-              <p className="text-[13px] text-gray-500 mt-2.5">Seu dinheiro, organizado.</p>
-            </>
-          )}
-          {recolhida && (
-            <LogoMarca imgClassName="h-8 w-auto" padding="px-1 py-1" />
-          )}
+        <div className={`shrink-0 border-b border-gray-100 flex items-center ${recolhida ? 'justify-center py-3' : 'gap-2 px-3 py-4'}`}>
+          <LogoMarca imgClassName={recolhida ? 'h-8 w-auto' : 'h-10 w-auto'} padding="px-1 py-1" />
+          {!recolhida && <div className="min-w-0">
+            <p className="text-sm font-bold text-gray-900">Almeida Finance</p>
+            <p className="text-[11px] text-gray-500">Seu dinheiro, organizado.</p>
+          </div>}
         </div>
-        {/* Navegação agrupada em seções */}
-        <nav className="flex-1 px-2 py-2 overflow-y-auto overflow-x-hidden">
+        <nav aria-label="Menu principal" className="flex-1 min-h-0 px-2 py-3 overflow-y-auto overflow-x-hidden space-y-1">
           {navGrupos.map(grupo => {
             const itens = grupo.itens.filter(i => {
-              if (i.adminOnly && !ehAdmin) return false;
-              if (i.premiumOnly && perfil?.subscription_plan === 'free') return false;
-              return true;
-            });
-            if (itens.length === 0) return null;
+              if (i.adminOnly && !ehAdmin) return false
+              if (i.premiumOnly && perfil?.subscription_plan === 'free') return false
+              return true
+            })
+            if (!itens.length) return null
+            if (grupo.direto) return <NavItem key={grupo.id} item={itens[0]} recolhida={recolhida} />
+            const ativo = itens.some(i => rotaAtiva(location.pathname, i.to))
+            const aberto = !recolhida && grupoAberto === grupo.id
             return (
-              <div key={grupo.titulo}>
-                {!recolhida && <SecaoLabel>{grupo.titulo}</SecaoLabel>}
-                <div className="space-y-0.5">
-                  {itens.map(item => (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      end={item.to === '/'}
-                      title={recolhida ? item.label : undefined}
-                      className={({ isActive }) =>
-                        `flex items-center gap-3 px-2 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150 ${
-                          recolhida ? 'justify-center' : ''
-                        } ${isActive ? 'bg-marca text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'}`
-                      }
-                    >
-                      {({ isActive }) => (
-                        <>
-                          <item.icon size={19} className={`flex-shrink-0 ${isActive ? '' : item.corIcone || ''}`} />
-                          {!recolhida && <span className="flex-1 truncate">{item.label}</span>}
-                        </>
-                      )}
-                    </NavLink>
-                  ))}
+              <div key={grupo.id}>
+                <button type="button" onClick={() => abrirGrupo(grupo.id)}
+                  title={recolhida ? grupo.titulo : undefined}
+                  aria-label={grupo.titulo} aria-expanded={aberto}
+                  aria-controls={`af-menu-${grupo.id}`}
+                  className={`w-full flex items-center gap-3 rounded-xl text-sm font-semibold transition-colors ${recolhida ? 'justify-center px-1 py-3' : 'px-3 py-3'} ${ativo ? 'bg-marca-100 text-marca' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>
+                  <grupo.icon size={20} className="shrink-0 text-marca" />
+                  {!recolhida && <><span className="flex-1 text-left truncate">{grupo.titulo}</span><ChevronDown size={16} className={`shrink-0 transition-transform ${aberto ? 'rotate-180' : ''}`} /></>}
+                </button>
+                <div id={`af-menu-${grupo.id}`} hidden={!aberto} className="ml-4 pl-2 mt-1 mb-2 border-l border-gray-200 space-y-0.5">
+                  {itens.map(item => <NavItem key={item.to} item={item} subitem />)}
                 </div>
               </div>
             )
           })}
         </nav>
         {!recolhida && <UserFooter onSair={handleSair} perfil={perfil} usuario={usuario} />}
+        {recolhida && <button type="button" onClick={handleSair} title="Sair" aria-label="Sair" className="shrink-0 flex justify-center py-3 text-gray-500 hover:text-red-600"><LogOut size={18} /></button>}
         {/* Botão toggle recolher/expandir */}
         <button
           onClick={toggleSidebar}
@@ -355,10 +313,10 @@ export default function Layout({ children }) {
           {children}
         </main>
       </div>
-      
+
       {/* Navegação mobile nova */}
       <NavegacaoInferior />
-      
+
       <MenusMobileAlmeidaFinance
         aberto={menuMobile}
         onFechar={() => setMenuMobile(null)}

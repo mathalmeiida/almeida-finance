@@ -21,25 +21,49 @@ import { hojeISO, formatCurrency } from '../lib/utils'
  * 5. Investimentos
  * 6. Revisão e conclusão
  */
-// Campo monetário local: armazena valores em reais, sem separadores de milhar.
-function InputMoeda({ valor, onChangeValor, permitirNegativo = false, ...props }) {
-  const texto = String(valor ?? '').replace('.', ',')
+// Máscara monetária local: o estado continua em reais, nunca em centavos.
+function formatarSaldoOnboarding(valor) {
+  if (valor == null || valor === '') return ''
+  if (valor === '-') return '-'
+  const numero = Number(valor)
+  if (!Number.isFinite(numero)) return ''
+  return numero.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  })
+}
+
+function interpretarSaldoOnboarding(texto, permitirNegativo = false) {
+  const negativo = permitirNegativo && texto.trim().startsWith('-')
+  const digitos = texto.replace(/\D/g, '')
+  if (!digitos) return negativo ? '-' : ''
+  // Limita a precisão para que o valor em centavos seja um inteiro seguro.
+  const centavos = Number(digitos)
+  if (!Number.isSafeInteger(centavos) || centavos > 999999999999) return null
+  const reais = (centavos / 100).toFixed(2)
+  return negativo ? `-${reais}` : reais
+}
+
+function InputMoeda({ valor, onChangeValor, permitirNegativo = false,
+  className = 'input', placeholder = '0,00', ...props }) {
   return (
-    <input
-      {...props}
-      type="text"
-      inputMode="decimal"
-      value={texto}
-      onChange={(e) => {
-        const entrada = e.target.value.replace(/\s/g, '').replace(',', '.')
-        const padrao = permitirNegativo ? /^-?\d*(\.\d{0,2})?$/ : /^\d*(\.\d{0,2})?$/
-        if (padrao.test(entrada)) onChangeValor(entrada)
-      }}
-      onBlur={() => {
-        if (valor !== '' && !Number.isFinite(Number(valor))) onChangeValor('')
-        else if (valor !== '') onChangeValor(String(Number(valor)))
-      }}
-    />
+    <div className="relative w-full min-w-0">
+      <span aria-hidden="true" className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-500 pointer-events-none">R$</span>
+      <input
+        {...props}
+        type="text"
+        inputMode={permitirNegativo ? 'decimal' : 'numeric'}
+        placeholder={placeholder.replace(/^R\$\s*/, '')}
+        className={`${className} !pl-12 !pr-4 tabular-nums w-full`}
+        value={formatarSaldoOnboarding(valor)}
+        onChange={(e) => {
+          const novo = interpretarSaldoOnboarding(e.target.value, permitirNegativo)
+          if (novo !== null) onChangeValor(novo)
+        }}
+        onBlur={() => {
+          if (valor === '-') onChangeValor('')
+        }}
+      />
+    </div>
   )
 }
 
@@ -61,7 +85,7 @@ const ORDEM_ETAPAS = [
 ]
 const CHAVE_PROGRESSO = 'almeida_onboarding_progresso_v2'
 export default function OnboardingNovo6Etapas({ aoConcluir }) {
-  const { usuario } = useAuth()
+  const { usuario, modoConsultoria, atualizarPreferenciasLimite, marcarOnboardingConcluido } = useAuth()
   const { criar: criarCartao } = useCartoes()
   const { criar: criarInvestimento } = useInvestimentos()
   const { categorias: categoriasReceita } = useCategorias('receita')
@@ -284,20 +308,21 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
     if (!usuario?.id || salvando) return
     setSalvando(true)
     try {
-      // 1. Salvar saldo inicial (apenas se informado)
-      if (dados.saldo !== '' && Number.isFinite(Number(dados.saldo))) {
-        const { data: saldoExistente, error: erroSaldo } = await supabase
-          .from('usuarios')
-          .select('saldo_inicial')
-          .eq('id', usuario.id)
-          .single()
-        if (erroSaldo) throw erroSaldo
-        if (saldoExistente?.saldo_inicial == null || Number(saldoExistente.saldo_inicial) === 0) {
-          const { error: erroRPC } = await supabase.rpc('definir_saldo_inicial', {
-            p_usuario_id: usuario.id,
-            p_valor: Number(dados.saldo)
-          })
-          if (erroRPC) throw erroRPC
+      if (modoConsultoria) throw new Error('Modo consultoria: edição bloqueada.')
+      const { data: perfilAtual, error: erroPerfil } = await supabase
+        .from('perfis').select('saldo_base, saldo_base_data, onboarding_concluido')
+        .eq('id', usuario.id).single()
+      if (erroPerfil) throw erroPerfil
+      // Preserva o saldo já reconciliado de contas existentes.
+      if (!perfilAtual.saldo_base_data && dados.saldo !== '') {
+        const valor = Number(dados.saldo)
+        if (!Number.isFinite(valor)) throw new Error('Saldo inválido.')
+        await atualizarPreferenciasLimite({ saldo_base: valor, saldo_base_data: hojeISO() })
+        const { data: confirmado, error: erroConfirmacao } = await supabase
+          .from('perfis').select('saldo_base, saldo_base_data').eq('id', usuario.id).single()
+        if (erroConfirmacao) throw erroConfirmacao
+        if (!confirmado?.saldo_base_data || Number(confirmado.saldo_base) !== valor) {
+          throw new Error('Não foi possível confirmar a gravação do saldo.')
         }
       }
       // 2. Salvar receitas (evitar duplicações)
@@ -310,9 +335,10 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
             valor: Number(r.valor),
             data: hojeISO(),
             recorrente: r.recorrente,
-            categoria_id: categoriasReceita.find(c => 
+            frequencia: r.recorrente ? 'mensal' : 'nao_repete',
+            categoria: categoriasReceita.find(c => 
               c.nome.toLowerCase().includes(r.descricao.toLowerCase().split(' ')[0])
-            )?.id || null
+            )?.nome || null
           }))
         if (receitasParaSalvar.length > 0) {
           // Verificar duplicações antes de inserir
@@ -340,6 +366,8 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
             valor: Number(d.valor),
             data: hojeISO(),
             recorrente: d.recorrente,
+            frequencia: d.recorrente ? 'mensal' : 'nao_repete',
+            tipo_despesa: d.recorrente ? 'fixa' : 'variavel',
             categoria_id: categoriasDespesa.find(c => 
               c.nome.toLowerCase().includes(d.descricao.toLowerCase().split(' ')[0])
             )?.id || null
@@ -362,20 +390,8 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
       }
       // 4. Cartões e investimentos já foram salvos durante o cadastro manual
       // (via criarCartao e criarInvestimento)
-      // 5. Marcar onboarding como concluído (não reiniciar para usuários existentes)
-      const { data: usuario_atual, error: erroUsuario } = await supabase
-        .from('usuarios')
-        .select('onboarding_concluido')
-        .eq('id', usuario.id)
-        .single()
-      if (erroUsuario) throw erroUsuario
-      if (!usuario_atual?.onboarding_concluido) {
-        const { error: erroConclusao } = await supabase
-          .from('usuarios')
-          .update({ onboarding_concluido: true })
-          .eq('id', usuario.id)
-        if (erroConclusao) throw erroConclusao
-      }
+      // Conclusão persistida e sincronizada pelo contexto existente.
+      await marcarOnboardingConcluido()
       // 6. Limpar progresso salvo
       try {
         const chave = `${CHAVE_PROGRESSO}_${usuario.id}`
@@ -383,11 +399,11 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
       } catch {}
       // 7. Callback de conclusão
       if (aoConcluir) {
-        aoConcluir()
+        await aoConcluir()
       }
     } catch (err) {
       console.error('Erro ao concluir onboarding:', err)
-      alert('Erro ao salvar configurações. Tente novamente.')
+      alert('Erro ao salvar configurações: ' + (err?.message || 'Erro desconhecido') + (err?.code ? ' (' + err.code + ')' : ''))
     } finally {
       setSalvando(false)
     }
@@ -396,10 +412,10 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
   const indiceAtual = ORDEM_ETAPAS.indexOf(etapaAtual)
   const percentualConcluido = Math.round(((indiceAtual + 1) / ORDEM_ETAPAS.length) * 100)
   return (
-    <div className="min-h-screen bg-gradient-to-br from-marca/10 to-white flex flex-col">
+    <div className="min-h-[100dvh] bg-gradient-to-br from-marca/10 to-white flex flex-col">
       {/* Header com progresso */}
       <div className="bg-white border-b border-gray-200 py-4 px-4">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-4xl w-full mx-auto">
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-lg font-bold text-gray-900">Configuração inicial</h1>
             <span className="text-sm text-gray-500">
@@ -415,16 +431,16 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
         </div>
       </div>
       {/* Conteúdo da etapa atual */}
-      <div className="flex-1 overflow-y-auto py-6 px-4">
-        <div className="max-w-2xl mx-auto">
+      <div className="flex-1 flex flex-col py-6 sm:py-10 px-4 sm:px-8">
+        <div className="max-w-4xl w-full mx-auto my-auto">
           {/* ETAPA 1: Saldo bancário */}
           {etapaAtual === ETAPAS.SALDO && (
-            <div className="card space-y-6">
+            <div className="card space-y-7 !p-6 sm:!p-10 lg:!p-12 !rounded-3xl shadow-lg">
               <div className="text-center">
-                <div className="w-16 h-16 bg-marca rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <div className="w-20 h-20 bg-marca rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <Wallet size={32} className="text-white" />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">
                   Qual é o seu saldo bancário atual?
                 </h2>
                 <p className="text-sm text-gray-500">
@@ -441,14 +457,16 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
                     setDados(novosDados)
                     salvarProgresso(novosDados)
                   }}
-                  className="input text-2xl font-bold text-center"
+                  className="input !text-3xl sm:!text-4xl font-bold text-center !py-5"
                   placeholder="0,00"
+                  aria-label="Saldo bancário atual em reais"
                   autoFocus
                 />
               </div>
+              <p className="text-sm text-gray-500 text-center">Digite os números: os dois últimos dígitos representam os centavos.</p>
               <button
                 onClick={() => proximaEtapa()}
-                className="btn-primary w-full flex items-center justify-center gap-2"
+                className="btn-primary w-full flex items-center justify-center gap-2 !py-4 !text-base"
               >
                 Continuar
                 <ArrowRight size={18} />
@@ -458,12 +476,12 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
           {/* ETAPA 2: Receitas */}
           {etapaAtual === ETAPAS.RECEITAS && (
             <div className="space-y-4">
-              <div className="card">
+              <div className="card !p-6 sm:!p-10 !rounded-3xl shadow-lg">
                 <div className="text-center mb-6">
-                  <div className="w-16 h-16 bg-green-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <div className="w-20 h-20 bg-green-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <TrendingUp size={32} className="text-white" />
                   </div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">
                     Quais são suas receitas?
                   </h2>
                   <p className="text-sm text-gray-500">
@@ -513,14 +531,14 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
               <div className="flex gap-3">
                 <button
                   onClick={etapaAnterior}
-                  className="btn-secondary flex-1 flex items-center justify-center gap-2"
+                  className="btn-secondary flex-1 flex items-center justify-center gap-2 !py-4"
                 >
                   <ArrowLeft size={18} />
                   Voltar
                 </button>
                 <button
                   onClick={() => proximaEtapa()}
-                  className="btn-primary flex-1 flex items-center justify-center gap-2"
+                  className="btn-primary flex-1 flex items-center justify-center gap-2 !py-4"
                 >
                   Continuar
                   <ArrowRight size={18} />
@@ -531,12 +549,12 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
           {/* ETAPA 3: Despesas */}
           {etapaAtual === ETAPAS.DESPESAS && (
             <div className="space-y-4">
-              <div className="card">
+              <div className="card !p-6 sm:!p-10 !rounded-3xl shadow-lg">
                 <div className="text-center mb-6">
-                  <div className="w-16 h-16 bg-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <div className="w-20 h-20 bg-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <TrendingDown size={32} className="text-white" />
                   </div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">
                     Quais são suas despesas recorrentes?
                   </h2>
                   <p className="text-sm text-gray-500">
@@ -586,14 +604,14 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
               <div className="flex gap-3">
                 <button
                   onClick={etapaAnterior}
-                  className="btn-secondary flex-1 flex items-center justify-center gap-2"
+                  className="btn-secondary flex-1 flex items-center justify-center gap-2 !py-4"
                 >
                   <ArrowLeft size={18} />
                   Voltar
                 </button>
                 <button
                   onClick={() => proximaEtapa()}
-                  className="btn-primary flex-1 flex items-center justify-center gap-2"
+                  className="btn-primary flex-1 flex items-center justify-center gap-2 !py-4"
                 >
                   Continuar
                   <ArrowRight size={18} />
@@ -604,12 +622,12 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
           {/* ETAPA 4: Cartões */}
           {etapaAtual === ETAPAS.CARTOES && (
             <div className="space-y-4">
-              <div className="card">
+              <div className="card !p-6 sm:!p-10 !rounded-3xl shadow-lg">
                 <div className="text-center mb-6">
-                  <div className="w-16 h-16 bg-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <div className="w-20 h-20 bg-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <CreditCard size={32} className="text-white" />
                   </div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">
                     Você possui cartões de crédito?
                   </h2>
                   <p className="text-sm text-gray-500">
@@ -670,7 +688,7 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
               <div className="flex gap-3">
                 <button
                   onClick={etapaAnterior}
-                  className="btn-secondary flex-1 flex items-center justify-center gap-2"
+                  className="btn-secondary flex-1 flex items-center justify-center gap-2 !py-4"
                 >
                   <ArrowLeft size={18} />
                   Voltar
@@ -678,7 +696,7 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
                 {dados.cartoes.length > 0 && (
                   <button
                     onClick={() => proximaEtapa()}
-                    className="btn-primary flex-1 flex items-center justify-center gap-2"
+                    className="btn-primary flex-1 flex items-center justify-center gap-2 !py-4"
                   >
                     Continuar
                     <ArrowRight size={18} />
@@ -690,12 +708,12 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
           {/* ETAPA 5: Investimentos */}
           {etapaAtual === ETAPAS.INVESTIMENTOS && (
             <div className="space-y-4">
-              <div className="card">
+              <div className="card !p-6 sm:!p-10 !rounded-3xl shadow-lg">
                 <div className="text-center mb-6">
-                  <div className="w-16 h-16 bg-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <div className="w-20 h-20 bg-emerald-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <PiggyBank size={32} className="text-white" />
                   </div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">
                     Você possui investimentos?
                   </h2>
                   <p className="text-sm text-gray-500">
@@ -725,7 +743,7 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
                       </div>
                     </div>
                   </button>
-                  <button
+                  <button type="button"
                     onClick={() => {
                       const novosDados = { ...dados, investimentos_nao_utilizo: true }
                       setDados(novosDados)
@@ -747,28 +765,30 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
               <div className="flex gap-3">
                 <button
                   onClick={etapaAnterior}
-                  className="btn-secondary flex-1 flex items-center justify-center gap-2"
+                  className="btn-secondary flex-1 flex items-center justify-center gap-2 !py-4"
                 >
                   <ArrowLeft size={18} />
                   Voltar
                 </button>
-                {dados.investimentos.length > 0 && (
-                  <button onClick={() => proximaEtapa()} className="btn-primary flex-1 flex items-center justify-center gap-2">
-                    Continuar <ArrowRight size={18} />
-                  </button>
-                )}
+                <button type="button" onClick={() => {
+                  const novosDados = { ...dados, investimentos_nao_utilizo: dados.investimentos.length === 0 }
+                  setDados(novosDados)
+                  proximaEtapa(novosDados)
+                }} className="btn-primary flex-1 flex items-center justify-center gap-2 !py-4">
+                  {dados.investimentos.length === 0 ? 'Continuar sem investimentos' : 'Continuar'} <ArrowRight size={18} />
+                </button>
               </div>
             </div>
           )}
           {/* ETAPA 6: Revisão */}
           {etapaAtual === ETAPAS.REVISAO && (
             <div className="space-y-4">
-              <div className="card">
+              <div className="card !p-6 sm:!p-10 !rounded-3xl shadow-lg">
                 <div className="text-center mb-6">
-                  <div className="w-16 h-16 bg-marca rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <div className="w-20 h-20 bg-marca rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <CheckCircle2 size={32} className="text-white" />
                   </div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">
                     Revisão da configuração
                   </h2>
                   <p className="text-sm text-gray-500">
@@ -866,7 +886,7 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
                 <button
                   onClick={etapaAnterior}
                   disabled={salvando}
-                  className="btn-secondary flex-1 flex items-center justify-center gap-2"
+                  className="btn-secondary flex-1 flex items-center justify-center gap-2 !py-4"
                 >
                   <ArrowLeft size={18} />
                   Voltar
@@ -874,7 +894,7 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
                 <button
                   onClick={concluirConfiguracao}
                   disabled={salvando}
-                  className="btn-primary flex-1 flex items-center justify-center gap-2"
+                  className="btn-primary flex-1 flex items-center justify-center gap-2 !py-4"
                 >
                   {salvando ? (
                     <>

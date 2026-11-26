@@ -433,6 +433,21 @@ export function totalFaturaComOverride(
   ) / 100
 }
 
+// Valor pendente: preserva o total original e desconta pagamentos uma unica vez.
+export function valorFaturaPendente(total, informada) {
+  const bruto = Math.max(0, centavos(total))
+  if (!informada) return bruto / 100
+  // Compatibilidade com faturas antigas marcadas como pagas sem historico.
+  const pago = Math.max(0, centavos(informada.valor_pago_acumulado))
+  if (informada.pago === true && pago === 0) return 0
+  return Math.max(0, bruto - pago) / 100
+}
+
+export function totalFaturaPendente(compras, parcelamentos, faturasInformadas, cartaoId, diaFechamento, ano, mes) {
+  const total = totalFaturaComOverride(compras, parcelamentos, faturasInformadas, cartaoId, diaFechamento, ano, mes)
+  return valorFaturaPendente(total, faturaInformadaNoMes(faturasInformadas, cartaoId, ano, mes))
+}
+
 // ============================================================
 // 10. DETALHAMENTO DO TOTAL MANUAL
 // ============================================================
@@ -603,8 +618,8 @@ export function totalParcelasFuturas(
  * O resultado e uma estimativa baseada nos
  * registros do aplicativo.
  *
- * Pagamentos parciais, estornos e ajustes
- * nao registrados nao sao considerados.
+ * Pagamentos registrados sao descontados pelo valor_pago_acumulado.
+ * Estornos dependem da atualizacao desse campo pelo banco.
  */
 
 export function limiteComprometido(
@@ -723,12 +738,6 @@ export function limiteComprometido(
       mes
     )
 
-    // Uma fatura marcada como paga nao
-    // compromete mais o limite.
-    if (informada?.pago === true) {
-      continue
-    }
-
     const totalMes = totalFaturaComOverride(
       compras,
       parcsDoCartao,
@@ -739,7 +748,7 @@ export function limiteComprometido(
       mes
     )
 
-    totalCentavos += centavos(totalMes)
+    totalCentavos += centavos(valorFaturaPendente(totalMes, informada))
   }
 
   return totalCentavos / 100

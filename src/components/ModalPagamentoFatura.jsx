@@ -3,10 +3,9 @@ import { DollarSign, Calendar, FileText, Loader2, AlertCircle, CheckCircle2, Inf
 import Modal from './Modal'
 import InputMoeda from './InputMoeda'
 import { formatCurrency, hojeISO } from '../lib/utils'
-
 /**
  * Modal para registrar pagamento de fatura (parcial, total ou antecipado).
- * 
+ *
  * Props:
  * - aberto: boolean
  * - onFechar: function
@@ -31,46 +30,32 @@ export default function ModalPagamentoFatura({
     tipo_pagamento: 'parcial', // 'parcial' | 'total' | 'antecipado'
     observacao: ''
   })
-
   const [avisos, setAvisos] = useState([])
-
   // Calcula valores derivados
   const valorTotal = Number(fatura?.valor_total) || 0
   const valorPagoAcumulado = Number(fatura?.valor_pago_acumulado) || 0
-  const valorRestante = Math.max(0, valorTotal - valorPagoAcumulado)
+  const valorRestante = Math.max(0, Math.round((valorTotal - valorPagoAcumulado) * 100) / 100)
   const valorPagoAtual = Number(form.valor_pago) || 0
-
   // Validações e avisos
   useEffect(() => {
     const novosAvisos = []
-
     if (valorPagoAtual > 0) {
       // Aviso: pagamento maior que o restante
-      if (valorPagoAtual > valorRestante + 0.01) {
+      if (valorPagoAtual > valorRestante) {
         novosAvisos.push({
           tipo: 'erro',
           mensagem: `Valor ultrapassa o restante da fatura (${formatCurrency(valorRestante)})`
         })
       }
-
       // Aviso: pagamento quitará a fatura
-      if (valorPagoAtual >= valorRestante - 0.01 && valorRestante > 0) {
+      if (valorPagoAtual >= valorRestante && valorRestante > 0) {
         novosAvisos.push({
           tipo: 'sucesso',
           mensagem: 'Este pagamento quitará a fatura integralmente'
         })
       }
-
-      // Calcula liberação proporcional do limite
-      const novoValorPago = valorPagoAcumulado + valorPagoAtual
-      const percentualPago = valorTotal > 0 
-        ? Math.min(1, novoValorPago / valorTotal) 
-        : 0
-      const limiteLiberadoTotal = Math.round(limiteCartao * percentualPago * 100) / 100
-      const limiteLiberadoAnterior = valorTotal > 0 
-        ? Math.round(limiteCartao * (valorPagoAcumulado / valorTotal) * 100) / 100
-        : 0
-      const limiteLiberadoAdicional = limiteLiberadoTotal - limiteLiberadoAnterior
+      // O pagamento libera no máximo o valor pago, não uma fração do limite total.
+      const limiteLiberadoAdicional = Math.max(0, Math.min(valorPagoAtual, valorRestante))
 
       if (limiteLiberadoAdicional > 0) {
         novosAvisos.push({
@@ -79,10 +64,8 @@ export default function ModalPagamentoFatura({
         })
       }
     }
-
     setAvisos(novosAvisos)
   }, [valorPagoAtual, valorRestante, valorTotal, valorPagoAcumulado, limiteCartao])
-
   // Resetar form ao abrir
   useEffect(() => {
     if (aberto) {
@@ -94,7 +77,6 @@ export default function ModalPagamentoFatura({
       })
     }
   }, [aberto])
-
   // Atalho: preencher com valor restante
   function preencherValorTotal() {
     setForm(prev => ({
@@ -103,33 +85,25 @@ export default function ModalPagamentoFatura({
       tipo_pagamento: 'total'
     }))
   }
-
   // Submit
   function handleSubmit(e) {
     e.preventDefault()
-    
-    if (carregando) return
-
+    if (carregando || !fatura?.id || !form.data_pagamento || form.data_pagamento > hojeISO()) return
     // Validações finais
     if (valorPagoAtual <= 0) {
       return
     }
-
-    if (valorPagoAtual > valorRestante + 0.01) {
+    if (valorPagoAtual > valorRestante) {
       return
     }
-
     // Determina tipo automaticamente se não foi escolhido
     let tipoPagamento = form.tipo_pagamento
-    if (valorPagoAtual >= valorRestante - 0.01) {
+    if (valorPagoAtual >= valorRestante) {
       tipoPagamento = 'total'
-    } else if (new Date(form.data_pagamento) > new Date()) {
-      tipoPagamento = 'antecipado'
     } else if (tipoPagamento === 'total') {
       // Se escolheu "total" mas valor não é 100%, corrige para "parcial"
       tipoPagamento = 'parcial'
     }
-
     onSalvar({
       fatura_id: fatura.id,
       valor_pago: valorPagoAtual,
@@ -138,9 +112,7 @@ export default function ModalPagamentoFatura({
       observacao: form.observacao.trim() || null
     })
   }
-
   if (!fatura) return null
-
   return (
     <Modal aberto={aberto} onFechar={onFechar} titulo="Registrar pagamento">
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -150,7 +122,6 @@ export default function ModalPagamentoFatura({
             <span className="text-gray-500">Valor total da fatura</span>
             <span className="font-bold text-gray-900">{formatCurrency(valorTotal)}</span>
           </div>
-          
           {valorPagoAcumulado > 0 && (
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-500">Já pago</span>
@@ -159,7 +130,6 @@ export default function ModalPagamentoFatura({
               </span>
             </div>
           )}
-
           <div className="flex items-center justify-between text-sm pt-2 border-t border-gray-200">
             <span className="text-gray-900 font-medium">Valor restante</span>
             <span className="font-bold text-marca text-base">
@@ -167,7 +137,6 @@ export default function ModalPagamentoFatura({
             </span>
           </div>
         </div>
-
         {/* Valor do pagamento */}
         <div>
           <label className="label flex items-center justify-between">
@@ -193,7 +162,6 @@ export default function ModalPagamentoFatura({
             autoFocus
           />
         </div>
-
         {/* Data do pagamento */}
         <div>
           <label className="label flex items-center gap-2">
@@ -202,13 +170,13 @@ export default function ModalPagamentoFatura({
           </label>
           <input
             type="date"
+            max={hojeISO()}
             value={form.data_pagamento}
             onChange={(e) => setForm(prev => ({ ...prev, data_pagamento: e.target.value }))}
             className="input"
             required
           />
         </div>
-
         {/* Tipo de pagamento */}
         <div>
           <label className="label flex items-center gap-2">
@@ -228,7 +196,6 @@ export default function ModalPagamentoFatura({
             O tipo é ajustado automaticamente conforme o valor e a data
           </p>
         </div>
-
         {/* Observações */}
         <div>
           <label className="label">Observações (opcional)</label>
@@ -240,23 +207,20 @@ export default function ModalPagamentoFatura({
             placeholder="Ex: Pagamento via PIX, Antecipado por desconto..."
           />
         </div>
-
         {/* Avisos */}
         {avisos.length > 0 && (
           <div className="space-y-2">
             {avisos.map((aviso, idx) => {
-              const Icon = aviso.tipo === 'erro' 
-                ? AlertCircle 
-                : aviso.tipo === 'sucesso' 
-                  ? CheckCircle2 
+              const Icon = aviso.tipo === 'erro'
+                ? AlertCircle
+                : aviso.tipo === 'sucesso'
+                  ? CheckCircle2
                   : Info
-
               const cores = aviso.tipo === 'erro'
                 ? 'bg-red-50 border-red-200 text-red-700'
                 : aviso.tipo === 'sucesso'
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
                   : 'bg-blue-50 border-blue-200 text-blue-700'
-
               return (
                 <div
                   key={idx}
@@ -269,7 +233,6 @@ export default function ModalPagamentoFatura({
             })}
           </div>
         )}
-
         {/* Erro geral */}
         {erro && (
           <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2 text-sm text-red-600">
@@ -277,7 +240,6 @@ export default function ModalPagamentoFatura({
             <span>{erro}</span>
           </div>
         )}
-
         {/* Botões */}
         <div className="flex gap-3 pt-2">
           <button
@@ -290,7 +252,7 @@ export default function ModalPagamentoFatura({
           </button>
           <button
             type="submit"
-            disabled={carregando || valorPagoAtual <= 0 || avisos.some(a => a.tipo === 'erro')}
+            disabled={carregando || !form.data_pagamento || form.data_pagamento > hojeISO() || valorPagoAtual <= 0 || valorPagoAtual > valorRestante || avisos.some(a => a.tipo === 'erro')}
             className="btn-primary flex-1 flex items-center justify-center gap-2"
           >
             {carregando ? (

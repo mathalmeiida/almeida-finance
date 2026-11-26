@@ -1,483 +1,98 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { 
-  MessageSquare, 
-  Send, 
-  ArrowLeft, 
-  Info, 
-  Edit2, 
-  X, 
-  Check,
-  TrendingUp,
-  TrendingDown,
-  AlertCircle,
-  Save,
-  Database,
-  TestTube
-} from 'lucide-react'
-import { parseWhatsAppMessage, validarMensagem } from '../../lib/whatsappParser'
-import { supabase } from '../../lib/supabase'
+import { MessageSquare, Send, ArrowLeft, Check, X, Edit2, TestTube, Info } from 'lucide-react'
+import { parseWhatsAppMessage, formatarValor, rotuloCategoria } from '../../lib/whatsappParser'
+
 import { useAuth } from '../../contexts/AuthContext'
+import { useReceitas } from '../../hooks/useReceitas'
+import { useDespesas } from '../../hooks/useDespesas'
+import { supabase } from '../../lib/supabase'
+import { classificarDespesa } from '../../lib/classificarDespesa'
+import { hojeISO } from '../../lib/utils'
 
+const DEV_URL = 'https://gxfcfpdwyjqcrfssxgbi.supabase.co'
+const exemplos = ['Recebi 3000 de salário','Gastei R$ 150 no mercado','Paguei 50 de luz ontem','Comprei notebook R$ 2400 em 12x no crédito','Gastei R$ 35 no Uber via pix']
+const categorias = ['salario','renda_extra','investimentos','alimentacao','transporte','saude','lazer','educacao','moradia','telecomunicacoes','vestuario','assinaturas','outros']
+const pagamentos = {pix:'Pix',dinheiro:'Dinheiro',cartao_credito:'Cartão de crédito',cartao_debito:'Cartão de débito',boleto:'Boleto'}
 export default function AdminWhatsApp() {
-  const { usuario } = useAuth()
-  const [mensagemInput, setMensagemInput] = useState('')
-  const [mensagens, setMensagens] = useState([])
-  const [previewTransacao, setPreviewTransacao] = useState(null)
-  const [modoEdicao, setModoEdicao] = useState(false)
-  const [valoresEditados, setValoresEditados] = useState({})
-  const [modoSimulacao, setModoSimulacao] = useState(true)
-  const [salvando, setSalvando] = useState(false)
-  const chatEndRef = useRef(null)
-  const inputRef = useRef(null)
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [mensagens, previewTransacao])
-
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
-
-  const exemplos = [
-    { texto: 'Recebi 3000 de salário', descricao: 'Receita simples' },
-    { texto: 'Gastei 150 no mercado categoria alimentação', descricao: 'Despesa com categoria' },
-    { texto: 'Paguei 50 de luz', descricao: 'Despesa curta' },
-    { texto: 'Entrada de 500 freelance categoria renda extra', descricao: 'Receita com categoria' }
-  ]
-
-  const handleEnviarMensagem = () => {
-    const textoMensagem = mensagemInput.trim()
-    if (!textoMensagem) return
-
-    const validacao = validarMensagem(textoMensagem)
-    if (!validacao.valida) {
-      setMensagens(prev => [...prev, {
-        id: Date.now(),
-        tipo: 'erro',
-        texto: textoMensagem,
-        erro: validacao.erro,
-        timestamp: new Date()
-      }])
-      setMensagemInput('')
-      return
-    }
-
-    const resultado = parseWhatsAppMessage(textoMensagem)
-    if (!resultado.sucesso) {
-      setMensagens(prev => [...prev, {
-        id: Date.now(),
-        tipo: 'erro',
-        texto: textoMensagem,
-        erro: resultado.erro,
-        timestamp: new Date()
-      }])
-      setMensagemInput('')
-      return
-    }
-
-    const novaMensagem = {
-      id: Date.now(),
-      tipo: 'usuario',
-      texto: textoMensagem,
-      timestamp: new Date()
-    }
-
-    setMensagens(prev => [...prev, novaMensagem])
-    setPreviewTransacao({
-      id: Date.now(),
-      mensagemOriginal: textoMensagem,
-      ...resultado.transacao
-    })
-    setValoresEditados({
-      descricao: resultado.transacao.descricao,
-      valor: resultado.transacao.valor,
-      categoria: resultado.transacao.categoria || ''
-    })
-    setMensagemInput('')
+  const { usuario, ehAdmin, modoConsultoria, somenteLeitura } = useAuth()
+  const receitas = useReceitas()
+  const despesas = useDespesas()
+  const [real,setReal] = useState(false)
+  const [salvando,setSalvando] = useState(false)
+  const [cats,setCats] = useState([])
+  const [catId,setCatId] = useState('')
+  const [pagamento,setPagamento] = useState('')
+  const trava = useRef(false)
+  const permitido = !!usuario?.id && ehAdmin === true && !modoConsultoria && !somenteLeitura && String(supabase.supabaseUrl || '').replace(/\/$/,'') === DEV_URL
+  useEffect(()=>{
+    setReal(false); setCats([]); setCatId(''); setPreview(null); setEdicao(null)
+    if(!permitido) return
+    let ativo=true
+    supabase.from('categorias').select('id,nome,usuario_id').eq('tipo','despesa').or(`usuario_id.is.null,usuario_id.eq.${usuario.id}`).order('nome').then(({data,error})=>{if(ativo&&!error)setCats(data||[])})
+    return ()=>{ativo=false}
+  },[permitido,usuario?.id])
+  const [texto,setTexto]=useState('')
+  const [mensagens,setMensagens]=useState([])
+  const [preview,setPreview]=useState(null)
+  const [edicao,setEdicao]=useState(null)
+  const [erro,setErro]=useState('')
+  const fim=useRef(null), campo=useRef(null), sequencia=useRef(0)
+  useEffect(()=>{fim.current?.scrollIntoView({block:'nearest'})},[mensagens,preview,edicao])
+  const adicionar=(tipo,conteudo)=>setMensagens(prev=>[...prev,{id:++sequencia.current,tipo,conteudo,hora:new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'})}])
+  function enviar(e){
+    e.preventDefault(); if(preview||!texto.trim())return;
+    adicionar('usuario',texto.trim()); const r=parseWhatsAppMessage(texto);setTexto('');setErro('');
+    if(!r.sucesso){adicionar('erro',r.erro);return;} setPreview({...r.transacao, id:crypto.randomUUID(), dono:usuario?.id});setCatId('');setPagamento(r.transacao.forma_pagamento||'')
   }
-
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleEnviarMensagem()
-    }
+  async function concluir(confirmado){
+    if(!preview || trava.current || edicao)return;
+    if(!confirmado){adicionar('sistema','Lançamento cancelado.');setPreview(null);setErro('');return;}
+    if(!real){adicionar('sistema',`✓ Simulação concluída\n${preview.descricao}\nValor: ${formatarValor(preview.valor)}\nNenhum lançamento foi gravado.`);setPreview(null);setErro('');return;}
+    if(!permitido || preview.dono!==usuario.id){setErro('Gravação permitida somente ao administrador no DEV.');return;}
+    if(preview.familiar || preview.parcelas || preview.forma_pagamento==='cartao_credito' || /\b(vr|va|vale|benef[ií]cio|cart[aã]o)\b/i.test(preview.descricao)){setErro('Use o módulo correspondente para cartão, benefícios, parcelas ou família.');return;}
+    if(!Number.isFinite(preview.valor)||preview.valor<=0||preview.valor>999999999||Math.abs(preview.valor*100-Math.round(preview.valor*100))>0.00001||!preview.descricao.trim()||!/^\d{4}-\d{2}-\d{2}$/.test(preview.data)||preview.data>hojeISO()){setErro('Revise valor, descrição e data (não futura).');return;}
+    const dt=new Date(preview.data+'T12:00:00Z');
+    if(!Number.isFinite(dt.getTime())||dt.toISOString().slice(0,10)!==preview.data){setErro('Data inválida.');return;}
+    const cat=cats.find(c=>c.id===catId);
+    if(preview.tipo==='despesa'&&(!cat||!['pix','dinheiro','cartao_debito','boleto'].includes(pagamento))){setErro('Selecione uma categoria cadastrada e a forma de pagamento.');return;}
+    trava.current=true;setSalvando(true);setErro('');
+    const tabela=preview.tipo==='receita'?'receitas':'despesas';
+    const base={id:preview.id,descricao:preview.descricao.trim(),valor:preview.valor,data:preview.data,frequencia:'nao_repete',recorrente:false};
+    const payload=preview.tipo==='receita'?{...base,categoria:rotuloCategoria(preview.categoria)}:{...base,categoria_id:cat.id,forma_pagamento:pagamento,tipo_despesa:classificarDespesa({descricao:base.descricao,categoria:cat.nome})};
+    try {
+      const {data:existente,error:consultaErro}=await supabase.from(tabela).select('id').eq('id',base.id).eq('usuario_id',usuario.id).maybeSingle();
+      if(consultaErro)throw consultaErro;
+      if(!existente)await (preview.tipo==='receita'?receitas.criar(payload):despesas.criar(payload));
+      adicionar('sistema',`✓ Lançamento confirmado no DEV\n${base.descricao} — ${formatarValor(base.valor)}`);setPreview(null);
+    } catch(err){
+      try{const {data,error}=await supabase.from(tabela).select('id').eq('id',base.id).eq('usuario_id',usuario.id).maybeSingle();if(!error&&data){adicionar('sistema','Lançamento localizado no DEV. Não será duplicado.');setPreview(null);return;}}catch{}
+      setErro('Não foi possível confirmar a gravação: '+(err.message||'erro desconhecido')+'. Uma nova tentativa mantém o mesmo identificador.');
+    }finally{trava.current=false;setSalvando(false);}
   }
-
-  const handleUsarExemplo = (exemplo) => {
-    setMensagemInput(exemplo)
-    inputRef.current?.focus()
+  function salvarEdicao(e){
+    e.preventDefault(); const valor=Number(edicao.valor);
+    if(!edicao.descricao.trim()||!Number.isFinite(valor)||valor<=0||valor>999999999||Math.abs(valor*100-Math.round(valor*100))>0.00001||!edicao.data){setErro('Revise a descrição, o valor e a data.');return;}
+    setPreview({...edicao,valor,descricao:edicao.descricao.trim()});setEdicao(null);setErro('');
   }
-
-  const handleCancelarPreview = () => {
-    setPreviewTransacao(null)
-    setModoEdicao(false)
-    setValoresEditados({})
-  }
-
-  const handleEditarPreview = () => {
-    setModoEdicao(true)
-  }
-
-  const handleSalvarEdicao = () => {
-    setPreviewTransacao(prev => ({
-      ...prev,
-      descricao: valoresEditados.descricao,
-      valor: valoresEditados.valor,
-      categoria: valoresEditados.categoria
-    }))
-    setModoEdicao(false)
-  }
-
-  const handleCancelarEdicao = () => {
-    setValoresEditados({
-      descricao: previewTransacao.descricao,
-      valor: previewTransacao.valor,
-      categoria: previewTransacao.categoria || ''
-    })
-    setModoEdicao(false)
-  }
-
-  const handleConfirmarTransacao = async () => {
-    if (modoSimulacao) {
-      // Modo simulação - apenas feedback visual
-      const mensagemConfirmacao = {
-        id: Date.now(),
-        tipo: 'sistema',
-        texto: `✅ Transação registrada com sucesso!\n\n` +
-              `${previewTransacao.tipo === 'receita' ? '📈' : '📉'} ${previewTransacao.descricao}\n` +
-              `Valor: R$ ${previewTransacao.valor.toFixed(2)}\n` +
-              (previewTransacao.categoria ? `Categoria: ${previewTransacao.categoria}\n` : '') +
-              `\n⚠️ Modo simulação - não foi gravado no banco de dados`,
-        timestamp: new Date()
-      }
-      setMensagens(prev => [...prev, mensagemConfirmacao])
-      setPreviewTransacao(null)
-      setModoEdicao(false)
-      setValoresEditados({})
-    } else {
-      // Modo real - gravar no banco
-      setSalvando(true)
-      try {
-        const dataTransacao = {
-          usuario_id: usuario.id,
-          descricao: previewTransacao.descricao,
-          valor: previewTransacao.valor,
-          data: new Date().toISOString().split('T')[0],
-          categoria: previewTransacao.categoria || null,
-          origem: 'whatsapp'
-        }
-
-        let erro = null
-        if (previewTransacao.tipo === 'receita') {
-          const { error } = await supabase.from('receitas').insert([dataTransacao])
-          erro = error
-        } else {
-          const { error } = await supabase.from('despesas').insert([dataTransacao])
-          erro = error
-        }
-
-        if (erro) throw erro
-
-        const mensagemConfirmacao = {
-          id: Date.now(),
-          tipo: 'sistema',
-          texto: `✅ Transação salva no banco de dados!\n\n` +
-                `${previewTransacao.tipo === 'receita' ? '📈' : '📉'} ${previewTransacao.descricao}\n` +
-                `Valor: R$ ${previewTransacao.valor.toFixed(2)}\n` +
-                (previewTransacao.categoria ? `Categoria: ${previewTransacao.categoria}\n` : '') +
-                `\n💾 Gravado com sucesso`,
-          timestamp: new Date()
-        }
-        setMensagens(prev => [...prev, mensagemConfirmacao])
-        setPreviewTransacao(null)
-        setModoEdicao(false)
-        setValoresEditados({})
-      } catch (erro) {
-        const mensagemErro = {
-          id: Date.now(),
-          tipo: 'erro',
-          texto: 'Erro ao salvar',
-          erro: erro.message || 'Não foi possível gravar a transação no banco de dados',
-          timestamp: new Date()
-        }
-        setMensagens(prev => [...prev, mensagemErro])
-      } finally {
-        setSalvando(false)
-      }
-    }
-  }
-
-  const formatarData = (data) => {
-    return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(data)
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <header className="bg-marca text-white shadow-md sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Link to="/admin" className="p-2 hover:bg-white/10 rounded-lg transition-colors" aria-label="Voltar">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <MessageSquare className="w-6 h-6" />
-          <div className="flex-1">
-            <h1 className="text-lg font-semibold">WhatsApp Financeiro</h1>
-            <p className="text-xs text-white/80">Simulador de chat</p>
-          </div>
-          <button
-            onClick={() => setModoSimulacao(!modoSimulacao)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              modoSimulacao 
-                ? 'bg-white/20 hover:bg-white/30' 
-                : 'bg-green-500 hover:bg-green-600'
-            }`}
-          >
-            {modoSimulacao ? (
-              <>
-                <TestTube className="w-4 h-4" />
-                Simulação
-              </>
-            ) : (
-              <>
-                <Database className="w-4 h-4" />
-                Real
-              </>
-            )}
-          </button>
-        </div>
-      </header>
-
-      {/* Info banner */}
-      <div className={`border-b ${modoSimulacao ? 'bg-blue-50 border-blue-100' : 'bg-green-50 border-green-100'}`}>
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-start gap-3">
-          <Info className={`w-5 h-5 flex-shrink-0 mt-0.5 ${modoSimulacao ? 'text-blue-600' : 'text-green-600'}`} />
-          <div className="text-sm">
-            <p className={`font-medium ${modoSimulacao ? 'text-blue-900' : 'text-green-900'}`}>
-              {modoSimulacao ? 'Modo Simulação Ativo' : 'Modo Real Ativo'}
-            </p>
-            <p className={modoSimulacao ? 'text-blue-700' : 'text-green-700'}>
-              {modoSimulacao 
-                ? 'As transações são processadas localmente e não são salvas no banco de dados. Use para testar o formato das mensagens.'
-                : 'As transações confirmadas serão gravadas no banco de dados como transações reais. Use com cuidado.'
-              }
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Chat area */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
-          {/* Exemplos iniciais */}
-          {mensagens.length === 0 && !previewTransacao && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-marca" />
-                Exemplos de Mensagens
-              </h3>
-              <p className="text-sm text-gray-600 mb-4">
-                Clique em um exemplo para testar ou digite sua própria mensagem:
-              </p>
-              <div className="space-y-2">
-                {exemplos.map((exemplo, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleUsarExemplo(exemplo.texto)}
-                    className="w-full text-left p-3 rounded-lg border border-gray-200 hover:border-marca hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">{exemplo.texto}</p>
-                        <p className="text-xs text-gray-500 mt-1">{exemplo.descricao}</p>
-                      </div>
-                      <Send className="w-4 h-4 text-gray-400 flex-shrink-0 mt-1" />
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Mensagens do chat */}
-          {mensagens.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.tipo === 'usuario' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                  msg.tipo === 'usuario' ? 'bg-marca text-white' :
-                  msg.tipo === 'erro' ? 'bg-red-50 border border-red-200' :
-                  'bg-green-50 border border-green-200'
-                }`}>
-                {msg.tipo === 'erro' && (
-                  <div className="flex items-start gap-2 mb-1">
-                    <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs font-medium text-red-900">Erro ao processar</p>
-                  </div>
-                )}
-                <p className={`text-sm whitespace-pre-wrap ${
-                  msg.tipo === 'usuario' ? 'text-white' : 
-                  msg.tipo === 'erro' ? 'text-red-900' : 'text-green-900'
-                }`}>
-                  {msg.tipo === 'erro' ? msg.erro : msg.texto}
-                </p>
-                <p className={`text-xs mt-1 ${msg.tipo === 'usuario' ? 'text-white/70' : 'text-gray-500'}`}>
-                  {formatarData(msg.timestamp)}
-                </p>
-              </div>
-            </div>
-          ))}
-
-          {/* Preview da transação */}
-          {previewTransacao && (
-            <div className="bg-white rounded-lg shadow-md border-2 border-marca p-5">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  {previewTransacao.tipo === 'receita' ? (
-                    <TrendingUp className="w-5 h-5 text-green-600" />
-                  ) : (
-                    <TrendingDown className="w-5 h-5 text-red-600" />
-                  )}
-                  <h3 className="font-semibold text-gray-900">
-                    {previewTransacao.tipo === 'receita' ? 'Nova Receita' : 'Nova Despesa'}
-                  </h3>
-                </div>
-                {!modoEdicao && (
-                  <button onClick={handleEditarPreview} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors" aria-label="Editar">
-                    <Edit2 className="w-4 h-4 text-gray-600" />
-                  </button>
-                )}
-              </div>
-
-              {modoEdicao ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
-                    <input
-                      type="text"
-                      value={valoresEditados.descricao}
-                      onChange={(e) => setValoresEditados(prev => ({ ...prev, descricao: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-marca focus:border-marca"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Valor (R$)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={valoresEditados.valor}
-                      onChange={(e) => setValoresEditados(prev => ({ ...prev, valor: parseFloat(e.target.value) || 0 }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-marca focus:border-marca"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Categoria (opcional)</label>
-                    <input
-                      type="text"
-                      value={valoresEditados.categoria}
-                      onChange={(e) => setValoresEditados(prev => ({ ...prev, categoria: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-marca focus:border-marca"
-                      placeholder="Ex: Alimentação, Salário, etc."
-                    />
-                  </div>
-                  <div className="flex gap-2 pt-2">
-                    <button onClick={handleSalvarEdicao} className="flex-1 px-4 py-2 bg-marca text-white rounded-lg hover:bg-marca-hover transition-colors flex items-center justify-center gap-2">
-                      <Check className="w-4 h-4" />
-                      Salvar
-                    </button>
-                    <button onClick={handleCancelarEdicao} className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
-                      <X className="w-4 h-4" />
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-2 mb-4">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Descrição:</span>
-                      <span className="text-sm font-medium text-gray-900">{previewTransacao.descricao}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Valor:</span>
-                      <span className={`text-lg font-bold ${previewTransacao.tipo === 'receita' ? 'text-green-600' : 'text-red-600'}`}>
-                        R$ {previewTransacao.valor.toFixed(2)}
-                      </span>
-                    </div>
-                    {previewTransacao.categoria && (
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Categoria:</span>
-                        <span className="text-sm font-medium text-gray-900">{previewTransacao.categoria}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-                    <p className="text-xs text-blue-900">
-                      <strong>Mensagem original:</strong> "{previewTransacao.mensagemOriginal}"
-                    </p>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button 
-                      onClick={handleConfirmarTransacao} 
-                      disabled={salvando}
-                      className="flex-1 px-4 py-2.5 bg-marca text-white rounded-lg hover:bg-marca-hover transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {salvando ? (
-                        <>
-                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Salvando...
-                        </>
-                      ) : (
-                        <>
-                          <Check className="w-5 h-5" />
-                          Confirmar
-                        </>
-                      )}
-                    </button>
-                    <button onClick={handleCancelarPreview} className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
-                      <X className="w-5 h-5" />
-                      Cancelar
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          <div ref={chatEndRef} />
-        </div>
-      </div>
-
-      {/* Input area */}
-      <div className="bg-white border-t border-gray-200 sticky bottom-0">
-        <div className="max-w-4xl mx-auto px-4 py-3">
-          <div className="flex gap-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={mensagemInput}
-              onChange={(e) => setMensagemInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Digite sua mensagem financeira..."
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-marca focus:border-marca"
-              disabled={!!previewTransacao}
-            />
-            <button
-              onClick={handleEnviarMensagem}
-              disabled={!mensagemInput.trim() || !!previewTransacao}
-              className="px-6 py-3 bg-marca text-white rounded-lg hover:bg-marca-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              <Send className="w-5 h-5" />
-              <span className="hidden sm:inline">Enviar</span>
-            </button>
-          </div>
-          {previewTransacao && (
-            <p className="text-xs text-gray-500 mt-2 text-center">
-              Confirme ou cancele a transação acima para continuar
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  )
+  const linha=(nome,valor)=><div className="flex flex-wrap justify-between gap-2 text-sm"><span className="text-gray-500">{nome}</span><strong className="text-gray-800 break-words">{valor}</strong></div>
+  return <div className="min-h-[100dvh] flex flex-col bg-gray-50">
+    <header className="bg-marca text-white shrink-0"><div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-3"><Link to="/admin" aria-label="Voltar" className="p-2 rounded-lg hover:bg-white/10"><ArrowLeft size={20}/></Link><MessageSquare size={24}/><div className="flex-1 min-w-0"><h1 className="font-bold text-lg">WhatsApp Financeiro</h1><p className="text-xs text-white/80">Assistente financeiro • ambiente de testes</p></div><span className="flex items-center gap-1.5 bg-white/20 rounded-lg px-3 py-2 text-xs"><TestTube size={15}/> {real ? "Gravação DEV" : "Simulação"}</span></div></header>
+    <div className="max-w-4xl w-full mx-auto px-4 pt-4"><div className="rounded-xl bg-marca-100 text-marca p-3 flex gap-2 text-sm"><Info size={18} className="shrink-0"/><span>{real ? "Atenção: confirmações gravam lançamentos no banco DEV. Nenhuma mensagem é enviada à Meta." : "Simulação: nenhum lançamento será gravado. A integração com a Meta continua desativada."}</span></div>{permitido?<label className="flex items-center gap-2 py-3 text-sm font-semibold"><input type="checkbox" checked={real} disabled={!!preview||salvando} onChange={e=>setReal(e.target.checked)}/> Habilitar gravação de teste no DEV</label>:<p className="text-xs text-gray-500 py-2">Gravação bloqueada fora do DEV ou sem permissão administrativa.</p>}</div>
+    <main className="flex-1 w-full max-w-4xl mx-auto px-4 py-5 space-y-4" aria-live="polite">
+      {!mensagens.length && <div className="card space-y-3"><h2 className="font-bold text-gray-900">Como posso ajudar?</h2><p className="text-sm text-gray-500">Digite uma receita ou despesa, ou escolha um exemplo.</p><div className="grid sm:grid-cols-2 gap-2">{exemplos.map(ex=><button key={ex} type="button" onClick={()=>{setTexto(ex);campo.current?.focus()}} className="text-left border border-gray-200 rounded-xl p-3 text-sm text-gray-700 hover:border-marca">{ex}</button>)}</div></div>}
+      {mensagens.map(m=><div key={m.id} className={`flex ${m.tipo==='usuario'?'justify-end':'justify-start'}`}><div className={`max-w-[90%] rounded-2xl p-3.5 shadow-sm ${m.tipo==='usuario'?'bg-marca text-white':m.tipo==='erro'?'bg-red-50 text-red-800 border border-red-200':'bg-white text-gray-800 border border-gray-200'}`}><p className="whitespace-pre-wrap break-words text-sm">{m.conteudo}</p><p className="text-[11px] opacity-70 text-right mt-1">{m.hora}</p></div></div>)}
+      {preview && <section className="card max-w-lg space-y-4"><div className="flex items-center justify-between gap-2"><h2 className="text-lg font-bold text-marca">{preview.tipo==='receita'?'Receita identificada':'Despesa identificada'}</h2>{!edicao&&<button disabled={salvando} type="button" onClick={()=>setEdicao({...preview})} aria-label="Editar" className="p-2 text-marca"><Edit2 size={18}/></button>}</div>
+      {edicao?<form onSubmit={salvarEdicao} className="space-y-3">
+        <label className="block text-sm">Descrição<input className="input" required value={edicao.descricao} onChange={e=>setEdicao({...edicao,descricao:e.target.value})}/></label>
+        <label className="block text-sm">Valor (R$)<input className="input" type="number" min="0.01" step="0.01" required value={edicao.valor} onChange={e=>setEdicao({...edicao,valor:e.target.value})}/></label>
+        <label className="block text-sm">Categoria<select className="input" value={edicao.categoria} onChange={e=>setEdicao({...edicao,categoria:e.target.value})}>{categorias.filter(c=>c==='outros'||(edicao.tipo==='receita'?['salario','renda_extra','investimentos'].includes(c):!['salario','renda_extra','investimentos'].includes(c))).map(c=><option key={c} value={c}>{rotuloCategoria(c)}</option>)}</select></label>
+        <label className="block text-sm">Data<input className="input" type="date" required value={edicao.data} onChange={e=>setEdicao({...edicao,data:e.target.value})}/></label>
+        {erro&&<p role="alert" className="text-red-600 text-sm">{erro}</p>}<div className="flex gap-2"><button className="btn-primary flex-1" type="submit">Salvar edição</button><button className="btn-secondary" type="button" onClick={()=>{setEdicao(null);setErro('')}}>Voltar</button></div>
+      </form>:<><p className={`text-3xl font-bold tabular-nums ${preview.tipo==='receita'?'text-green-600':'text-marca'}`}>{formatarValor(preview.valor)}</p><div className="space-y-2">{linha('Descrição',preview.descricao)}{linha('Categoria',rotuloCategoria(preview.categoria))}{linha('Data',preview.data.split('-').reverse().join('/'))}{linha('Pagamento',pagamentos[preview.forma_pagamento]||'Não informado')}{preview.parcelas&&linha('Parcelamento',`${preview.parcelas}x • valor total informado`)}{preview.familiar&&linha('Familiar','Sim')}</div>{real&&preview.tipo==='despesa'&&<div className="space-y-2"><label className="block text-sm">Categoria cadastrada<select className="input" value={catId} disabled={salvando} onChange={e=>setCatId(e.target.value)}><option value="">Selecione</option>{cats.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}</select></label><label className="block text-sm">Forma de pagamento<select className="input" disabled={salvando} value={pagamento} onChange={e=>setPagamento(e.target.value)}><option value="">Selecione</option>{Object.entries(pagamentos).filter(([k])=>k!=='cartao_credito').map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label></div>}{erro&&<p role="alert" className="text-red-600 text-sm">{erro}</p>}<p className="text-sm text-gray-500">{real?'Confirme para gravar no banco DEV.':'Confira os dados antes de confirmar a simulação.'}</p><div className="flex gap-2"><button type="button" className="btn-primary flex-1 flex items-center justify-center gap-2" disabled={salvando} onClick={()=>concluir(true)}><Check size={18}/> {salvando?"Salvando...":real?"Gravar no DEV":"Confirmar simulação"}</button><button type="button" className="btn-secondary flex items-center gap-1" disabled={salvando} onClick={()=>concluir(false)}><X size={16}/> Cancelar</button></div></>}
+      </section>}
+      <div ref={fim}/>
+    </main>
+    <footer className="sticky bottom-0 bg-white border-t border-gray-200 p-3 pb-[max(12px,env(safe-area-inset-bottom))]"><form onSubmit={enviar} className="max-w-4xl mx-auto flex gap-2"><input ref={campo} className="input flex-1 min-w-0" aria-label="Mensagem financeira" placeholder="Digite sua mensagem financeira..." value={texto} maxLength={500} disabled={!!preview} onChange={e=>setTexto(e.target.value)}/><button type="submit" disabled={!!preview||!texto.trim()} className="btn-primary flex items-center gap-2 disabled:opacity-50"><Send size={18}/><span className="hidden sm:inline">Enviar</span></button></form></footer>
+  </div>
 }

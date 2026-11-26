@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import {
   CreditCard, Plus, Pencil, Trash2, Loader2, ArrowLeft, Calendar, Receipt, FileText, CheckCircle2, ShoppingCart, Layers3, Settings2, Upload, DollarSign
@@ -330,7 +330,7 @@ function FormFatura({ cartao, faturaInicial, refData, onSalvar, onCancelar, carr
   )
 }
 // ─── Visão: Ver fatura de um cartão (atual ou projetada) ──────────────────────
-function VerFatura({ cartao, onVoltar, onEditarCartao }) {
+function VerFatura({ cartao, onVoltar, onEditarCartao, onFaturasAlteradas }) {
   // Hooks UX
   const { notificar } = useNotificacao()
   const { tratarErro } = useErroAmigavel()
@@ -339,7 +339,7 @@ function VerFatura({ cartao, onVoltar, onEditarCartao }) {
   const { compras, carregando, criar, atualizar, remover } = useComprasCartao(cartao.id)
   const { parcelamentos } = useParcelamentos()
 // Faturas informadas por total (deste cartão).
-const { faturas: faturasInformadas, salvarFatura, removerFatura, marcarFaturaPaga } = useFaturasCartao(cartao.id)
+const { faturas: faturasInformadas, salvarFatura, removerFatura, marcarFaturaPaga, recarregar: recarregarFaturas } = useFaturasCartao(cartao.id)
 
 const [modalCompra, setModalCompra] = useState(false)
   const [compraEditando, setCompraEditando] = useState(null) // /* AF_EDICAO_COMPRAS_2026 */
@@ -352,6 +352,8 @@ const [modalFatura, setModalFatura] = useState(false)
 // Sistema de pagamentos
 const [modalPagamento, setModalPagamento] = useState(false)
 const [resumoPagamentos, setResumoPagamentos] = useState(null)
+const [versaoResumo, setVersaoResumo] = useState(0)
+const pagamentoEmCurso = useRef(false)
 
 // Mês/ano exibido: começa no atual; "Próximas faturas" muda isto
   const [refData, setRefData] = useState({ ano: anoAtual, mes: mesAtual })
@@ -552,51 +554,65 @@ const {
   }
 
 // Handlers do sistema de pagamentos
+async function atualizarAposPagamento() {
+  setResumoPagamentos(null)
+  setVersaoResumo(v => v + 1)
+  const resultados = await Promise.allSettled([
+    Promise.resolve().then(() => recarregarFaturas()),
+    Promise.resolve().then(() => onFaturasAlteradas?.())
+  ])
+  if (resultados.some(r => r.status === 'rejected')) {
+    setErro('Operação registrada. Não foi possível atualizar a tela; recarregue a página antes de tentar novamente.')
+  }
+}
+
 async function handleRegistrarPagamento(dados) {
+  if (pagamentoEmCurso.current) return
+  pagamentoEmCurso.current = true
   setSalvandoFatura(true)
   setErro('')
   try {
     await registrarPagamento(dados)
     setModalPagamento(false)
-    // Recarregar resumo
-    if (faturaInformada?.id) {
-      const novoResumo = await buscarResumoFatura(faturaInformada.id)
-      setResumoPagamentos(novoResumo)
-    }
+    await atualizarAposPagamento()
   } catch (err) {
     setErro(err.message || 'Erro ao registrar pagamento')
   } finally {
+    pagamentoEmCurso.current = false
     setSalvandoFatura(false)
   }
 }
 
 async function handleEstornarPagamento(pagamentoId, motivo) {
+  if (pagamentoEmCurso.current) return
+  pagamentoEmCurso.current = true
   setSalvandoFatura(true)
   setErro('')
   try {
     await estornarPagamento(pagamentoId, motivo)
-    // Recarregar resumo
-    if (faturaInformada?.id) {
-      const novoResumo = await buscarResumoFatura(faturaInformada.id)
-      setResumoPagamentos(novoResumo)
-    }
+    await atualizarAposPagamento()
   } catch (err) {
     setErro(err.message || 'Erro ao estornar pagamento')
   } finally {
+    pagamentoEmCurso.current = false
     setSalvandoFatura(false)
   }
 }
 
-// Carregar resumo de pagamentos ao abrir fatura
+// Mantém a função mais recente sem disparar consultas a cada renderização.
+const buscarResumoRef = useRef(buscarResumoFatura)
+useEffect(() => { buscarResumoRef.current = buscarResumoFatura }, [buscarResumoFatura])
+const faturaIdResumo = faturaInformada?.id
 useEffect(() => {
-  if (faturaInformada?.id && buscarResumoFatura) {
-    buscarResumoFatura(faturaInformada.id)
-      .then(setResumoPagamentos)
-      .catch(() => setResumoPagamentos(null))
-  } else {
-    setResumoPagamentos(null)
+  let ativo = true
+  setResumoPagamentos(null)
+  if (faturaIdResumo) {
+    buscarResumoRef.current(faturaIdResumo)
+      .then(resumo => { if (ativo) setResumoPagamentos(resumo) })
+      .catch(() => { if (ativo) setResumoPagamentos(null) })
   }
-}, [faturaInformada?.id, buscarResumoFatura])
+  return () => { ativo = false }
+}, [faturaIdResumo, versaoResumo])
 
 function iniciarEdicao(linha) {
     const compra = compras.find(c => String(c.id) === String(linha.id))
@@ -773,7 +789,7 @@ function iniciarEdicao(linha) {
             
             {/* Quanto devo? */}
             <div className="mb-4">
-              <p className="text-xs opacity-90 mb-1">Quanto devo?</p>
+              <p className="text-xs opacity-90 mb-1">Valor original da fatura</p>
               <p className="text-3xl font-bold">{formatCurrency(totalFatura)}</p>
             </div>
 
@@ -801,7 +817,7 @@ function iniciarEdicao(linha) {
             <button 
               type="button" 
               onClick={() => setModalPagamento(true)}
-              disabled={resumoPagamentos?.quitada || salvandoFatura}
+              disabled={!resumoPagamentos || resumoPagamentos.fatura?.id !== faturaInformada.id || resumoPagamentos.quitada || salvandoFatura}
               className={`w-full py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
                 resumoPagamentos?.quitada 
                   ? 'bg-white/20 cursor-not-allowed' 
@@ -833,7 +849,7 @@ function iniciarEdicao(linha) {
             onFechar={() => setModalPagamento(false)}
             onSalvar={handleRegistrarPagamento}
             carregando={salvandoFatura}
-            fatura={faturaInformada}
+            fatura={resumoPagamentos?.fatura?.id === faturaInformada.id ? resumoPagamentos.fatura : faturaInformada}
             limiteCartao={Number(cartao.limite_total)}
             erro={erro}
           />
@@ -1157,7 +1173,7 @@ export default function Cartoes() {
   const { cartoes, carregando, criar, atualizar, remover } = useCartoes()
   const { compras } = useComprasCartao() //todas as compras (para resumo e cards)
   const { parcelamentos } = useParcelamentos()
-  const { faturas: faturasInformadas } = useFaturasCartao() //totais informados
+  const { faturas: faturasInformadas, recarregar: recarregarFaturasLista } = useFaturasCartao() //totais informados
   const [modalCartao, setModalCartao] = useState(false)
   const [modalImportacao, setModalImportacao] = useState(false)
   const [cartaoEditando, setCartaoEditando] = useState(null)
@@ -1234,7 +1250,7 @@ export default function Cartoes() {
   }
 // Visão de fatura de um cartão
   if (faturaAberta) {
-    return <VerFatura cartao={faturaAberta} onVoltar={fecharFatura} onEditarCartao={() => { fecharFatura(); abrirEdicao(faturaAberta) }} />
+    return <VerFatura key={faturaAberta.id} onFaturasAlteradas={recarregarFaturasLista} cartao={faturaAberta} onVoltar={fecharFatura} onEditarCartao={() => { fecharFatura(); abrirEdicao(faturaAberta) }} />
   }
   return (
     <div className="af-container space-y-6">

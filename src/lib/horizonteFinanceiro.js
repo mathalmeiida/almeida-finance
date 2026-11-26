@@ -2,7 +2,7 @@
 // Nao modifica saldo, reserva, banco ou regras do orcamento.
 import { valorDespesaRecorrenteNoMes, frequenciaDaDespesa } from '../hooks/useDespesas'
 import { valorParcelaNoMes } from '../hooks/useParcelamentos'
-import { totalFaturaComOverride, faturaInformadaNoMes } from './faturaCartao'
+import { totalFaturaPendente, faturaInformadaNoMes } from './faturaCartao'
 import { frequenciaDaReceita, valorReceitaRecorrenteNoMes } from './recorrenciaReceita'
 import { labelMes, partesHojeBrasil } from './utils'
 import { vencimentoEfetivo } from './calendarioBancario'
@@ -159,10 +159,10 @@ export function gerarHorizonte({
         if (diaVenc < diaFech) competencia = new Date(vencAno, vencMes - 2, 1)
         const compAno = competencia.getFullYear(), compMes = competencia.getMonth() + 1
         const informada = faturaInformadaNoMes(faturasInformadas, c.id, compAno, compMes)
-        const total = totalFaturaComOverride(compras, parcelas, faturasInformadas, c.id, c.dia_fechamento, compAno, compMes)
+        // Projetar somente o restante: pagamentos ja baixados no saldo nao se repetem.
+        const total = totalFaturaPendente(compras, parcelas, faturasInformadas, c.id, c.dia_fechamento, compAno, compMes)
         const diaNominal = Number(informada?.vencimento_dia) || diaVenc
         const efetivo = vencimentoEfetivo(vencAno, vencMes, diaNominal)
-        if (informada?.pago === true) continue
         if (!(total > 0)) continue
         if (efetivo.ano === ano && efetivo.mes === mes) {
           adicionar(efetivo.dia, total, 'saida', `Fatura ${c.nome || 'cartao'}`, 'cartao')

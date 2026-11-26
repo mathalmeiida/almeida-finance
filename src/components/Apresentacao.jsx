@@ -1,658 +1,114 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  TrendingUp, CreditCard, UtensilsCrossed, PiggyBank, Target, BarChart2,
-  ShoppingCart, Sparkles, ArrowRight, ChevronLeft, ChevronRight, CalendarDays,
-  FileText, CheckCircle2, Landmark, Upload,
-} from 'lucide-react'
-
-// ─── Apresentação do Almeida Finance ──────────────────────────────────────────
-// Capa (marca + frase) seguida de 5 telas de funcionalidades.
-// Usada em três lugares, com o MESMO conteúdo:
-//   • Login (visitante, primeiro acesso) → modo público: botões "Começar agora"
-//     (cadastro) e "Já tenho uma conta" (login) sempre visíveis.
-//   • Onboarding e "Rever apresentação" (autenticado) → aoConcluir.
-// Navegação: deslizar (CSS Scroll Snap nativo), setas Voltar/Avançar, teclado
-// (← →), indicadores clicáveis e "Pular". Sem auto-avanço.
-// Respeita prefers-reduced-motion (sem rolagem suave nem animação de entrada).
-//
-// Props:
-//   aoConcluir   — chamado em "Pular" e no "Começar agora" do último slide (modo autenticado)
-//   rodapeCustom — rodapé alternativo no último slide (compatibilidade)
-//   onComecar    — modo público: botão "Começar agora"
-//   onEntrar     — modo público: botão "Já tenho uma conta"
-
-// A Importação Inteligente é entregue na Parte C. Até lá a tela de
-// apresentação a mostra com o selo "Em breve", sem prometer disponibilidade.
-const IMPORTACAO_DISPONIVEL = true
-
-const painel = { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }
-const painelForte = { background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.15)' }
-
-function MiniCard({ icone: Icone, rotulo, valor, destaque }) {
-  return (
-    <div className={`rounded-xl border p-2.5 text-left ${destaque ? 'bg-white/15 border-white/20' : 'bg-white/5 border-white/10'}`}>
-      <div className="flex items-center gap-2">
-        <span className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${destaque ? 'bg-white/20' : 'bg-white/10'}`}>
-          <Icone size={14} className="text-white" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-[11px] text-white/60 leading-tight truncate">{rotulo}</p>
-          <p className="text-xs font-bold text-white leading-tight truncate">{valor}</p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function Rotulo({ children }) {
-  return <p className="text-[11px] text-white/60 font-semibold uppercase tracking-wide">{children}</p>
-}
-
-// Tela 1 — Controle financeiro completo e visão do patrimônio
-function VisualControle() {
-  return (
-    <div className="rounded-2xl overflow-hidden" style={painel}>
-      <div className="px-4 py-3" style={{ background: 'rgba(0,0,0,0.2)' }}>
-        <p className="text-[11px] text-white/60">Saldo disponível</p>
-        <p className="text-2xl font-bold text-white">R$ 3.250</p>
-        <div className="flex gap-3 mt-1.5">
-          <span className="text-[10px] text-emerald-300 font-semibold">↑ R$ 6.000 receitas</span>
-          <span className="text-[10px] text-red-300 font-semibold">↓ R$ 2.750 despesas</span>
-        </div>
-      </div>
-      <div className="mx-3 mt-3 rounded-xl px-3 py-2.5" style={painelForte}>
-        <p className="text-[11px] text-white/60">Patrimônio total</p>
-        <p className="text-lg font-extrabold text-white">R$ 24.500</p>
-        <p className="text-[10px] text-white/50 mt-0.5">Saldo + Investimentos + VR/VA</p>
-      </div>
-      <div className="grid grid-cols-2 gap-2 p-3">
-        <MiniCard icone={TrendingUp} rotulo="Investimentos" valor="R$ 18.500" />
-        <MiniCard icone={CreditCard} rotulo="Cartões" valor="R$ 1.200" />
-        <MiniCard icone={UtensilsCrossed} rotulo="VR / VA" valor="R$ 850" />
-        <MiniCard icone={PiggyBank} rotulo="Reserva" valor="R$ 5.000" destaque />
-      </div>
-      <p className="text-[10px] text-white/40 text-center pb-2">Valores ilustrativos</p>
-    </div>
-  )
-}
-
-// Tela 2 — Quanto posso gastar hoje?
-function VisualQuantoPosso() {
-  return (
-    <div className="rounded-2xl overflow-hidden p-3 space-y-3" style={painel}>
-      <div className="rounded-xl px-4 py-4 text-center" style={painelForte}>
-        <p className="text-xs text-white/60 mb-2">Você pode gastar hoje</p>
-        <p className="text-4xl font-extrabold text-white">R$ 87</p>
-        <p className="text-[11px] text-white/50 mt-1">Considerando receitas, despesas e metas</p>
-        <div className="mt-3 h-2 bg-white/10 rounded-full overflow-hidden">
-          <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-white" style={{ width: '38%' }} />
-        </div>
-        <p className="text-[10px] text-white/50 mt-1.5">38% do mês restante</p>
-      </div>
-      <div className="space-y-1.5">
-        <Rotulo>Impacto no orçamento</Rotulo>
-        {[
-          { label: 'Cartão Nubank', valor: 'R$ 1.200', pct: 45 },
-          { label: 'Aluguel em 5 dias', valor: 'R$ 1.200', pct: 35 },
-          { label: 'Meta: Reserva', valor: 'R$ 500', pct: 20 },
-        ].map(i => (
-          <div key={i.label} className="flex items-center justify-between rounded-lg px-2.5 py-1.5" style={{ background: 'rgba(255,255,255,0.06)' }}>
-            <span className="text-xs text-white/80 truncate">{i.label}</span>
-            <span className="text-xs font-semibold text-white flex-shrink-0 ml-2">{i.valor}</span>
-          </div>
-        ))}
-      </div>
-      <p className="text-[10px] text-white/45 text-center">Atualizado em tempo real conforme suas movimentações</p>
-    </div>
-  )
-}
-
-// Tela 3 — Simular compra e parcelamentos
-function VisualSimularCompra() {
-  return (
-    <div className="rounded-2xl overflow-hidden p-3 space-y-2.5" style={painel}>
-      <div className="rounded-xl px-3 py-3" style={painelForte}>
-        <div className="flex items-center gap-1.5 mb-2">
-          <ShoppingCart size={14} className="text-white/70" />
-          <p className="text-xs text-white/70">Simular compra</p>
-        </div>
-        <p className="text-2xl font-bold text-white">R$ 1.500</p>
-        <p className="text-xs text-white/60 mt-0.5">Quanto ficaria em cada opção?</p>
-      </div>
-      <div className="space-y-1.5">
-        {[
-          { parcelas: 'À vista', valor: 'R$ 1.500', delta: 'Sobram R$ 67/dia', ok: true },
-          { parcelas: '3× sem juros', valor: 'R$ 500/mês', delta: 'Sobram R$ 71/dia', ok: true },
-          { parcelas: '6× sem juros', valor: 'R$ 250/mês', delta: 'Sobram R$ 79/dia', ok: true },
-          { parcelas: '12× com juros', valor: 'R$ 145/mês', delta: 'Total R$ 1.740', ok: false },
-        ].map(o => (
-          <div key={o.parcelas} className="rounded-lg px-2.5 py-2" style={{ background: o.ok ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)' }}>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-white">{o.parcelas}</span>
-              <span className={`text-xs font-bold ${o.ok ? 'text-emerald-300' : 'text-red-300'}`}>{o.valor}</span>
-            </div>
-            <p className={`text-[10px] mt-0.5 ${o.ok ? 'text-emerald-200/70' : 'text-red-200/70'}`}>{o.delta}</p>
-          </div>
-        ))}
-      </div>
-      <p className="text-[10px] text-white/45 text-center">Veja o impacto real antes de comprar</p>
-    </div>
-  )
-}
-
-// Tela 4 — Simulador E SE
-function VisualESe() {
-  return (
-    <div className="rounded-2xl overflow-hidden p-3 space-y-2.5" style={painel}>
-      <div className="rounded-xl px-3 py-3 text-center" style={painelForte}>
-        <div className="flex items-center justify-center gap-1.5 mb-2">
-          <Sparkles size={14} className="text-white/70" />
-          <p className="text-xs text-white/70">E se...?</p>
-        </div>
-        <p className="text-xl font-bold text-white">Explore cenários</p>
-        <p className="text-xs text-white/60 mt-1">Veja como mudanças afetam seu orçamento</p>
-      </div>
-      <Rotulo>Cenários simulados</Rotulo>
-      {[
-        { 
-          label: 'Renda extra +R$ 800', 
-          icon: TrendingUp,
-          delta: '+R$ 26/dia', 
-          novoLimite: 'R$ 113/dia',
-          cor: 'rgba(34,197,94,0.15)', 
-          txt: '#86EFAC' 
-        },
-        { 
-          label: 'Nova assinatura -R$ 50', 
-          icon: CreditCard,
-          delta: '-R$ 1,60/dia', 
-          novoLimite: 'R$ 85/dia',
-          cor: 'rgba(239,68,68,0.15)', 
-          txt: '#FCA5A5' 
-        },
-        { 
-          label: 'Aplicar R$ 500 na reserva', 
-          icon: PiggyBank,
-          delta: 'Meta 80%', 
-          novoLimite: 'R$ 70/dia',
-          cor: 'rgba(168,85,247,0.15)', 
-          txt: '#E9D5FF' 
-        },
-      ].map(c => (
-        <div key={c.label} className="rounded-lg px-2.5 py-2" style={{ background: c.cor, border: '1px solid rgba(255,255,255,0.1)' }}>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-white/90 flex items-center gap-1.5">
-              <c.icon size={11} className="text-white/50" />
-              {c.label}
-            </span>
-            <span className="text-xs font-bold" style={{ color: c.txt }}>{c.delta}</span>
-          </div>
-          <p className="text-[10px] text-white/60">Novo limite: {c.novoLimite}</p>
-        </div>
-      ))}
-      <p className="text-[10px] text-white/45 text-center">Simule antes de tomar decisões importantes</p>
-    </div>
-  )
-}
-
-// Tela 5 — Custo de Vida
-function VisualCustoVida() {
-  const categorias = [
-    { nome: 'Moradia', valor: 'R$ 1.200', pct: 40, cor: '#7d2e4b' },
-    { nome: 'Alimentação', valor: 'R$ 600', pct: 20, cor: '#a855f7' },
-    { nome: 'Transporte', valor: 'R$ 450', pct: 15, cor: '#3b82f6' },
-    { nome: 'Outros', valor: 'R$ 750', pct: 25, cor: '#6b7280' },
-  ]
-  
-  return (
-    <div className="rounded-2xl overflow-hidden p-3 space-y-2.5" style={painel}>
-      <div className="rounded-xl px-3 py-3 text-center" style={painelForte}>
-        <p className="text-xs text-white/60 mb-1">Custo de vida mensal</p>
-        <p className="text-3xl font-extrabold text-white">R$ 3.000</p>
-        <p className="text-[11px] text-white/50 mt-1">Despesas essenciais do mês</p>
-      </div>
-      
-      <Rotulo>Distribuição por categoria</Rotulo>
-      <div className="space-y-1.5">
-        {categorias.map(cat => (
-          <div key={cat.nome} className="rounded-lg overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
-            <div className="px-2.5 py-1.5">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-white/80">{cat.nome}</span>
-                <span className="text-xs font-semibold text-white">{cat.valor}</span>
-              </div>
-              <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div className="h-full rounded-full" style={{ width: `${cat.pct}%`, backgroundColor: cat.cor }} />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      
-      <div className="rounded-lg px-2.5 py-2 bg-marca/12 border border-marca/20">
-        <p className="text-[10px] text-marca/80 text-center">
-          💡 Reduza custos e aumente sua margem de segurança
-        </p>
-      </div>
-      
-      <p className="text-[10px] text-white/45 text-center">Baseado nas suas despesas recorrentes</p>
-    </div>
-  )
-}
-
-// Tela 6 — Importação Inteligente
-function VisualImportacao() {
-  const formatos = [
-    { ext: 'PDF', cor: '#ef4444' },
-    { ext: 'CSV', cor: '#10b981' },
-    { ext: 'OFX', cor: '#3b82f6' },
-    { ext: 'XLSX', cor: '#8b5cf6' }
-  ]
-  
-  return (
-    <div className="rounded-2xl overflow-hidden p-3 space-y-2.5" style={painel}>
-      <div className="rounded-xl px-3 py-3 text-center" style={painelForte}>
-        <div className="flex items-center justify-center gap-1.5 mb-2">
-          <Upload size={16} className="text-white/70" />
-          <p className="text-xs text-white/70">Importação Inteligente</p>
-        </div>
-        <p className="text-base font-bold text-white">4 formatos suportados</p>
-        <p className="text-xs text-white/60 mt-1">Extratos, faturas, investimentos, VR e VA</p>
-      </div>
-      
-      <div className="grid grid-cols-4 gap-2">
-        {formatos.map(f => (
-          <div key={f.ext} className="aspect-square rounded-lg flex items-center justify-center" 
-               style={{ background: `${f.cor}20`, border: `1px solid ${f.cor}40` }}>
-            <FileText size={16} style={{ color: f.cor }} />
-          </div>
-        ))}
-      </div>
-      
-      <Rotulo>O que você pode importar</Rotulo>
-      <div className="space-y-1">
-        {[
-          'Extratos bancários (Bradesco, Itaú, Nubank...)',
-          'Faturas de cartão de crédito',
-          'Posições de investimentos',
-          'Saldos de VR e VA (Alelo, Sodexo...)'
-        ].map(item => (
-          <div key={item} className="flex items-start gap-2 px-2 py-1">
-            <CheckCircle2 size={12} className="text-emerald-400 flex-shrink-0 mt-0.5" />
-            <p className="text-[11px] text-white/80 leading-snug">{item}</p>
-          </div>
-        ))}
-      </div>
-      
-      <div className="rounded-lg px-2.5 py-2 bg-marca/12 border border-marca/20">
-        <p className="text-[10px] text-marca/80 text-center">
-          ✨ Revisão inteligente antes de salvar
-        </p>
-      </div>
-      
-      <p className="text-[10px] text-white/45 text-center">Detecta duplicatas automaticamente</p>
-    </div>
-  )
-}
-
-// Tela 7 — Investimentos e Metas
-function VisualInvestimentosMetas() {
-  return (
-    <div className="rounded-2xl overflow-hidden p-3 space-y-2.5" style={painel}>
-      <div className="rounded-xl px-3 py-3" style={painelForte}>
-        <div className="flex items-center gap-1.5 mb-2">
-          <Landmark size={14} className="text-white/70" />
-          <p className="text-xs text-white/60">Investimentos</p>
-        </div>
-        <p className="text-2xl font-bold text-white">R$ 18.500</p>
-        <p className="text-xs text-emerald-300 mt-0.5">+R$ 2.350 (14,5%) no ano</p>
-      </div>
-      
-      <Rotulo>Suas metas</Rotulo>
-      <div className="space-y-1.5">
-        {[
-          { meta: 'Reserva de Emergência', atual: 5000, objetivo: 12000, pct: 42, cor: '#10b981' },
-          { meta: 'Viagem 2027', atual: 2500, objetivo: 8000, pct: 31, cor: '#3b82f6' },
-          { meta: 'Entrada do Carro', atual: 4000, objetivo: 20000, pct: 20, cor: '#f59e0b' },
-        ].map(m => (
-          <div key={m.meta} className="rounded-lg px-2.5 py-2" style={{ background: 'rgba(255,255,255,0.05)' }}>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-white/80">{m.meta}</span>
-              <span className="text-xs font-semibold text-white">{m.pct}%</span>
-            </div>
-            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden mb-1">
-              <div className="h-full rounded-full" style={{ width: `${m.pct}%`, backgroundColor: m.cor }} />
-            </div>
-            <p className="text-[10px] text-white/60">
-              R$ {m.atual.toLocaleString('pt-BR')} de R$ {m.objetivo.toLocaleString('pt-BR')}
-            </p>
-          </div>
-        ))}
-      </div>
-      
-      <div className="rounded-lg px-2.5 py-2 text-center" style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.2)' }}>
-        <p className="text-[10px] text-emerald-200/80">
-          🎯 Faltam R$ 600 para bater a meta deste mês
-        </p>
-      </div>
-      
-      <p className="text-[10px] text-white/45 text-center">Acompanhe seu progresso em tempo real</p>
-    </div>
-  )
-}
-
-// Tela 8 — Calendário e Projeções Financeiras
-function VisualCalendarioProjecoes() {
-  const dias = Array.from({ length: 14 }, (_, i) => i + 1)
-  const marcados = { 3: '#22c55e', 5: '#ef4444', 8: '#eab308', 10: '#ef4444', 12: '#a855f7' }
-  
-  return (
-    <div className="rounded-2xl overflow-hidden p-3 space-y-3" style={painel}>
-      <div className="flex items-center gap-2">
-        <CalendarDays size={14} className="text-white/70" />
-        <Rotulo>Próximos dias</Rotulo>
-      </div>
-      <div className="grid grid-cols-7 gap-1">
-        {dias.map(d => (
-          <div key={d} className={`rounded-md py-1.5 text-center ${d === 4 ? 'bg-white/25' : 'bg-white/5'}`}>
-            <span className="text-[11px] font-semibold text-white">{d}</span>
-            <span className="block mx-auto mt-0.5 w-1 h-1 rounded-full" style={{ background: marcados[d] || 'transparent' }} />
-          </div>
-        ))}
-      </div>
-      <Rotulo>Próximos compromissos</Rotulo>
-      {[
-        { desc: 'Aluguel', dias: 3, valor: 'R$ 1.200', cor: 'rgba(239,68,68,0.8)' },
-        { desc: 'Fatura Nubank', dias: 5, valor: 'R$ 850', cor: 'rgba(251,191,36,0.8)' },
-        { desc: 'Recarga VR', dias: 8, valor: 'R$ 350', cor: 'rgba(34,197,94,0.8)' },
-      ].map(c => (
-        <div key={c.desc} className="flex items-center justify-between rounded-lg px-2.5 py-1.5" style={{ background: 'rgba(255,255,255,0.06)' }}>
-          <span className="flex items-center gap-2 min-w-0">
-            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: c.cor }} />
-            <span className="text-xs text-white/80 truncate">{c.desc}</span>
-            <span className="text-[10px] text-white/50 flex-shrink-0">· em {c.dias} dias</span>
-          </span>
-          <span className="text-xs font-semibold text-white flex-shrink-0 ml-2">{c.valor}</span>
-        </div>
-      ))}
-      <div className="rounded-lg px-2.5 py-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
-        <div className="flex items-center justify-between mb-0.5">
-          <span className="text-xs text-white/70">Projeção de saldo (30 dias)</span>
-          <span className="text-xs font-bold text-emerald-300">R$ 3.840</span>
-        </div>
-        <p className="text-[9px] text-white/50">Baseado em receitas e despesas recorrentes</p>
-      </div>
-    </div>
-  )
-}
+import { ArrowRight, ChevronLeft, ChevronRight, CalendarDays, Wallet, CreditCard, Target, TrendingUp, ShieldCheck, ShoppingCart, Sparkles, CheckCircle2, PiggyBank } from 'lucide-react'
 
 const TELAS = [
-  { id: 'capa' },
-  {
-    id: 'controle',
-    titulo: 'Controle financeiro completo.',
-    texto: 'Acompanhe seu saldo, patrimônio total e todos os seus recursos em um só lugar.',
-    Visual: VisualControle,
-  },
-  {
-    id: 'quanto-posso',
-    titulo: 'Quanto você pode gastar hoje?',
-    texto: 'Descubra seu limite diário considerando suas receitas, despesas e objetivos.',
-    Visual: VisualQuantoPosso,
-  },
-  {
-    id: 'simular-compra',
-    titulo: 'Simule antes de comprar.',
-    texto: 'Veja o impacto de cada opção de pagamento no seu orçamento antes de decidir.',
-    Visual: VisualSimularCompra,
-  },
-  {
-    id: 'e-se',
-    titulo: 'E se...? Explore cenários.',
-    texto: 'Simule mudanças no seu orçamento e veja como cada decisão afeta suas finanças.',
-    Visual: VisualESe,
-  },
-  {
-    id: 'custo-vida',
-    titulo: 'Entenda seu custo de vida.',
-    texto: 'Visualize suas despesas essenciais e planeje mudanças com clareza.',
-    Visual: VisualCustoVida,
-  },
-  {
-    id: 'importacao',
-    titulo: 'Importação inteligente.',
-    texto: 'Importe extratos bancários, faturas, investimentos e VR/VA. Revise tudo antes de confirmar.',
-    Visual: VisualImportacao,
-  },
-  {
-    id: 'investimentos',
-    titulo: 'Invista e conquiste suas metas.',
-    texto: 'Organize seus investimentos e acompanhe o progresso dos seus objetivos financeiros.',
-    Visual: VisualInvestimentosMetas,
-  },
-  {
-    id: 'calendario',
-    titulo: 'Planeje com o calendário.',
-    texto: 'Visualize compromissos futuros e projeções do seu saldo para tomar decisões melhores.',
-    Visual: VisualCalendarioProjecoes,
-  },
+  { id: 'capa', titulo: 'Seu dinheiro. Seu controle.', destaque: 'Seu futuro.', texto: 'Organize suas finanças, acompanhe seu patrimônio e planeje suas próximas conquistas em um só lugar.', beneficios: [[Wallet,'Controle completo','Receitas, despesas, cartões e investimentos.'],[Target,'Planejamento inteligente','Calendário, metas e orçamento.'],[ShieldCheck,'Mais tranquilidade','Acompanhe suas decisões com clareza.']] },
+  { id: 'quanto-posso', titulo: 'Saiba quanto você', destaque: 'pode gastar hoje.', texto: 'Conheça seu limite diário considerando seu saldo e compromissos financeiros.', imagem: 'limite.webp', beneficios: [[Wallet,'Limite diário','Acompanhe o orçamento disponível.'],[CalendarDays,'Agenda financeira','Consulte seus próximos vencimentos.'],[Target,'Planejamento','Organize seus gastos e objetivos.']] },
+  { id: 'simular-compra', titulo: 'Compre com consciência,', destaque: 'planeje seu futuro.', texto: 'Simule uma compra e avalie o impacto de cada opção de pagamento no orçamento.', imagem: 'compra.webp', beneficios: [[ShoppingCart,'Simulação de compra','Compare opções à vista e parceladas.'],[TrendingUp,'Impacto no orçamento','Entenda os compromissos futuros.'],[CheckCircle2,'Decisões conscientes','Avalie antes de comprar.']] },
+  { id: 'controle', titulo: 'Organize suas contas e', destaque: 'acompanhe seu patrimônio.', texto: 'Cartões, investimentos, metas e gastos em um só lugar.', imagem: 'patrimonio.webp', beneficios: [[CreditCard,'Cartões e faturas','Acompanhe limites e vencimentos.'],[PiggyBank,'Investimentos e metas','Organize suas aplicações e objetivos.'],[CalendarDays,'Visão completa','Consulte compromissos e projeções.']] },
+  { id: 'inicio', titulo: 'Comece a transformar', destaque: 'sua vida financeira.', texto: 'Monte seu plano, acompanhe seus resultados e tome decisões com mais confiança.', beneficios: [[Sparkles,'Mais clareza','Entenda suas finanças.'],[Wallet,'Mais controle','Organize seus gastos e investimentos.'],[Target,'Mais evolução','Acompanhe suas conquistas.']] }
 ]
 
-function usePrefereMenosMovimento() {
-  const [reduz, setReduz] = useState(() =>
-    typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
-  useEffect(() => {
-    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)')
-    if (!mq) return
-    const ao = () => setReduz(mq.matches)
-    mq.addEventListener?.('change', ao)
-    return () => mq.removeEventListener?.('change', ao)
-  }, [])
-  return reduz
+function Demonstracao({ final }) {
+  return <div className="af-tour-scene" aria-hidden="true">
+    <div className="af-tour-orbit" />
+    <div className="af-tour-phone af-tour-phone-back">
+      <div className="af-tour-phone-top">12:30 <span>•••</span></div>
+      <div className="af-tour-phone-label">{final ? 'Minhas metas' : 'Calendário financeiro'}</div>
+      {final ? <>{[['Reserva de emergência','62%'],['Viagem','38%'],['Casa própria','24%']].map(([nome,pct]) => <div className="af-tour-mini" key={nome}>{nome}<strong>{pct}</strong><div className="af-tour-bar"><i style={{width:pct}} /></div></div>)}</> : <><div className="af-tour-days">{Array.from({length:28},(_,i)=><span key={i} className={[2,8,15,21].includes(i)?'marked':''}>{i+1}</span>)}</div><div className="af-tour-mini">Próximos compromissos<strong>R$ 850,00</strong></div></>}
+    </div>
+    <div className="af-tour-phone af-tour-phone-front">
+      <div className="af-tour-phone-top">12:30 <span>•••</span></div>
+      <div className="af-tour-phone-brand"><img src="/branding/af-icone.png" alt="" /> Almeida Finance</div>
+      <div className="af-tour-phone-label">{final ? 'Seu planejamento' : 'Olá! Bem-vindo'}</div>
+      <div className="af-tour-balance"><small>Saldo em contas</small><strong>R$ 8.450,00</strong></div>
+      <div className="af-tour-mini-grid"><div className="af-tour-mini"><small>Receitas</small><strong style={{color:'#86efac'}}>R$ 6.000</strong></div><div className="af-tour-mini"><small>Despesas</small><strong style={{color:'#fda4af'}}>R$ 3.250</strong></div></div>
+      <div className="af-tour-mini">Cartões <strong>R$ 1.200,00</strong><small>Fatura do ciclo</small></div>
+      <div className="af-tour-mini">Meta: reserva<strong>62%</strong><div className="af-tour-bar"><i style={{width:'62%'}} /></div></div>
+      <div className="af-tour-phone-nav"><Wallet size={17}/><CreditCard size={17}/><CalendarDays size={17}/><Target size={17}/></div>
+    </div>
+    <div className="af-tour-glow" />
+  </div>
+}
+
+function Visual({ tela }) {
+  const [falhou,setFalhou] = useState(false)
+  return <figure className="af-tour-figure">
+    {tela.imagem && !falhou ? <img className="af-tour-art" src={`/branding/apresentacao/${tela.imagem}`} alt="Ilustração demonstrativa do aplicativo" onError={()=>setFalhou(true)} loading="lazy" /> : <Demonstracao final={tela.id==='inicio'} />}
+    <figcaption>Interface ilustrativa • valores de exemplo</figcaption>
+  </figure>
 }
 
 export default function Apresentacao({ aoConcluir, rodapeCustom = null, onComecar, onEntrar }) {
   const publico = typeof onComecar === 'function' && typeof onEntrar === 'function'
-  const total = TELAS.length
-  const [idx, setIdx] = useState(0)
+  const [idx,setIdx] = useState(0)
   const trilhoRef = useRef(null)
-  const reduzMovimento = usePrefereMenosMovimento()
-  const ehUltimo = idx === total - 1
-
-  // Destino da última navegação programática. Enquanto a rolagem suave não
-  // chega lá, cliques/teclas seguidos partem do destino (e não da posição
-  // intermediária), para não "perder" um avanço.
   const alvoRef = useRef(null)
-  const posicaoBase = useCallback(() => {
-    const el = trilhoRef.current
-    if (!el) return 0
-    const w = Math.max(1, el.clientWidth)
-    const alvo = alvoRef.current
-    if (alvo != null && Math.abs(el.scrollLeft - alvo * w) > 2) return alvo
-    return Math.round(el.scrollLeft / w)
-  }, [])
-
-  const irPara = useCallback((i) => {
-    const el = trilhoRef.current
-    if (!el) return
-    const alvo = Math.max(0, Math.min(total - 1, i))
-    alvoRef.current = alvo
-    el.scrollTo({ left: alvo * el.clientWidth, behavior: reduzMovimento ? 'auto' : 'smooth' })
-  }, [total, reduzMovimento])
-  const avancar = useCallback(() => irPara(posicaoBase() + 1), [irPara, posicaoBase])
-  const voltar = useCallback(() => irPara(posicaoBase() - 1), [irPara, posicaoBase])
-
-  // Índice atual derivado da posição real da rolagem (deslizar, setas e teclado).
-  useEffect(() => {
-    const el = trilhoRef.current
-    if (!el) return
-    let fim = null
-    const ao = () => {
-      const i = Math.round(el.scrollLeft / Math.max(1, el.clientWidth))
-      setIdx(Math.max(0, Math.min(total - 1, i)))
-      // Rolagem parou (deslize manual ou programática concluída): a posição
-      // real passa a ser a referência para o próximo Avançar/Voltar.
+  const [reduz,setReduz] = useState(()=>typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches)
+  const total = TELAS.length
+  const ehUltimo = idx === total - 1
+  useEffect(()=>{
+    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    if(!mq) return
+    const atualizar=()=>setReduz(mq.matches)
+    mq.addEventListener?.('change',atualizar)
+    return ()=>mq.removeEventListener?.('change',atualizar)
+  },[])
+  const irPara = useCallback(i=>{
+    const el=trilhoRef.current
+    if(!el) return
+    const destino=Math.max(0,Math.min(total-1,i))
+    alvoRef.current=destino
+    el.scrollTo({left:destino*el.clientWidth,behavior:reduz?'auto':'smooth'})
+  },[total,reduz])
+  const passo = useCallback(delta=>{
+    const el=trilhoRef.current
+    if(el) irPara((alvoRef.current ?? Math.round(el.scrollLeft/Math.max(1,el.clientWidth)))+delta)
+  },[irPara])
+  useEffect(()=>{
+    const el=trilhoRef.current
+    if(!el) return
+    let fim
+    const ler=()=>{
+      setIdx(Math.max(0,Math.min(total-1,Math.round(el.scrollLeft/Math.max(1,el.clientWidth)))))
       clearTimeout(fim)
-      fim = setTimeout(() => { alvoRef.current = null }, 150)
+      fim=setTimeout(()=>{alvoRef.current=null},160)
     }
-    el.addEventListener('scroll', ao, { passive: true })
-    return () => { el.removeEventListener('scroll', ao); clearTimeout(fim) }
-  }, [total])
-
-  // Mantém a tela atual alinhada ao girar o aparelho / redimensionar.
-  useEffect(() => {
-    const ao = () => {
-      const el = trilhoRef.current
-      if (el) el.scrollTo({ left: idx * el.clientWidth, behavior: 'auto' })
+    el.addEventListener('scroll',ler,{passive:true})
+    return ()=>{el.removeEventListener('scroll',ler);clearTimeout(fim)}
+  },[total])
+  useEffect(()=>{
+    const ajustar=()=>{ const el=trilhoRef.current; if(el){alvoRef.current=null;el.scrollTo({left:idx*el.clientWidth,behavior:'auto'})} }
+    window.addEventListener('resize',ajustar)
+    return ()=>window.removeEventListener('resize',ajustar)
+  },[idx])
+  useEffect(()=>{
+    const tecla=e=>{
+      if(e.altKey||e.ctrlKey||e.metaKey||e.shiftKey||/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName)||e.target?.isContentEditable) return
+      if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();passo(e.key==='ArrowRight'?1:-1)}
     }
-    window.addEventListener('resize', ao)
-    return () => window.removeEventListener('resize', ao)
-  }, [idx])
-
-  useEffect(() => {
-    const ao = (e) => {
-      if (e.key === 'ArrowRight') { e.preventDefault(); avancar() }
-      else if (e.key === 'ArrowLeft') { e.preventDefault(); voltar() }
-    }
-    window.addEventListener('keydown', ao)
-    return () => window.removeEventListener('keydown', ao)
-  }, [avancar, voltar])
-
-  const pular = () => (aoConcluir ? aoConcluir() : onEntrar?.())
-  const animacao = reduzMovimento ? '' : 'af-apres-entrada'
-
-  return (
-    <div
-      className="min-h-[100dvh] h-[100dvh] flex flex-col overflow-hidden text-white"
-      style={{ background: 'linear-gradient(160deg, #3d0a18 0%, #250610 100%)' }}
-      data-testid="apresentacao"
-    >
-      {/* Topo: marca compacta (fora da capa) + Pular */}
-      <div className="flex items-center justify-between px-5 max-w-5xl mx-auto w-full flex-shrink-0"
-        style={{ paddingTop: 'max(env(safe-area-inset-top), 14px)', minHeight: 52 }}>
-        <div className={`transition-opacity duration-300 ${idx === 0 ? 'opacity-0' : 'opacity-100'}`} aria-hidden={idx === 0}>
-          <img src="/branding/af-icone.png" alt="" className="h-9 w-auto object-contain" />
-        </div>
-        {!ehUltimo && (
-          <button type="button" onClick={pular}
-            className="text-xs text-white/60 hover:text-white transition-colors py-2 px-1" data-testid="apresentacao-pular">
-            Pular
-          </button>
-        )}
-      </div>
-
-      {/* Telas deslizantes */}
-      <div
-        ref={trilhoRef}
-        className="flex-1 min-h-0 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory scrollbar-hide overscroll-x-contain"
-        style={{ scrollbarWidth: 'none', touchAction: 'manipulation' }}
-        aria-roledescription="carrossel"
-        aria-label="Apresentação do Almeida Finance"
-        data-testid="apresentacao-trilho"
-      >
-        {TELAS.map((t, i) => (
-          <section
-            key={t.id}
-            className="w-full flex-shrink-0 snap-center snap-always overflow-y-auto"
-            aria-roledescription="slide"
-            aria-label={`${i + 1} de ${total}`}
-            data-tela={t.id}
-          >
-            {t.id === 'capa' ? (
-              <div className={`h-full flex flex-col items-center justify-center text-center px-6 max-w-md mx-auto ${i === idx ? animacao : ''}`}>
-                <img src="/branding/af-icone.png" alt="Almeida Finance" className="w-[132px] h-auto object-contain" />
-                <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight mt-4">Almeida Finance</h1>
-                <p className="text-base sm:text-lg font-semibold text-white/90 mt-2">Seu dinheiro. Seu controle. Seu futuro.</p>
-                <p className="text-sm text-white/65 mt-3 leading-relaxed">
-                  Organize suas finanças, acompanhe seu patrimônio e planeje suas próximas conquistas em um só lugar.
-                </p>
-                <button type="button" onClick={() => irPara(1)}
-                  className="mt-6 inline-flex items-center gap-1.5 text-xs font-semibold text-white/70 hover:text-white">
-                  Conheça o app <ChevronRight size={14} />
-                </button>
-              </div>
-            ) : (
-              <div className={`min-h-full flex flex-col justify-center px-5 py-3 max-w-md lg:max-w-5xl mx-auto lg:grid lg:grid-cols-2 lg:gap-12 lg:items-center ${i === idx ? animacao : ''}`}>
-                <div>
-                  {t.emBreve && (
-                    <span className="inline-block text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full mb-2"
-                      style={{ background: 'rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.85)' }}>
-                      Em breve
-                    </span>
-                  )}
-                  <h2 className="text-2xl lg:text-4xl font-bold leading-tight">{t.titulo}</h2>
-                  <p className="text-sm lg:text-base text-white/65 mt-2 mb-4 leading-relaxed">{t.texto}</p>
-                </div>
-                <div className="w-full max-w-sm mx-auto lg:max-w-md">
-                  <t.Visual />
-                </div>
-              </div>
-            )}
-          </section>
-        ))}
-      </div>
-
-      {/* Rodapé: navegação + ações */}
-      <div className="px-5 max-w-md mx-auto w-full flex-shrink-0"
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 18px)' }}>
-        <div className="flex items-center justify-between gap-3 py-3">
-          <button type="button" onClick={voltar} disabled={idx === 0}
-            aria-label="Tela anterior"
-            className="w-10 h-10 rounded-full flex items-center justify-center border border-white/15 text-white/85 disabled:opacity-0 transition-opacity"
-            data-testid="apresentacao-voltar">
-            <ChevronLeft size={18} />
-          </button>
-          <div className="flex items-center gap-1.5" role="tablist" aria-label="Progresso da apresentação">
-            {TELAS.map((t, i) => (
-              <button key={t.id} type="button" role="tab" aria-selected={i === idx}
-                aria-label={`Ir para a tela ${i + 1} de ${total}`}
-                onClick={() => irPara(i)}
-                className="py-2"
-                data-testid="apresentacao-indicador">
-                <span className="block rounded-full transition-all duration-300"
-                  style={{ width: i === idx ? 20 : 6, height: 6, background: i === idx ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.28)' }} />
-              </button>
-            ))}
-          </div>
-          <button type="button" onClick={avancar} disabled={ehUltimo}
-            aria-label="Próxima tela"
-            className="w-10 h-10 rounded-full flex items-center justify-center border border-white/15 text-white/85 disabled:opacity-0 transition-opacity"
-            data-testid="apresentacao-avancar">
-            <ChevronRight size={18} />
-          </button>
-        </div>
-
-        {publico ? (
-          <div className="flex flex-col gap-2">
-            <button type="button" onClick={onComecar}
-              className="w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold"
-              style={{ background: 'rgba(255,255,255,0.96)', color: '#3d0a18' }}
-              data-testid="apresentacao-comecar">
-              Começar agora <ArrowRight size={16} />
-            </button>
-            <button type="button" onClick={onEntrar}
-              className="w-full rounded-xl py-3 text-sm font-medium"
-              style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.9)', border: '1px solid rgba(255,255,255,0.16)' }}
-              data-testid="apresentacao-entrar">
-              Já tenho uma conta
-            </button>
-          </div>
-        ) : ehUltimo ? (
-          rodapeCustom || (
-            <button type="button" onClick={() => aoConcluir?.()}
-              className="w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold"
-              style={{ background: 'rgba(255,255,255,0.96)', color: '#3d0a18' }}>
-              Começar agora <ArrowRight size={16} />
-            </button>
-          )
-        ) : (
-          <button type="button" onClick={avancar}
-            className="w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold"
-            style={{ background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.92)', border: '1px solid rgba(255,255,255,0.16)' }}>
-            Próximo <ChevronRight size={16} />
-          </button>
-        )}
-      </div>
+    window.addEventListener('keydown',tecla)
+    return ()=>window.removeEventListener('keydown',tecla)
+  },[passo])
+  const pular=()=>publico?onEntrar():aoConcluir?.()
+  return <div className="af-tour" data-testid="apresentacao">
+    <style>{CSS}</style>
+    <header className="af-tour-header"><div className="af-tour-brand"><img src="/branding/af-icone.png" alt=""/><span>Almeida Finance</span></div>{!ehUltimo&&<button type="button" className="af-tour-skip" onClick={pular} data-testid="apresentacao-pular">Pular</button>}</header>
+    <div ref={trilhoRef} className="af-tour-track" aria-roledescription="carrossel" aria-label="Apresentação do Almeida Finance" data-testid="apresentacao-trilho" onPointerDown={()=>{alvoRef.current=null}}>
+      {TELAS.map((t,i)=><section key={t.id} className="af-tour-slide" aria-roledescription="slide" aria-label={`${i+1} de ${total}`} data-tela={t.id}>
+        <div className="af-tour-layout"><div className="af-tour-copy"><span className="af-tour-kicker">{String(i+1).padStart(2,'0')} / {String(total).padStart(2,'0')}</span><h2>{t.titulo} <span>{t.destaque}</span></h2><p className="af-tour-subtitle">{t.texto}</p><div className="af-tour-benefits">{t.beneficios.map(([Icone,titulo,texto])=><div key={titulo} className="af-tour-benefit"><span className="af-tour-icon"><Icone size={23}/></span><div><strong>{titulo}</strong><p>{texto}</p></div></div>)}</div></div><Visual tela={t}/></div>
+      </section>)}
     </div>
-  )
+    <footer className="af-tour-footer">
+      <div className="af-tour-navigation"><button type="button" disabled={idx===0} onClick={()=>passo(-1)} aria-label="Tela anterior" data-testid="apresentacao-voltar"><ChevronLeft size={22}/></button><div className="af-tour-dots" aria-label="Progresso da apresentação">{TELAS.map((t,i)=><button type="button" key={t.id} aria-label={`Ir para a tela ${i+1} de ${total}`} aria-current={i===idx?'step':undefined} data-testid="apresentacao-indicador" onClick={()=>irPara(i)}><span className={i===idx?'current':''}/></button>)}</div><button type="button" disabled={ehUltimo} onClick={()=>passo(1)} aria-label="Próxima tela" data-testid="apresentacao-avancar"><ChevronRight size={22}/></button></div>
+      {publico ? <div className="af-tour-actions"><button type="button" className="af-tour-primary" onClick={onComecar} data-testid="apresentacao-comecar">Começar agora <ArrowRight size={18}/></button><button type="button" className="af-tour-secondary" onClick={onEntrar} data-testid="apresentacao-entrar">Já tenho uma conta</button></div> : ehUltimo ? (rodapeCustom || <button type="button" className="af-tour-primary" onClick={()=>aoConcluir?.()}>Começar agora <ArrowRight size={18}/></button>) : <button type="button" className="af-tour-primary" onClick={()=>passo(1)}>Próximo <ChevronRight size={18}/></button>}
+    </footer>
+  </div>
 }
+
+const CSS = `
+.af-tour{height:100vh;height:100dvh;min-height:0;display:flex;flex-direction:column;overflow:hidden;color:#fff;background:radial-gradient(ellipse at 78% 62%,#76102e 0%,transparent 46%),linear-gradient(145deg,#43091b,#20050d 72%);font-family:inherit;color-scheme:dark}
+.af-tour *{box-sizing:border-box}.af-tour button{font:inherit;cursor:pointer}.af-tour button:focus-visible{outline:2px solid #fda4af;outline-offset:3px}.af-tour-header{flex:none;display:flex;align-items:center;justify-content:space-between;width:100%;max-width:1440px;margin:0 auto;padding: max(12px,env(safe-area-inset-top)) 5% 8px;min-height:60px}.af-tour-brand{display:flex;gap:10px;align-items:center;font-weight:700;font-size:14px}.af-tour-brand img{width:40px;height:40px;object-fit:contain;border-radius:10px}.af-tour-skip{border:0;background:transparent;color:#f4dce4;padding:12px}.af-tour-track{display:flex;flex:1;min-height:0;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-x:contain}.af-tour-track::-webkit-scrollbar{display:none}.af-tour-slide{flex:0 0 100%;width:100%;min-width:0;scroll-snap-align:center;scroll-snap-stop:always;overflow-y:auto;scrollbar-width:thin}.af-tour-layout{min-height:100%;max-width:1320px;margin:auto;padding:24px 5%;display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:clamp(24px,5vw,80px)}.af-tour-copy{min-width:0}.af-tour-kicker{font-size:12px;letter-spacing:.18em;color:#f7a9bf;font-weight:700}.af-tour h2{font-size:clamp(30px,4vw,61px);line-height:1.08;letter-spacing:-.035em;margin:14px 0;color:#fff;font-weight:800}.af-tour h2 span{color:#f58ba9;display:block}.af-tour-subtitle{font-size:clamp(15px,1.5vw,21px);line-height:1.5;color:#efd1db;margin:0 0 24px}.af-tour-benefits{display:grid;gap:16px}.af-tour-benefit{display:flex;align-items:center;gap:13px}.af-tour-icon{display:grid;place-items:center;width:48px;height:48px;flex:none;border-radius:14px;color:#fda4bf;background:linear-gradient(145deg,#a51b49aa,#3a071c);border:1px solid #ed71935c}.af-tour-benefit strong{font-size:16px;color:#fff}.af-tour-benefit p{margin:3px 0 0;font-size:13px;color:#e7bdca;line-height:1.4}.af-tour-figure{margin:0;min-width:0;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px}.af-tour-figure figcaption{font-size:11px;color:#e8b8c8}.af-tour-art{display:block;width:auto;max-width:100%;max-height:min(54vh,530px);object-fit:contain;border-radius:24px;box-shadow:0 18px 55px #15020a66}.af-tour-footer{flex:none;width:min(100%,530px);margin:0 auto;padding:4px 20px max(14px,env(safe-area-inset-bottom))}.af-tour-navigation{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}.af-tour-navigation>button{display:grid;place-items:center;border:1px solid #f5b6ca55;background:#ffffff08;border-radius:50%;color:#fff;width:40px;height:40px}.af-tour-navigation>button:disabled{opacity:.25;cursor:default}.af-tour-dots{display:flex;align-items:center;gap:2px}.af-tour-dots button{background:none;border:0;padding:10px 5px;min-height:32px}.af-tour-dots span{display:block;border-radius:99px;background:#ffffff55;width:8px;height:8px}.af-tour-dots .current{width:24px;background:#fff}.af-tour-actions{display:grid;gap:8px}.af-tour-primary,.af-tour-secondary{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:47px;border-radius:16px;font-weight:700!important;color:#fff}.af-tour-primary{background:linear-gradient(120deg,#cb2356,#87082c);border:1px solid #f078a0;box-shadow:0 8px 24px #14020a55}.af-tour-secondary{background:#ffffff0d;border:1px solid #ffffff32}.af-tour-scene{position:relative;width:min(100%,510px);aspect-ratio:1.05;isolation:isolate;display:flex;align-items:center;justify-content:center}.af-tour-orbit{position:absolute;inset:18% 6% 7%;border-radius:50%;background:radial-gradient(ellipse,#e3316f38,transparent 70%)}.af-tour-phone{position:absolute;width:46%;height:88%;border-radius:12%/6%;padding:5% 3% 3%;border:3px solid #ae7c8f;background:linear-gradient(150deg,#3b0c1e,#210711);box-shadow:0 16px 30px #120007b3;display:flex;flex-direction:column;gap:3%;overflow:hidden;text-align:left;font-size:clamp(8px,1vw,13px)}.af-tour-phone-front{left:16%;top:3%;transform:rotate(-8deg);z-index:2}.af-tour-phone-back{right:5%;top:10%;transform:rotate(10deg);height:79%;z-index:1}.af-tour-phone-top{display:flex;justify-content:space-between;font-size:10px;color:#e9c7d2}.af-tour-phone-brand{display:flex;gap:5px;align-items:center;font-weight:700;font-size:.9em}.af-tour-phone-brand img{width:22px;height:22px;border-radius:5px}.af-tour-phone-label{font-size:1.15em;font-weight:700}.af-tour-balance{background:linear-gradient(135deg,#c51950,#820c2d);padding:9%;border-radius:12px;display:grid;gap:4px}.af-tour-balance strong{font-size:1.65em;white-space:nowrap}.af-tour-mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}.af-tour-mini{display:grid;gap:4px;background:#ffffff0e;border:1px solid #ffffff1d;border-radius:10px;padding:8%;font-size:.88em;min-width:0}.af-tour-mini strong{font-size:1.1em;white-space:nowrap}.af-tour-mini small,.af-tour-balance small{color:#f0c7d4;font-size:.85em}.af-tour-bar{height:5px;background:#ffffff20;border-radius:10px;overflow:hidden}.af-tour-bar i{height:100%;display:block;background:#61d99b;border-radius:10px}.af-tour-phone-nav{margin-top:auto;display:flex;justify-content:space-around;color:#f8a0bb}.af-tour-days{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}.af-tour-days span{padding:5px 0;text-align:center;border-radius:4px;background:#ffffff0d;font-size:.75em}.af-tour-days .marked{background:#b92b58}.af-tour-glow{position:absolute;z-index:-1;bottom:4%;left:4%;right:3%;height:13%;border:2px solid #ff91b4;border-radius:50%;box-shadow:0 0 24px #fa4481,inset 0 0 25px #fa4481}
+@media(max-width:767px){.af-tour-header{padding-left:20px;padding-right:20px}.af-tour-layout{display:flex;flex-direction:column;justify-content:center;gap:16px;padding:10px 20px 18px}.af-tour-copy{text-align:center;width:100%}.af-tour h2{font-size:clamp(25px,7vw,38px);margin:8px 0}.af-tour-subtitle{font-size:14px;margin:0 auto;max-width:480px}.af-tour-benefits{display:none}.af-tour-figure{width:100%;gap:4px}.af-tour-art{max-height:38vh;max-height:38dvh;border-radius:15px}.af-tour-scene{width:min(100%,310px,38vh);width:min(100%,310px,38dvh)}.af-tour-phone{font-size:8px;gap:2%;border-width:2px}.af-tour-phone-brand img{width:15px;height:15px}.af-tour-phone-nav svg{width:13px;height:13px}.af-tour-mini{padding:5%}.af-tour-balance{padding:6%}.af-tour-footer{padding-top:0}.af-tour-primary,.af-tour-secondary{min-height:44px}}
+@media(prefers-reduced-motion:reduce){.af-tour *{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+`

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, CreditCard, Wallet, ArrowRight, ShoppingCart, Loader2, Sun, Plus, Pencil,
@@ -22,7 +23,7 @@ import InputMoeda from '../components/InputMoeda'
 import SeletorCategoriaModerno from '../components/SeletorCategoriaModerno'
 import { formatCurrency, exibirMoeda, FORMAS_PAGAMENTO, hojeISO as hojeISOBrasil, hojeDateBrasil } from '../lib/utils'
 import { classificarDespesa } from '../lib/classificarDespesa'
-import { parcelaCompraNoMes, totalFaturaComOverride } from '../lib/faturaCartao'
+import { parcelaCompraNoMes, totalFaturaPendente } from '../lib/faturaCartao'
 import Modal from '../components/Modal'
 import ModalAnteciparPagamento from '../components/ModalAnteciparPagamento'
 import HorizonteFinanceiro from '../components/HorizonteFinanceiro'
@@ -527,47 +528,21 @@ function diasRestantesNoMes(ref = new Date()) {
 // pelo card "Quanto posso gastar?" e pela confirmação do gasto rápido, para
 // nunca divergirem. Mesma fórmula de sempre: auto = (receita − reserva −
 // compromissos)/dias; manual = valor fixo definido pelo usuário.
-function calcularLimiteDiario({
-  receitaMes,
-  compromissosMes,
-  reservaPct,
-  modo,
-  limiteManual,
-  hoje,
-  baseLivre,
-  saldoConfigurado = false,
-  dataProximaReceita
-}) {
-  if (!saldoConfigurado) return 0
-
-  const inicio = new Date(
-    hoje.getFullYear(),
-    hoje.getMonth(),
-    hoje.getDate()
-  )
-
-  const fim = dataProximaReceita
-    ? new Date(`${dataProximaReceita}T12:00:00`)
-    : new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)
-
-  const dias = Math.max(
-    1,
-    Math.ceil((fim - inicio) / 86400000)
-  )
-
-  // Reserva PLANEJADA descontada UMA vez (igual a derivarResumoGastar), para o
-  // limite da Home e o do Planejamento completo nunca divergirem. baseLivre
-  // (saldoSeguroHoje) já vem SEM reserva; aqui aplicamos o percentual salvo.
-  const pctSeguro = Math.min(100, Math.max(0, Number(reservaPct) || 0))
-  const reserva = Math.max(0, Number(receitaMes) || 0) * (pctSeguro / 100)
-  const disponivel = Math.max(0, (Number(baseLivre) || 0) - reserva)
-  const limiteSeguro = dias > 0 ? disponivel / dias : 0
-
-  if (modo === 'manual') {
-    return Math.max(0, Number(limiteManual) || 0)
+// Dias de consumo: inclui hoje, exclui o dia da próxima receita.
+// Sem receita futura, inclui o último dia do mês.
+function diasPlanejamento(hoje, dataProximaReceita) {
+  const inicio = Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())
+  const fallback = Date.UTC(hoje.getFullYear(), hoje.getMonth() + 1, 1)
+  let fim = fallback
+  if (typeof dataProximaReceita === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dataProximaReceita)) {
+    const candidato = Date.parse(dataProximaReceita + 'T00:00:00Z')
+    if (Number.isFinite(candidato) && candidato > inicio) fim = candidato
   }
+  return Math.max(1, Math.round((fim - inicio) / 86400000))
+}
 
-  return limiteSeguro
+function calcularLimiteDiario({ reservaPct, baseLivre, ...dados }) {
+  return derivarResumoGastar({ ...dados, pct: reservaPct, saldoSeguroHoje: baseLivre }).limiteExibido
 }
 
 // Status do orçamento com base no % de comprometimento da renda (educativo, não alarmista) 
@@ -584,7 +559,7 @@ function statusOrcamento(receita, disponivel) {
 }
 
 // ─── Card "Quanto posso gastar?" — modos Automático e Manual ──────────────────
-const OPCOES_RESERVA = [10, 15, 20, 25, 30]
+const OPCOES_RESERVA = [0, 10, 15, 20, 25, 30]
 
 // Deriva os valores de exibição do "Quanto posso gastar?" a partir das MESMAS
 // entradas usadas no card detalhado — NÃO é um cálculo novo, apenas a mesma
@@ -596,43 +571,16 @@ function derivarResumoGastar({
   saldoSeguroHoje = 0,
   dataProximaReceita = null,
 }) {
-  const inicio = new Date(
-    hoje.getFullYear(),
-    hoje.getMonth(),
-    hoje.getDate()
-  )
-
-  const fim = dataProximaReceita
-    ? new Date(`${dataProximaReceita}T12:00:00`)
-    : new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)
-
-  const dias = Math.max(
-    1,
-    Math.ceil((fim - inicio) / 86400000)
-  )
-
+  const dias = diasPlanejamento(hoje, dataProximaReceita)
   const ehManual = modo === 'manual'
-  // Reserva PLANEJADA (não é a já acumulada): percentual sobre a receita do mês.
-  // Protege contra NaN/negativos e percentuais fora de 0–100.
   const pctSeguro = Math.min(100, Math.max(0, Number(pct) || 0))
-  const receitaSegura = Math.max(0, Number(receitaMes) || 0)
-  const reserva = receitaSegura > 0
-    ? receitaSegura * (pctSeguro / 100)
-    : 0
-
-  // Saldo seguro já vem SEM reserva do useProjecao; aqui descontamos a reserva
-  // planejada UMA única vez. Ao mudar o percentual, baseLivre (e tudo que
-  // depende dela: disponível e gasto diário) recalcula imediatamente, pois usa
-  // o `pct` local. Clamp em 0 evita disponível/limite negativos indevidos.
-  const saldoSeguroNum = Math.max(0, Number(saldoSeguroHoje) || 0)
-  // Disponível REAL (com SINAL), arredondado a centavos — pode ser negativo
-  // quando a reserva + compromissos superam o saldo seguro. Fonte ÚNICA do
-  // estado do orçamento (equilibrado/positivo/negativo), sem cálculo paralelo.
+  // O saldo seguro recebido do motor já desconta compromissos.
+  // A reserva de planejamento diário incide sobre essa base livre, uma vez.
+  const saldoSeguroNum = Number(saldoSeguroHoje) || 0
+  const reserva = saldoConfigurado ? Math.round(Math.max(0, saldoSeguroNum) * pctSeguro) / 100 : 0
   const disponivelReal = saldoConfigurado
-    ? Math.round((saldoSeguroNum - reserva) * 100) / 100
-    : 0
-  // Saldo seguro JÁ considerando a reserva planejada (reage ao percentual).
-  // Clamp em 0 para exibição e para o gasto diário não ficar negativo.
+    ? Math.round((saldoSeguroNum - reserva) * 100) / 100 : 0
+
   const saldoSeguroAjustado = Math.max(0, disponivelReal)
   const baseLivre = saldoSeguroAjustado
 
@@ -640,7 +588,7 @@ function derivarResumoGastar({
   const disponivelMes = baseLivre
 
   const limiteAuto = saldoConfigurado && dias > 0
-    ? disponivelAuto / dias
+    ? Math.floor(Math.round(disponivelAuto * 100) / dias) / 100
     : 0
 
   const limiteManualNum = Number(limiteManual) || 0
@@ -649,7 +597,11 @@ function derivarResumoGastar({
     ? Math.max(0, limiteManualNum)
     : limiteAuto
 
-  const status = statusOrcamento(receitaMes, disponivelMes)
+  const status = !saldoConfigurado ? null : disponivelReal < 0
+    ? { cor: '🔴', texto: 'Saldo insuficiente no período', classe: 'text-white' }
+    : disponivelReal === 0
+      ? { cor: '🟡', texto: 'Sem saldo livre para gastos', classe: 'text-white' }
+      : { cor: '🟢', texto: 'Saldo livre disponível no período', classe: 'text-white' }
   // Estado do orçamento pelo disponível REAL arredondado (evita "Faltam R$ 0,00"
   // por diferença de centavos): < 0 negativo, == 0 equilibrado, > 0 positivo.
   const estadoOrcamento = !saldoConfigurado
@@ -698,25 +650,21 @@ function CardQuantoPossoGastar({
   const { ocultar } = useOcultarValores()
   const [personalizando, setPersonalizando] = useState(false)
   const [pctCustom, setPctCustom] = useState('')
-  // Estado local do percentual (atualização otimista): o clique reflete na hora,
-  // sem esperar o salvamento no banco. Sincroniza quando o perfil carrega/muda.
-  const [pctLocal, setPctLocal] = useState(reservaPercentual != null ? Number(reservaPercentual) : 20)
+  // Usa a preferência efetivamente salva no perfil para não divergir da Home.
+  const pctLocal = reservaPercentual != null ? Number(reservaPercentual) : 20
+  const salvandoPct = useRef(false)
+  const [salvandoReservaPct, setSalvandoReservaPct] = useState(false)
   const [erroSalvar, setErroSalvar] = useState(false)
   const [detalhesLimiteAberto, setDetalhesLimiteAberto] = useState(false)
 
-  useEffect(() => {
-    if (reservaPercentual != null) setPctLocal(Number(reservaPercentual))
-  }, [reservaPercentual])
-
-  // Seleciona um percentual: atualiza a UI imediatamente e tenta persistir
   async function selecionarPct(valor) {
-    setPctLocal(valor)
+    if (salvandoPct.current) return
+    salvandoPct.current = true
+    setSalvandoReservaPct(true)
     setErroSalvar(false)
-    try {
-      await onTrocarReserva(valor)
-    } catch {
-      setErroSalvar(true)
-    }
+    try { await onTrocarReserva(valor) }
+    catch { setErroSalvar(true) }
+    finally { salvandoPct.current = false; setSalvandoReservaPct(false) }
   }
 
   if (carregando) {
@@ -840,7 +788,7 @@ function CardQuantoPossoGastar({
       <span style={{ color: destaque ? p.txtPri : p.txtSec, fontWeight: destaque ? 600 : 400 }}
         className="text-xs sm:text-sm leading-snug">{label}</span>
       <strong style={{ color: negativo ? (modoEscuro ? '#FCA5A5' : '#991B1B') : positivo ? (modoEscuro ? '#86EFAC' : '#166534') : p.txtPri }}
-        className="text-xs sm:text-sm tabular-nums whitespace-nowrap flex-shrink-0">{valor}</strong>
+        className="text-xs sm:text-sm tabular-nums text-right break-words min-w-0">{valor}</strong>
     </div>
   )
 
@@ -870,6 +818,35 @@ function CardQuantoPossoGastar({
         </div>
       </div>
 
+      {/* ── 4. Destaques: limite diário + disponível ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Limite diário */}
+        <div className="rounded-xl px-4 py-4"
+          style={{ background: 'linear-gradient(135deg,#801D39,#420D1D)', border: `1px solid ${p.accentBorder}` }}>
+          <p style={{ color: '#F5DCE5' }} className="text-xs font-medium mb-1">
+            {ehManual ? 'Seu limite diário (manual)' : 'Limite diário recomendado'}
+          </p>
+          <p style={{ color: '#FFFFFF' }} className="text-3xl sm:text-4xl font-extrabold tabular-nums leading-tight break-words">
+            {exibirMoeda(Math.max(0, limiteExibido), ocultar)}
+            <span style={{ color: '#F5DCE5' }} className="text-sm font-normal"> /dia</span>
+          </p>
+          {!ehManual && dias > 0 && (
+            <p style={{ color: '#F5DCE5' }} className="text-xs mt-1">{dias} {dias === 1 ? 'dia' : 'dias'} restantes</p>
+          )}
+        </div>
+        {/* Disponível no período */}
+        <div className="rounded-xl px-4 py-4"
+          style={{ background: p.panel, border: `1px solid ${p.border}` }}>
+          <p style={{ color: p.txtSec }} className="text-xs font-medium mb-1">{dataProximaReceita ? 'Disponível até a próxima receita' : 'Disponível até o fim do mês'}</p>
+          <p style={{ color: disponivelMes > 0 ? p.txtPri : (modoEscuro ? '#FCA5A5' : '#991B1B') }}
+            className="text-xl sm:text-2xl font-bold tabular-nums leading-tight break-words">
+            {exibirMoeda(disponivelMes, ocultar)}
+          </p>
+          <p style={{ color: p.txtMuted }} className="text-xs mt-1">Saldo seguro após reserva</p>
+        </div>
+      </div>
+
+
       {/* ── 2. Reserva de emergência (modo automático) ── */}
       {!ehManual && (
         <div className="rounded-xl px-4 py-3 space-y-3"
@@ -879,11 +856,11 @@ function CardQuantoPossoGastar({
               <PiggyBank size={14} style={{ color: p.accent }} />
               Reserva planejada — {pct}%
             </p>
-            <p style={{ color: p.accent }} className="text-sm font-bold tabular-nums">{formatCurrency(reserva)}</p>
+            <p style={{ color: p.accent }} className="text-sm font-bold tabular-nums">{exibirMoeda(reserva, ocultar)}</p>
           </div>
           <div className="flex flex-wrap gap-1.5">
             {OPCOES_RESERVA.map(op => (
-              <button key={op} type="button" onClick={() => { selecionarPct(op); setPersonalizando(false) }}
+              <button key={op} type="button" disabled={salvandoReservaPct} onClick={() => { selecionarPct(op); setPersonalizando(false) }}
                 style={!personalizando && pct === op
                   ? { background: p.btnPctAtv, color: p.btnPctAtvTxt }
                   : { background: p.btnPct, color: p.txtSec }}
@@ -911,11 +888,11 @@ function CardQuantoPossoGastar({
             </form>
           )}
           <p style={{ color: p.txtMuted }} className="text-xs">
-            Valor separado do orçamento — não é uma transferência automática.
+            Percentual sobre o saldo livre após compromissos. Não é uma transferência automática.
           </p>
           {erroSalvar && (
             <p style={{ color: p.alertWarnTxt }} className="text-xs">
-              Preferência não salva. O cálculo está correto até recarregar a página.
+              Não foi possível salvar a preferência. Mantivemos o último percentual salvo.
             </p>
           )}
         </div>
@@ -930,8 +907,8 @@ function CardQuantoPossoGastar({
         <LinhaDemo label="Saldo atual" valor={exibirMoeda(saldoAtual, ocultar)} />
         <LinhaDemo
           label="Compromissos pendentes até a próxima receita"
-          valor={`− ${exibirMoeda(Math.max(0, saldoAtual - Math.max(0, Number(saldoSeguroHoje) || 0)), ocultar)}`}
-          negativo={saldoAtual > Math.max(0, Number(saldoSeguroHoje) || 0)}
+          valor={`− ${exibirMoeda(Math.max(0, saldoAtual - (Number(saldoSeguroHoje) || 0)), ocultar)}`}
+          negativo={saldoAtual > (Number(saldoSeguroHoje) || 0)}
         />
         <LinhaDemo
           label="Reserva planejada"
@@ -945,39 +922,12 @@ function CardQuantoPossoGastar({
           positivo={saldoSeguroAjustado > 0}
           negativo={saldoSeguroAjustado <= 0 && saldoConfigurado}
         />
+        {!dataProximaReceita && <p style={{ color: p.txtMuted }} className="text-xs pt-1">Sem receita futura cadastrada: até o fim do mês, incluindo hoje ({dias} dias).</p>}
         {dataProximaReceita && (
           <p style={{ color: p.txtMuted }} className="text-xs pt-1">
-            Período: hoje até {new Date(dataProximaReceita + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} — {dias} {dias === 1 ? 'dia' : 'dias'}
+            Período: hoje até antes da receita de {new Date(dataProximaReceita + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} — {dias} {dias === 1 ? 'dia' : 'dias'}
           </p>
         )}
-      </div>
-
-      {/* ── 4. Destaques: limite diário + disponível ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {/* Limite diário */}
-        <div className="rounded-xl px-4 py-4"
-          style={{ background: p.accentBg, border: `1px solid ${p.accentBorder}` }}>
-          <p style={{ color: p.txtSec }} className="text-xs font-medium mb-1">
-            {ehManual ? 'Seu limite diário (manual)' : 'Limite diário recomendado'}
-          </p>
-          <p style={{ color: p.accent }} className="text-3xl sm:text-4xl font-extrabold tabular-nums leading-tight break-words">
-            {exibirMoeda(Math.max(0, limiteExibido), ocultar)}
-            <span style={{ color: p.txtMuted }} className="text-sm font-normal"> /dia</span>
-          </p>
-          {!ehManual && dias > 0 && (
-            <p style={{ color: p.txtMuted }} className="text-xs mt-1">{dias} {dias === 1 ? 'dia' : 'dias'} restantes</p>
-          )}
-        </div>
-        {/* Disponível no período */}
-        <div className="rounded-xl px-4 py-4"
-          style={{ background: p.panel, border: `1px solid ${p.border}` }}>
-          <p style={{ color: p.txtSec }} className="text-xs font-medium mb-1">Disponível até a próxima receita</p>
-          <p style={{ color: disponivelMes > 0 ? p.txtPri : (modoEscuro ? '#FCA5A5' : '#991B1B') }}
-            className="text-xl sm:text-2xl font-bold tabular-nums leading-tight break-words">
-            {exibirMoeda(disponivelMes, ocultar)}
-          </p>
-          <p style={{ color: p.txtMuted }} className="text-xs mt-1">Saldo seguro após reserva</p>
-        </div>
       </div>
 
       {/* ── 5. Explicação recolhível do cálculo ── */}
@@ -999,10 +949,10 @@ function CardQuantoPossoGastar({
             <LinhaDemo label="Saldo atual informado" valor={exibirMoeda(saldoAtual, ocultar)} />
             <LinhaDemo
               label={`Base segura projetada (compromissos descontados)`}
-              valor={exibirMoeda(Math.max(0, Number(saldoSeguroHoje) || 0), ocultar)}
+              valor={exibirMoeda(Number(saldoSeguroHoje) || 0, ocultar)}
             />
             <LinhaDemo
-              label={`Reserva planejada (${pct}% da renda)`}
+              label={`Reserva planejada (${pct}% do saldo livre)`}
               valor={`− ${exibirMoeda(reserva, ocultar)}`}
             />
             <LinhaDemo
@@ -1139,7 +1089,7 @@ function CardQuantoPossoGastar({
                   {metaAtingida && <span style={{ color: modoEscuro ? '#86EFAC' : '#166534' }}>✓ Meta atingida</span>}
                 </div>
                 {!metaAtingida && receitaMes > 0 && (() => {
-                  const aporteMensal = receitaMes * (reservaPercentual / 100)
+                  const aporteMensal = receitaMes * (pct / 100)
                   if (aporteMensal <= 0) return null
                   const mesesParaMeta = Math.ceil(faltaAcumular / aporteMensal)
                   const alvo = new Date()
@@ -1147,7 +1097,7 @@ function CardQuantoPossoGastar({
                   const mesAno = alvo.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
                   return (
                     <p style={{ color: p.txtMuted }} className="text-xs">
-                      Mantendo {exibirMoeda(aporteMensal, ocultar)}/mês, meta em ~{mesesParaMeta} {mesesParaMeta === 1 ? 'mês' : 'meses'}
+                      Se aportar {exibirMoeda(aporteMensal, ocultar)}/mês, meta em ~{mesesParaMeta} {mesesParaMeta === 1 ? 'mês' : 'meses'}
                       {' '}({mesAno}).
                     </p>
                   )
@@ -2129,7 +2079,6 @@ export default function Dashboard() {
     })
   }
   const [modalCalendario, setModalCalendario] = useState(false) // calendário financeiro (abre pela linha "Calendário")
-  const [menuFoto, setMenuFoto] = useState(false) // menu de edição da foto (Home)
   const [modalEditarFoto, setModalEditarFoto] = useState(false) // seletor de foto
   const [modalEditarSaldo, setModalEditarSaldo] = useState(false) // editar saldo disponível
   const [modalConfigurarLimite, setModalConfigurarLimite] = useState(false) // configurar limite diário
@@ -2280,7 +2229,7 @@ const carregandoLimite = carregando
   limiteManual,
   hoje,
   // calcularLimiteDiario já deduz a reserva: não subtrair aqui novamente.
-  baseLivre: Math.max(0, Number(saldoSeguroHoje) || 0),
+  baseLivre: Number(saldoSeguroHoje) || 0,
   saldoConfigurado,
   dataProximaReceita,
 })
@@ -2340,8 +2289,8 @@ const carregandoLimite = carregando
   //       cartão de crédito NÃO entram em "despesas", então não há sobreposição
   //       com a fatura abaixo.
   //   (2) faturas de cartão: para cada cartão, se o dia_vencimento cair no
-  //       período, uma linha com o TOTAL da fatura do mês (fonte única
-  //       totalFaturaComOverride — mesma do orçamento, nunca somada às compras).
+  //       período, uma linha com o SALDO PENDENTE da fatura do mês (fonte única
+  //       totalFaturaPendente — desconta pagamentos já registrados).
   const proximos7Dias = (() => {
     const base = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())
     const limiteDias = 7
@@ -2351,7 +2300,7 @@ const carregandoLimite = carregando
     // (1) Despesas por vencimento
     const deDespesas = (despesas || [])
       .map(d => {
-        if (!d.data) return null
+        if (!d.data || d.pago_em) return null
         const dt = new Date(d.data + 'T12:00:00')
         const dataDia = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate())
         const diffDias = Math.round((dataDia - base) / 86400000)
@@ -2385,7 +2334,7 @@ const carregandoLimite = carregando
         const comprasDoCartao = (comprasCartao || []).filter(cp => cp.cartao_id === c.id)
         const parcelamentosDoCartao = (parcelamentos || []).filter(p => p.cartao_id === c.id)
         // Fatura referente à competência do mês de vencimento.
-        const total = totalFaturaComOverride(
+        const total = totalFaturaPendente(
           comprasDoCartao, parcelamentosDoCartao, faturasInformadas,
           c.id, c.dia_fechamento, venc.getFullYear(), venc.getMonth() + 1
         )
@@ -2781,13 +2730,41 @@ const carregandoLimite = carregando
   return (
     <div className="af-home-premium w-full max-w-none min-w-0 flex flex-col gap-0 md:pb-0" style={variaveisHome}>
       <FundoCorpoHome cor={variaveisHome['--af-home-bg']} />
+      <style>{`
+        @media (min-width: 768px) {
+          .af-home-premium .af-home-hero { position: relative; isolation: isolate; border-radius: 18px; margin-bottom: 12px; padding: 14px 18px; background: linear-gradient(115deg, var(--af-home-light) 45%, var(--af-home-panel) 100%); border: 1px solid var(--af-home-border); }
+          .af-home-premium .af-home-hero::before { content: ''; position: absolute; z-index: -1; pointer-events: none; inset: 0; border-radius: inherit; background: radial-gradient(ellipse at 100% -110%, var(--af-home-primary) 0%, transparent 57%); }
+          .af-home-premium .af-home-greeting { font-size: 21px; color: var(--af-home-text) !important; }
+          .af-home-premium .af-home-welcome { color: var(--af-home-muted); margin-top: 3px; }
+          .af-home-premium .af-home-desktop { gap: 16px !important; width: 100%; max-width: none !important; padding: 0 !important; margin: 0 !important; }
+          .af-home-premium .af-home-desktop .af-section-spacing { margin-top: 0 !important; margin-bottom: 0 !important; padding-top: 0 !important; padding-bottom: 0 !important; }
+          .af-home-premium .af-home-desktop .af-summary-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px !important; }
+          .af-home-premium .af-home-desktop .af-grid-2col { display: grid; grid-template-columns: minmax(0,1fr); gap: 16px !important; align-items: start; }
+          .af-home-premium .af-home-desktop .af-hcard, .af-home-premium .af-home-desktop .af-hcard-accent, .af-home-premium .af-home-desktop .af-side-section, .af-home-premium .af-home-desktop .af-cal-home { border-radius: 16px; padding: 16px; box-shadow: 0 5px 18px rgba(60,10,25,.07); min-width: 0; }
+          .af-home-premium .af-home-desktop .af-hcard, .af-home-premium .af-home-desktop .af-hcard-accent { min-height: 112px; }
+          .af-home-premium .af-home-desktop .af-hcard p.text-xl, .af-home-premium .af-home-desktop .af-hcard-accent p.text-xl { font-size: clamp(18px,1.6vw,26px); line-height: 1.25; overflow-wrap: anywhere; }
+          .af-home-premium .af-home-desktop .af-hcard.af-home-balance { background: linear-gradient(135deg,var(--af-home-primary),var(--af-home-dark)) !important; border-color: transparent !important; color: white !important; }
+          .af-home-premium .af-home-desktop .af-home-balance .af-ht2, .af-home-premium .af-home-desktop .af-home-balance p, .af-home-premium .af-home-desktop .af-home-balance button { color: white !important; }
+          .af-home-premium .af-home-desktop .af-side-section span[class*="D4A8B6"], .af-home-premium .af-home-desktop .af-side-section p[class*="D4A8B6"] { color: var(--af-home-muted) !important; }
+          .af-home-premium .af-home-desktop .af-home-month-balance { background: linear-gradient(135deg,var(--af-home-primary),var(--af-home-dark)); border-radius: 10px; padding: 10px 12px; margin-top: 8px; }
+          .af-home-premium .af-home-desktop .af-home-month-balance span, .af-home-premium .af-home-desktop .af-home-month-balance strong { color: #fff !important; }
+          .af-home-premium .af-home-desktop .af-home-goal-cta { display: inline-block; background: var(--af-home-primary); color: white !important; padding: 9px 15px; border-radius: 10px; font-weight: 600; }
+          .af-home-premium .af-home-desktop .af-home-shortcuts { margin: 0 !important; min-width: 0; }
+          .af-home-premium .af-home-desktop .af-cal-home .af-cal-day { border-radius: 9px; }
+        }
+        @media (min-width: 1200px) {
+          .af-home-premium .af-home-desktop .af-summary-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }
+          .af-home-premium .af-home-desktop .af-grid-2col { grid-template-columns: minmax(0,2fr) minmax(0,1fr); }
+        }
+      `}</style>
+
       
       {/* HEADER COMPACTO - Foto + Saudação + Sino */}
-      <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+      <div className="af-home-hero px-4 pt-3 pb-2 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="relative w-14 h-14 flex-shrink-0">
             <button
-              onClick={() => !somenteLeitura && setMenuFoto(true)}
+              onClick={() => !somenteLeitura && setModalEditarFoto(true)}
               className={`w-full h-full ${!somenteLeitura ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
               disabled={somenteLeitura}
               aria-label="Editar foto de perfil"
@@ -2800,55 +2777,15 @@ const carregandoLimite = carregando
               />
             </button>
             
-            {/* Menu de opções da foto */}
-            {menuFoto && (
-              <>
-                <div 
-                  className="fixed inset-0 z-40" 
-                  onClick={() => setMenuFoto(false)}
-                />
-                <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50 overflow-hidden">
-                  <button
-                    onClick={() => { setMenuFoto(false); setModalEditarFoto(true) }}
-                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <Camera size={16} className="text-marca" />
-                    Alterar foto
-                  </button>
-                  {perfil?.foto_url && (
-                    <button
-                      onClick={async () => {
-                        setMenuFoto(false)
-                        if (window.confirm('Deseja remover a foto do perfil?')) {
-                          try {
-                            await atualizarPreferenciasLimite({ foto_url: null })
-                            if (recarregarPerfil) await recarregarPerfil()
-                          } catch (err) {
-                            alert(err?.message || 'Erro ao remover foto')
-                          }
-                        }
-                      }}
-                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-50 flex items-center gap-2"
-                    >
-                      <X size={16} />
-                      Remover foto
-                    </button>
-                  )}
-                  <button
-                    onClick={() => { setMenuFoto(false); navigate('/mais/perfil') }}
-                    className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <UserRound size={16} className="text-marca" />
-                    Ver meu perfil
-                  </button>
-                </div>
-              </>
-            )}
+
           </div>
           
-          <p className="text-base font-medium text-gray-900">
-            {saudacao || `${periodo}, ${perfil?.nome?.split(' ')[0] || usuario?.email?.split('@')[0] || 'Usuário'}`}
-          </p>
+          <div className="min-w-0">
+            <p className="af-home-greeting text-base font-semibold text-gray-900">
+              {saudacao || `${periodo}, ${perfil?.nome?.split(' ')[0] || usuario?.email?.split('@')[0] || 'Usuário'}`}
+            </p>
+            <p className="af-home-welcome hidden md:block text-sm">Acompanhe suas finanças e planeje seus próximos passos.</p>
+          </div>
         </div>
         
         <button 
@@ -3082,14 +3019,14 @@ const carregandoLimite = carregando
           LAYOUT DESKTOP — Melhorado para telas grandes
           Grid responsivo: 4 cols summary, 2 cols calendário+resumo, sidebar info
           ══════════════════════════════════════════════════════════════════════ */}
-      <div className="hidden md:flex md:flex-col gap-3 af-container">
+      <div className="hidden md:flex md:flex-col gap-3 af-container af-home-desktop">
         {/* Atalhos — mesma faixa do mobile, com setas quando houver conteúdo oculto */}
-        <AtalhosHome onAbrirModal={abrirModalAtalho} somenteLeitura={somenteLeitura} modo="grade" />
+        <div className="af-home-shortcuts"><AtalhosHome onAbrirModal={abrirModalAtalho} somenteLeitura={somenteLeitura} modo="grade" /></div>
         
         {/* 4 cards responsivos de resumo — usa novo grid system */}
         <div className="af-summary-grid af-section-spacing">
-          <div className="af-hcard">
-            <div className="flex items-center justify-between mb-2"><span className="af-ht2">Saldo disponível</span>
+          <div className="af-hcard af-home-balance">
+            <div className="flex items-center justify-between mb-2"><span className="af-ht2 flex items-center gap-2"><Wallet size={18}/> Saldo disponível</span>
               <div className="flex items-center gap-2"><button type="button" onClick={alternar} className="text-[#D4A8B6]">{ocultar?<EyeOff size={14}/>:<Eye size={14}/>}</button>{!somenteLeitura&&<button type="button" onClick={()=>setModalSaldo(true)} className="text-[#C4507A]"><Pencil size={13}/></button>}</div>
             </div>
             <p className="text-xl font-bold text-white">{carregando?'...':saldoConfigurado?exibirMoeda(saldoDisponivelAgora,ocultar):'Não configurado'}</p>
@@ -3110,7 +3047,7 @@ const carregandoLimite = carregando
             const circ=60,r=24,stroke=5,circunf=2*Math.PI*r,preenchido=(pct/100)*circunf
             return (
               <button type="button" onClick={()=>setModalPlanejamento(true)} className="af-hcard-accent flex items-center justify-between gap-3 w-full text-left">
-                <div className="min-w-0"><span className="af-ht2 block mb-1">Você pode gastar hoje</span><p className="text-xl font-bold text-white">{exibirMoeda(Math.max(0,limiteHoje),ocultar)}</p></div>
+                <div className="min-w-0"><span className="af-ht2 block mb-1">Limite diário recomendado</span><p className="text-xl font-bold text-white">{exibirMoeda(Math.max(0,limiteHoje),ocultar)}</p></div>
                 <div className="flex-shrink-0 relative" style={{width:circ,height:circ}}>
                   <svg width={circ} height={circ} style={{transform:'rotate(-90deg)'}}>
                     <circle cx={circ/2} cy={circ/2} r={r} fill="none" stroke="#3d1528" strokeWidth={stroke}/>
@@ -3144,8 +3081,8 @@ const carregandoLimite = carregando
             for(let i=1;i<=totalDias;i++)cels.push({dia:i,outro:false,iso:`${String(ano).padStart(4,'0')}-${String(mes+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`})
             const resto=(7-(cels.length%7))%7;for(let i=1;i<=resto;i++)cels.push({dia:i,outro:true,iso:new Date(ano,mes+1,i).toISOString().slice(0,10)})
             return (
-              <div className="af-cal-home af-calendar-wrapper flex flex-col" style={{minHeight:'clamp(360px, 50vh, 480px)',...(calEscuro ? {'--af-home-light':'#21121F','--af-home-panel':'#2B171F','--af-home-border':'#502838'} : {'--af-home-light':'#FFFFFF','--af-home-panel':'#FFF5F7','--af-home-border':'#E5BAC4'})}}>
-                <div className="flex items-center justify-between mb-3">
+              <div className="af-cal-home af-calendar-wrapper flex flex-col" style={{minHeight:'clamp(340px, 46vh, 460px)',...(calEscuro ? {'--af-home-light':'#21121F','--af-home-panel':'#2B171F','--af-home-border':'#502838'} : {'--af-home-light':'#FFFFFF','--af-home-panel':'#FFF5F7','--af-home-border':'#E5BAC4'})}}>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                   <div className="flex items-center gap-2"><CalendarDays size={18} className="text-[#C4507A]"/><span className={`font-semibold ${calEscuro ? 'text-white' : 'text-[#25141B]'}`}>Calendário financeiro</span></div>
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={()=>setMesCalendarioHome(new Date(ano,mes-1,1,12))} className={`w-7 h-7 rounded-lg flex items-center justify-center hover:bg-[#3d1528] ${calEscuro?'text-[#D4A8B6]':'text-[#643F4F]'}`}><ChevronLeft size={16}/></button>
@@ -3179,7 +3116,7 @@ const carregandoLimite = carregando
               <div className="flex items-center gap-2 mb-3"><BarChart2 size={16} className="text-[#C4507A]"/><span className="font-semibold text-white text-sm">Resumo do mês</span></div>
               <div className="af-side-item"><span className="flex items-center gap-2 text-sm text-[#D4A8B6]"><TrendingUp size={13} className="text-emerald-400"/> Receitas</span><strong className="text-sm text-emerald-400">{exibirMoeda(receitaMes,ocultar)}</strong></div>
               <div className="af-side-item"><span className="flex items-center gap-2 text-sm text-[#D4A8B6]"><TrendingDown size={13} className="text-rose-400"/> Despesas</span><strong className="text-sm text-rose-400">{exibirMoeda(compromissosMes,ocultar)}</strong></div>
-              <div className="af-side-item"><span className="text-sm text-[#D4A8B6]">Saldo do mês</span><strong className={`text-sm ${(receitaMes-compromissosMes)>=0?'text-white':'text-rose-400'}`}>{exibirMoeda(receitaMes-compromissosMes,ocultar)}</strong></div>
+              <div className="af-side-item af-home-month-balance"><span className="text-sm text-[#D4A8B6]">Saldo do mês</span><strong className={`text-sm ${(receitaMes-compromissosMes)>=0?'text-white':'text-rose-400'}`}>{exibirMoeda(receitaMes-compromissosMes,ocultar)}</strong></div>
             </div>
             <div className="af-side-section">
               <div className="flex items-center justify-between mb-3">
@@ -3219,7 +3156,7 @@ const carregandoLimite = carregando
               ) : (
                 <div className="text-center py-2">
                   <p className="text-xs text-[#D4A8B6] mb-2">Nenhuma meta configurada.</p>
-                  <button type="button" onClick={()=>navigate('/metas')} className="text-xs af-hlink">Criar minha primeira meta</button>
+                  <button type="button" onClick={()=>navigate('/metas')} className="text-xs af-hlink af-home-goal-cta">Criar minha primeira meta</button>
                 </div>
               )}
             </div>
@@ -3254,8 +3191,8 @@ const carregandoLimite = carregando
           .max-w-xl:has(.planejamento-modal-conteudo),
           .max-w-sm:has(.planejamento-modal-conteudo),
           .max-w-2xl:has(.planejamento-modal-conteudo) {
-            width: min(760px, calc(100vw - 32px)) !important;
-            max-width: min(760px, calc(100vw - 32px)) !important;
+            width: min(920px, calc(100vw - 32px)) !important;
+            max-width: min(920px, calc(100vw - 32px)) !important;
           }
         }
         @media (max-width: 639px) {
@@ -3485,24 +3422,17 @@ dataReferencia={hojeISO}
         salvando={salvandoSaldo}
       />
 
-      {/* Modal de editar foto */}
-      {modalEditarFoto && (
-        <Modal 
-          aberto={modalEditarFoto} 
-          onFechar={() => setModalEditarFoto(false)} 
-          titulo="Editar foto de perfil"
-          tamanho="md"
-        >
-          <SeletorFotoPerfil
-            usuario={usuario}
-            perfil={perfil}
-            onAtualizar={async () => {
-              if (recarregarPerfil) await recarregarPerfil()
-              setModalEditarFoto(false)
-            }}
-            onFechar={() => setModalEditarFoto(false)}
-          />
-        </Modal>
+      {/* Seletor possui seu próprio modal. Portal evita recorte e sobreposição da Home. */}
+      {modalEditarFoto && !somenteLeitura && createPortal(
+        <SeletorFotoPerfil
+          usuario={usuario}
+          perfil={perfil}
+          onAtualizar={async () => {
+            if (recarregarPerfil) await recarregarPerfil()
+          }}
+          onFechar={() => setModalEditarFoto(false)}
+        />,
+        document.body
       )}
 
       {/* Modal de editar saldo pela Home */}
