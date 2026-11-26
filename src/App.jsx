@@ -83,6 +83,7 @@ import CentralImportacao from './pages/CentralImportacao'
 import ExportarDados from './pages/ExportarDados'
 
 import Admin from './pages/Admin'
+import AdminWhatsApp from './pages/admin/AdminWhatsApp'
 
 // Páginas públicas (autenticação)
 
@@ -529,6 +530,7 @@ function Rotas() {
                 <Route path="/configuracoes" element={<Configuracoes />} />
 
                 <Route path="/admin" element={<RotaAdmin><Admin /></RotaAdmin>} />
+                <Route path="/admin/whatsapp" element={<RotaAdmin><AdminWhatsApp /></RotaAdmin>} />
 
                 <Route path="*" element={<Navigate to="/" replace />} />
 

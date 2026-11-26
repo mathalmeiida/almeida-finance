@@ -129,17 +129,17 @@ function extrairDescricao(texto) {
 /**
  * Parser principal - converte mensagem em objeto estruturado
  * @param {string} mensagem - Texto da mensagem
- * @returns {object|null} - Objeto com dados extraídos ou null se não conseguir parsear
+ * @returns {object} - { sucesso: boolean, transacao?: object, erro?: string }
  */
 export function parseWhatsAppMessage(mensagem) {
   if (!mensagem || typeof mensagem !== 'string') {
-    return null;
+    return { sucesso: false, erro: 'Mensagem inválida' };
   }
 
   const valor = extrairValor(mensagem);
   
   if (!valor) {
-    return null; // Sem valor = não é transação financeira
+    return { sucesso: false, erro: 'Não foi possível identificar um valor monetário válido na mensagem' };
   }
 
   const tipo = identificarTipo(mensagem);
@@ -149,13 +149,16 @@ export function parseWhatsAppMessage(mensagem) {
   const descricao = extrairDescricao(mensagem);
 
   return {
-    valor,
-    tipo,
-    categoria,
-    familiar,
-    parcelas,
-    descricao,
-    confianca: calcularConfianca(mensagem, valor, tipo, categoria)
+    sucesso: true,
+    transacao: {
+      valor,
+      tipo,
+      categoria,
+      familiar,
+      parcelas,
+      descricao,
+      confianca: calcularConfianca(mensagem, valor, tipo, categoria)
+    }
   };
 }
 

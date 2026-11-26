@@ -8,7 +8,9 @@ import {
 
   MoreVertical, Eye, UserX, UserCheck, AlertTriangle, MessageCircle, CalendarClock,
 
-  RotateCcw, Clock, EyeOff, MessageSquarePlus, Search, BarChart3, Filter, Download
+  RotateCcw, Clock, EyeOff, MessageSquarePlus, Search, BarChart3, Filter, Download,
+
+  MessageSquare
 
 } from 'lucide-react'
 
@@ -558,6 +560,8 @@ export default function Admin() {
 
     { id: 'feedbacks',    label: 'Feedbacks',    icon: MessageSquarePlus, badge: novosFeedbacks },
 
+    { id: 'whatsapp',     label: 'WhatsApp',     icon: MessageSquare },
+
   ]
 
 
@@ -823,6 +827,34 @@ export default function Admin() {
             </div>
             <p className="text-xs text-slate-400">Atividade usa a métrica já calculada pelo aplicativo. Não representa sessões ou eventos detalhados.</p>
           </section>
+        </div>
+      )}
+
+      {/* ── Aba: WhatsApp Financeiro ── */}
+      {aba === 'whatsapp' && (
+        <div className="card space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
+              <MessageSquare size={20} className="text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">WhatsApp Financeiro</h2>
+              <p className="text-sm text-gray-500">Teste o parser de mensagens</p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => navigate('/admin/whatsapp')}
+              className="px-4 py-2 bg-marca text-white rounded-lg hover:bg-marca-hover transition-colors font-medium"
+            >
+              Abrir simulador
+            </button>
+          </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <p className="text-sm text-blue-800">
+              <strong>Modo simulação:</strong> Teste como o sistema interpreta mensagens do WhatsApp e identifica receitas/despesas. Nenhuma transação é gravada no banco de dados.
+            </p>
+          </div>
         </div>
       )}
 
