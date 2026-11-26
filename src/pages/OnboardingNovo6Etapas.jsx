@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
-import InputMoeda from '../components/InputMoeda'
+import Modal from '../components/Modal'
 import ImportacaoInteligente from '../pages/ImportacaoInteligente'
 import { hojeISO, formatCurrency } from '../lib/utils'
 
@@ -43,9 +43,17 @@ const CHAVE_PROGRESSO = 'almeida_onboarding_progresso_v2'
 
 export default function OnboardingNovo6Etapas({ aoConcluir }) {
   const { usuario } = useAuth()
+  const { criar: criarCartao } = useCartoes()
+  const { criar: criarInvestimento } = useInvestimentos()
+  const { categorias: categoriasReceita } = useCategorias('receita')
+  const { categorias: categoriasDespesa } = useCategorias('despesa')
   
   const [etapaAtual, setEtapaAtual] = useState(ETAPAS.SALDO)
   const [salvando, setSalvando] = useState(false)
+  const [modalCartao, setModalCartao] = useState(false)
+  const [modalInvestimento, setModalInvestimento] = useState(false)
+  const [importandoCartao, setImportandoCartao] = useState(false)
+  const [importandoInvestimento, setImportandoInvestimento] = useState(false)
   
   // Dados do onboarding
   const [dados, setDados] = useState({
@@ -55,7 +63,26 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
     cartoes: [],
     investimentos: [],
     cartoes_nao_utilizo: false,
-    investimentos_nao_utilizo: false
+    investimentos_nao_utilizo: false,
+    cartoes_importados: [],
+    investimentos_importados: []
+  })
+  
+  // Form de cartão
+  const [formCartao, setFormCartao] = useState({
+    nome: '',
+    limite_total: '',
+    dia_fechamento: '',
+    dia_vencimento: '',
+    cor: '#6366f1'
+  })
+  
+  // Form de investimento
+  const [formInvestimento, setFormInvestimento] = useState({
+    nome: '',
+    tipo: 'renda_fixa',
+    valor_atual: '',
+    rentabilidade_mes: ''
   })
   
   // Carregar progresso salvo
@@ -107,6 +134,78 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
       const anterior = ORDEM_ETAPAS[indiceAtual - 1]
       setEtapaAtual(anterior)
       salvarProgresso(dados, anterior)
+    }
+  }
+  
+  // Adicionar cartão manualmente
+  async function adicionarCartaoManual() {
+    if (!formCartao.nome || !formCartao.limite_total || !formCartao.dia_fechamento || !formCartao.dia_vencimento) {
+      alert('Preencha todos os campos obrigatórios do cartão')
+      return
+    }
+    
+    try {
+      const novoCartao = await criarCartao({
+        nome: formCartao.nome,
+        limite_total: Number(formCartao.limite_total),
+        dia_fechamento: parseInt(formCartao.dia_fechamento),
+        dia_vencimento: parseInt(formCartao.dia_vencimento),
+        cor: formCartao.cor
+      })
+      
+      const novosDados = {
+        ...dados,
+        cartoes: [...dados.cartoes, novoCartao]
+      }
+      setDados(novosDados)
+      salvarProgresso(novosDados)
+      
+      setFormCartao({
+        nome: '',
+        limite_total: '',
+        dia_fechamento: '',
+        dia_vencimento: '',
+        cor: '#6366f1'
+      })
+      setModalCartao(false)
+    } catch (err) {
+      console.error('Erro ao criar cartão:', err)
+      alert('Erro ao cadastrar cartão. Tente novamente.')
+    }
+  }
+  
+  // Adicionar investimento manualmente
+  async function adicionarInvestimentoManual() {
+    if (!formInvestimento.nome || !formInvestimento.valor_atual) {
+      alert('Preencha todos os campos obrigatórios do investimento')
+      return
+    }
+    
+    try {
+      const novoInvestimento = await criarInvestimento({
+        nome: formInvestimento.nome,
+        tipo: formInvestimento.tipo,
+        valor_atual: Number(formInvestimento.valor_atual),
+        rentabilidade_mes: formInvestimento.rentabilidade_mes ? Number(formInvestimento.rentabilidade_mes) : null
+      })
+      
+      const novosDados = {
+        ...dados,
+        investimentos: [...dados.investimentos, novoInvestimento]
+      }
+      setDados(novosDados)
+      salvarProgresso(novosDados)
+      
+      setFormInvestimento({
+        nome: '',
+        tipo: 'renda_fixa',
+        valor_atual: '',
+        rentabilidade_mes: ''
+      })
+      setModalInvestimento(false)
+    } catch (err) {
+      console.error('Erro ao criar investimento:', err)
+      alert('Erro ao cadastrar investimento. Tente novamente.')
     }
   }
   
@@ -193,16 +292,23 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
     setSalvando(true)
     
     try {
-      // 1. Salvar saldo inicial
-      if (dados.saldo) {
-        const valorSaldo = Number(dados.saldo)
-        await supabase.rpc('definir_saldo_inicial', {
-          p_usuario_id: usuario.id,
-          p_valor: valorSaldo
-        })
+      // 1. Salvar saldo inicial (apenas se informado)
+      if (dados.saldo && Number(dados.saldo) > 0) {
+        const { data: saldoExistente } = await supabase
+          .from('usuarios')
+          .select('saldo_inicial')
+          .eq('id', usuario.id)
+          .single()
+        
+        if (!saldoExistente?.saldo_inicial) {
+          await supabase.rpc('definir_saldo_inicial', {
+            p_usuario_id: usuario.id,
+            p_valor: Number(dados.saldo)
+          })
+        }
       }
       
-      // 2. Salvar receitas
+      // 2. Salvar receitas (evitar duplicações)
       if (dados.receitas.length > 0) {
         const receitasParaSalvar = dados.receitas
           .filter(r => r.descricao && r.valor)
@@ -211,15 +317,30 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
             descricao: r.descricao,
             valor: Number(r.valor),
             data: hojeISO(),
-            recorrente: r.recorrente
+            recorrente: r.recorrente,
+            categoria_id: categoriasReceita.find(c => 
+              c.nome.toLowerCase().includes(r.descricao.toLowerCase().split(' ')[0])
+            )?.id || null
           }))
         
         if (receitasParaSalvar.length > 0) {
-          await supabase.from('receitas').insert(receitasParaSalvar)
+          // Verificar duplicações antes de inserir
+          const { data: receitasExistentes } = await supabase
+            .from('receitas')
+            .select('descricao')
+            .eq('usuario_id', usuario.id)
+            .in('descricao', receitasParaSalvar.map(r => r.descricao))
+          
+          const descExistentes = new Set((receitasExistentes || []).map(r => r.descricao))
+          const receitasNovas = receitasParaSalvar.filter(r => !descExistentes.has(r.descricao))
+          
+          if (receitasNovas.length > 0) {
+            await supabase.from('receitas').insert(receitasNovas)
+          }
         }
       }
       
-      // 3. Salvar despesas
+      // 3. Salvar despesas (evitar duplicações)
       if (dados.despesas.length > 0) {
         const despesasParaSalvar = dados.despesas
           .filter(d => d.descricao && d.valor)
@@ -228,27 +349,53 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
             descricao: d.descricao,
             valor: Number(d.valor),
             data: hojeISO(),
-            recorrente: d.recorrente
+            recorrente: d.recorrente,
+            categoria_id: categoriasDespesa.find(c => 
+              c.nome.toLowerCase().includes(d.descricao.toLowerCase().split(' ')[0])
+            )?.id || null
           }))
         
         if (despesasParaSalvar.length > 0) {
-          await supabase.from('despesas').insert(despesasParaSalvar)
+          // Verificar duplicações
+          const { data: despesasExistentes } = await supabase
+            .from('despesas')
+            .select('descricao')
+            .eq('usuario_id', usuario.id)
+            .in('descricao', despesasParaSalvar.map(d => d.descricao))
+          
+          const descExistentes = new Set((despesasExistentes || []).map(d => d.descricao))
+          const despesasNovas = despesasParaSalvar.filter(d => !descExistentes.has(d.descricao))
+          
+          if (despesasNovas.length > 0) {
+            await supabase.from('despesas').insert(despesasNovas)
+          }
         }
       }
       
-      // 4. Marcar onboarding como concluído
-      await supabase
-        .from('usuarios')
-        .update({ onboarding_concluido: true })
-        .eq('id', usuario.id)
+      // 4. Cartões e investimentos já foram salvos durante o cadastro manual
+      // (via criarCartao e criarInvestimento)
       
-      // 5. Limpar progresso salvo
+      // 5. Marcar onboarding como concluído (não reiniciar para usuários existentes)
+      const { data: usuario_atual } = await supabase
+        .from('usuarios')
+        .select('onboarding_concluido')
+        .eq('id', usuario.id)
+        .single()
+      
+      if (!usuario_atual?.onboarding_concluido) {
+        await supabase
+          .from('usuarios')
+          .update({ onboarding_concluido: true })
+          .eq('id', usuario.id)
+      }
+      
+      // 6. Limpar progresso salvo
       try {
         const chave = `${CHAVE_PROGRESSO}_${usuario.id}`
         localStorage.removeItem(chave)
       } catch {}
       
-      // 6. Callback de conclusão
+      // 7. Callback de conclusão
       if (aoConcluir) {
         aoConcluir()
       }
@@ -500,28 +647,42 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
                   </p>
                 </div>
                 
+                {/* Lista de cartões já cadastrados */}
+                {dados.cartoes.length > 0 && (
+                  <div className="mb-4 space-y-2">
+                    {dados.cartoes.map((cartao, idx) => (
+                      <div key={idx} className="p-3 bg-gray-50 rounded-lg flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg" style={{ backgroundColor: cartao.cor }} />
+                          <div>
+                            <p className="font-semibold text-sm">{cartao.nome}</p>
+                            <p className="text-xs text-gray-500">
+                              Limite: {formatCurrency(cartao.limite_total)}
+                            </p>
+                          </div>
+                        </div>
+                        <CheckCircle2 size={20} className="text-green-500" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
                 <div className="space-y-3">
                   <button
-                    onClick={() => {
-                      // TODO: Abrir modal de importação
-                      alert('Importação de fatura em desenvolvimento')
-                    }}
+                    onClick={() => setImportandoCartao(true)}
                     className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-marca hover:bg-gray-50 transition-all text-left"
                   >
                     <div className="flex items-center gap-3">
                       <Upload className="w-10 h-10 text-marca" />
                       <div>
-                        <p className="font-semibold text-gray-900">Importar documento</p>
-                        <p className="text-sm text-gray-500">Fatura de cartão em PDF, XLS ou CSV</p>
+                        <p className="font-semibold text-gray-900">Importar fatura</p>
+                        <p className="text-sm text-gray-500">PDF, XLS, CSV ou OFX</p>
                       </div>
                     </div>
                   </button>
                   
                   <button
-                    onClick={() => {
-                      // TODO: Abrir modal de cadastro manual
-                      alert('Cadastro manual em desenvolvimento')
-                    }}
+                    onClick={() => setModalCartao(true)}
                     className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-marca hover:bg-gray-50 transition-all text-left"
                   >
                     <div className="flex items-center gap-3">
@@ -540,7 +701,8 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
                       salvarProgresso(novosDados)
                       proximaEtapa()
                     }}
-                    className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all text-left"
+                    disabled={dados.cartoes.length === 0 && !dados.cartoes_nao_utilizo}
+                    className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-gray-300 hover:bg-gray-50 transition-all text-left disabled:opacity-50"
                   >
                     <div className="flex items-center gap-3">
                       <X className="w-10 h-10 text-gray-400" />
@@ -561,6 +723,15 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
                   <ArrowLeft size={18} />
                   Voltar
                 </button>
+                {dados.cartoes.length > 0 && (
+                  <button
+                    onClick={proximaEtapa}
+                    className="btn-primary flex-1 flex items-center justify-center gap-2"
+                  >
+                    Continuar
+                    <ArrowRight size={18} />
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -599,10 +770,7 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
                   </button>
                   
                   <button
-                    onClick={() => {
-                      // TODO: Abrir modal de cadastro manual
-                      alert('Cadastro manual em desenvolvimento')
-                    }}
+                    onClick={() => setModalInvestimento(true)}
                     className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-marca hover:bg-gray-50 transition-all text-left"
                   >
                     <div className="flex items-center gap-3">
@@ -786,6 +954,171 @@ export default function OnboardingNovo6Etapas({ aoConcluir }) {
           
         </div>
       </div>
+      
+      {/* Modal de cadastro de cartão */}
+      {modalCartao && (
+        <Modal
+          aberto={modalCartao}
+          onFechar={() => setModalCartao(false)}
+          titulo="Cadastrar cartão de crédito"
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="label">Nome do cartão</label>
+              <input
+                type="text"
+                value={formCartao.nome}
+                onChange={(e) => setFormCartao({ ...formCartao, nome: e.target.value })}
+                className="input"
+                placeholder="Ex: Bradesco Visa, Nubank"
+                autoFocus
+              />
+            </div>
+            
+            <div>
+              <label className="label">Limite total (R$)</label>
+              <InputMoeda
+                valor={formCartao.limite_total}
+                onChangeValor={(valor) => setFormCartao({ ...formCartao, limite_total: valor })}
+                className="input"
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Dia de fechamento</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={formCartao.dia_fechamento}
+                  onChange={(e) => setFormCartao({ ...formCartao, dia_fechamento: e.target.value })}
+                  className="input"
+                  placeholder="Ex: 20"
+                />
+              </div>
+              <div>
+                <label className="label">Dia de vencimento</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={formCartao.dia_vencimento}
+                  onChange={(e) => setFormCartao({ ...formCartao, dia_vencimento: e.target.value })}
+                  className="input"
+                  placeholder="Ex: 28"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="label">Cor do cartão</label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316', '#22c55e'].map((cor) => (
+                  <button
+                    key={cor}
+                    type="button"
+                    onClick={() => setFormCartao({ ...formCartao, cor })}
+                    className={`w-10 h-10 rounded-lg transition-transform ${
+                      formCartao.cor === cor ? 'ring-2 ring-offset-2 ring-gray-900 scale-110' : ''
+                    }`}
+                    style={{ backgroundColor: cor }}
+                  />
+                ))}
+              </div>
+            </div>
+            
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setModalCartao(false)}
+                className="btn-secondary flex-1"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={adicionarCartaoManual}
+                className="btn-primary flex-1"
+              >
+                Adicionar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      
+      {/* Modal de cadastro de investimento */}
+      {modalInvestimento && (
+        <Modal
+          aberto={modalInvestimento}
+          onFechar={() => setModalInvestimento(false)}
+          titulo="Cadastrar investimento"
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="label">Nome do investimento</label>
+              <input
+                type="text"
+                value={formInvestimento.nome}
+                onChange={(e) => setFormInvestimento({ ...formInvestimento, nome: e.target.value })}
+                className="input"
+                placeholder="Ex: Tesouro Selic, CDB, Ações..."
+                autoFocus
+              />
+            </div>
+            
+            <div>
+              <label className="label">Tipo</label>
+              <select
+                value={formInvestimento.tipo}
+                onChange={(e) => setFormInvestimento({ ...formInvestimento, tipo: e.target.value })}
+                className="input"
+              >
+                <option value="renda_fixa">Renda Fixa</option>
+                <option value="renda_variavel">Renda Variável</option>
+                <option value="fundo">Fundo de Investimento</option>
+                <option value="previdencia">Previdência</option>
+                <option value="cripto">Criptomoedas</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="label">Valor atual (R$)</label>
+              <InputMoeda
+                valor={formInvestimento.valor_atual}
+                onChangeValor={(valor) => setFormInvestimento({ ...formInvestimento, valor_atual: valor })}
+                className="input"
+              />
+            </div>
+            
+            <div>
+              <label className="label">Rentabilidade mensal (%) - Opcional</label>
+              <input
+                type="number"
+                step="0.01"
+                value={formInvestimento.rentabilidade_mes}
+                onChange={(e) => setFormInvestimento({ ...formInvestimento, rentabilidade_mes: e.target.value })}
+                className="input"
+                placeholder="Ex: 1.5"
+              />
+            </div>
+            
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setModalInvestimento(false)}
+                className="btn-secondary flex-1"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={adicionarInvestimentoManual}
+                className="btn-primary flex-1"
+              >
+                Adicionar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

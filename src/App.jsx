@@ -13,7 +13,7 @@ import { useOnboarding } from './hooks/useOnboarding'
 import Layout from './components/Layout'
 
 import Onboarding from './pages/Onboarding'
-import OnboardingSimples from './pages/OnboardingSimples'
+import OnboardingNovo6Etapas from './pages/OnboardingNovo6Etapas'
 import OnboardingNovo from './pages/OnboardingNovo'
 import ApresentacaoNova from './pages/ApresentacaoNova'
 import RegistrarRapido from './pages/RegistrarRapido'
