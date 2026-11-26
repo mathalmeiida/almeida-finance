@@ -1,11 +1,12 @@
 -- ============================================================
 -- ADICIONAR COLUNA preferencias À TABELA perfis
 -- Data: 28/01/2025
+-- Projeto: ievccupeijzuzhomphwn (PRODUÇÃO)
 -- ============================================================
 -- Adiciona coluna JSONB para armazenar preferências do usuário
 -- como valores_ocultos, tema, etc.
 --
--- Idempotente. Aplicar em DEV e PRODUÇÃO.
+-- Idempotente. Aplicar em PRODUÇÃO.
 -- ============================================================
 
 BEGIN;
@@ -25,3 +26,8 @@ COMMIT;
 
 -- Recarregar schema cache do PostgREST
 NOTIFY pgrst, 'reload schema';
+
+-- ============================================================
+-- APLICAR MANUALMENTE EM:
+-- https://supabase.com/dashboard/project/ievccupeijzuzhomphwn/sql
+-- ============================================================
