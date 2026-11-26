@@ -19,7 +19,8 @@ export const TAMANHO_MAXIMO_BYTES = 50 * 1024 * 1024
 export const MAXIMO_ARQUIVOS_SIMULTANEOS = 10
 export const MAXIMO_TRANSACOES = 5000
 export const FORMATOS_SUPORTADOS = [
-  'csv', 'ofx', 'xlsx', 'xls', 'pdf'
+  'csv', 'ofx', 'qfx', 'xlsx', 'xls', 'pdf', 'txt',
+  'jpg', 'jpeg', 'png', 'webp', 'heic'
 ]
 
 // ============================================================

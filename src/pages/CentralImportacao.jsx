@@ -10,10 +10,8 @@ import { useImportacoes } from '../hooks/useImportacoes'
 import ImportacaoInteligente from './ImportacaoInteligente'
 
 const CONTEXTOS = {
-  extrato: { label: 'Extrato bancário', icone: FileText, cor: 'text-marca', bg: 'bg-surface-2' },
   fatura: { label: 'Fatura de cartão', icone: CreditCard, cor: 'text-marca', bg: 'bg-surface-2' },
   investimentos: { label: 'Investimentos', icone: TrendingUp, cor: 'text-green-500', bg: 'bg-green-100' },
-  beneficios: { label: 'VR/VA Benefícios', icone: Gift, cor: 'text-orange-500', bg: 'bg-orange-100' },
 }
 
 const STATUS_VISUAL = {
@@ -219,10 +217,8 @@ Status: ${importacao.status === 'concluida' ? '✅ Concluída' : '⚠️ Parcial
               className="text-sm border border-gray-300 rounded-lg px-3 py-1.5"
             >
               <option value="todos">Todos os tipos</option>
-              <option value="extrato">Extrato bancário</option>
               <option value="fatura">Fatura de cartão</option>
               <option value="investimentos">Investimentos</option>
-              <option value="beneficios">VR/VA Benefícios</option>
             </select>
             <select
               value={filtroStatus}

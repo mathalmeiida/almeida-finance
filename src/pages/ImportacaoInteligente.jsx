@@ -53,12 +53,6 @@ import {
 
 const CONTEXTOS = [
   {
-    id: 'extrato',
-    titulo: 'Extrato bancário',
-    texto: 'Receitas, despesas e transferências',
-    icone: Landmark,
-  },
-  {
     id: 'fatura',
     titulo: 'Fatura de cartão',
     texto: 'Compras, parcelas e estornos',
@@ -69,12 +63,6 @@ const CONTEXTOS = [
     titulo: 'Investimentos',
     texto: 'Aportes, resgates e rendimentos',
     icone: TrendingUp,
-  },
-  {
-    id: 'beneficios',
-    titulo: 'VR/VA Benefícios',
-    texto: 'Recargas e compras',
-    icone: FileText,
   },
 ]
 
@@ -1465,7 +1453,7 @@ export default function ImportacaoInteligente({
               type="file"
               multiple
               className="sr-only"
-              accept=".csv,.ofx,.xlsx,.xls,.pdf,.txt"
+              accept=".csv,.ofx,.qfx,.xlsx,.xls,.pdf,.txt,.jpg,.jpeg,.png,.webp,.heic"
               data-testid="importacao-arquivo"
               onChange={aoEscolherArquivo}
               disabled={etapa === 'lendo'}
