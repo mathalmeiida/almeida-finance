@@ -345,7 +345,6 @@ function Passos({ etapa }) {
 function precisaRevisar(item) {
   return Boolean(
     item.revisar ||
-    item.avisos?.length ||
     (item.incluir && validarItem(item)) ||
     ESTADOS_BLOQUEADOS.includes(item.estadoConciliacao)
   )
@@ -403,6 +402,9 @@ export default function ImportacaoInteligente({
 
   const [contaNome, setContaNome] = useState('')
   const [cartaoId, setCartaoId] = useState('')
+  const [competencia, setCompetencia] = useState('')
+  const [busca, setBusca] = useState('')
+  const [limiteLista, setLimiteLista] = useState(40)
   const [investimentoId, setInvestimentoId] = useState('')
   const [beneficioId, setBeneficioId] = useState('')
 
@@ -637,6 +639,7 @@ export default function ImportacaoInteligente({
         const tipoArquivo =
           dados.tipoDocumento ||
           (dados.ehCartao ? 'fatura' : null)
+        if (contexto === 'fatura' || tipoArquivo === 'fatura') throw new Error('Importe uma fatura por vez para vincular corretamente o mês e o cartão.')
 
         if (
           contexto &&
@@ -763,10 +766,22 @@ export default function ImportacaoInteligente({
       substituicoes.beneficioId ?? beneficioId
 
     const intervalo = intervaloDatas(dados.transacoes)
+    const cartaoRef = cartoes.find(c => String(c.id) === String(cartaoSelecionado))
+    const venc = dados.metadados?.vencimento
+    let sugerida = ''
+    if (venc && cartaoRef) {
+      const d = new Date(`${venc}T12:00:00`)
+      if (!Number.isNaN(d.getTime())) {
+        d.setDate(1)
+        if (Number(cartaoRef.dia_vencimento) < Number(cartaoRef.dia_fechamento)) d.setMonth(d.getMonth() - 1)
+        sugerida = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+      }
+    }
+    const competenciaAtual = ctx === 'fatura' ? (substituicoes.competencia ?? (substituicoes.cartaoId ? competencia : '') ?? '') || sugerida : ''
 
     const origem =
       ctx === 'fatura'
-        ? `cartao:${cartaoSelecionado || 'pendente'}`
+        ? `cartao:${cartaoSelecionado || 'pendente'}:${competenciaAtual || 'pendente'}`
         : ctx === 'investimentos'
           ? `inv:${investimentoSelecionado || 'pendente'}`
           : ctx === 'beneficios'
@@ -781,6 +796,8 @@ export default function ImportacaoInteligente({
         contexto: ctx,
         intervalo,
         cartaoId: cartaoSelecionado || null,
+        competenciaFatura: competenciaAtual || null,
+        diaFechamento: cartaoRef?.dia_fechamento,
         investimentoId: investimentoSelecionado || null,
         beneficioId: beneficioSelecionado || null,
       }),
@@ -794,6 +811,7 @@ export default function ImportacaoInteligente({
       origem,
       categorias: categoriasRef.current,
       existentes: existentes || [],
+      competenciaFatura: competenciaAtual || null,
       chavesImportadas: chaves,
       cartaoId: ctx === 'fatura'
         ? cartaoSelecionado || null
@@ -821,7 +839,8 @@ export default function ImportacaoInteligente({
     }
 
     setHistoricoDisponivel(Boolean(historico?.disponivel))
-    setItens(preparados)
+    setCompetencia(competenciaAtual)
+    setItens(preparados.map(item => ({ ...item, competenciaFatura: competenciaAtual || null })))
     setArquivo(informacoes)
 
     setLeitura({
@@ -831,6 +850,7 @@ export default function ImportacaoInteligente({
       instituicao: dados.instituicao || null,
       ocr: Boolean(dados.ocr),
       tipoDocumento: ctx,
+      metadados: dados.metadados || null,
       puladas: arquivosIgnorados,
     })
 
@@ -840,7 +860,7 @@ export default function ImportacaoInteligente({
     setEtapa('previa')
   }
 
-  async function vincularCartao(id) {
+  async function vincularCartao(id, mes = competencia) {
     if (emGravacao.current) return
 
     const leituraAnterior = ultimaLeituraRef.current
@@ -862,7 +882,7 @@ export default function ImportacaoInteligente({
         leituraAnterior.dados,
         leituraAnterior.informacoes,
         leituraAnterior.arquivosIgnorados,
-        { contexto: 'fatura', cartaoId: id }
+        { contexto: 'fatura', cartaoId: id, competencia: mes }
       )
 
       setCartaoId(id)
@@ -950,7 +970,7 @@ export default function ImportacaoInteligente({
   const elegiveis = selecionados.filter(elegivelParaLote)
 
   const comErro = selecionados.filter(
-    item => Boolean(validarItem(item))
+    item => Boolean(validarItem(item)) || !elegivelParaLote(item)
   )
 
   const quantidadeMarcada = selecionados.length
@@ -958,7 +978,7 @@ export default function ImportacaoInteligente({
 
   const valorMarcado = selecionados.reduce(
     (soma, item) =>
-      soma + Math.abs(Number(item.valor) || 0),
+      soma + (item.tipo === 'credito_fatura' ? -1 : 1) * Math.abs(Number(item.valor) || 0),
     0
   )
 
@@ -967,6 +987,7 @@ export default function ImportacaoInteligente({
   ).length
 
   const visiveis = itens.filter(item => {
+    if (busca && !normalizar(item.descricao || '').includes(normalizar(busca))) return false
     switch (filtro) {
       case 'incluidos':
         return item.incluir
@@ -990,6 +1011,10 @@ export default function ImportacaoInteligente({
       !usuario?.id
     ) return
 
+    if (contextoAtual === 'fatura' && (!cartaoId || !/^\d{4}-(0[1-9]|1[0-2])$/.test(competencia))) {
+      setErro('Selecione o cartão e o mês de fechamento da fatura antes de salvar.')
+      return
+    }
     const registros = montarRegistros(itens, {
       categorias: todasCategorias,
     })
@@ -1095,6 +1120,7 @@ export default function ImportacaoInteligente({
 
       setResultado({
         gravados: gravados.length,
+        competenciaFatura: competencia,
         porTabela,
         falhas,
         historico: Boolean(historico?.registrado),
@@ -1137,6 +1163,9 @@ export default function ImportacaoInteligente({
     setResultado(null)
     setErro('')
     setFiltro('todos')
+    setCompetencia('')
+    setBusca('')
+    setLimiteLista(40)
     setEditando(null)
     setContextoDetectado(null)
     setContextoConfirmado(false)
@@ -1664,6 +1693,18 @@ export default function ImportacaoInteligente({
                 ))}
               </select>
 
+              <label className="label mt-4" htmlFor="competencia-fatura">Mês de fechamento da fatura (obrigatório)</label>
+              <input id="competencia-fatura" type="month" className="input w-full" value={competencia}
+                disabled={!cartaoId || etapa === 'gravando'}
+                onChange={e => { if (e.target.value) vincularCartao(cartaoId, e.target.value) }} />
+              <p className="mt-2 text-xs text-gray-500">{leitura?.metadados?.vencimento ? `Vencimento encontrado no documento: ${dataBR(leitura.metadados.vencimento)}. ` : ''}O mês é o do fechamento, não necessariamente o do vencimento. Alterar o mês refaz a prévia e descarta edições manuais. A data original de cada compra será preservada. Só as parcelas desta fatura serão registradas; parcelas futuras não serão criadas automaticamente.</p>
+              {itens.some(i => i.tipo === 'estorno') && <p className="mt-2 text-xs text-amber-800">Selecione o mês para habilitar os créditos da fatura.</p>}
+              {competencia && <div className="mt-3 space-y-1 text-xs text-gray-600">
+                <p>Compras selecionadas: {formatCurrency(itens.filter(i => i.incluir && i.tipo === 'compra').reduce((s,i) => s + Number(i.valor),0))}</p>
+                <p>Créditos selecionados: {formatCurrency(itens.filter(i => i.incluir && i.tipo === 'credito_fatura').reduce((s,i) => s + Number(i.valor),0))}</p>
+                {leitura?.metadados?.totalFatura != null && <p>Total informado no PDF: {formatCurrency(leitura.metadados.totalFatura)}. Confira também saldos anteriores e itens já cadastrados.</p>}
+                <p className="text-amber-800">Se esta fatura já foi paga, registre ou confira a quitação no módulo de faturas para não gerar uma dívida em aberto.</p>
+              </div>}
               {!cartaoId && (
                 <p className="mt-2 text-xs text-amber-800">
                   As compras precisam de um cartão vinculado
@@ -1729,6 +1770,7 @@ export default function ImportacaoInteligente({
             </div>
           </div>
 
+          <input className="input w-full" type="search" placeholder="Buscar estabelecimento..." aria-label="Buscar lançamento" value={busca} onChange={e => { setBusca(e.target.value); setLimiteLista(40) }} />
           {/* LANÇAMENTOS */}
 
           <ul className="space-y-2" data-testid="importacao-lista">
@@ -1738,7 +1780,7 @@ export default function ImportacaoInteligente({
               </li>
             )}
 
-            {visiveis.map(item => {
+            {visiveis.slice(0, limiteLista).map(item => {
               const importavel =
                 TIPOS_IMPORTAVEIS.includes(item.tipo)
 
@@ -1757,7 +1799,7 @@ export default function ImportacaoInteligente({
                 <li
                   key={item.uid}
                   data-item={item.uid}
-                  className={`rounded-2xl border bg-white p-3 sm:p-4 ${
+                  className={`rounded-xl border bg-white p-2 sm:p-3 ${
                     problema
                       ? 'border-red-300'
                       : item.revisar
@@ -1790,7 +1832,7 @@ export default function ImportacaoInteligente({
                           {item.descricao}
                         </p>
                         <p className="text-sm font-semibold text-gray-900">
-                          {item.entrada ? '+' : '−'}{' '}
+                          {item.tipo === 'credito_fatura' || (item.tipo !== 'compra' && item.entrada) ? '+' : '−'}{' '}
                           {formatCurrency(item.valor)}
                         </p>
                       </div>
@@ -1840,7 +1882,7 @@ export default function ImportacaoInteligente({
                       {item.avisos?.length > 0 && (
                         <details className="mt-3 rounded-xl bg-amber-50 px-3 py-2">
                           <summary className="cursor-pointer text-xs font-medium text-amber-800">
-                            Precisa revisar · {item.avisos.length}{' '}
+                            {precisaRevisar(item) ? 'Conferir' : 'Informações'} · {item.avisos.length}{' '}
                             {item.avisos.length === 1
                               ? 'aviso'
                               : 'avisos'}
@@ -2000,6 +2042,7 @@ export default function ImportacaoInteligente({
                                   id={`ca-${item.uid}`}
                                   className="input w-full"
                                   value={item.cartaoId || ''}
+                                  disabled={contextoAtual === 'fatura'}
                                   onChange={e =>
                                     atualizar(item.uid, {
                                       cartaoId: e.target.value || null,
@@ -2149,28 +2192,6 @@ export default function ImportacaoInteligente({
                     ))}
                   </select>
                 )}
-                {contextoAtual === 'fatura' && cartoes.length > 0 && (
-                  <select
-                    onChange={(e) => {
-                      const cartaoId = e.target.value
-                      if (!cartaoId) return
-                      elegiveis.forEach(item => {
-                        if (item.tipo === 'compra') {
-                          atualizar(item.uid, { cartaoId })
-                        }
-                      })
-                      e.target.value = ''
-                    }}
-                    className="input text-xs py-1.5"
-                  >
-                    <option value="">Aplicar cartão a {elegiveis.length} itens</option>
-                    {cartoes.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.nome} {c.banco ? `• ${c.banco}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -2188,9 +2209,10 @@ export default function ImportacaoInteligente({
             </section>
           )}
 
+          {visiveis.length > limiteLista && <button type="button" className="btn-secondary w-full" onClick={() => setLimiteLista(n => n + 40)}>Mostrar mais ({visiveis.length - limiteLista} restantes)</button>}
           {/* CONFIRMAÇÃO */}
 
-          <section className="rounded-2xl border border-gray-200 bg-white p-4">
+          <section className="sm:sticky sm:bottom-0 z-10 rounded-2xl border border-gray-200 bg-white p-4 shadow-lg">
             <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div>
                 <p className="text-xs text-gray-500">Marcados</p>
@@ -2247,7 +2269,8 @@ export default function ImportacaoInteligente({
                 data-testid="importacao-confirmar"
                 disabled={
                   etapa === 'gravando' ||
-                  quantidadePronta === 0
+                  quantidadePronta === 0 ||
+                  (contextoAtual === 'fatura' && (!competencia || !cartaoId))
                 }
                 onClick={confirmar}
                 className="btn-primary flex flex-1 items-center justify-center gap-2 py-3 disabled:opacity-50"
@@ -2269,7 +2292,7 @@ export default function ImportacaoInteligente({
           </section>
 
           {/* BARRA FIXA DE CONFIRMAÇÃO (Mobile) */}
-          <div className="fixed bottom-20 left-0 right-0 z-30 border-t border-gray-200 bg-white p-3 shadow-lg sm:hidden" style={{paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))'}}>
+          <div className="sticky bottom-0 z-30 border-t border-gray-200 bg-white p-3 shadow-lg sm:hidden" style={{paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))'}}>
             <div className="flex items-center gap-3">
               <div className="flex-1 text-xs">
                 <div className="font-semibold">
@@ -2285,7 +2308,8 @@ export default function ImportacaoInteligente({
                 data-testid="importacao-confirmar-fixo"
                 disabled={
                   etapa === 'gravando' ||
-                  quantidadePronta === 0
+                  quantidadePronta === 0 ||
+                  (contextoAtual === 'fatura' && (!competencia || !cartaoId))
                 }
                 onClick={confirmar}
                 className="btn-primary flex items-center gap-2 text-sm disabled:opacity-50"

@@ -433,6 +433,7 @@ export function conciliarTransacoes(itens, existentes, chavesImportadas = new Se
       if (usados.has(e.id)) continue
 
       if (e.tabela !== destino) continue
+      if (destino === 'compras_cartao' && Boolean(e.creditoFatura) !== (it.tipo === 'credito_fatura')) continue
 
       if (!e.valores.includes(cents)) continue
 

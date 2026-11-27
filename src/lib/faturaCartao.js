@@ -14,7 +14,7 @@
  * Mantem as assinaturas das funcoes existentes.
  */
 
-import { calcularParcelas } from '../hooks/useParcelamentos'
+import { calcularParcelas } from './calcularParcelas.js'
 
 // ============================================================
 // FUNCOES AUXILIARES
@@ -145,6 +145,15 @@ export function competenciaPrimeiraParcela(
  * aparece uma vez em cada mes correspondente.
  */
 
+export function competenciaCompra(compra, diaFechamento) {
+  const chave = String(compra.competencia_fatura || '')
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(chave)) {
+    const [ano, mes] = chave.split('-').map(Number)
+    return { ano, mes }
+  }
+  return competenciaPrimeiraParcela(compra.data_compra, diaFechamento)
+}
+
 export function parcelaCompraNoMes(
   compra,
   diaFechamento,
@@ -153,10 +162,7 @@ export function parcelaCompraNoMes(
 ) {
   if (!compra || !compra.data_compra) return null
 
-  const inicio = competenciaPrimeiraParcela(
-    compra.data_compra,
-    diaFechamento
-  )
+  const inicio = competenciaCompra(compra, diaFechamento)
 
   const indice =
     chaveNumerica(ano, mes) -
@@ -169,7 +175,7 @@ export function parcelaCompraNoMes(
   }
 
   return {
-    valor: distribuirParcela(
+    valor: (compra.credito_fatura === true ? -1 : 1) * distribuirParcela(
       compra.valor_total,
       n,
       indice
@@ -546,10 +552,7 @@ export function totalParcelasFuturas(
 
     if (n <= 1 || !compra.data_compra) continue
 
-    const inicio = competenciaPrimeiraParcela(
-      compra.data_compra,
-      diaFechamento
-    )
+    const inicio = competenciaCompra(compra, diaFechamento)
 
     const primeira = chaveNumerica(
       inicio.ano,
@@ -667,10 +670,7 @@ export function limiteComprometido(
   for (const compra of compras || []) {
     if (!compra.data_compra) continue
 
-    const inicio = competenciaPrimeiraParcela(
-      compra.data_compra,
-      diaFechamento
-    )
+    const inicio = competenciaCompra(compra, diaFechamento)
 
     const primeiro = chaveNumerica(
       inicio.ano,

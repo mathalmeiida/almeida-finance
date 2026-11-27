@@ -17,6 +17,7 @@ export const ROTULOS_TIPO = {
   pagamento_fatura: 'Pagamento de fatura',
   investimento: 'Aplicação/resgate (investimento)',
   estorno: 'Estorno/devolução',
+  credito_fatura: 'Crédito/estorno na fatura',
   compra: 'Compra no cartão',
   aporte: 'Aporte',
   resgate: 'Resgate',
@@ -37,7 +38,7 @@ export const TIPOS_POR_CONTEXTO = {
     'receita', 'despesa', 'transferencia',
     'pagamento_fatura', 'investimento', 'estorno',
   ],
-  fatura: ['compra', 'pagamento_fatura', 'estorno'],
+  fatura: ['compra', 'pagamento_fatura', 'credito_fatura', 'estorno'],
   investimentos: [
     'aporte', 'resgate', 'rendimento', 'dividendo',
     'juros', 'amortizacao', 'taxa', 'indefinido',
@@ -58,7 +59,7 @@ const TIPOS_BENEFICIOS = [
 ]
 
 export const TIPOS_IMPORTAVEIS = [
-  'receita', 'despesa', 'compra',
+  'receita', 'despesa', 'compra', 'credito_fatura',
   ...TIPOS_MOV,
   ...TIPOS_BENEFICIOS,
 ]
@@ -66,7 +67,7 @@ export const TIPOS_IMPORTAVEIS = [
 export function destinoDoTipo(tipo) {
   if (tipo === 'receita') return 'receitas'
   if (tipo === 'despesa') return 'despesas'
-  if (tipo === 'compra') return 'compras_cartao'
+  if (tipo === 'compra' || tipo === 'credito_fatura') return 'compras_cartao'
   if (TIPOS_MOV.includes(tipo)) {
     return 'investimentos_movimentacoes'
   }
@@ -148,7 +149,8 @@ export function sinalDeCompraNaFatura(transacoes) {
   let negativos = 0
 
   for (const t of transacoes) {
-    if (RE.pagamentoFatura.test(normalizar(t.descricao))) {
+    const descricao = normalizar(t.descricao)
+    if (t.ehPagamentoFatura || t.ehEstorno || RE.pagamentoFatura.test(descricao) || RE.estorno.test(descricao) || RE.reembolso.test(descricao)) {
       continue
     }
 
@@ -170,7 +172,7 @@ export function classificar(
   const avisos = []
 
   if (contexto === 'fatura') {
-    if (RE.pagamentoFatura.test(d)) {
+    if (t.ehPagamentoFatura || RE.pagamentoFatura.test(d)) {
       return {
         tipo: 'pagamento_fatura',
         incluir: false,
@@ -179,7 +181,7 @@ export function classificar(
       }
     }
 
-    if (Math.sign(t.valor) !== sinalCompra) {
+    if (t.ehEstorno || RE.estorno.test(d) || RE.reembolso.test(d) || Math.sign(t.valor) !== sinalCompra) {
       return {
         tipo: 'estorno',
         incluir: false,
@@ -559,6 +561,7 @@ export function normalizarExistentes(tabela, linhas = []) {
         ],
         descricao: registro.descricao,
         cartaoId: registro.cartao_id,
+        creditoFatura: registro.credito_fatura === true,
       }
     }
 
@@ -647,6 +650,7 @@ export function marcarDuplicidades(
     for (const existente of existentes) {
       if (usados.has(existente.id)) continue
       if (existente.tabela !== destino) continue
+      if (destino === 'compras_cartao' && Boolean(existente.creditoFatura) !== (item.tipo === 'credito_fatura')) continue
 
       if (
         existente.cartaoId &&
@@ -766,6 +770,7 @@ export function prepararItens(
     existentes = [],
     chavesImportadas = new Set(),
     cartaoId = null,
+    competenciaFatura = null,
     investimentoId = null,
     beneficioId = null,
     investimentos = [],
@@ -785,6 +790,12 @@ export function prepararItens(
       { sinalCompra }
     )
 
+    if (contexto === 'fatura' && competenciaFatura && (c.tipo === 'estorno' || (transacao.ehEstorno && c.tipo !== 'pagamento_fatura'))) {
+      c.tipo = 'credito_fatura'
+      c.incluir = !transacao.sinalIncerto
+      c.revisar = Boolean(transacao.sinalIncerto)
+      c.avisos = [transacao.sinalIncerto ? 'Confira o sinal do crédito antes de selecionar.' : 'Crédito: reduz o total da fatura.']
+    }
     const categoria = sugerirCategoria(
       transacao.descricao,
       c.tipo,
@@ -816,7 +827,7 @@ export function prepararItens(
       descricao: transacao.descricao,
       valor: Math.abs(transacao.valor),
       entrada: contexto === 'fatura'
-        ? Math.sign(transacao.valor) !== sinalCompra
+        ? c.tipo === 'credito_fatura' || Math.sign(transacao.valor) !== sinalCompra
         : transacao.valor > 0,
       idOrigem: transacao.idOrigem,
       parcelaAtual: transacao.parcelaAtual,
@@ -838,6 +849,7 @@ export function prepararItens(
           ? categoria.nome
           : null,
       cartaoId,
+      competenciaFatura,
       investimentoId: inv.id,
       beneficioId,
       ...chaves[indice],
@@ -887,9 +899,11 @@ export function validarItem(item) {
   }
 
   // VALIDAÇÕES OBRIGATÓRIAS (bloqueiam salvamento)
-  if (item.tipo === 'compra' && !item.cartaoId) {
+  if (['compra', 'credito_fatura'].includes(item.tipo) && !item.cartaoId) {
     return 'Escolha o cartão'
   }
+
+  if (item.tipo === 'credito_fatura' && !item.competenciaFatura) return 'Escolha o mês da fatura'
 
   if (TIPOS_MOV.includes(item.tipo) && !item.investimentoId) {
     return 'Escolha o investimento'
@@ -986,7 +1000,7 @@ export function montarRegistros(
           cartao_id: null,
         },
       })
-    } else if (item.tipo === 'compra') {
+    } else if (['compra', 'credito_fatura'].includes(item.tipo)) {
       const parcelas =
         item.parcelaTotal && item.parcelaTotal > 1
           ? item.parcelaTotal
@@ -996,10 +1010,12 @@ export function montarRegistros(
         ref,
         dados: {
           cartao_id: item.cartaoId,
-          descricao,
+          descricao: item.competenciaFatura && parcelas > 1 && item.parcelaAtual && !/\d+\s*\/\s*\d+/.test(descricao)
+            ? `${descricao.slice(0, 180)} (${item.parcelaAtual}/${parcelas})` : descricao,
           data_compra: item.data,
-          valor_total: arredondar(valor * parcelas),
-          numero_parcelas: parcelas,
+          valor_total: item.competenciaFatura ? valor : arredondar(valor * parcelas),
+          numero_parcelas: item.competenciaFatura ? 1 : parcelas,
+          ...(item.competenciaFatura ? { competencia_fatura: item.competenciaFatura, credito_fatura: item.tipo === 'credito_fatura' } : {}),
           categoria_id: item.categoriaId || null,
         },
       })

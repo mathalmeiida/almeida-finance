@@ -1,10 +1,6 @@
 // Cálculos de fatura e limite do cartão (src/lib/faturaCartao.js) comparados
-// com valores esperados calculados à mão. Carrega o módulo pelo Vite (SSR)
-// porque ele importa calcularParcelas de um hook. Nada acessa a rede.
-import { createServer } from 'vite'
-
-const vite = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom', logLevel: 'error' })
-const F = await vite.ssrLoadModule('/src/lib/faturaCartao.js')
+// com valores esperados calculados à mão. Módulo puro, sem rede.
+import * as F from '../src/lib/faturaCartao.js'
 
 let falhas = 0
 const brl = n => `R$ ${Number(n).toFixed(2)}`
@@ -90,6 +86,5 @@ eq('fatura completa de novembro = 750 + 200 = 950,00', F.totalFaturaCompleta(tod
 const linhas = F.linhasFaturaCompleta(todas, parc, FECH, 2026, 11)
 assert('cada compra aparece uma única vez na fatura', new Set(linhas.map(l => l.id)).size === linhas.length, `(${linhas.length} linhas)`)
 
-await vite.close()
 console.log(falhas === 0 ? '\nOK — cálculos de fatura aprovados' : `\n${falhas} FALHA(S)`)
 if (falhas) process.exitCode = 1

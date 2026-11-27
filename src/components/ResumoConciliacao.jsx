@@ -21,8 +21,8 @@ export default function ResumoConciliacao({ resumo, itens = [], incluidos, revis
   // Exibe o que está realmente marcado, e não a soma de candidatos da conciliação.
   const selecionados = itens.filter(i => i.incluir)
   const quantidade = selecionados.length
-  const somaSelecionada = selecionados.reduce((total, i) => total + Math.abs(numero(i.valor)), 0)
-  const prontos = selecionados.filter(i => !validarResumo(i)).length
+  const somaSelecionada = selecionados.reduce((total, i) => total + (i.tipo === 'credito_fatura' ? -1 : 1) * Math.abs(numero(i.valor)), 0)
+  const prontos = typeof incluidos === 'number' ? incluidos : selecionados.filter(i => !validarResumo(i)).length
   const bloqueados = quantidade - prontos
   const pendentes = typeof revisar === 'number'
     ? revisar
@@ -51,7 +51,7 @@ export default function ResumoConciliacao({ resumo, itens = [], incluidos, revis
       <div className="rounded-xl bg-marca/[0.055] px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <p className="text-xs font-medium text-gray-600">Soma dos itens marcados</p>
+            <p className="text-xs font-medium text-gray-600">Valor líquido dos itens marcados</p>
             <p className="mt-1 text-[11px] text-gray-500">Inclui itens ainda pendentes; não é o valor pronto para gravar</p>
           </div>
           <p className="text-xl font-bold tabular-nums text-marca sm:text-2xl">{brl.format(somaSelecionada)}</p>
@@ -62,7 +62,7 @@ export default function ResumoConciliacao({ resumo, itens = [], incluidos, revis
         {[
           ['Identificados', itens.length],
           ['Prontos', prontos],
-          ['Para revisar', pendentes],
+          ['Com avisos de revisão', pendentes],
           ['Duplicidades', duplicados + divergentes],
         ].map(([rotulo, valor]) => (
           <div key={rotulo} className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
@@ -81,7 +81,7 @@ export default function ResumoConciliacao({ resumo, itens = [], incluidos, revis
       {pendentes > 0 ? (
         <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900" role="status">
           <AlertTriangle className="mt-0.5 shrink-0" size={17} />
-          <p className="text-xs leading-5">{pendentes} {pendentes === 1 ? 'lançamento precisa' : 'lançamentos precisam'} de conferência. Abra os avisos de cada item e corrija os campos necessários antes de confirmar.</p>
+          <p className="text-xs leading-5">{pendentes} {pendentes === 1 ? 'lançamento tem' : 'lançamentos têm'} avisos de conferência. Confira os avisos; apenas erros obrigatórios e duplicidades bloqueiam a gravação.</p>
         </div>
       ) : (
         <div className="flex items-start gap-2 rounded-xl bg-emerald-50 p-3 text-emerald-800" role="status">

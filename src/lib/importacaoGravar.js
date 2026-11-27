@@ -5,13 +5,14 @@
 // cada usuário só lê e grava os próprios dados. Nada é registrado em log.
 
 import { normalizarExistentes } from './importacaoRegras.js'
+import { parcelaCompraNoMes } from './faturaCartao.js'
 
 const LOTE = 50
 const somarDias = (iso, n) => new Date(Date.parse(`${iso}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10)
 
 // Lançamentos já cadastrados no período do arquivo (±3 dias), para detectar
 // duplicidades antes de gravar.
-export async function buscarExistentes(supabase, { usuarioId, contexto, intervalo, cartaoId, investimentoId, beneficioId }) {
+export async function buscarExistentes(supabase, { usuarioId, contexto, intervalo, cartaoId, investimentoId, beneficioId, competenciaFatura, diaFechamento }) {
   if (!intervalo || !usuarioId) return []
   const ini = somarDias(intervalo.inicio, -3), fim = somarDias(intervalo.fim, 3)
   const ler = async (tabela, campos, campoData, filtros = {}) => {
@@ -28,9 +29,28 @@ export async function buscarExistentes(supabase, { usuarioId, contexto, interval
     ])
     return [...r, ...d]
   }
-  if (contexto === 'fatura') return ler('compras_cartao', 'id, data_compra, valor_total, numero_parcelas, descricao, cartao_id', 'data_compra', { cartao_id: cartaoId })
+  if (contexto === 'fatura') {
+    let q = supabase.from('compras_cartao').select('id, data_compra, valor_total, numero_parcelas, descricao, cartao_id, competencia_fatura, credito_fatura').eq('usuario_id', usuarioId).gte('data_compra', ini).lte('data_compra', fim)
+    if (cartaoId) q = q.eq('cartao_id', cartaoId)
+    if (competenciaFatura) q = q.or(`competencia_fatura.is.null,competencia_fatura.eq.${competenciaFatura}`)
+    const { data, error } = await q
+    if (error) throw error
+    return normalizarComprasExistentesFatura(data || [], competenciaFatura, diaFechamento)
+  }
   if (contexto === 'beneficios') return ler('beneficios_movimentacoes', 'id, data, valor, tipo, descricao, beneficio_id', 'data', { beneficio_id: beneficioId })
   return ler('investimentos_movimentacoes', 'id, data, valor, tipo, descricao, investimento_id', 'data', { investimento_id: investimentoId })
+}
+
+// Uma compra manual parcelada só concilia com a parcela do ciclo selecionado.
+export function normalizarComprasExistentesFatura(linhas, competencia, diaFechamento) {
+  if (!competencia || !diaFechamento) return normalizarExistentes('compras_cartao', linhas)
+  const [ano, mes] = competencia.split('-').map(Number)
+  return linhas.flatMap(linha => {
+    const parcela = parcelaCompraNoMes(linha, diaFechamento, ano, mes)
+    if (!parcela) return []
+    const [registro] = normalizarExistentes('compras_cartao', [linha])
+    return [{ ...registro, valores: [Math.round(Math.abs(parcela.valor) * 100)] }]
+  })
 }
 
 // registros: saída de montarRegistros(). Grava em lotes; continua nos outros

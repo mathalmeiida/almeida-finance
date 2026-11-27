@@ -1392,7 +1392,7 @@ function interpretarFaturaBradesco(
       ehEstorno: estorno,
 
       ativo: null,
-      revisar: true,
+      revisar: Boolean(ocr || (estorno && valor > 0) || parcela),
 
       sinalIncerto:
         natureza === 'estorno' &&

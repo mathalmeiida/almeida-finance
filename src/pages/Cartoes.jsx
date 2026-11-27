@@ -330,7 +330,7 @@ function FormFatura({ cartao, faturaInicial, refData, onSalvar, onCancelar, carr
   )
 }
 // ─── Visão: Ver fatura de um cartão (atual ou projetada) ──────────────────────
-function VerFatura({ cartao, onVoltar, onEditarCartao, onFaturasAlteradas }) {
+function VerFatura({ cartao, onVoltar, onEditarCartao, onFaturasAlteradas, referenciaInicial }) {
   // Hooks UX
   const { notificar } = useNotificacao()
   const { tratarErro } = useErroAmigavel()
@@ -356,7 +356,7 @@ const [versaoResumo, setVersaoResumo] = useState(0)
 const pagamentoEmCurso = useRef(false)
 
 // Mês/ano exibido: começa no atual; "Próximas faturas" muda isto
-  const [refData, setRefData] = useState({ ano: anoAtual, mes: mesAtual })
+  const [refData, setRefData] = useState(referenciaInicial || { ano: anoAtual, mes: mesAtual })
 // Categoria expandida (mostra os lançamentos dela ao tocar). null = nenhuma.
   const [categoriaAberta, setCategoriaAberta] = useState(null)
 // Visão da seção "Meus gastos": 'categoria' (padrão) ou 'data'.
@@ -1140,7 +1140,7 @@ function CardCartao({ cartao, compras, parcelamentos = [], faturasInformadas = [
       </div>
       <div className="grid grid-cols-3 gap-2 mt-4 text-center">
         <div>
-          <p className="text-xs text-gray-400">Fatura do mês</p>
+          <p className="text-xs text-gray-400">Fatura selecionada</p>
           <p className="text-sm font-bold text-marca">{formatCurrency(fatura)}</p>
         </div>
         <div>
@@ -1171,11 +1171,12 @@ export default function Cartoes() {
   const { tratarErro } = useErroAmigavel()
   
   const { cartoes, carregando, criar, atualizar, remover } = useCartoes()
-  const { compras } = useComprasCartao() //todas as compras (para resumo e cards)
+  const { compras, recarregar: recarregarComprasLista } = useComprasCartao() //todas as compras (para resumo e cards)
   const { parcelamentos } = useParcelamentos()
   const { faturas: faturasInformadas, recarregar: recarregarFaturasLista } = useFaturasCartao() //totais informados
   const [modalCartao, setModalCartao] = useState(false)
   const [modalImportacao, setModalImportacao] = useState(false)
+  const [referencia, setReferencia] = useState({ ano: anoAtual, mes: mesAtual })
   const [cartaoEditando, setCartaoEditando] = useState(null)
   const [salvando, setSalvando] = useState(false)
   const [removendo, setRemovendo] = useState(null)
@@ -1203,7 +1204,7 @@ export default function Cartoes() {
   const parcelamentosPorCartao = (cartaoId) => parcelamentos.filter(p => p.cartao_id === cartaoId)
 // Fatura do mês atual de um cartão RESPEITANDO o total informado (override).
   const faturaMesAtualCartao = (c) => totalFaturaComOverride(
-    comprasPorCartao(c.id), parcelamentosPorCartao(c.id), faturasInformadas, c.id, c.dia_fechamento, anoAtual, mesAtual
+    comprasPorCartao(c.id), parcelamentosPorCartao(c.id), faturasInformadas, c.id, c.dia_fechamento, referencia.ano, referencia.mes
   )
 // Resumo — usa o override (total informado substitui a soma no mês).
   const faturasMes = cartoes.reduce((acc, c) => acc + faturaMesAtualCartao(c), 0)
@@ -1250,7 +1251,7 @@ export default function Cartoes() {
   }
 // Visão de fatura de um cartão
   if (faturaAberta) {
-    return <VerFatura key={faturaAberta.id} onFaturasAlteradas={recarregarFaturasLista} cartao={faturaAberta} onVoltar={fecharFatura} onEditarCartao={() => { fecharFatura(); abrirEdicao(faturaAberta) }} />
+    return <VerFatura referenciaInicial={referencia} key={faturaAberta.id} onFaturasAlteradas={recarregarFaturasLista} cartao={faturaAberta} onVoltar={fecharFatura} onEditarCartao={() => { fecharFatura(); abrirEdicao(faturaAberta) }} />
   }
   return (
     <div className="af-container space-y-6">
@@ -1267,6 +1268,11 @@ export default function Cartoes() {
             <Plus size={16} /> Adicionar cartão
           </button>
         </div>
+      </div>
+      <div className="flex items-center justify-center gap-3">
+        <button type="button" className="btn-secondary" aria-label="Mês anterior" onClick={() => setReferencia(r => somaMeses(r.ano, r.mes, -1))}>‹</button>
+        <label className="text-sm font-medium">Fechamento: <input aria-label="Mês de referência" className="input w-auto" type="month" value={anoMesChave(referencia.ano, referencia.mes)} onChange={e => { if (!e.target.value) return; const [ano, mes] = e.target.value.split('-').map(Number); setReferencia({ano, mes}) }} /></label>
+        <button type="button" className="btn-secondary" aria-label="Próximo mês" onClick={() => setReferencia(r => somaMeses(r.ano, r.mes, 1))}>›</button>
       </div>
       {/* Resumo */}
       {/* Indicadores: no celular, "Faturas do mês" e "Limite total" em 2 colunas
@@ -1355,10 +1361,17 @@ export default function Cartoes() {
       </Modal>
 
       {/* Modal: Importação de Faturas */}
-      <Modal aberto={modalImportacao} onFechar={() => setModalImportacao(false)} titulo="Importar Fatura" tamanho="lg">
+      <Modal aberto={modalImportacao} onFechar={() => { setModalImportacao(false); recarregarComprasLista(); recarregarFaturasLista() }} titulo="Importar Fatura" tamanho="xl">
         <ImportacaoInteligente
           embutido
-          onConcluir={() => setModalImportacao(false)}
+          onConcluir={async resultado => {
+            setModalImportacao(false)
+            if (resultado?.competenciaFatura) {
+              const [ano, mes] = resultado.competenciaFatura.split('-').map(Number)
+              setReferencia({ ano, mes })
+            }
+            await Promise.all([recarregarComprasLista(), recarregarFaturasLista()])
+          }}
           onCancelar={() => setModalImportacao(false)}
         />
       </Modal>
