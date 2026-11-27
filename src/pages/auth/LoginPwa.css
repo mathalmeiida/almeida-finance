@@ -1,0 +1,32 @@
+/* Login: paint the entire viewport without affecting authenticated screens. */
+html:has(.af-login-page), html:has(.af-login-page) body, html:has(.af-login-page) #root {
+  background-color: #350918;
+}
+.af-login-page {
+  box-sizing: border-box;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-top: max(24px, calc(env(safe-area-inset-top, 0px) + 16px));
+  padding-bottom: max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px));
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+@media (display-mode: standalone) and (max-width: 767px) {
+  .af-login-page { align-items: flex-start; }
+  .af-login-mobile-brand { margin-bottom: 20px; }
+  .af-login-card { padding: 20px; }
+  .af-login-card > p { margin-bottom: 20px; }
+  .af-login-privacy { margin-top: 20px; padding-top: 14px; }
+  .af-login-features { margin-top: 20px; }
+  .af-login-features li { padding: 10px; }
+}
+/* iOS can report zero safe-area values in standalone; keep the brand below
+   the translucent status-bar region even in that case. */
+@supports (-webkit-touch-callout: none) {
+  @media (display-mode: standalone) and (max-width: 767px) and (orientation: portrait) {
+    .af-login-page {
+      padding-top: max(76px, calc(env(safe-area-inset-top, 0px) + 24px));
+      padding-bottom: max(36px, calc(env(safe-area-inset-bottom, 0px) + 16px));
+    }
+  }
+}

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, AlertCircle, ShieldCheck, Wallet, Target, ShoppingCart, Sparkles, Smartphone, CheckCircle2, ArrowRight } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import Apresentacao from '../../components/Apresentacao'
+import './LoginPwa.css'
 
 const BENEFICIOS = [
   { icon: Wallet, titulo: 'Controle financeiro', desc: 'Acompanhe receitas, despesas, cartões e investimentos.' },
@@ -84,7 +85,7 @@ export default function Login() {
     return <Apresentacao onComecar={comecarAgora} onEntrar={concluirApresentacaoPublica} />
   }
   return (
-    <div className="relative isolate min-h-[100dvh] w-full overflow-x-hidden text-white flex items-center" style={{ background: 'radial-gradient(ellipse at 12% 5%, #7b1535 0%, transparent 43%), radial-gradient(ellipse at 0% 96%, #841634 0%, transparent 36%), linear-gradient(145deg,#42091b,#240611 72%,#350918)', paddingTop: 'max(24px, env(safe-area-inset-top))', paddingBottom: 'max(24px, env(safe-area-inset-bottom))' }}>
+    <div className="af-login-page relative isolate min-h-[100dvh] w-full overflow-x-hidden text-white flex items-center" style={{ background: 'radial-gradient(ellipse at 12% 5%, #7b1535 0%, transparent 43%), radial-gradient(ellipse at 0% 96%, #841634 0%, transparent 36%), linear-gradient(145deg,#42091b,#240611 72%,#350918)' }}>
       <Fundo />
       <div className="relative w-full max-w-[1440px] mx-auto px-4 sm:px-8 xl:px-16 grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] lg:gap-12 xl:gap-20 items-center">
         <aside className="hidden lg:flex flex-col gap-9 min-w-0">
@@ -102,8 +103,8 @@ export default function Login() {
           </ul>
         </aside>
         <main className="w-full max-w-[540px] mx-auto min-w-0">
-          <div className="lg:hidden mb-7"><Marca mobile /><p className="text-center text-sm text-[#f4d9df] mt-5">Suas finanças em um só lugar</p></div>
-          <div className="rounded-[26px] border border-white/60 shadow-2xl shadow-black/40 p-5 sm:p-9 text-[#32101d]" style={{background:'linear-gradient(155deg,#fffdfc,#f6eeed 70%,#efdddd)'}}>
+          <div className="af-login-mobile-brand lg:hidden mb-7"><Marca mobile /><p className="text-center text-sm text-[#f4d9df] mt-5">Suas finanças em um só lugar</p></div>
+          <div className="af-login-card rounded-[26px] border border-white/60 shadow-2xl shadow-black/40 p-5 sm:p-9 text-[#32101d]" style={{background:'linear-gradient(155deg,#fffdfc,#f6eeed 70%,#efdddd)'}}>
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Bem-vindo de volta</h2>
             <p className="text-sm sm:text-base text-[#65515a] mt-2 mb-7 leading-relaxed">Entre para continuar cuidando das suas finanças.</p>
             {erro && <div role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 text-red-800 text-sm p-3 mb-5"><AlertCircle size={18} className="shrink-0 mt-0.5"/><span>{erro}</span></div>}
@@ -119,7 +120,7 @@ export default function Login() {
               </div>
               <button type="submit" disabled={carregando} className="w-full rounded-xl py-4 flex items-center justify-center gap-3 text-lg font-bold text-white shadow-lg shadow-[#7c1336]/20 hover:brightness-110 active:brightness-95 disabled:opacity-60 disabled:cursor-not-allowed transition focus-visible:ring-2 focus-visible:ring-[#b32b55] focus-visible:ring-offset-2" style={{background:'linear-gradient(115deg,#a82950,#650c2a 60%,#420719)'}}>{carregando ? <><span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin motion-reduce:animate-none"/>Entrando...</> : <>Entrar <ArrowRight size={20}/></>}</button>
             </form>
-            <div className="border-t border-[#d9c6cb] mt-7 pt-5">
+            <div className="af-login-privacy border-t border-[#d9c6cb] mt-7 pt-5">
               <section className="rounded-2xl border border-white/80 bg-white/35 p-4 sm:p-5">
                 <div className="flex items-start gap-3"><ShieldCheck size={30} className="text-[#841c3c] shrink-0"/><div><h3 className="font-bold text-base sm:text-lg">Sua privacidade importa</h3><p className="text-xs sm:text-sm text-[#65515a] mt-1 leading-relaxed">Seus dados financeiros são pessoais e merecem proteção.</p></div></div>
                 <ul className="space-y-3 mt-4 text-xs sm:text-sm"><li className="flex items-start gap-2"><CheckCircle2 size={19} className="text-emerald-700 shrink-0"/><span>Controles de acesso protegem suas informações.</span></li><li className="flex items-start gap-2"><CheckCircle2 size={19} className="text-emerald-700 shrink-0"/><span>Você pode ocultar valores financeiros no aplicativo.</span></li></ul>
@@ -128,7 +129,7 @@ export default function Login() {
           </div>
           <p className="text-center text-sm sm:text-base mt-6 text-[#f5e1e5]">Não tem conta?{' '}<Link to="/cadastro" className="font-bold text-white underline underline-offset-4">Criar conta gratuita</Link></p>
           <div className="flex items-center justify-center gap-3 mt-5"><span className="h-px flex-1 max-w-16 bg-[#b94f70]/60"/><button type="button" onClick={() => setMostrarApresentacao(true)} className="text-sm font-semibold text-[#f0cbd3] hover:text-white hover:underline">Conhecer o Almeida Finance</button><span className="h-px flex-1 max-w-16 bg-[#b94f70]/60"/></div>
-          <ul className="grid grid-cols-2 gap-2 mt-8 lg:hidden">{BENEFICIOS.map(b => <li key={b.titulo} className="flex items-center gap-2 border border-white/10 bg-white/5 rounded-xl p-3 min-w-0"><b.icon size={18} className="shrink-0 text-[#f4d2b5]"/><span className="text-xs text-white/90">{b.titulo}</span></li>)}</ul>
+          <ul className="af-login-features grid grid-cols-2 gap-2 mt-8 lg:hidden">{BENEFICIOS.map(b => <li key={b.titulo} className="flex items-center gap-2 border border-white/10 bg-white/5 rounded-xl p-3 min-w-0"><b.icon size={18} className="shrink-0 text-[#f4d2b5]"/><span className="text-xs text-white/90">{b.titulo}</span></li>)}</ul>
         </main>
       </div>
     </div>
