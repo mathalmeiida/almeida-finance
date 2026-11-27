@@ -1,0 +1,11 @@
+ALMEIDA FINANCE - CORREÇÃO DE FATURAS
+Pacote incremental: contém somente arquivos novos ou alterados.
+1. Faça backup da pasta do projeto antes de extrair o ZIP na raiz (onde está package.json).
+2. Aplique a migration supabase/migrations/202611270001_competencia_importacao_fatura.sql no Supabase DEV antes de testar. Não altera as políticas RLS.
+3. No CMD, execute node tests/importacao-competencia-fatura.test.mjs, node tests/fatura-cartao.test.mjs, node tests/importacao.test.mjs e node tests/conciliacao.test.mjs. Depois npm run build e npm run dev.
+4. Teste com uma conta de teste, confira total líquido, estornos, mês de fechamento, reimportação e atualização da tela. Não publique sem validar o banco e o navegador.
+5. Aplique a mesma migration em produção somente antes de uma publicação aprovada.
+
+Competência representa mês de fechamento (ex.: 20/11 com vencimento 01/12 = novembro). A data original é preservada. Cada parcela importada representa apenas o ciclo selecionado; não projeta automaticamente parcelas futuras. Créditos reduzem a fatura. Pagamentos não viram novas compras. Faturas já pagas ou parciais precisam de conferência no módulo de pagamentos; não há quitação automática. Registros antigos não foram reclassificados; revise antes de reimportar. A conciliação integral do valor oficial, desfazer integral e categorização histórica não estão completas. A gravação continua em lotes.
+
+Testes de importação, conciliação, cálculos de faturas e novo teste de 24 asserções aprovados. A suíte de PDF apresentou 6 falhas em cenários de extrato e mensagem de erro, reproduzidas também no ZIP original. Build, navegador e banco real não foram validados neste ambiente. Limites e projeções dependem de parcelas futuras cadastradas e da quitação correta.

@@ -1,0 +1,360 @@
+diff --git a/src/components/CalendarioFinanceiroHome.jsx b/src/components/CalendarioFinanceiroHome.jsx
+index d31d890..8f0fd5c 100644
+--- a/src/components/CalendarioFinanceiroHome.jsx
++++ b/src/components/CalendarioFinanceiroHome.jsx
+@@ -208,8 +208,8 @@ export default function CalendarioFinanceiroHome({
+           <span className="ml-1 h-2 w-2 rounded-full bg-accent" /> Faturas
+         </div>
+       </header>
+-      <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-5">
+-        <div className="min-w-0 xl:col-span-3">
++      <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-5">
++        <div className="min-w-0 lg:col-span-3">
+           <div className="af-month-bar mb-3 flex items-center justify-between rounded-xl border border-marca bg-slate-900 px-2 py-2 text-marca"
+               style={{ backgroundColor: 'color-mix(in srgb, currentColor 12%, #111827)' }}>
+             <button type="button" aria-label="Mês anterior" onClick={() => mudarMes(-1)}
+@@ -270,7 +270,7 @@ export default function CalendarioFinanceiroHome({
+             Números: saldo projetado abreviado · Verde: receitas · Vermelho: despesas (fixas e variáveis) · Azul: faturas de cartão · Traço: sem projeção ou data passada.
+           </p>
+         </div>
+-        <aside className="af-day-details min-w-0 rounded-xl border border-marca bg-slate-900/80 p-3 text-marca sm:p-4 xl:col-span-2"
++        <aside className="af-day-details min-w-0 rounded-xl border border-marca bg-slate-900/80 p-3 text-marca sm:p-4 lg:col-span-2"
+           style={{ backgroundColor: 'color-mix(in srgb, currentColor 13%, #111827)' }} aria-label="Detalhes do dia selecionado">
+           <div className="mb-3 flex items-center gap-2 text-marca">
+             <CalendarClock size={17} />
+diff --git a/src/pages/Beneficios.jsx b/src/pages/Beneficios.jsx
+index ffd0f74..8913e7e 100644
+--- a/src/pages/Beneficios.jsx
++++ b/src/pages/Beneficios.jsx
+@@ -2,7 +2,7 @@
+ import { useSearchParams, Link } from 'react-router-dom'
+ import {
+   UtensilsCrossed, ShoppingBag, Plus, Pencil, Trash2, Loader2, ArrowLeft,
+-  ArrowDownCircle, ArrowUpCircle, RotateCcw, SlidersHorizontal, Upload,
++  ArrowDownCircle, ArrowUpCircle, RotateCcw, SlidersHorizontal,
+ } from 'lucide-react'
+ import { useBeneficios } from '../hooks/useBeneficios'
+ import { useAuth } from '../contexts/AuthContext'
+@@ -11,7 +11,7 @@ import { formatCurrency, exibirMoeda, hojeISO, formatDate } from '../lib/utils'
+ import Modal from '../components/Modal'
+ import InputMoeda from '../components/InputMoeda'
+ import { supabase } from '../lib/supabase'
+-import ImportacaoInteligente from './ImportacaoInteligente'
++
+ // Rótulos dos tipos de movimentação (visual).
+ const TIPO_MOV = {
+   compra:  { label: 'Compra',  icon: ArrowDownCircle, cor: 'text-red-500' },
+@@ -452,7 +452,6 @@ export default function Beneficios() {
+     finally { setSalvandoExtra(false) }
+   }
+   const [modalBeneficio, setModalBeneficio] = useState(false)
+-  const [modalImportacao, setModalImportacao] = useState(false)
+   const [editando, setEditando] = useState(null)       // benefício em edição
+   const [ajustandoSaldo, setAjustandoSaldo] = useState(null)
+   const [gastoRapidoDe, setGastoRapidoDe] = useState(null)
+@@ -535,10 +534,6 @@ export default function Beneficios() {
+         </div>
+         {!somenteLeitura && (
+           <div className="flex items-center gap-2">
+-            <button onClick={() => setModalImportacao(true)}
+-              className="btn-secondary flex items-center gap-2 flex-shrink-0 text-sm">
+-              <Upload size={16} /> Importar
+-            </button>
+             <button onClick={() => { setEditando(null); setModalBeneficio(true) }}
+               className="btn-primary flex items-center gap-2 flex-shrink-0 text-sm">
+               <Plus size={16} /> Novo
+@@ -690,10 +685,6 @@ export default function Beneficios() {
+         })()}
+       </Modal>
+ 
+-      <Modal aberto={modalImportacao} onFechar={() => setModalImportacao(false)} titulo="Importar Documentos Financeiros" tamanho="lg">
+-        <ImportacaoInteligente embutido onConcluir={() => setModalImportacao(false)} onCancelar={() => setModalImportacao(false)} />
+-      </Modal>
+-
+     </div>
+   )
+ }
+\ No newline at end of file
+diff --git a/src/pages/Calendario.jsx b/src/pages/Calendario.jsx
+index 259254c..bfbc0c8 100644
+--- a/src/pages/Calendario.jsx
++++ b/src/pages/Calendario.jsx
+@@ -5,6 +5,9 @@ import { useProjecao } from '../hooks/useProjecao'
+ import { useDespesas } from '../hooks/useDespesas'
+ import { useReceitas } from '../hooks/useReceitas'
+ import { useCartoes } from '../hooks/useCartoes'
++import { useParcelamentos } from '../hooks/useParcelamentos'
++import { useComprasCartao } from '../hooks/useComprasCartao'
++import { useFaturasCartao } from '../hooks/useFaturasCartao'
+ import { useFamilyGroups } from '../hooks/useFamilyGroups'
+ import { useFamilyExpenseSplits } from '../hooks/useFamilyExpenseSplits'
+ import { useAuth } from '../contexts/AuthContext'
+@@ -29,6 +32,9 @@ export default function Calendario() {
+   const { despesas: despesasMes, recorrentes: despesasRecorrentes } = useDespesas(mes, ano)
+   const { receitas: receitasMes, recorrentes: receitasRecorrentes } = useReceitas(mes, ano)
+   const { cartoes } = useCartoes()
++  const { parcelamentos } = useParcelamentos()
++  const { compras: comprasCartao } = useComprasCartao()
++  const { faturas: faturasInformadas } = useFaturasCartao()
+   const { projecao } = useProjecao()
+   
+   // Verifica acesso Premium ANTES de executar hooks Família
+@@ -44,9 +50,6 @@ export default function Calendario() {
+   const horizonte = useMemo(() => {
+     if (!idEfetivo) return []
+     
+-    const inicio = new Date(ano, mes - 1, 1)
+-    const fim = new Date(ano, mes, 0)
+-    
+     // Se modo família, usar divisões em vez de despesas pessoais
+     const despesasCalendario = modoFamilia && divisoes && divisoes.length > 0
+       ? divisoes.map(d => {
+@@ -69,16 +72,17 @@ export default function Calendario() {
+       : despesasMes
+     
+     return gerarHorizonte({
+-      dataInicio: inicio.toISOString().slice(0, 10),
+-      dataFim: fim.toISOString().slice(0, 10),
+       despesas: despesasCalendario,
+-      despesasRecorrentes: modoFamilia ? [] : despesasRecorrentes,
++      recorrentes: modoFamilia ? [] : despesasRecorrentes,
+       receitas: modoFamilia ? [] : receitasMes,
+-      receitasRecorrentes: modoFamilia ? [] : receitasRecorrentes,
++      parcelamentos: modoFamilia ? [] : (parcelamentos || []),
+       cartoes: modoFamilia ? [] : cartoes,
+-      perfil: null,
++      comprasCartao: modoFamilia ? [] : (comprasCartao || []),
++      faturasInformadas: modoFamilia ? [] : (faturasInformadas || []),
++      meses: 3,
+     })
+-  }, [idEfetivo, ano, mes, modoFamilia, divisoes, despesasMes, despesasRecorrentes, receitasMes, receitasRecorrentes, cartoes, user])
++  }, [idEfetivo, ano, mes, modoFamilia, divisoes, despesasMes, despesasRecorrentes,
++      receitasMes, receitasRecorrentes, parcelamentos, cartoes, comprasCartao, faturasInformadas, user])
+   
+   const mesNome = mesVisivel.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+   
+@@ -152,7 +156,7 @@ export default function Calendario() {
+         </div>
+       </div>
+       
+-      <div className="max-w-7xl mx-auto p-4">
++      <div className="max-w-[1200px] mx-auto p-4">
+         <CalendarioFinanceiroHome
+           horizonte={horizonte}
+           mesVisivel={mesVisivel}
+diff --git a/src/pages/Configuracoes.jsx b/src/pages/Configuracoes.jsx
+index ff5b6a4..d18a30b 100644
+--- a/src/pages/Configuracoes.jsx
++++ b/src/pages/Configuracoes.jsx
+@@ -204,7 +204,7 @@ export function ConfigurarBiometria() {
+         setSuportaBio(suporta)
+ 
+         // Lista credenciais existentes do usuário
+-        if (usuario && suporta) {
++        if (usuario && suporta && supabase.auth?.passkey?.list) {
+           const { data, error } = await supabase.auth.passkey.list()
+           if (!error && data) {
+             setCredenciais(data.all_passkey_identities || [])
+@@ -224,6 +224,9 @@ export function ConfigurarBiometria() {
+     setErro('')
+     setRegistrando(true)
+     try {
++      if (!supabase.auth?.passkey?.startRegistration) {
++        throw new Error('Passkeys não disponível nesta versão. Tente atualizar o app.')
++      }
+       // Usa API nativa do Supabase para registrar passkey
+       const { data, error } = await supabase.auth.passkey.startRegistration({
+         // Opcionalmente, pode passar um nome personalizado:
+@@ -247,6 +250,7 @@ export function ConfigurarBiometria() {
+ 
+   async function removerCredencial(id) {
+     try {
++      if (!supabase.auth?.passkey?.delete) throw new Error('API de passkeys não disponível')
+       const { error } = await supabase.auth.passkey.delete({ id })
+       if (error) throw error
+       setCredenciais(prev => prev.filter(c => c.id !== id))
+diff --git a/src/pages/CustoDeVida.jsx b/src/pages/CustoDeVida.jsx
+index 0e7b828..4e1d73b 100644
+--- a/src/pages/CustoDeVida.jsx
++++ b/src/pages/CustoDeVida.jsx
+@@ -5,15 +5,13 @@ import {
+   Loader2, AlertCircle, BarChart2, PieChart, Info, ArrowLeft
+ } from 'lucide-react'
+ import { useCustoDeVida } from '../hooks/useCustoDeVida'
+-import { formatCurrency } from '../lib/utils'
++import { formatCurrency, partesHojeBrasil } from '../lib/utils'
+ import { 
+   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, 
+   ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, Legend 
+ } from 'recharts'
+ 
+-const hoje = new Date()
+-const mesAtual = hoje.getMonth() + 1
+-const anoAtual = hoje.getFullYear()
++const { ano: anoAtual, mes: mesAtual } = partesHojeBrasil()
+ 
+ // Cores para o gráfico de pizza
+ const CORES_CATEGORIAS = [
+diff --git a/src/pages/Dashboard.jsx b/src/pages/Dashboard.jsx
+index d01ebe8..9792f47 100644
+--- a/src/pages/Dashboard.jsx
++++ b/src/pages/Dashboard.jsx
+@@ -29,7 +29,7 @@ import HorizonteFinanceiro from '../components/HorizonteFinanceiro'
+ import { gerarHorizonte } from '../lib/horizonteFinanceiro'
+ import CalendarioFinanceiroHome from '../components/CalendarioFinanceiroHome'
+ import AtalhosHome from '../components/AtalhosHome'
+-import ImportacaoInteligente from '../pages/ImportacaoInteligente'
++
+ import { useMetas } from '../hooks/useMetas'
+ import FotoPerfil from '../components/FotoPerfil'
+ import SeletorFotoPerfil from '../components/SeletorFotoPerfil'
+@@ -2094,7 +2094,6 @@ export default function Dashboard() {
+   }
+   const [dataGastoCalendario, setDataGastoCalendario] = useState(null)
+   const [modalGasto, setModalGasto] = useState(false)
+-  const [modalImportacao, setModalImportacao] = useState(false)
+   const [salvandoGasto, setSalvandoGasto] = useState(false)
+   const salvamentoGastoEmAndamento = useRef(false)
+   const [erroGasto, setErroGasto] = useState('')
+@@ -3230,7 +3229,7 @@ const carregandoLimite = carregando
+ 
+       {/* Modal: Calendário financeiro (preservado, mas não aberto pelo card da Home). Reutiliza o MESMO componente e os mesmos dados —
+           nenhum cálculo novo, nada removido. */}
+-      <Modal aberto={modalCalendario} onFechar={() => setModalCalendario(false)} titulo="Calendário financeiro">
++      <Modal aberto={modalCalendario} onFechar={() => setModalCalendario(false)} titulo="Calendário financeiro" tamanho="xl">
+         {!carregando && (
+           <CalendarioFinanceiroHome
+             receitas={receitasCalendario}
+@@ -3486,10 +3485,6 @@ dataReferencia={hojeISO}
+         salvando={salvandoSaldo}
+       />
+ 
+-      <Modal aberto={modalImportacao} onFechar={() => setModalImportacao(false)} titulo="Importar Documentos Financeiros" tamanho="lg">
+-        <ImportacaoInteligente embutido onConcluir={() => setModalImportacao(false)} onCancelar={() => setModalImportacao(false)} />
+-      </Modal>
+-
+       {/* Modal de editar foto */}
+       {modalEditarFoto && (
+         <Modal 
+diff --git a/src/pages/Despesas.jsx b/src/pages/Despesas.jsx
+index 54e9b0f..bd37a58 100644
+--- a/src/pages/Despesas.jsx
++++ b/src/pages/Despesas.jsx
+@@ -1,6 +1,6 @@
+ import React, { useState, useEffect } from 'react'
+ import { Link, useSearchParams } from 'react-router-dom'
+-import { TrendingDown, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, CreditCard, CheckCircle2, ChevronDown, ChevronUp, CalendarClock, Zap, Lightbulb, Target, Wallet, ArrowDownRight, Upload } from 'lucide-react'
++import { TrendingDown, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, CreditCard, CheckCircle2, ChevronDown, ChevronUp, CalendarClock, Zap, Lightbulb, Target, Wallet, ArrowDownRight } from 'lucide-react'
+ import { useDespesas } from '../hooks/useDespesas'
+ import { supabase } from '../lib/supabase'
+ import { useAuth } from '../contexts/AuthContext'
+@@ -14,7 +14,7 @@ import { useProjecao } from '../hooks/useProjecao'
+ import Modal from '../components/Modal'
+ import InputMoeda from '../components/InputMoeda'
+ import ModalAnteciparPagamento from '../components/ModalAnteciparPagamento'
+-import ImportacaoInteligente from './ImportacaoInteligente'
++
+ import { formatCurrency, formatDate, corCategoria, FORMAS_PAGAMENTO, formaPagamentoLabel, hojeISO } from '../lib/utils'
+ import { classificarDespesa, labelTipoDespesa } from '../lib/classificarDespesa'
+ import { FormParcelamento, CardParcelamento } from '../components/ParcelamentosShared'
+@@ -1281,7 +1281,6 @@ export default function Despesas() {
+   const [ordemDespesas, setOrdemDespesas] = useState('maior')
+   const [ordemParceladas, setOrdemParceladas] = useState('maior_saldo')
+   const [modalAberto, setModalAberto] = useState(false)
+-  const [modalImportacao, setModalImportacao] = useState(false)
+   const [salvando, setSalvando] = useState(false)
+   const [salvandoParc, setSalvandoParc] = useState(false)
+   const [removendo, setRemovendo] = useState(null)
+@@ -1698,10 +1697,6 @@ export default function Despesas() {
+         </div>
+         <div className="flex gap-2">
+           <BotaoOcultarValores tamanho="md" variante="ghost" />
+-          <button onClick={() => setModalImportacao(true)}
+-            className="btn-secondary flex items-center gap-2">
+-            <Upload size={16} /> Importar
+-          </button>
+           <button onClick={handleAbrirNova}
+             className="btn-primary flex items-center gap-2">
+             <Plus size={16} /> Nova despesa
+@@ -2312,19 +2307,6 @@ export default function Despesas() {
+         salvando={antecipando}
+       />
+ 
+-      {/* Modal: Importação de despesas */}
+-      <Modal aberto={modalImportacao} onFechar={() => setModalImportacao(false)} titulo="Importar Despesas" tamanho="lg">
+-        <ImportacaoInteligente
+-          embutido
+-          onConcluir={() => {
+-            setModalImportacao(false)
+-            // Recarrega todas as despesas para atualizar lista
+-            recarregarTodos().catch(e => console.warn('Falha ao recarregar:', e))
+-          }}
+-          onCancelar={() => setModalImportacao(false)}
+-        />
+-      </Modal>
+-
+       <BarraDesfazer />
+     </div>
+   )
+diff --git a/src/pages/Receitas.jsx b/src/pages/Receitas.jsx
+index d685948..ce9df30 100644
+--- a/src/pages/Receitas.jsx
++++ b/src/pages/Receitas.jsx
+@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
+ 
+ import { useSearchParams } from 'react-router-dom'
+ 
+-import { TrendingUp, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, BarChart3, Upload } from 'lucide-react'
++import { TrendingUp, Plus, RefreshCw, Calendar, Trash2, Loader2, Pencil, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, BarChart3 } from 'lucide-react'
+ 
+ import { useReceitas } from '../hooks/useReceitas'
+ 
+@@ -22,7 +22,7 @@ import Modal from '../components/Modal'
+ 
+ import InputMoeda from '../components/InputMoeda'
+ 
+-import ImportacaoInteligente from './ImportacaoInteligente'
++
+ 
+ import BotaoOcultarValores from '../components/BotaoOcultarValores'
+ 
+@@ -324,7 +324,6 @@ export default function Receitas() {
+   const { receitas, recorrentes, total, carregando, erro, criar, atualizar, remover } = useReceitas(ref.mes, ref.ano)
+ 
+   const [modalAberto, setModalAberto] = useState(false)
+-  const [modalImportacao, setModalImportacao] = useState(false)
+ 
+   const [salvando, setSalvando] = useState(false)
+ 
+@@ -591,9 +590,6 @@ export default function Receitas() {
+         <div className="flex flex-wrap gap-2">
+           {/* ✅ Botão ocultar valores */}
+           <BotaoOcultarValores tamanho="md" variante="ghost" />
+-          <button type="button" onClick={() => setModalImportacao(true)} className="btn-secondary flex items-center gap-2 whitespace-nowrap">
+-            <Upload size={16} /> Importar
+-          </button>
+           <button type="button" onClick={handleAbrirNova} className="btn-primary flex items-center gap-2 whitespace-nowrap">
+             <Plus size={16} /> Nova receita
+           </button>
+@@ -747,21 +743,6 @@ export default function Receitas() {
+           textoBotao={receitaEditando ? 'Salvar alterações' : 'Salvar receita'}/>
+       </Modal>
+ 
+-      {/* Modal de Importação */}
+-      <Modal aberto={modalImportacao} onFechar={() => setModalImportacao(false)} titulo="Importar Receitas" tamanho="lg">
+-        <ImportacaoInteligente
+-          embutido
+-          onConcluir={() => {
+-            setModalImportacao(false)
+-            // Recarrega receitas do mês atual
+-            if (ref.mes !== mesAtual || ref.ano !== anoAtual) {
+-              setRef({ mes: mesAtual, ano: anoAtual })
+-            }
+-          }}
+-          onCancelar={() => setModalImportacao(false)}
+-        />
+-      </Modal>
+-
+       {/* Barra de desfazer ações */}
+       <BarraDesfazer />
+     </div>
