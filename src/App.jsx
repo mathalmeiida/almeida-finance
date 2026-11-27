@@ -387,13 +387,13 @@ function AreaAutenticada({ children }) {
 
 function RotaAdmin({ children }) {
 
-  const { usuario, perfil, ehAdmin } = useAuth()
+  const { usuario, perfil, ehAdmin, modoConsultoria } = useAuth()
 
   // Perfil ainda carregando (usuário autenticado mas perfil não chegou).
 
   if (usuario && perfil == null) return <Carregando />
 
-  if (!ehAdmin) return <Navigate to="/" replace />
+  if (!ehAdmin || modoConsultoria) return <Navigate to="/" replace />
 
   return children
 
@@ -461,6 +461,7 @@ function Rotas() {
               {/* Rever apresentação: fullscreen, FORA do Layout (sem menu em
                   volta), como no 1º acesso. Não reinicia o onboarding. */}
               <Route path="/apresentacao" element={<ReverApresentacao />} />
+              <Route path="/admin" element={<RotaAdmin><Admin /></RotaAdmin>} />
 
               <Route path="/*" element={
 
@@ -529,7 +530,7 @@ function Rotas() {
 
                 <Route path="/configuracoes" element={<Configuracoes />} />
 
-                <Route path="/admin" element={<RotaAdmin><Admin /></RotaAdmin>} />
+
                 <Route path="/admin/whatsapp" element={<RotaAdmin><AdminWhatsApp /></RotaAdmin>} />
 
                 <Route path="*" element={<Navigate to="/" replace />} />

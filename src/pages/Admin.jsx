@@ -16,7 +16,7 @@ import {
 
 import { useAdminUsuarios } from '../hooks/useAdminUsuarios'
 
-import { useConsultoriaInteresses } from '../hooks/useConsultoria'
+import { useConsultoriaInteresses, useAgendamentos } from '../hooks/useConsultoria'
 
 import { useConsultoriaAcessos } from '../hooks/useConsultoriaAcessos'
 
@@ -30,6 +30,10 @@ import AdminConsultorias from './admin/AdminConsultorias'
 
 import AdminAgenda from './admin/AdminAgenda'
 
+import { LayoutDashboard, ArrowLeft, ChevronRight, CalendarDays, BriefcaseBusiness } from 'lucide-react'
+import { hojeISO } from '../lib/utils'
+import './admin/AdminPro.css'
+import FichaCliente, { MeusClientes } from './admin/FichaCliente'
 import AdminFeedbacks from './admin/AdminFeedbacks'
   // Rótulo do status de acesso de consultoria de um cliente (visão do consultor).
 function BadgeAcessoConsultoria({ status }) {
@@ -390,7 +394,7 @@ export default function Admin() {
 
   const { usuarios, carregando, erro, metricas, desativar, reativar, reiniciarOnboarding } = useAdminUsuarios()
   // Interesses de consultoria — FONTE ÚNICA, compartilhada com a aba  // Consultorias (via props). Assim o badge e a lista usam o MESMO array:  // mudar o status atualiza o indicador na hora, sem precisar recarregar.
-  const { interesses, carregando: carregandoInteresses, atualizarStatus } = useConsultoriaInteresses()
+  const { interesses, carregando: carregandoInteresses, erro: erroInteresses, atualizarStatus } = useConsultoriaInteresses()
 
   const novasSolicitacoes = interesses.filter(i => i.status === 'novo').length
   // Feedbacks — fonte única compartilhada com a aba Feedbacks (badge + lista).
@@ -399,6 +403,7 @@ export default function Admin() {
     feedbacks,
 
     carregando: carregandoFeedbacks,
+    erro: erroFeedbacks,
 
     atualizarStatus: atualizarStatusFeedback,
 
@@ -406,7 +411,7 @@ export default function Admin() {
 
   const novosFeedbacks = feedbacks.filter(f => f.status === 'novo').length
   // Acessos de consultoria (autorizações). statusPorCliente: clienteId → linha.
-  const { statusPorCliente, solicitarAcesso, cancelarSolicitacao } = useConsultoriaAcessos()
+  const { statusPorCliente, solicitarAcesso, cancelarSolicitacao, carregando: carregandoAcessos, erro: erroAcessos } = useConsultoriaAcessos()
 
 
 
@@ -459,7 +464,8 @@ export default function Admin() {
     URL.revokeObjectURL(url)
   }
 
-  const [aba, setAba] = useState('usuarios') // 'usuarios' | 'consultorias' | 'agenda'
+  const [fichaAlvo, setFichaAlvo] = useState(null)
+  const [aba, setAba] = useState('visao') // 'usuarios' | 'consultorias' | 'agenda'
   // Interesse selecionado para virar agendamento (passa da aba Consultorias → Agenda).
   const [interesseParaAgendar, setInteresseParaAgendar] = useState(null)
 
@@ -550,9 +556,11 @@ export default function Admin() {
 
 
   const ABAS = [
+    { id: 'visao', label: 'Visão geral', icon: LayoutDashboard },
+    { id: 'clientes', label: 'Meus clientes', icon: Users },
 
-    { id: 'usuarios',     label: 'Usuários',     icon: Users },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'usuarios',     label: 'Gestão de usuários',     icon: Users },
+    { id: 'analytics', label: 'Indicadores', icon: BarChart3 },
 
     { id: 'consultorias', label: 'Consultorias', icon: MessageCircle, badge: novasSolicitacoes },
 
@@ -560,7 +568,7 @@ export default function Admin() {
 
     { id: 'feedbacks',    label: 'Feedbacks',    icon: MessageSquarePlus, badge: novosFeedbacks },
 
-    { id: 'whatsapp',     label: 'WhatsApp',     icon: MessageSquare },
+    { id: 'whatsapp',     label: 'WhatsApp Financeiro',     icon: MessageSquare },
 
   ]
 
@@ -638,49 +646,22 @@ export default function Admin() {
 
   return (
 
-    <div className="admin-dark space-y-6 text-slate-100 max-w-7xl mx-auto">
-      <style>{`
-        .admin-dark .card { background: #1d293b !important; border: 1px solid #344357 !important; box-shadow: none !important; color: #f1f5f9; }
-        .admin-dark .text-gray-900, .admin-dark .text-gray-800, .admin-dark .text-gray-700 { color: #f1f5f9 !important; }
-        .admin-dark .text-gray-600, .admin-dark .text-gray-500, .admin-dark .text-gray-400 { color: #aabbd0 !important; }
-        .admin-dark .bg-white, .admin-dark .bg-gray-50, .admin-dark .bg-gray-100 { background-color: #243246 !important; }
-        .admin-dark .border-gray-100, .admin-dark .border-gray-200, .admin-dark .divide-gray-50 > :not([hidden]) ~ :not([hidden]) { border-color: #344357 !important; }
-        .admin-dark tr:hover { background: rgba(100,116,139,.09); }
-        .admin-dark select option { background: #243246; color: white; }
-        .admin-dark input { color: #f1f5f9; }
-      `}</style>
-
-      <div className="flex items-center gap-2">
-
-        <ShieldCheck size={22} className="text-blue-400" />
-
-        <div>
-
-          <h1 className="text-2xl font-bold text-slate-100">Painel administrativo</h1>
-
-          <p className="text-sm text-gray-500">Gestão do Almeida Finance</p>
-
-        </div>
-
-      </div>
-
-
-
-      {/* Navegação por abas (rolável no mobile, sem scroll horizontal da página) */}
-
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-
+    <div className="af-admin-pro">
+      <aside className="af-admin-sidebar">
+        <div className="af-admin-brand"><img src="/branding/af-icone.png" alt=""/><div><strong>Almeida Finance</strong><small>Central administrativa</small></div></div>
+        <nav aria-label="Menu administrativo" className="af-admin-nav">
         {ABAS.map(t => (
 
           <button
 
             key={t.id}
+            aria-current={aba === t.id || (aba === "ficha" && t.id === "clientes") ? "page" : undefined}
 
             onClick={() => setAba(t.id)}
 
             className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
 
-              aba === t.id ? 'bg-marca text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+              (aba === t.id || (aba === 'ficha' && t.id === 'clientes')) ? 'bg-marca text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
 
             }`}
 
@@ -710,9 +691,19 @@ export default function Admin() {
 
         ))}
 
-      </div>
+        </nav>
+        <button className="af-admin-back" onClick={() => navigate('/')}><ArrowLeft size={17}/> Voltar ao app pessoal</button>
+      </aside>
+      <main className="af-admin-main space-y-5 min-w-0">
+        <header className="af-admin-heading">
+          <div><h1>Central administrativa</h1><p>Gerencie seus clientes, consultorias e resultados.</p></div>
+          <button className="btn-primary inline-flex items-center gap-2" onClick={() => setAba('consultorias')}><BriefcaseBusiness size={17}/> Consultorias</button>
+        </header>
+        {aba === 'visao' && <VisaoAdmin usuarios={usuarios} metricas={metricas} carregando={carregando} erro={erro} statusPorCliente={statusPorCliente} carregandoAcessos={carregandoAcessos} erroAcessos={erroAcessos} novasSolicitacoes={(carregandoInteresses || erroInteresses) ? null : novasSolicitacoes} novosFeedbacks={(carregandoFeedbacks || erroFeedbacks) ? null : novosFeedbacks} setAba={setAba} analisar={u => {setErroAcao('');setFichaAlvo(u);setAba('ficha')}} erroAcao={erroAcao}/>}
 
-
+        {aba === 'clientes' && <MeusClientes usuarios={usuarios} statusPorCliente={statusPorCliente} carregando={carregando || carregandoAcessos} erro={erro || erroAcessos} analisar={u=>{setErroAcao('');setFichaAlvo(u);setAba('ficha')}} solicitar={()=>setAba('usuarios')}/> }
+        {aba === 'ficha' && erroAcao && <p role="alert" className="card text-red-700">{erroAcao}</p>}
+        {aba === 'ficha' && fichaAlvo && <FichaCliente key={fichaAlvo.id} cliente={fichaAlvo} voltar={()=>setAba('clientes')} visualizar={visualizarComoCliente}/> }
 
       {/* ── Aba: Consultorias ── (recebe a FONTE ÚNICA de interesses) */}
 
@@ -736,7 +727,7 @@ export default function Admin() {
 
       {/* Aviso de novas solicitações — card no topo do painel (qualquer aba). */}
 
-      {novasSolicitacoes > 0 && aba !== 'consultorias' && (
+      {novasSolicitacoes > 0 && aba !== 'consultorias' && aba !== 'visao' && (
 
         <button
 
@@ -808,24 +799,24 @@ export default function Admin() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <section className="card space-y-4">
             <h2 className="text-lg font-semibold">Cadastros nos últimos 6 meses</h2>
-            <p className="text-sm text-slate-400">Quantidade mensal, calculada a partir das datas de cadastro disponíveis.</p>
+            <p className="text-sm text-gray-500">Quantidade mensal, calculada a partir das datas de cadastro disponíveis.</p>
             <div className="flex h-48 gap-3 items-end" role="img" aria-label="Gráfico de novos cadastros por mês">
               {crescimentoMensal.map((m, i) => <div key={`${m.mes}-${i}`} className="flex-1 h-full flex flex-col items-center justify-end gap-2 min-w-0">
-                <span className="text-xs font-semibold text-slate-200">{m.total}</span>
-                <div className="rounded-t-lg bg-blue-500/80 w-full max-w-14" style={{height:`${Math.max(4, m.total / maiorCrescimento * 80)}%`}} />
-                <span className="text-xs text-slate-400 capitalize">{m.mes}</span>
+                <span className="text-xs font-semibold text-gray-800">{m.total}</span>
+                <div className="rounded-t-lg bg-marca w-full max-w-14" style={{height:`${Math.max(4, m.total / maiorCrescimento * 80)}%`}} />
+                <span className="text-xs text-gray-500 capitalize">{m.mes}</span>
               </div>)}
             </div>
           </section>
           <section className="card space-y-4">
             <h2 className="text-lg font-semibold">Acompanhamento de usuários</h2>
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl bg-slate-700/40 p-4"><p className="text-sm text-slate-400">Sem acesso registrado</p><p className="text-2xl font-bold">{semAcesso}</p></div>
-              <div className="rounded-xl bg-slate-700/40 p-4"><p className="text-sm text-slate-400">Onboarding pendente</p><p className="text-2xl font-bold">{pendentesOnboarding}</p></div>
-              <div className="rounded-xl bg-slate-700/40 p-4"><p className="text-sm text-slate-400">Ativos (30 dias)</p><p className="text-2xl font-bold">{metricas.ativos30}</p></div>
-              <div className="rounded-xl bg-slate-700/40 p-4"><p className="text-sm text-slate-400">Onboarding concluído</p><p className="text-2xl font-bold">{metricas.onboardingConcluido}</p></div>
+              <div className="rounded-xl bg-gray-100 p-4"><p className="text-sm text-gray-500">Sem acesso registrado</p><p className="text-2xl font-bold">{semAcesso}</p></div>
+              <div className="rounded-xl bg-gray-100 p-4"><p className="text-sm text-gray-500">Onboarding pendente</p><p className="text-2xl font-bold">{pendentesOnboarding}</p></div>
+              <div className="rounded-xl bg-gray-100 p-4"><p className="text-sm text-gray-500">Ativos (30 dias)</p><p className="text-2xl font-bold">{metricas.ativos30}</p></div>
+              <div className="rounded-xl bg-gray-100 p-4"><p className="text-sm text-gray-500">Onboarding concluído</p><p className="text-2xl font-bold">{metricas.onboardingConcluido}</p></div>
             </div>
-            <p className="text-xs text-slate-400">Atividade usa a métrica já calculada pelo aplicativo. Não representa sessões ou eventos detalhados.</p>
+            <p className="text-xs text-gray-500">Atividade usa a métrica já calculada pelo aplicativo. Não representa sessões ou eventos detalhados.</p>
           </section>
         </div>
       )}
@@ -922,18 +913,18 @@ export default function Admin() {
 
           <div className="card space-y-3">
             <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-              <label className="flex flex-1 items-center gap-2 rounded-xl bg-slate-700/40 px-3 py-2.5 min-w-0">
-                <Search size={17} className="text-slate-400 shrink-0" />
-                <input className="bg-transparent outline-none w-full min-w-0 text-sm placeholder:text-slate-400" placeholder="Buscar por nome ou e-mail" value={buscaUsuarios} onChange={e=>setBuscaUsuarios(e.target.value)} />
+              <label className="flex flex-1 items-center gap-2 rounded-xl bg-gray-100 px-3 py-2.5 min-w-0">
+                <Search size={17} className="text-gray-500 shrink-0" />
+                <input className="bg-transparent outline-none w-full min-w-0 text-sm placeholder:text-gray-500" placeholder="Buscar por nome ou e-mail" value={buscaUsuarios} onChange={e=>setBuscaUsuarios(e.target.value)} />
               </label>
-              <button type="button" onClick={exportarUsuariosFiltrados} className="inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium bg-slate-700/50 hover:bg-slate-700"><Download size={16}/> Exportar CSV</button>
+              <button type="button" onClick={exportarUsuariosFiltrados} className="inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium bg-gray-100 hover:bg-gray-200"><Download size={16}/> Exportar CSV</button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <label className="flex items-center gap-2"><Filter size={15} className="text-slate-400"/><select className="w-full bg-slate-700/50 rounded-lg p-2 text-sm" value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)}><option value="todos">Todos os status</option><option value="ativos">Ativos</option><option value="desativados">Desativados</option></select></label>
-              <select aria-label="Filtrar onboarding" className="bg-slate-700/50 rounded-lg p-2 text-sm" value={filtroOnboarding} onChange={e=>setFiltroOnboarding(e.target.value)}><option value="todos">Todo onboarding</option><option value="concluidos">Concluído</option><option value="pendentes">Pendente</option></select>
-              <select aria-label="Ordenar usuários" className="bg-slate-700/50 rounded-lg p-2 text-sm" value={ordenacao} onChange={e=>setOrdenacao(e.target.value)}><option value="recentes">Cadastro mais recente</option><option value="nome">Nome A–Z</option><option value="acesso">Último acesso</option></select>
+              <label className="flex items-center gap-2"><Filter size={15} className="text-gray-500"/><select className="w-full bg-gray-100 rounded-lg p-2 text-sm" value={filtroStatus} onChange={e=>setFiltroStatus(e.target.value)}><option value="todos">Todos os status</option><option value="ativos">Ativos</option><option value="desativados">Desativados</option></select></label>
+              <select aria-label="Filtrar onboarding" className="bg-gray-100 rounded-lg p-2 text-sm" value={filtroOnboarding} onChange={e=>setFiltroOnboarding(e.target.value)}><option value="todos">Todo onboarding</option><option value="concluidos">Concluído</option><option value="pendentes">Pendente</option></select>
+              <select aria-label="Ordenar usuários" className="bg-gray-100 rounded-lg p-2 text-sm" value={ordenacao} onChange={e=>setOrdenacao(e.target.value)}><option value="recentes">Cadastro mais recente</option><option value="nome">Nome A–Z</option><option value="acesso">Último acesso</option></select>
             </div>
-            <p className="text-xs text-slate-400">Exibindo {usuariosFiltrados.length} de {usuarios.length} usuários</p>
+            <p className="text-xs text-gray-500">Exibindo {usuariosFiltrados.length} de {usuarios.length} usuários</p>
           </div>
 
           {/* Lista de usuários */}
@@ -1484,8 +1475,38 @@ export default function Admin() {
 
       })()}
 
+    </main>
     </div>
 
   )
 
+}
+
+
+function VisaoAdmin({ usuarios, metricas, carregando, erro, statusPorCliente, carregandoAcessos, erroAcessos, novasSolicitacoes, novosFeedbacks, setAba, analisar, erroAcao }) {
+  const { agendamentos, carregando: carregandoAgenda, erro: erroAgenda } = useAgendamentos()
+  const clientes = usuarios.filter(u => statusPorCliente[u.id]?.status === 'autorizado' && u.ativo !== false)
+  const agora = new Date().toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo', hour:'2-digit',minute:'2-digit',hourCycle:'h23'})
+  const hoje = hojeISO()
+  const proximos = agendamentos.filter(a => a.status === 'agendado' && (a.data > hoje || (a.data === hoje && String(a.horario || '').slice(0,5) >= agora))).slice(0,4)
+  const valor = (v, indisponivel) => indisponivel ? '—' : v
+  return <div className="space-y-5">
+    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+      <CardMetrica icon={Users} label="Total de usuários" valor={valor(metricas.total, carregando || erro)} cor="text-marca" bg="bg-surface-2"/>
+      <CardMetrica icon={Activity} label="Ativos (30 dias)" valor={valor(metricas.ativos30, carregando || erro)} cor="text-marca" bg="bg-surface-2"/>
+      <CardMetrica icon={ShieldCheck} label="Clientes autorizados" valor={valor(clientes.length, carregando || erro || carregandoAcessos || erroAcessos)} cor="text-marca" bg="bg-surface-2"/>
+      <CardMetrica icon={MessageCircle} label="Novas solicitações" valor={novasSolicitacoes ?? '—'} cor="text-marca" bg="bg-surface-2"/>
+    </div>
+    {(erro || erroAcessos || erroAcao) && <p role="alert" className="card text-red-700">{erro || erroAcessos || erroAcao}</p>}
+    <div className="grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-4">
+      <section className="card min-w-0"><div className="af-admin-section-title"><h2>Meus clientes</h2><button onClick={() => setAba('clientes')}>Ver todos <ChevronRight size={15}/></button></div>
+        {carregando || carregandoAcessos ? <p>Carregando clientes…</p> : erro || erroAcessos ? <p>Não foi possível carregar os clientes.</p> : !clientes.length ? <p className="text-gray-500 text-sm py-6">Nenhum cliente com acesso autorizado. Solicite autorização na gestão de usuários.</p> : <div className="divide-y divide-gray-100">{clientes.slice(0,6).map(u => <div key={u.id} className="flex flex-wrap items-center gap-3 py-3"><span className="af-admin-avatar">{(u.nome || u.email || '?').slice(0,1).toUpperCase()}</span><div className="flex-1 min-w-0"><p className="font-semibold truncate">{u.nome || u.email}</p><BadgeAcessoConsultoria status="autorizado"/></div><button className="btn-secondary" onClick={() => analisar(u)}>Analisar</button></div>)}</div>}
+      </section>
+      <section className="card min-w-0"><div className="af-admin-section-title"><h2>Próximas consultorias</h2><button onClick={() => setAba('agenda')}>Agenda <ChevronRight size={15}/></button></div>
+        {carregandoAgenda ? <p>Carregando agenda…</p> : erroAgenda ? <p role="alert">Não foi possível carregar a agenda.</p> : proximos.length === 0 ? <p className="text-gray-500 text-sm py-6">Nenhuma consultoria futura agendada.</p> : proximos.map(a => <div key={a.id} className="flex gap-3 items-center py-3 border-b border-gray-100"><span className="af-admin-avatar"><CalendarDays size={19}/></span><div className="min-w-0"><p className="font-semibold truncate">{a.nome}</p><p className="text-sm text-gray-500">{a.data.split('-').reverse().join('/')} · {String(a.horario || '').slice(0,5)}</p></div></div>)}
+      </section>
+      <section className="card"><div className="af-admin-section-title"><h2>Ações pendentes</h2></div><button className="af-admin-action" onClick={() => setAba('consultorias')}>Solicitações de consultoria <strong>{novasSolicitacoes ?? '—'}</strong></button><button className="af-admin-action" onClick={() => setAba('feedbacks')}>Novos feedbacks <strong>{novosFeedbacks ?? '—'}</strong></button></section>
+      <section className="card"><div className="af-admin-section-title"><h2>Ferramentas profissionais</h2></div><div className="grid grid-cols-2 gap-2">{[{id:'clientes',label:'Analisar clientes',Icon:Users},{id:'agenda',label:'Agenda',Icon:CalendarClock},{id:'analytics',label:'Indicadores',Icon:BarChart3},{id:'whatsapp',label:'WhatsApp',Icon:MessageSquare}].map(({id,label,Icon}) => <button className="af-admin-tool" key={id} onClick={() => setAba(id)}><Icon size={21}/><span>{label}</span></button>)}</div></section>
+    </div>
+  </div>
 }

@@ -113,15 +113,15 @@ function NavItem({ item, recolhida = false, subitem = false }) {
   )
 }
 
-function UserFooter({ onSair, perfil, usuario }) {
+function UserFooter({ onSair, perfil, usuario, modoConsultoria, consultoriaAlvo }) {
   const nomeExibido = perfil?.nome || usuario?.email?.split('@')[0] || 'Usuário'
   return (
     <div className="shrink-0 px-3 pt-2 pb-2 border-t border-gray-100">
-      <NavLink to="/mais/perfil" className="flex items-center gap-3 px-1 py-2 mb-1 rounded-lg hover:bg-gray-100">
+      <NavLink to={modoConsultoria ? "/" : "/mais/perfil"} className="flex items-center gap-3 px-1 py-2 mb-1 rounded-lg hover:bg-gray-100">
         <FotoPerfil perfil={perfil} usuario={usuario} tamanho="sm" />
         <div className="min-w-0 leading-tight">
           <p className="text-sm font-semibold text-gray-800 truncate">{nomeExibido}</p>
-          <p className="text-xs text-gray-400 truncate">{usuario?.email}</p>
+          <p className="text-xs text-gray-400 truncate">{modoConsultoria ? consultoriaAlvo?.email : usuario?.email}</p>
         </div>
       </NavLink>
       <button
@@ -216,6 +216,7 @@ export default function Layout({ children }) {
         <nav aria-label="Menu principal" className="flex-1 min-h-0 px-2 py-3 overflow-y-auto overflow-x-hidden space-y-1">
           {navGrupos.map(grupo => {
             const itens = grupo.itens.filter(i => {
+              if (modoConsultoria && (i.adminOnly || grupo.id === 'configuracoes' || grupo.id === 'servicos')) return false
               if (i.adminOnly && !ehAdmin) return false
               if (i.premiumOnly && perfil?.subscription_plan === 'free') return false
               return true
@@ -241,7 +242,7 @@ export default function Layout({ children }) {
             )
           })}
         </nav>
-        {!recolhida && <UserFooter onSair={handleSair} perfil={perfil} usuario={usuario} />}
+        {!recolhida && <UserFooter onSair={handleSair} perfil={perfil} usuario={usuario} modoConsultoria={modoConsultoria} consultoriaAlvo={consultoriaAlvo} />}
         {recolhida && <button type="button" onClick={handleSair} title="Sair" aria-label="Sair" className="shrink-0 flex justify-center py-3 text-gray-500 hover:text-red-600"><LogOut size={18} /></button>}
         {/* Botão toggle recolher/expandir */}
         <button
@@ -266,7 +267,7 @@ export default function Layout({ children }) {
               </span>
             </span>
             <button
-              onClick={sairModoConsultoria}
+              onClick={() => { sairModoConsultoria(); navigate('/admin', {replace:true}) }}
               className="flex-shrink-0 text-xs font-semibold bg-white/20 hover:bg-white/30 rounded-lg px-3 py-1.5 transition-colors"
             >
               Sair da visualização

@@ -566,6 +566,7 @@ export function AuthProvider({ children }) {
 
     if (error) throw error
 
+    try { await supabase.rpc('af_pro_registrar_login') } catch { /* login não depende da métrica */ }
     return data
 
   }
@@ -911,7 +912,9 @@ export function AuthProvider({ children }) {
   // RLS, não entra no modo (data vem null) e lança para a UI avisar.
   async function entrarModoConsultoria(cliente) {
 
-    if (!cliente?.id) throw new Error('Cliente inválido.')
+    if (!cliente?.id || perfil?.papel !== 'admin' || perfil?.ativo === false) throw new Error('Cliente inválido ou acesso indisponível.')
+    const {data: permitido, error: erroPermissao} = await supabase.rpc('consultor_autorizado', {dono_id: cliente.id})
+    if (erroPermissao || permitido !== true) throw new Error('Sem autorização para visualizar os dados deste cliente.')
 
     const { data, error } = await supabase
 
@@ -931,7 +934,7 @@ export function AuthProvider({ children }) {
 
     setPerfilCliente(data)
 
-    setConsultoriaAlvo({ id: cliente.id, nome: data.nome || cliente.nome || cliente.email || 'cliente' })
+    setConsultoriaAlvo({ id: cliente.id, nome: data.nome || cliente.nome || cliente.email || 'cliente', email: data.email || cliente.email || '' })
 
     return data
 
@@ -958,6 +961,24 @@ export function AuthProvider({ children }) {
   }, [usuario?.id])
 
 
+
+  useEffect(() => {
+    if (!consultoriaAlvo?.id) return
+    let ativo = true, ocupado = false
+    async function verificar() {
+      if (!ativo || ocupado) return
+      ocupado = true
+      try {
+        const {data,error} = await supabase.rpc('consultor_autorizado',{dono_id:consultoriaAlvo.id})
+        if (ativo && (error || data !== true)) window.location.replace('/admin')
+      } catch { if (ativo) window.location.replace('/admin') }
+      finally { ocupado = false }
+    }
+    verificar()
+    const timer = setInterval(verificar,15000)
+    window.addEventListener('focus',verificar)
+    return () => { ativo=false;clearInterval(timer);window.removeEventListener('focus',verificar) }
+  }, [consultoriaAlvo?.id, usuario?.id])
 
   const modoConsultoria = consultoriaAlvo != null
 
