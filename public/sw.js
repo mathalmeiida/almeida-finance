@@ -6,7 +6,7 @@
 // content-hash. Apenas garante que o SW antigo seja substituído.
 // ============================================================
 
-const SW_VERSION  = 'v4'
+const SW_VERSION  = 'v5'
 const APP_NAME    = 'Almeida Finance'
 const APP_ICON    = '/branding/icon-192.png'
 const APP_URL     = self.location.origin
@@ -26,6 +26,7 @@ self.addEventListener('push', (event) => {
   let data = {}
   try { data = event.data.json() } catch { data = { title: APP_NAME, body: event.data.text() } }
 
+  if (!['af-diario-manha','af-diario-noite'].includes(data.tag)) return
   const title = data.title || APP_NAME
   const options = {
     body:    data.body  || 'Você tem uma notificação financeira.',
@@ -51,9 +52,8 @@ self.addEventListener('notificationclick', (event) => {
 
   if (event.action === 'dismiss') return
 
-  const url = (event.notification.data?.url)
-    ? new URL(event.notification.data.url, APP_URL).href
-    : APP_URL
+  const path = event.notification.data?.url === '/registrar' ? '/registrar' : '/'
+  const url = new URL(path, APP_URL).href
 
   event.waitUntil(
     self.clients
@@ -61,9 +61,8 @@ self.addEventListener('notificationclick', (event) => {
       .then((clients) => {
         // Foca aba já aberta do app, se existir
         for (const client of clients) {
-          if (client.url.startsWith(APP_URL) && 'focus' in client) {
-            client.navigate(url)
-            return client.focus()
+          if (new URL(client.url).origin === APP_URL && 'focus' in client) {
+            return client.navigate(url).then(c => c?.focus()).catch(() => self.clients.openWindow(url))
           }
         }
         // Senão, abre nova aba

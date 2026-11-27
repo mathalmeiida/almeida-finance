@@ -1,3 +1,4 @@
+import IndicadoresPush from '../components/IndicadoresPush'
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 
 import { useNavigate } from 'react-router-dom'
@@ -1491,6 +1492,7 @@ function VisaoAdmin({ usuarios, metricas, carregando, erro, statusPorCliente, ca
   const proximos = agendamentos.filter(a => a.status === 'agendado' && (a.data > hoje || (a.data === hoje && String(a.horario || '').slice(0,5) >= agora))).slice(0,4)
   const valor = (v, indisponivel) => indisponivel ? '—' : v
   return <div className="space-y-5">
+    <IndicadoresPush />
     <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
       <CardMetrica icon={Users} label="Total de usuários" valor={valor(metricas.total, carregando || erro)} cor="text-marca" bg="bg-surface-2"/>
       <CardMetrica icon={Activity} label="Ativos (30 dias)" valor={valor(metricas.ativos30, carregando || erro)} cor="text-marca" bg="bg-surface-2"/>

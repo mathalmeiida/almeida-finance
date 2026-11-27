@@ -1,3 +1,4 @@
+import ExperienciaMobile from '../components/ExperienciaMobile'
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
@@ -2800,6 +2801,7 @@ const carregandoLimite = carregando
         </button>
       </div>
 
+      {!somenteLeitura && <ExperienciaMobile />}
       {mostrarComecePorAqui && !somenteLeitura && (
         <div className="mb-2"><CardComecePorAqui itens={onboardingItens} totalConcluidos={totalConcluidos} onIrPara={(item) => continuarConfiguracao(item?.chave)} onContinuar={() => continuarConfiguracao(primeiroPendente?.chave)} onDispensar={handleDispensarComece} /></div>
       )}

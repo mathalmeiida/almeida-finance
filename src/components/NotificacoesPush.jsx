@@ -84,7 +84,7 @@ function Cabecalho() {
       </div>
       <div>
         <h3 className="text-base font-bold text-gray-900">Notificações financeiras</h3>
-        <p className="text-xs text-gray-500 mt-0.5">Alertas automáticos baseados nos seus dados reais.</p>
+        <p className="text-xs text-gray-500 mt-0.5">Dois lembretes diários, sem propagandas.</p>
       </div>
     </div>
   )
@@ -130,7 +130,7 @@ export default function NotificacoesPush({ contexto = 'configuracoes', onPular, 
           </div>
           <p className="text-xs text-red-600">
             {ehiOS
-              ? 'Vá em Ajustes → Notificações → Safari (ou Almeida Finance) e ative as notificações.'
+              ? 'Vá em Ajustes → Notificações → Almeida Finance e ative as notificações.'
               : 'Clique no ícone de cadeado (🔒) na barra de endereços do navegador e permita as notificações para este site.'}
           </p>
         </div>
@@ -150,7 +150,7 @@ export default function NotificacoesPush({ contexto = 'configuracoes', onPular, 
           <div>
             <p className="text-sm font-semibold text-emerald-700">Notificações ativas</p>
             <p className="text-xs text-gray-500 mt-0.5">
-              Você receberá alertas diários de vencimentos, faturas e saldo.
+              Você receberá lembretes às 08h e 21h (horário de Brasília).
             </p>
           </div>
         </div>
@@ -165,6 +165,7 @@ export default function NotificacoesPush({ contexto = 'configuracoes', onPular, 
             {carregando ? 'Desativando...' : 'Desativar notificações'}
           </button>
         )}
+        {erro && <p role="alert" className="text-sm text-red-600">{erro}</p>}
         {noOnboarding && (
           <button type="button" onClick={onConcluir}
             className="w-full btn-primary flex items-center justify-center gap-2 py-3">
@@ -221,9 +222,8 @@ export default function NotificacoesPush({ contexto = 'configuracoes', onPular, 
       {/* Benefícios */}
       <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-2.5">
         {[
-          { emoji: '📅', texto: 'Vencimentos e faturas próximas' },
-          { emoji: '💰', texto: 'Alertas de saldo projetado baixo' },
-          { emoji: '🎯', texto: 'Lembretes de metas e investimentos' },
+          { emoji: '☀️', texto: '08h — Confira quanto pode gastar hoje' },
+          { emoji: '🌙', texto: '21h — Registre as movimentações do dia' },
         ].map(({ emoji, texto }) => (
           <div key={texto} className="flex items-center gap-3">
             <span className="text-base flex-shrink-0">{emoji}</span>

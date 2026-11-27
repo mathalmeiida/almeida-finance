@@ -1,224 +1,91 @@
-/**
- * usePushNotificacoes — gerencia o ciclo completo de Web Push no Almeida Finance.
- *
- * Responsabilidades:
- *  1. Detectar suporte e plataforma (iOS/Android/Desktop).
- *  2. Detectar se o app está instalado como PWA (necessário no iOS 16.4+).
- *  3. Registrar/desregistrar o service worker.
- *  4. Solicitar permissão SOMENTE após clique explícito do usuário.
- *  5. Criar/deletar a PushSubscription no navegador.
- *  6. Persistir/remover a subscription na tabela push_subscriptions do Supabase.
- *  7. Nunca tentar contornar permissões do sistema.
- *
- * Não modifica cálculos financeiros, autenticação ou qualquer outra área.
- */
-
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 
-// VAPID public key (configurada em .env.local como VITE_VAPID_PUBLIC_KEY).
-// Sem ela, push funciona em teste local mas não em produção.
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || ''
-
-const SW_PATH = '/sw.js'
-
-// Converte a VAPID public key de base64url para Uint8Array
-// (formato exigido pela PushManager.subscribe).
-function base64urlParaUint8Array(base64url) {
-  const padding = '='.repeat((4 - (base64url.length % 4)) % 4)
-  const base64 = (base64url + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const raw = atob(base64)
-  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+export function detectarPlataforma() {
+  if (/iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return 'ios'
+  return /android/i.test(navigator.userAgent) ? 'android' : 'desktop'
 }
-
-// ── Detecção de plataforma ──────────────────────────────────────────────────
-function detectarPlataforma() {
-  const ua = navigator.userAgent || ''
-  if (/iphone|ipad|ipod/i.test(ua)) return 'ios'
-  if (/android/i.test(ua))           return 'android'
-  return 'desktop'
+export function detectarInstalado() {
+  return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true
 }
-
-function detectarEhiOS() {
-  return detectarPlataforma() === 'ios'
+function bytes(key) {
+  return Uint8Array.from(atob(key.replace(/-/g,'+').replace(/_/g,'/') + '='.repeat((4-key.length%4)%4)), c => c.charCodeAt(0))
 }
-
-// iOS 16.4+ suporta push SOMENTE quando instalado como PWA (add to home screen).
-// Detecta pelo modo de display: "standalone" = instalado.
-function detectarInstalado() {
-  return window.matchMedia?.('(display-mode: standalone)').matches
-    || window.navigator?.standalone === true   // Safari legacy
+async function registro() {
+  await navigator.serviceWorker.register('/sw.js', {scope:'/'})
+  return navigator.serviceWorker.ready
 }
-
-// Suporte real ao Web Push: requer SW + PushManager + Notification.
-// iOS: requer instalação como PWA (standalone).
-function detectarSuportePush() {
-  if (typeof window === 'undefined') return false
-  const temAPI = 'serviceWorker' in navigator
-    && 'PushManager' in window
-    && 'Notification' in window
-  if (!temAPI) return false
-  // iOS: só funciona instalado
-  if (detectarEhiOS()) return detectarInstalado()
-  return true
+export async function cancelarPushNesteDispositivo(uid) {
+  if (!uid || !('serviceWorker' in navigator)) return
+  const reg = await navigator.serviceWorker.getRegistration('/')
+  const sub = await reg?.pushManager?.getSubscription()
+  if (!sub) return
+  const {error} = await supabase.from('push_subscriptions').update({ativo:false,af_diario:false}).eq('usuario_id',uid).eq('endpoint',sub.endpoint)
+  // Mesmo se o banco estiver offline, invalida a inscrição no navegador.
+  const cancelado = await sub.unsubscribe()
+  if (error && !cancelado) throw error
 }
-
-// ── Hook principal ──────────────────────────────────────────────────────────
 export function usePushNotificacoes() {
-  const { usuario } = useAuth()
-
-  // Estado da permissão atual do navegador
-  const [permissao, setPermissao]     = useState(() => {
-    if (typeof Notification === 'undefined') return 'unsupported'
-    return Notification.permission   // 'default' | 'granted' | 'denied'
-  })
-
-  // true = subscription ativa e gravada no banco
-  const [ativado, setAtivado]         = useState(false)
-  const [carregando, setCarregando]   = useState(false)
-  const [erro, setErro]               = useState(null)
-
-  const suportado  = detectarSuportePush()
-  const ehiOS      = detectarEhiOS()
-  const instalado  = detectarInstalado()
-  const plataforma = detectarPlataforma()
-
-  // Verifica se já há subscription ativa para este dispositivo no banco.
+  const {usuario, modoConsultoria} = useAuth()
+  const uid = usuario?.id
+  const plataforma = detectarPlataforma(), ehiOS = plataforma === 'ios', instalado = detectarInstalado()
+  const suportado = plataforma !== 'desktop' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && (!ehiOS || instalado)
+  const [permissao,setPermissao] = useState(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
+  const [ativado,setAtivado] = useState(false), [carregando,setCarregando] = useState(false), [verificando,setVerificando] = useState(true)
+  const [erro,setErro] = useState(null), [chave,setChave] = useState('')
   useEffect(() => {
-    if (!usuario?.id || !suportado) return
-    ;(async () => {
+    let vivo = true
+    async function verificar() {
+      if (!vivo) return
+      setVerificando(true); setAtivado(false)
+      setPermissao(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
       try {
-        const reg = await navigator.serviceWorker.ready
-        const sub = await reg.pushManager.getSubscription()
-        if (!sub) { setAtivado(false); return }
-
-        const { data } = await supabase
-          .from('push_subscriptions')
-          .select('id, ativo')
-          .eq('endpoint', sub.endpoint)
-          .eq('usuario_id', usuario.id)
-          .maybeSingle()
-
-        setAtivado(!!data?.ativo)
-      } catch { setAtivado(false) }
-    })()
-  }, [usuario?.id, suportado])
-
-  // ── Registrar service worker ─────────────────────────────────────────────
-  async function registrarSW() {
-    if (!('serviceWorker' in navigator)) throw new Error('Service Worker não suportado.')
-    const reg = await navigator.serviceWorker.register(SW_PATH, { scope: '/' })
-    // Aguarda o SW estar pronto (importante no primeiro registro)
-    await navigator.serviceWorker.ready
-    return reg
-  }
-
-  // ── Ativar notificações ──────────────────────────────────────────────────
-  // Chamado SOMENTE após clique explícito do usuário. Nunca chamado
-  // automaticamente. Solicita permissão, cria PushSubscription e grava no banco.
+        if (!uid || modoConsultoria) return
+        const {data:k,error:e} = await supabase.from('af_push_config').select('public_key').eq('id',1).maybeSingle()
+        if(e) throw e
+        if(vivo) setChave(k?.public_key || '')
+        if(!suportado || Notification.permission !== 'granted' || !k?.public_key) return
+        const reg = await registro(), sub = await reg.pushManager.getSubscription()
+        if(!sub) return
+        const {data,error} = await supabase.from('push_subscriptions').select('ativo,af_diario').eq('usuario_id',uid).eq('endpoint',sub.endpoint).maybeSingle()
+        if(error) throw error
+        const atual = sub.options.applicationServerKey
+        const igual = atual && String(new Uint8Array(atual)) === String(bytes(k.public_key))
+        if(vivo) setAtivado(!!(data?.ativo && data?.af_diario && igual))
+      } catch { if(vivo) setAtivado(false) }
+      finally { if(vivo) setVerificando(false) }
+    }
+    verificar()
+    window.addEventListener('focus',verificar)
+    window.addEventListener('af-push-alterado',verificar)
+    return () => { vivo=false; window.removeEventListener('focus',verificar); window.removeEventListener('af-push-alterado',verificar) }
+  },[uid,modoConsultoria,suportado])
   const ativar = useCallback(async () => {
-    if (!usuario?.id)  throw new Error('Usuário não autenticado.')
-    if (!suportado)    throw new Error('Notificações push não suportadas neste dispositivo.')
-    if (carregando)    return
-
-    setCarregando(true)
-    setErro(null)
+    if(!uid || modoConsultoria || !suportado || carregando) return
+    setCarregando(true); setErro(null)
     try {
-      // 1. Registrar service worker
-      const reg = await registrarSW()
-
-      // 2. Solicitar permissão (diálogo nativo do sistema)
-      const resultado = await Notification.requestPermission()
-      setPermissao(resultado)
-
-      if (resultado !== 'granted') {
-        throw new Error(
-          resultado === 'denied'
-            ? 'Permissão negada. Ative as notificações nas configurações do navegador.'
-            : 'Permissão não concedida.'
-        )
-      }
-
-      // 3. Criar PushSubscription no navegador
-      if (!VAPID_PUBLIC_KEY) {
-        // Sem VAPID key, registramos permissão mas não conseguimos enviar pelo servidor.
-        // Útil para testes locais.
-        console.warn('[Push] VITE_VAPID_PUBLIC_KEY não configurada. Subscription não criada.')
-        setAtivado(true)
-        return
-      }
-
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly:     true,
-        applicationServerKey: base64urlParaUint8Array(VAPID_PUBLIC_KEY),
-      })
-
-      // 4. Gravar no Supabase (upsert por endpoint — sem duplicatas)
-      const subJSON = sub.toJSON()
-      const { error } = await supabase
-        .from('push_subscriptions')
-        .upsert({
-          usuario_id:   usuario.id,
-          subscription: subJSON,
-          endpoint:     sub.endpoint,
-          user_agent:   navigator.userAgent?.slice(0, 500) || '',
-          plataforma,
-          ativo:        true,
-        }, { onConflict: 'endpoint' })
-
-      if (error) throw error
-
-      setAtivado(true)
-    } catch (err) {
-      setErro(err.message || 'Não foi possível ativar as notificações.')
-      throw err
-    } finally {
-      setCarregando(false)
-    }
-  }, [usuario?.id, suportado, carregando, plataforma])
-
-  // ── Desativar notificações ───────────────────────────────────────────────
+      if(!chave) throw new Error('Notificações ainda não configuradas no servidor. Tente novamente mais tarde.')
+      // A permissão precisa ser pedida diretamente no clique, antes de awaits de rede.
+      const p = await Notification.requestPermission(); setPermissao(p)
+      if(p !== 'granted') throw new Error('Autorize as notificações nas configurações do dispositivo.')
+      const reg = await registro(); let sub = await reg.pushManager.getSubscription()
+      if(sub && (!sub.options.applicationServerKey || String(new Uint8Array(sub.options.applicationServerKey)) !== String(bytes(chave)))) { await sub.unsubscribe(); sub=null }
+      if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bytes(chave)})
+      const salvar = async () => supabase.from('push_subscriptions').upsert({usuario_id:uid,endpoint:sub.endpoint,subscription:sub.toJSON(),plataforma,ativo:true,af_diario:true,atualizado_em:new Date().toISOString()},{onConflict:'endpoint'})
+      let {error}=await salvar()
+      // Endpoint de outra conta não pode ser transferido por upsert. Cria nova inscrição.
+      if(error?.code === '42501' || error?.code === '23505') { await sub.unsubscribe(); sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bytes(chave)}); ({error}=await salvar()) }
+      if(error) throw error
+      setAtivado(true); window.dispatchEvent(new Event('af-push-alterado'))
+    } catch(e) { setAtivado(false); setErro(e.message); throw e }
+    finally {setCarregando(false)}
+  },[uid,modoConsultoria,suportado,carregando,chave,plataforma])
   const desativar = useCallback(async () => {
-    if (!usuario?.id) return
-    setCarregando(true)
-    setErro(null)
-    try {
-      const reg = await navigator.serviceWorker.ready
-      const sub = await reg.pushManager.getSubscription()
-
-      // Marca como inativo no banco (preserva o registro histórico)
-      if (sub) {
-        await supabase
-          .from('push_subscriptions')
-          .update({ ativo: false })
-          .eq('endpoint', sub.endpoint)
-          .eq('usuario_id', usuario.id)
-
-        await sub.unsubscribe()
-      }
-
-      setAtivado(false)
-    } catch (err) {
-      setErro(err.message || 'Não foi possível desativar as notificações.')
-    } finally {
-      setCarregando(false)
-    }
-  }, [usuario?.id])
-
-  return {
-    // Estado
-    suportado,
-    ativado,
-    permissao,
-    carregando,
-    erro,
-    // Informações de plataforma (usadas pela UI para guiar o usuário)
-    ehiOS,
-    instalado,
-    plataforma,
-    // Ações
-    ativar,
-    desativar,
-  }
+    if(!uid || modoConsultoria) return
+    setCarregando(true); setErro(null)
+    try { await cancelarPushNesteDispositivo(uid); setAtivado(false); window.dispatchEvent(new Event('af-push-alterado')) }
+    catch(e){setErro(e.message)} finally{setCarregando(false)}
+  },[uid,modoConsultoria])
+  return {suportado,ativado,permissao,carregando,verificando,erro,ehiOS,instalado,plataforma,ativar,desativar}
 }

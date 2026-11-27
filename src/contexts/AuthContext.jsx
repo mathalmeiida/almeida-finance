@@ -575,6 +575,15 @@ export function AuthProvider({ children }) {
 
   // Logout
   async function sair() {
+    // O dispositivo compartilhado não deve receber lembretes da conta encerrada.
+    try {
+      const reg = await navigator.serviceWorker?.getRegistration('/')
+      const sub = await reg?.pushManager?.getSubscription()
+      if (sub && usuario?.id) {
+        await supabase.from('push_subscriptions').update({ativo:false,af_diario:false}).eq('usuario_id',usuario.id).eq('endpoint',sub.endpoint)
+        await sub.unsubscribe()
+      }
+    } catch { /* logout continua mesmo sem rede */ }
 
     const { error } = await supabase.auth.signOut()
 
