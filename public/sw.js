@@ -6,7 +6,7 @@
 // content-hash. Apenas garante que o SW antigo seja substituído.
 // ============================================================
 
-const SW_VERSION  = 'v5'
+const SW_VERSION  = 'v6'
 const APP_NAME    = 'Almeida Finance'
 const APP_ICON    = '/branding/icon-192.png'
 const APP_URL     = self.location.origin

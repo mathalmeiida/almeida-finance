@@ -377,47 +377,28 @@
 }
 
 @layer utilities {
-  /* Safe-area (notch, Dynamic Island, barra inferior do iPhone, nav Android) */
-  .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-  .pt-safe {
-    padding-top: env(safe-area-inset-top);
-  }
-  /* Reserva de espaço para a barra inferior no mobile (altura + safe-area).
-     IMPORTANTE: No modo standalone (PWA instalado), o iOS às vezes ignora a
-     área segura inferior (safe-area-inset-bottom) ou aplica valores incorretos.
-     A medição real do menu (--af-nav-h) via ResizeObserver em Layout.jsx
-     garante que sempre reservamos o espaço REAL necessário, independente do
-     iOS reportar ou não a inset corretamente.
-     Fallback antes da medição: itens (53px) + área segura. Respiro de 8px. */
-  .pb-mobilenav {
-    /* --af-nav-h = altura REAL do menu (já inclui a área segura), medida em Layout.jsx.
-       Usa env() diretamente sem fallback fixo para não duplicar com o valor medido. */
-    padding-bottom: calc(var(--af-nav-h, calc(53px + env(safe-area-inset-bottom, 0px))) + 8px);
-  }
-  
-  /* No modo standalone (PWA instalado), garante padding mínimo quando safe-area não for reportada */
-  @media (display-mode: standalone) {
-    .pb-mobilenav {
-      /* Usa max() para garantir mínimo de 73px (53px menu + 20px área segura estimada) */
-      padding-bottom: max(calc(var(--af-nav-h, calc(53px + env(safe-area-inset-bottom, 20px))) + 8px), 73px);
-    }
-  }
-  /* Cabeçalho mobile: a altura de 56px passa a SOMAR a área segura do topo.
-     No modo standalone, garante um espaço mínimo para o notch/Dynamic Island. */
-  .af-header-mobile {
-    height: calc(3.5rem + env(safe-area-inset-top, 0px));
-    background-image: linear-gradient(#ffffff, #ffffff env(safe-area-inset-top, 0px), transparent env(safe-area-inset-top, 0px));
-  }
-  
-  @media (display-mode: standalone) {
-    .af-header-mobile {
-      /* No PWA instalado, garante altura mínima para cobrir o notch quando iOS reporta 0 */
-      height: max(calc(3.5rem + env(safe-area-inset-top, 0px)), calc(3.5rem + 44px));
+  .pb-safe, .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+  .pb-mobilenav { padding-bottom: calc(var(--af-nav-h, calc(80px + env(safe-area-inset-bottom, 0px))) + 8px); }
+  .af-header-mobile { height: 3.5rem; flex-shrink: 0; }
+  .af-app-layout { min-height: 100vh; min-height: 100dvh; }
+  @media (max-width: 767px) {
+    .af-app-layout {
       padding-top: env(safe-area-inset-top, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+    }
+    .af-header-mobile, .af-consultoria-banner { top: env(safe-area-inset-top, 0px); }
+    .af-bottom-nav {
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
     }
   }
+  @media (min-width: 768px) {
+    .pb-mobilenav { padding-bottom: 2rem; }
+  }
+
   /* Área de toque mínima recomendada (~44px) para ícones/botões pequenos. */
   .touch-target {
     @apply min-h-[44px] min-w-[44px] flex items-center justify-center;

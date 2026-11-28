@@ -13,7 +13,7 @@ function bytes(key) {
   return Uint8Array.from(atob(key.replace(/-/g,'+').replace(/_/g,'/') + '='.repeat((4-key.length%4)%4)), c => c.charCodeAt(0))
 }
 async function registro() {
-  await navigator.serviceWorker.register('/sw.js', {scope:'/'})
+  await navigator.serviceWorker.register('/sw.js', {scope:'/', updateViaCache:'none'})
   return navigator.serviceWorker.ready
 }
 export async function cancelarPushNesteDispositivo(uid) {

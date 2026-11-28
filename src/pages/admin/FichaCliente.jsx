@@ -38,7 +38,13 @@ export default function FichaCliente({ cliente, voltar, visualizar }) {
       try {
         if(!ehAdmin || !usuario?.id) throw new Error('Acesso indisponível')
         const {data,error}=await supabase.rpc('af_pro_ficha_cliente',{p_cliente:cliente.id,p_mes:`${mes}-01`})
-        if(error || !data || data.cliente_id!==cliente.id) throw new Error('Não foi possível consultar a ficha. Confirme a autorização e a instalação do SQL no DEV.')
+        if (error) {
+          if (error.code === '42501') throw new Error('Acesso não autorizado. Confirme se o cliente autorizou a consulta e se ambas as contas estão ativas.')
+          if (['PGRST202', '42883'].includes(error.code)) throw new Error('A função de ficha não está disponível neste ambiente. Aplique a migration de consultoria e atualize a ficha. (' + error.code + ')')
+          const codigo = /^[A-Z0-9]{5,10}$/.test(error.code || '') ? ` (${error.code})` : ''
+          throw new Error('Não foi possível consultar a ficha financeira.' + codigo + ' Tente atualizar ou informe o código ao suporte.')
+        }
+        if (!data || data.cliente_id !== cliente.id || !Array.isArray(data.registros)) throw new Error('Resposta inválida da ficha financeira. Verifique a versão da função no banco.')
         if(ativo){setDados(data);setErro('')}
       } catch(e){if(ativo){setDados(null);setErro(e.message)}} finally{ocupado=false;if(ativo)setCarregando(false)}
     }

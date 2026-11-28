@@ -2,7 +2,7 @@ import React from 'react'
 import { NavLink } from 'react-router-dom'
 import { Home, CalendarDays, Wallet, MessageSquare, MoreHorizontal } from 'lucide-react'
 
-export default function NavegacaoInferior() {
+export default function NavegacaoInferior({ navRef }) {
   const itens = [
     { to: '/', icon: Home, label: 'Início', end: true },
     { to: '/calendario', icon: CalendarDays, label: 'Calendário' },
@@ -15,7 +15,7 @@ export default function NavegacaoInferior() {
     // Só no celular: no desktop (md+) a navegação é a barra lateral. Sem o
     // md:hidden, esta barra ficava fixa sobre o rodapé das páginas no
     // computador e interceptava cliques (o Layout reserva espaço só no mobile).
-    <nav aria-label="Navegação principal" className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-bottom z-40">
+    <nav ref={navRef} aria-label="Navegação principal" className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 af-bottom-nav z-40">
       <div className="flex items-center justify-around max-w-screen-xl mx-auto">
         {itens.map(item => (
           <NavLink
@@ -23,7 +23,7 @@ export default function NavegacaoInferior() {
             to={item.to}
             end={item.end}
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center gap-1 py-2 px-3 min-w-0 flex-1 transition-colors ${
+              `flex flex-col items-center justify-center gap-1 py-2 px-1 min-w-0 flex-1 transition-colors ${
                 item.destaque
                   ? isActive
                     ? 'text-white'

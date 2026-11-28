@@ -183,7 +183,10 @@ export default function Layout({ children }) {
     if (!el) return undefined
     const aplicar = () => document.documentElement.style.setProperty('--af-nav-h', `${Math.round(el.getBoundingClientRect().height)}px`)
     aplicar()
-    if (typeof ResizeObserver === 'undefined') return undefined
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', aplicar)
+      return () => { window.removeEventListener('resize', aplicar); document.documentElement.style.removeProperty('--af-nav-h') }
+    }
     const ro = new ResizeObserver(aplicar); ro.observe(el)
     return () => { ro.disconnect(); document.documentElement.style.removeProperty('--af-nav-h') }
   }, [])
@@ -203,7 +206,7 @@ export default function Layout({ children }) {
     }
   }
   return (
-    <div className="min-h-[100dvh] flex w-full max-w-full min-w-0 standalone:min-h-screen">
+    <div className="af-app-layout flex w-full max-w-full min-w-0">
       {/* ── Sidebar desktop recolhível ── */}
       <aside className={`hidden md:flex flex-col bg-white border-r border-gray-200/70 fixed top-0 left-0 h-full z-30 transition-[width] duration-200 ${recolhida ? 'w-16' : 'w-60'}`}>
         <div className={`shrink-0 border-b border-gray-100 flex items-center ${recolhida ? 'justify-center py-3' : 'gap-2 px-3 py-4'}`}>
@@ -254,12 +257,12 @@ export default function Layout({ children }) {
         </button>
       </aside>
       {/* ── Conteúdo principal (margem esquerda acompanha sidebar) ── */}
-      <div className={`flex-1 min-w-0 max-w-full flex flex-col min-h-[100dvh] standalone:min-h-screen transition-[margin] duration-200 ${recolhida ? 'md:ml-16' : 'md:ml-60'}`}>
+      <div className={`flex-1 min-w-0 max-w-full flex flex-col min-h-0 transition-[margin] duration-200 ${recolhida ? 'md:ml-16' : 'md:ml-60'}`}>
         {/* ── Banner GLOBAL "Modo Consultoria" ──
             Fica fixo no topo de todas as telas internas enquanto o consultor
             visualiza os dados de um cliente (somente leitura). */}
         {modoConsultoria && (
-          <div className="sticky top-0 z-40 bg-marca text-white px-4 py-2 flex items-center justify-between gap-3 pt-safe">
+          <div className="sticky top-0 z-40 bg-marca text-white px-4 py-2 flex items-center justify-between gap-3 af-consultoria-banner">
             <span className="flex items-center gap-2 text-sm font-medium min-w-0">
               <Eye size={16} className="flex-shrink-0" />
               <span className="truncate">
@@ -316,7 +319,7 @@ export default function Layout({ children }) {
       </div>
 
       {/* Navegação mobile nova */}
-      <NavegacaoInferior />
+      <NavegacaoInferior navRef={navRef} />
 
       <MenusMobileAlmeidaFinance
         aberto={menuMobile}
