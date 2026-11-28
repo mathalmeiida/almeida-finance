@@ -1066,3 +1066,38 @@
     margin-bottom: 2.5rem;
   }
 }
+
+
+/* PWA iOS: fundo do canvas e separação da área de status do conteúdo. */
+html:has(#root > .af-tour),
+html:has(#root > .af-tour) body,
+#root:has(> .af-tour) {
+  background-color: #280710;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+html:has(.af-login-page), html:has(.af-login-page) body,
+#root:has(.af-login-page) {
+  background-color: #350918;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+@media (display-mode: standalone) and (max-width: 767px) {
+  html:has(.af-app-layout), html:has(.af-app-layout) body,
+  #root:has(.af-app-layout) { background-color: rgb(var(--bg)); }
+  .af-app-layout { padding-top: calc(env(safe-area-inset-top, 0px) + 24px); }
+  .af-header-mobile, .af-consultoria-banner { top: calc(env(safe-area-inset-top, 0px) + 24px); }
+  #root > .af-tour {
+    height: 100vh; height: 100dvh;
+    min-height: 100svh;
+  }
+  #root > .af-tour .af-tour-header {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 24px);
+  }
+  #root > .af-tour .af-tour-footer {
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
+  }
+  .af-login-page {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 32px);
+  }
+}

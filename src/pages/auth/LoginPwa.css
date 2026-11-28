@@ -20,3 +20,7 @@ html:has(.af-login-page), html:has(.af-login-page) body, html:has(.af-login-page
   .af-login-features { margin-top: 20px; }
   .af-login-features li { padding: 10px; }
 }
+
+@media (display-mode: standalone) and (max-width: 767px) {
+  .af-login-page { padding-top: calc(env(safe-area-inset-top, 0px) + 32px); }
+}
