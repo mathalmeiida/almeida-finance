@@ -120,52 +120,8 @@ export function useUserSubscription(userId) {
     }
   };
 
-  const alterarPlano = async (novoPlanoId) => {
-    try {
-      setCarregando(true);
-      setErro(null);
-
-      // Em produção, aqui seria validado o pagamento antes de ativar
-      // Por ora, apenas atualiza o plano (modo desenvolvimento)
-      const { error } = await supabase
-        .from('perfis')
-        .update({ subscription_plan: novoPlanoId })
-        .eq('id', userId);
-
-      if (error) throw error;
-
-      await carregarAssinatura();
-    } catch (err) {
-      console.error('Erro ao alterar plano:', err);
-      setErro(err.message);
-      throw err;
-    } finally {
-      setCarregando(false);
-    }
-  };
-
-  const cancelarAssinatura = async () => {
-    try {
-      setCarregando(true);
-      setErro(null);
-
-      // Volta para plano free
-      const { error } = await supabase
-        .from('perfis')
-        .update({ subscription_plan: 'free' })
-        .eq('id', userId);
-
-      if (error) throw error;
-
-      await carregarAssinatura();
-    } catch (err) {
-      console.error('Erro ao cancelar assinatura:', err);
-      setErro(err.message);
-      throw err;
-    } finally {
-      setCarregando(false);
-    }
-  };
+  const alterarPlano = async () => { throw new Error('Contratação ainda não habilitada. A assinatura será validada pelo servidor.') }
+  const cancelarAssinatura = async () => { throw new Error('Gerenciamento de assinatura ainda não habilitado. Entre em contato com o suporte.') }
 
   const temRecurso = (recurso) => {
     if (!assinatura?.subscription_plans) return false;

@@ -1,288 +1,62 @@
-import React from 'react';
-import { Check, X, Users, MessageCircle, Sparkles, ChevronRight, Building2, Lock } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react'
+import { Check, Users, MessageCircle, Sparkles, ChevronRight, Building2, Lock, ShieldCheck, Crown, UserRound, ArrowRight } from 'lucide-react'
+import { useAuth } from '../contexts/AuthContext'
+import { useNavigate } from 'react-router-dom'
+import './PlanosAcessos.css'
+
+const moeda = valor => valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const planos = [
+  { id: 'premium', nome: 'Almeida Premium', mensal: 29.90, anual: 299, Icone: UserRound, descricao: 'Organize sua vida financeira em um só lugar.', recursos: ['Gestão financeira pessoal completa', 'Calendário financeiro', 'Receitas, despesas e cartões', 'Investimentos, metas e parcelamentos', 'Simuladores e central de importação', 'Almeida Família: titular + 1 membro', 'WhatsApp: até 100 respostas/mês¹'] },
+  { id: 'plus', nome: 'Almeida Plus', mensal: 49.90, anual: 499, Icone: Crown, destaque: true, descricao: 'Mais capacidade para você e sua família.', recursos: ['Tudo do Premium', 'Almeida Família: até 5 pessoas no total', 'WhatsApp: até 300 respostas/mês¹', 'Automações financeiras avançadas¹', 'Relatórios avançados¹', 'Suporte prioritário¹'] },
+  { id: 'empresas', nome: 'Almeida Empresas', mensal: 79.90, anual: 799, Icone: Building2, emBreve: true, descricao: 'Ambiente independente para a gestão do seu negócio.', recursos: ['Até 5 usuários no total, incluindo titular', 'Administrador, gestor e colaborador', 'Fluxo de caixa e faturamento¹', 'Contas a pagar e receber¹', 'Lucro, prejuízo e pró-labore¹', 'Relatórios empresariais¹'] },
+]
 
 export default function Planos() {
-  const { perfil } = useAuth();
-  const navigate = useNavigate();
-  const planoAtual = perfil?.subscription_plan || 'trial';
-  const diasTrial = 7;
-
-  const planos = [
-    {
-      id: 'premium',
-      nome: 'Almeida Premium',
-      preco: 'R$ 29,90',
-      periodo: '/mês',
-      destaque: false,
-      emBreve: false,
-      descricao: 'Gestão financeira pessoal completa',
-      recursos: [
-        'Gestão financeira pessoal completa',
-        'Calendário financeiro',
-        'Receitas, despesas e cartões',
-        'Investimentos e metas',
-        'Parcelamentos',
-        'Simuladores "Posso comprar?" e "E se...?"',
-        'Central de importação',
-        'Almeida Família',
-        'WhatsApp: até 100 respostas/mês¹',
-      ],
-    },
-    {
-      id: 'plus',
-      nome: 'Almeida Plus',
-      preco: 'R$ 49,90',
-      periodo: '/mês',
-      destaque: true,
-      emBreve: false,
-      descricao: 'O mais completo para quem leva finanças a sério',
-      recursos: [
-        'Tudo do Premium',
-        'WhatsApp: até 300 respostas/mês¹',
-        'Automações financeiras avançadas',
-        'Recursos de maior capacidade',
-        'Suporte prioritário',
-      ],
-    },
-    {
-      id: 'empresas',
-      nome: 'Almeida Empresas',
-      preco: 'R$ 79,90',
-      periodo: '/mês',
-      destaque: false,
-      emBreve: true,
-      descricao: 'Ambiente financeiro empresarial independente',
-      recursos: [
-        'Fluxo de caixa empresarial',
-        'Receitas e despesas empresariais',
-        'Contas a pagar e receber',
-        'Faturamento',
-        'Lucro e prejuízo',
-        'Pró-labore',
-        'Simuladores empresariais',
-        'Relatórios financeiros',
-      ],
-    },
-  ];
-
+  const { perfil, somenteLeitura } = useAuth()
+  const navigate = useNavigate()
+  const [anual, setAnual] = useState(false)
+  const atual = perfil?.subscription_plan
   return (
-    <div className="max-w-7xl mx-auto py-6 md:py-8 space-y-8 pb-mobilenav">
-      {/* Header */}
-      <div className="text-center">
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">
-          Planos Almeida Finance
-        </h1>
-        <p className="text-base md:text-lg text-gray-600 max-w-2xl mx-auto">
-          Teste grátis por 7 dias. Sem cartão de crédito.
-        </p>
+    <div className="af-comercial max-w-7xl mx-auto space-y-7 pb-mobilenav md:pb-8">
+      <header className="af-comercial-header">
+        <span className="af-comercial-icon"><Sparkles size={25} /></span>
+        <h1>Planos Almeida Finance</h1>
+        <p>Escolha como organizar suas finanças pessoais, familiares ou empresariais.</p>
+      </header>
+      <div className="af-comercial-toggle" role="group" aria-label="Periodicidade dos preços">
+        <button type="button" aria-pressed={!anual} onClick={() => setAnual(false)}>Mensal</button>
+        <button type="button" aria-pressed={anual} onClick={() => setAnual(true)}>Anual <small>~17% menos</small></button>
       </div>
-
-      {/* Aviso de Trial */}
-      {planoAtual === 'trial' && (
-        <div className="card bg-surface-2 border-border-col max-w-2xl mx-auto">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-surface flex items-center justify-center flex-shrink-0">
-              <Sparkles className="w-5 h-5 text-marca" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-gray-900 mb-1">Teste grátis ativo</h3>
-              <p className="text-sm text-gray-600">
-                Você tem {diasTrial} {diasTrial === 1 ? 'dia' : 'dias'} restantes para testar todos os recursos do Almeida Plus.
-              </p>
-            </div>
+      <div className="af-comercial-notice" role="status"><Sparkles size={22} className="shrink-0" /><div><strong>Prévia dos planos de assinatura</strong><p>O teste de 7 dias sem cartão está previsto para o lançamento. A contratação e a cobrança ainda não estão habilitadas.</p></div></div>
+      <div className="af-comercial-grid">
+        {planos.map(p => <article key={p.id} className={`af-comercial-plan ${p.destaque ? 'is-featured' : ''} ${p.emBreve ? 'is-future' : ''}`}>
+          <div className="af-comercial-ribbon">{p.destaque ? <><Crown size={15}/> Mais recomendado</> : p.emBreve ? <><Lock size={14}/> Em desenvolvimento</> : 'Para você'}</div>
+          <div className="af-comercial-plan-head">
+            <span className="af-comercial-icon"><p.Icone size={23}/></span>
+            <h2>{p.nome}</h2><p>{p.descricao}</p>
+            <div className="af-comercial-price"><strong>{moeda(anual ? p.anual : p.mensal)}</strong><span>/{anual ? 'ano' : 'mês'}</span></div>
+            <div className="af-comercial-saving">{anual ? `Economia de ${moeda(Math.round((p.mensal * 12 - p.anual) * 100) / 100)} por ano` : 'Preço mensal previsto'}</div>
           </div>
-        </div>
-      )}
-
-      {/* Cards dos planos */}
-      <div className="grid md:grid-cols-3 gap-5 max-w-5xl mx-auto items-stretch">
-        {planos.map((plano) => {
-          const ehAtual = plano.id === planoAtual;
-
-          return (
-            <div
-              key={plano.id}
-              className={`relative flex flex-col rounded-2xl border-2 bg-white overflow-hidden transition-shadow ${
-                plano.destaque
-                  ? 'border-marca shadow-xl md:-mt-2 md:-mb-2'
-                  : plano.emBreve
-                    ? 'border-gray-200 opacity-80'
-                    : 'border-gray-200'
-              }`}
-            >
-              {/* Badge de destaque */}
-              {plano.destaque && (
-                <div
-                  className="text-white text-xs font-bold text-center py-1.5 tracking-wide"
-                  style={{ background: '#801D39' }}
-                >
-                  ⭐ MAIS RECOMENDADO
-                </div>
-              )}
-              {plano.emBreve && (
-                <div className="bg-gray-100 text-gray-500 text-xs font-bold text-center py-1.5 tracking-wide flex items-center justify-center gap-1">
-                  <Lock size={11} /> EM BREVE
-                </div>
-              )}
-
-              {/* Cabeçalho */}
-              <div
-                className={`p-6 border-b-2 ${plano.destaque ? 'border-marca/20' : 'border-gray-100'}`}
-                style={plano.destaque ? { background: 'linear-gradient(135deg,#FFF5F7 0%,#fff 100%)' } : {}}
-              >
-                {plano.id === 'empresas' && (
-                  <Building2 className="w-6 h-6 text-gray-400 mb-2" />
-                )}
-                <h3 className="text-xl font-bold text-gray-900 mb-1">{plano.nome}</h3>
-                <p className="text-xs text-gray-500 mb-3">{plano.descricao}</p>
-                <div className="flex items-baseline gap-1">
-                  <span className={`text-3xl font-bold ${plano.destaque ? 'text-marca' : 'text-gray-900'}`}>
-                    {plano.preco}
-                  </span>
-                  <span className="text-gray-500 text-sm">{plano.periodo}</span>
-                </div>
-              </div>
-
-              {/* Recursos */}
-              <div className="p-6 flex-1 flex flex-col">
-                <ul className="space-y-2.5 flex-1">
-                  {plano.recursos.map((recurso, idx) => (
-                    <li key={idx} className="flex items-start gap-2">
-                      <Check
-                        className={`w-4 h-4 mt-0.5 flex-shrink-0 ${plano.emBreve ? 'text-gray-300' : 'text-green-600'}`}
-                      />
-                      <span className={`text-sm ${plano.emBreve ? 'text-gray-400' : 'text-gray-700'} ${idx === 0 && plano.id === 'plus' ? 'font-semibold' : ''}`}>
-                        {recurso}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-
-                {/* Botão */}
-                <div className="mt-6">
-                  {plano.emBreve ? (
-                    <div className="w-full text-center px-6 py-3 bg-gray-100 text-gray-400 font-medium rounded-xl text-sm flex items-center justify-center gap-2">
-                      <Lock size={14} /> Em breve
-                    </div>
-                  ) : ehAtual ? (
-                    <div className="w-full text-center px-6 py-3 bg-gray-100 text-gray-600 font-medium rounded-xl text-sm">
-                      Plano atual
-                    </div>
-                  ) : (
-                    <button
-                      disabled
-                      className={`w-full px-6 py-3 font-medium rounded-xl text-sm transition-colors opacity-50 cursor-not-allowed text-white`}
-                      style={{ background: '#801D39' }}
-                    >
-                      Em breve
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+          <ul>{p.recursos.map(r => <li key={r}><Check size={17} className="shrink-0"/><span>{r}</span></li>)}</ul>
+          <div className="af-comercial-plan-foot"><button type="button" disabled className="af-comercial-cta">{p.emBreve ? 'Em breve' : atual === p.id ? 'Plano atual' : 'Contratação em breve'} <Lock size={15}/></button></div>
+        </article>)}
       </div>
-
-      <p className="text-center text-xs text-gray-400 max-w-xl mx-auto">
-        ¹ WhatsApp disponível quando o recurso estiver ativo. Franquia mensal renovada automaticamente.
-      </p>
-
-      {/* Recursos em destaque */}
-      <div className="card bg-gradient-to-br from-pink-50 to-rose-50 border-pink-100">
-        <h2 className="text-xl font-bold text-gray-900 mb-5 text-center">
-          Recursos inclusos em todos os planos pagos
-        </h2>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[
-            {
-              icon: <Users className="w-6 h-6" style={{ color: '#801D39' }} />,
-              bg: 'bg-pink-50',
-              titulo: 'Almeida Família',
-              desc: 'Crie grupos, divida despesas e atinja metas financeiras em conjunto.',
-            },
-            {
-              icon: <MessageCircle className="w-6 h-6 text-green-600" />,
-              bg: 'bg-green-50',
-              titulo: 'WhatsApp Financeiro',
-              desc: 'Consulte suas finanças pelo WhatsApp quando o recurso estiver ativo.',
-            },
-            {
-              icon: <Sparkles className="w-6 h-6 text-violet-600" />,
-              bg: 'bg-violet-50',
-              titulo: 'Central de Importação',
-              desc: 'Importe extratos, faturas e investimentos automaticamente.',
-            },
-          ].map((item, i) => (
-            <div key={i} className="bg-white rounded-xl p-5 text-center">
-              <div className={`w-11 h-11 ${item.bg} rounded-full flex items-center justify-center mx-auto mb-3`}>
-                {item.icon}
-              </div>
-              <h3 className="font-semibold text-gray-900 mb-1 text-sm">{item.titulo}</h3>
-              <p className="text-xs text-gray-500">{item.desc}</p>
-            </div>
-          ))}
-        </div>
+      <p className="af-comercial-footnote">¹ Recursos previstos, sujeitos à implementação e à liberação. As franquias do WhatsApp ainda não estão disponíveis para contratação. Os preços anuais são uma prévia, não uma cobrança ativa.</p>
+      <div className="grid gap-4 md:grid-cols-2">
+        <article className="af-acesso-card"><div className="af-acesso-title"><span className="af-comercial-icon"><Users size={24}/></span><div><h2>Almeida Família</h2><p>Contas individuais, objetivos em conjunto.</p></div></div><p>Cada pessoa entra com seu próprio e-mail. O titular convida familiares e os dados pessoais não são incluídos automaticamente no grupo.</p><button type="button" className="af-acesso-link" onClick={() => navigate('/acessos?aba=familia')} disabled={somenteLeitura}>Conhecer e gerenciar acessos <ArrowRight size={16}/></button></article>
+        <article className="af-acesso-card"><div className="af-acesso-title"><span className="af-comercial-icon"><Building2 size={24}/></span><div><h2>Almeida Empresas</h2><p>Equipe com permissões independentes.</p></div></div><p>O ambiente empresarial terá usuários próprios, sem misturar finanças pessoais. O cadastro empresarial fica restrito ao piloto autorizado.</p><button type="button" className="af-acesso-link" onClick={() => navigate('/acessos?aba=empresas')} disabled={somenteLeitura}>Conhecer o ambiente <ArrowRight size={16}/></button></article>
       </div>
-
-      {/* Consultoria */}
-      <div className="card border-2 border-cyan-200 bg-gradient-to-br from-cyan-50 to-blue-50">
-        <div className="flex flex-col md:flex-row items-start gap-6">
-          <div className="w-14 h-14 bg-cyan-100 rounded-2xl flex items-center justify-center flex-shrink-0">
-            <MessageCircle className="w-7 h-7 text-cyan-600" />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-lg font-bold text-gray-900 mb-1">Consultoria Almeida</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Serviço profissional de consultoria financeira com preço próprio, não incluído nos planos.
-            </p>
-            <button onClick={() => navigate('/consultoria')} className="btn-secondary inline-flex items-center gap-2 text-sm">
-              Saiba mais
-            </button>
-          </div>
-        </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {[{Icone: ShieldCheck,t:'Privacidade por ambiente',d:'Compartilhe apenas o que pertence ao grupo.'},{Icone: Users,t:'Login individual',d:'Não é necessário compartilhar sua senha.'},{Icone: MessageCircle,t:'Canal de suporte',d:'Ajuda pelo menu Mais.'}].map(({Icone,t,d}) => <div className="af-comercial-trust" key={t}><Icone size={22}/><div><strong>{t}</strong><p>{d}</p></div></div>)}
       </div>
-
-      {/* FAQ */}
-      <div className="max-w-3xl mx-auto">
-        <h2 className="text-xl font-bold text-gray-900 mb-5">Perguntas frequentes</h2>
-        <div className="space-y-3">
-          {[
-            {
-              q: 'Como funciona o teste grátis?',
-              a: 'Você tem 7 dias para testar todos os recursos do Almeida Plus gratuitamente. Sem cartão de crédito. Após o período, escolha o plano ideal.',
-            },
-            {
-              q: 'Posso cancelar a qualquer momento?',
-              a: 'Sim. Sem fidelidade. Cancele quando quiser e mantenha o acesso até o fim do período pago.',
-            },
-            {
-              q: 'Meus dados ficam privados no grupo familiar?',
-              a: 'Sim. Somente despesas marcadas como "familiares" são compartilhadas. Saldo, investimentos e despesas pessoais são completamente privados.',
-            },
-            {
-              q: 'A Consultoria está incluída nos planos?',
-              a: 'Não. A Consultoria é um serviço profissional separado com contratação e preço próprios.',
-            },
-          ].map((item, i) => (
-            <details key={i} className="card cursor-pointer group">
-              <summary className="font-semibold text-gray-900 list-none flex items-center justify-between text-sm">
-                {item.q}
-                <ChevronRight className="w-4 h-4 text-gray-400 group-open:rotate-90 transition-transform flex-shrink-0 ml-2" />
-              </summary>
-              <p className="mt-3 text-sm text-gray-600 leading-relaxed">{item.a}</p>
-            </details>
-          ))}
-        </div>
-      </div>
-
-      <div className="text-center pt-2">
-        <button onClick={() => navigate('/mais/ajuda')} className="btn-secondary inline-flex items-center gap-2 text-sm">
-          Falar com suporte
-        </button>
-      </div>
+      <article className="af-acesso-card"><div className="af-acesso-title"><span className="af-comercial-icon"><MessageCircle size={23}/></span><div><h2>Consultoria Almeida</h2><p>Serviço profissional contratado separadamente.</p></div></div><button type="button" className="af-acesso-link" onClick={() => navigate('/consultoria')}>Saiba mais <ChevronRight size={16}/></button></article>
+      <section className="max-w-3xl mx-auto space-y-3"><h2 className="text-xl font-bold text-gray-900">Perguntas frequentes</h2>{[
+        ['Como funciona a assinatura?','Os preços mensal e anual são propostas comerciais. A cobrança ainda está desabilitada.'],
+        ['Os membros precisam pagar outra assinatura?','Não para participar do grupo convidado. A capacidade do grupo depende do plano do titular. A gestão pessoal de cada membro segue seu próprio plano.'],
+        ['Meus dados pessoais são compartilhados?','A proposta separa a conta pessoal dos grupos familiares e empresariais. Saldo pessoal, cartões e investimentos não devem ser copiados para o grupo.'],
+        ['Como funciona o acesso empresarial?','O piloto permite gerenciar empresas, membros e convites autorizados. Os módulos financeiros empresariais ainda estão em desenvolvimento.'],
+        ['A consultoria está incluída?','Não. A consultoria tem contratação e preço próprios.'],
+      ].map(([q,a]) => <details className="af-acesso-card" key={q}><summary className="cursor-pointer font-semibold">{q}</summary><p className="mt-3">{a}</p></details>)}</section>
     </div>
-  );
+  )
 }

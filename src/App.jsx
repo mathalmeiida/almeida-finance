@@ -77,6 +77,7 @@ import PlanejadorDividas from './pages/PlanejadorDividas'
 import AlmeidaFamilia from './pages/AlmeidaFamilia'
 import GrupoFamiliar from './pages/GrupoFamiliar'
 import Planos from './pages/Planos'
+import Acessos from './pages/Acessos'
 
 import ImportacaoInteligente from './pages/ImportacaoInteligente'
 import CentralImportacao from './pages/CentralImportacao'
@@ -502,6 +503,7 @@ function Rotas() {
                 <Route path="/familia" element={<AlmeidaFamilia />} />
                 <Route path="/familia/:id" element={<GrupoFamiliar />} />
                 <Route path="/planos" element={<Planos />} />
+                <Route path="/acessos" element={<Acessos />} />
 
                 {/* Central de Importação unificada */}
                 <Route path="/central-importacao" element={<CentralImportacao />} />

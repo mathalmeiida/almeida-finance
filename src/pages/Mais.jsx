@@ -14,6 +14,8 @@ import FotoPerfil from '../components/FotoPerfil'
 // mas fica disponível como página normal no desktop.
 
 const ITENS = [
+  { titulo: 'Usuários e acessos', detalhe: 'Ambientes pessoal, familiar e empresarial', Icone: UserRound, rota: '/acessos', bgIcon: 'bg-surface-2', corIcon: 'text-marca' },
+  { titulo: 'Planos e assinatura', detalhe: 'Conheça os planos', Icone: Settings, rota: '/planos', bgIcon: 'bg-surface-2', corIcon: 'text-marca' },
   {
     titulo: 'Meu perfil',
     detalhe: 'Dados pessoais e segurança',

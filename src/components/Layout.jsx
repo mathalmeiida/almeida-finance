@@ -74,13 +74,15 @@ const navGrupos = [
     { to: '/reserva-emergencia', label: 'Reserva Emergência', icon: Shield,  corIcone: 'text-blue-400'     },
   ] },
   { id: 'servicos', titulo: 'Serviços', icon: Users, direto: false, itens: [
-    { to: '/familia',       label: 'Almeida Família', icon: Users,        corIcone: 'text-marca', premiumOnly: true },
+    { to: '/familia',       label: 'Almeida Família', icon: Users,        corIcone: 'text-marca' },
     { to: '/consultoria',   label: 'Consultoria',    icon: MessagesSquare, corIcone: 'text-marca'       },
     { to: '/admin/whatsapp', label: 'WhatsApp Financeiro', icon: MessagesSquare, corIcone: 'text-marca', adminOnly: true },
     { to: '/central-importacao', label: 'Importação', icon: Upload,       corIcone: 'text-marca'        },
   ] },
   { id: 'configuracoes', titulo: 'Configurações', icon: Settings, direto: false, itens: [
     { to: '/mais/perfil',   label: 'Meu perfil',     icon: UserRound,     corIcone: 'text-marca'        },
+    { to: '/acessos', label: 'Usuários e acessos', icon: Users, corIcone: 'text-marca' },
+    { to: '/planos', label: 'Planos e assinatura', icon: Sparkles, corIcone: 'text-marca' },
     { to: '/configuracoes', label: 'Configurações',  icon: Settings,      corIcone: 'text-gray-400'     },
     { to: '/alertas',       label: 'Alertas',        icon: Bell,          corIcone: 'text-red-400'      },
     { to: '/mais/funcionalidades', label: 'Funcionalidades', icon: Grid2X2, corIcone: 'text-marca'    },

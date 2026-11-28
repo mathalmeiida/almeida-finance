@@ -35,7 +35,7 @@ const CATEGORIAS = [
     itens: [
       { rota: '/investimentos', Icone: PiggyBank, titulo: 'Investimentos', detalhe: 'Aportes, resgates e rentabilidade', cor: '#059669', bg: '#d1fae5' },
       { rota: '/metas', Icone: Target, titulo: 'Metas', detalhe: 'Objetivos financeiros e progresso', cor: '#d97706', bg: '#fef3c7' },
-      { rota: '/familia', Icone: Users, titulo: 'Almeida Família', detalhe: 'Gestão financeira colaborativa (Premium)', cor: '#2563eb', bg: '#dbeafe', premiumOnly: true },
+      { rota: '/familia', Icone: Users, titulo: 'Almeida Família', detalhe: 'Grupos e convites familiares', cor: '#2563eb', bg: '#dbeafe' },
       { rota: '/projecao', Icone: BarChart2, titulo: 'Planejamento e projeção', detalhe: 'Organize hoje e projete os próximos meses', cor: '#7c3aed', bg: '#ede9fe' },
     ],
   },
@@ -51,6 +51,10 @@ const CATEGORIAS = [
     itens: [
       { rota: '/consultoria', Icone: MessagesSquare, titulo: 'Consultoria', detalhe: 'Solicitações e acessos de consultoria', cor: '#0891b2', bg: '#cffafe' },
       { rota: '/configuracoes', Icone: Settings, titulo: 'Configurações', detalhe: 'Aparência, notificações e privacidade', cor: '#475569', bg: '#e2e8f0' },
+
+      { rota: '/acessos', Icone: Users, titulo: 'Usuários e acessos', detalhe: 'Família e empresas', cor: '#801D39', bg: '#fce7f3' },
+
+      { rota: '/planos', Icone: Sparkles, titulo: 'Planos e assinatura', detalhe: 'Conheça as opções', cor: '#801D39', bg: '#fce7f3' },
       { rota: '/apresentacao', Icone: PlayCircle, titulo: 'Rever apresentação', detalhe: 'Reveja a apresentação inicial do app', cor: '#801D39', bg: '#fce7f3' },
     ],
   },

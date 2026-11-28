@@ -2732,6 +2732,38 @@ const carregandoLimite = carregando
     <div className="af-home-premium w-full max-w-none min-w-0 flex flex-col gap-0 md:pb-0" style={variaveisHome}>
       <FundoCorpoHome cor={variaveisHome['--af-home-bg']} />
       <style>{`
+        /* Home instalada: distribuir o conteúdo até a navegação, sem alterar o Safari. */
+        @media (display-mode: standalone) and (max-width: 767px) {
+          .af-app-layout:has(.af-home-premium) main {
+            display: flex;
+            flex-direction: column;
+          }
+          .af-home-premium {
+            flex: 1 0 auto;
+            min-height: calc(100dvh - env(safe-area-inset-top, 0px) - 24px - var(--af-nav-h, calc(80px + env(safe-area-inset-bottom, 0px))) - 12px);
+          }
+          .af-home-premium .af-home-hero {
+            padding-top: 12px;
+            padding-bottom: 12px;
+          }
+          .af-home-premium .af-home-mobile {
+            flex: 1 0 auto;
+            justify-content: space-between;
+            gap: 14px;
+          }
+          .af-home-premium .af-home-calendar-mobile button.af-home-calendar-day {
+            min-height: clamp(38px, 5.3dvh, 46px);
+          }
+          .af-home-premium .af-home-decisoes > .af-home-decision-row {
+            padding-left: 0;
+            padding-right: 0;
+          }
+          .af-home-premium .af-home-decisoes .af-home-decision-row > button {
+            min-width: 0;
+            min-height: 88px;
+            justify-content: center;
+          }
+        }
         @media (min-width: 768px) {
           .af-home-premium .af-home-hero { position: relative; isolation: isolate; border-radius: 18px; margin-bottom: 12px; padding: 14px 18px; background: linear-gradient(115deg, var(--af-home-light) 45%, var(--af-home-panel) 100%); border: 1px solid var(--af-home-border); }
           .af-home-premium .af-home-hero::before { content: ''; position: absolute; z-index: -1; pointer-events: none; inset: 0; border-radius: inherit; background: radial-gradient(ellipse at 100% -110%, var(--af-home-primary) 0%, transparent 57%); }
@@ -2816,7 +2848,7 @@ const carregandoLimite = carregando
       {/* ══════════════════════════════════════════════════════════════════════
           LAYOUT MOBILE — Preservado (design aprovado)
           ══════════════════════════════════════════════════════════════════════ */}
-      <div className="md:hidden flex flex-col gap-2.5 px-4">
+      <div className="af-home-mobile md:hidden flex flex-col gap-2.5 px-4">
         {/* Card vinho único - Saldo disponível + Limite diário */}
         <div className="rounded-2xl p-4" style={{background: 'linear-gradient(135deg, #8B1538 0%, #6B0F2A 100%)'}}>
           <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
@@ -2883,7 +2915,7 @@ const carregandoLimite = carregando
           for(let i=1;i<=totalDias;i++) cels.push({dia:i,outro:false,iso:`${String(ano).padStart(4,'0')}-${String(mes+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`})
           const resto=(7-(cels.length%7))%7; for(let i=1;i<=resto;i++) cels.push({dia:i,outro:true,iso:new Date(ano,mes+1,i).toISOString().slice(0,10)})
           return (
-            <div className="bg-white rounded-2xl p-3 shadow-sm">
+            <div className="af-home-calendar-mobile bg-white rounded-2xl p-3 shadow-sm">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <CalendarDays size={18} style={{color: '#801D39'}} />
@@ -2917,7 +2949,7 @@ const carregandoLimite = carregando
                       type="button" 
                       onClick={()=>{if(!c.outro){navigate('/calendario')}}}
                       className={`
-                        min-h-[38px] rounded-lg flex flex-col items-center justify-center gap-0.5 py-1
+                        af-home-calendar-day min-h-[38px] rounded-lg flex flex-col items-center justify-center gap-0.5 py-1
                         ${isHoje ? 'font-bold text-white' : c.outro ? 'text-gray-300' : 'text-gray-900 hover:bg-gray-50'}
                       `}
                       style={isHoje ? {background: '#801D39'} : {}}
@@ -2951,8 +2983,8 @@ const carregandoLimite = carregando
         <AtalhosHome onAbrirModal={abrirModalAtalho} somenteLeitura={somenteLeitura} sangria />
         
         {/* PLANEJE SUAS DECISÕES */}
-        <div className="py-2 pb-4">
-          <div className="flex items-center justify-between mb-2 px-4">
+        <div className="af-home-decisoes py-2 pb-4">
+          <div className="af-home-decision-row flex items-center justify-between mb-2 px-4">
             <h2 className="text-base font-bold text-gray-900">Planeje suas decisões</h2>
             <button 
               onClick={() => navigate('/projecao')}
@@ -2963,7 +2995,7 @@ const carregandoLimite = carregando
             </button>
           </div>
           
-          <div className="grid grid-cols-3 gap-2.5 px-4">
+          <div className="af-home-decision-row grid grid-cols-3 gap-2.5 px-4">
             <button
               onClick={() => navigate('/e-se')}
               className="bg-white rounded-xl p-3 shadow-sm border border-gray-100 flex flex-col items-center gap-1.5 hover:shadow-md transition-shadow"

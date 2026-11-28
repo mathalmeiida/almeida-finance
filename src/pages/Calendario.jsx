@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Plus, ArrowLeft, Users, User } from 'lucide-react'
 import { useProjecao } from '../hooks/useProjecao'
 import { useDespesas } from '../hooks/useDespesas'
@@ -19,11 +19,13 @@ import CalendarioFinanceiroHome from '../components/CalendarioFinanceiroHome'
 export default function Calendario() {
   const navigate = useNavigate()
   const { ocultar } = useOcultarValores()
-  const { idEfetivo, somenteLeitura, perfil, user } = useAuth()
+  const { idEfetivo, somenteLeitura, perfil, usuario } = useAuth()
   
   const hoje = partesHojeBrasil()
   const [mesVisivel, setMesVisivel] = useState(new Date(hoje.ano, hoje.mes - 1, 1, 12))
-  const [modoFamilia, setModoFamilia] = useState(false)
+  const [params,setParams]=useSearchParams()
+  const modoFamilia=!somenteLeitura&&params.has('familia')
+  const setModoFamilia=v=>setParams(v?{familia:grupos[0]?.id||'1'}:{})
   
   const ano = mesVisivel.getFullYear()
   const mes = mesVisivel.getMonth() + 1
@@ -37,40 +39,27 @@ export default function Calendario() {
   const { faturas: faturasInformadas } = useFaturasCartao()
   const { projecao } = useProjecao()
   
-  // Verifica acesso Premium ANTES de executar hooks Família
-  const temAcessoFamilia = perfil?.subscription_plan && perfil.subscription_plan !== 'free' 
-    || perfil?.plano_override 
-    || false
-  
-  // Dados familiares (só executa se tiver acesso Premium)
-  const { grupos } = useFamilyGroups(temAcessoFamilia ? user?.id : null)
-  const grupoSelecionado = grupos?.[0]?.id || null
-  const { divisoes } = useFamilyExpenseSplits(modoFamilia && temAcessoFamilia ? grupoSelecionado : null)
-  
+  const {grupos,erro:erroFamilia,carregando:carregandoFamilia}=useFamilyGroups(somenteLeitura?null:usuario?.id)
+  const temAcessoFamilia=grupos.length>0
+  const grupoSelecionado=grupos.find(g=>g.id===params.get('familia'))?.id||(params.get('familia')==='1'?grupos[0]?.id:null)
+  const {divisoes,erro:erroDivisoes,carregando:carregandoDivisoes}=useFamilyExpenseSplits(modoFamilia?grupoSelecionado:null)
+
   const horizonte = useMemo(() => {
     if (!idEfetivo) return []
     
-    // Se modo família, usar divisões em vez de despesas pessoais
-    const despesasCalendario = modoFamilia && divisoes && divisoes.length > 0
-      ? divisoes.map(d => {
-          // Encontrar quanto o usuário atual deve nesta divisão
-          const minhaParte = d.family_split_participants?.find(
-            p => p.participant?.id === user?.id
-          )
-          
-          return {
-            id: d.id,
-            descricao: d.descricao,
-            valor: minhaParte ? minhaParte.valor_devido / 100 : 0, // centavos para reais
-            data: new Date(d.criado_em).toISOString().slice(0, 10),
-            categoria: d.categoria || 'outros',
-            familiar: true,
-            pago: minhaParte?.pago || false,
-            pagoPor: d.pago_por?.nome_completo || 'Desconhecido'
-          }
-        })
-      : despesasMes
-    
+    if(modoFamilia){
+      const dias=new Map()
+      for(const d of divisoes||[]){
+        const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(d.criado_em))
+        const get=t=>Number(p.find(x=>x.type===t)?.value)
+        if(get('year')!==ano||get('month')!==mes)continue
+        const dia=get('day'), valor=Number(d.valor_total)/100
+        if(!dias.has(dia))dias.set(dia,{dia,entradas:0,saidas:0,eventos:[]})
+        const item=dias.get(dia);item.saidas+=valor;item.eventos.push({tipo:'saida',categoria:'variavel',descricao:d.descricao,valor})
+      }
+      return [{ano,mes,dias:[...dias.values()]}]
+    }
+    const despesasCalendario=despesasMes
     return gerarHorizonte({
       despesas: despesasCalendario,
       recorrentes: modoFamilia ? [] : despesasRecorrentes,
@@ -82,7 +71,7 @@ export default function Calendario() {
       meses: 3,
     })
   }, [idEfetivo, ano, mes, modoFamilia, divisoes, despesasMes, despesasRecorrentes,
-      receitasMes, receitasRecorrentes, parcelamentos, cartoes, comprasCartao, faturasInformadas, user])
+      receitasMes, receitasRecorrentes, parcelamentos, cartoes, comprasCartao, faturasInformadas, usuario?.id])
   
   const mesNome = mesVisivel.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
   
@@ -137,11 +126,12 @@ export default function Calendario() {
                 }`}
               >
                 <Users size={16} />
-                {grupos[0]?.nome || 'Família'}
+                Família
               </button>
             </div>
           )}
           
+          {modoFamilia&&<div className="space-y-2 mb-3"><label className="label">Grupo familiar<select className="input" value={grupoSelecionado||''} onChange={e=>setParams({familia:e.target.value})}><option value="">Selecione um grupo</option>{grupos.map(g=><option key={g.id} value={g.id}>{g.nome}</option>)}</select></label><p className="text-xs text-gray-500">Despesas compartilhadas por data de registro, sem projeção de saldo pessoal.</p>{(erroFamilia||erroDivisoes)&&<p role="alert" className="text-sm text-red-600">{erroFamilia||erroDivisoes}</p>}{(carregandoFamilia||carregandoDivisoes)&&<p className="text-xs">Carregando grupo…</p>}<button className="btn-secondary" onClick={()=>setModoFamilia(false)}>Voltar ao calendário pessoal</button></div>}
           <div className="flex items-center justify-between">
             <button onClick={mesAnterior} className="p-2 hover:bg-gray-100 rounded-lg">
               <ChevronLeft size={20} />
@@ -161,10 +151,11 @@ export default function Calendario() {
           horizonte={horizonte}
           mesVisivel={mesVisivel}
           onMudarMes={setMesVisivel}
-          onAdicionarMovimentacao={adicionarLancamento}
+          onAdicionarMovimentacao={modoFamilia||somenteLeitura?undefined:adicionarLancamento}
         />
         
-        {!somenteLeitura && (
+        {modoFamilia&&grupoSelecionado&&<button className="btn-primary mt-3" onClick={()=>navigate(`/familia/${grupoSelecionado}`)}>Abrir despesas do grupo</button>}
+        {!somenteLeitura && !modoFamilia && (
           <button
             onClick={adicionarLancamento}
             className="fixed bottom-20 right-4 w-14 h-14 rounded-full bg-marca text-white shadow-lg flex items-center justify-center hover:bg-marca-700 transition-colors z-20"

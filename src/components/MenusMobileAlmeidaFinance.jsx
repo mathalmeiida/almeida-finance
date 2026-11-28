@@ -37,6 +37,8 @@ export default function MenusMobileAlmeidaFinance({ aberto, onFechar, onNavigate
 
   // ── Itens do menu "Mais" — cada opção tem rota própria ──────────────────
   const itensMais = [
+    { titulo: 'Usuários e acessos', detalhe: 'Pessoal, família e empresas', Icone: UserRound, rota: '/acessos' },
+    { titulo: 'Planos e assinatura', detalhe: 'Conheça os planos', Icone: Settings, rota: '/planos' },
     {
       titulo: 'Meu perfil',
       detalhe: 'Dados pessoais e segurança',
