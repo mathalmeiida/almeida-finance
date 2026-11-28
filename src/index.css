@@ -1,57 +1,1103 @@
-/* HOME PREMIUM — AJUSTES EXCLUSIVOS PWA */
-@media (display-mode: standalone) and (max-width: 767px) {
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  /* Reduz espaço superior da Home */
-  .af-app-layout:has(.af-home-premium) {
-    padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
+/* ─── Animação de entrada da apresentação ─── */
+@keyframes af-apres-entrada {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.af-apres-entrada {
+  animation: af-apres-entrada 0.4s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .af-apres-entrada {
+    animation: none;
+  }
+}
+
+@layer base {
+  /* ─── Cor de marca (Azul padrão / Rosa) ───
+     Variáveis RGB (sem "rgb()") consumidas pelo Tailwind via rgb(var(--marca)).
+     O padrão é o AZUL (#2855A5 = 40 85 165). A Fase 2 troca para ROSA aplicando
+     a classe .tema-rosa no elemento raiz (ver abaixo), por preferência do
+     usuário. Apenas identidade visual — não altera cálculos nem dados. */
+  /* PADRÃO = VINHO/BORDÔ. Identidade fixa. Três modos: Claro (padrão), Escuro, Automático.
+     --marca / --marca-hover: cor de ação/destaque (preservados para compatibilidade total).
+     Tokens semânticos novos: --bg, --surface, --surface-2, --text-pri, --text-sec, --border-col.
+     Os componentes existentes que usam bg-marca / text-marca continuam funcionando sem mudança. */
+  :root {
+    /* Cor de ação (vinho) — mantida para compatibilidade */
+    --marca: 128 29 57;         /* #801D39 vinho principal */
+    --marca-hover: 66 13 29;    /* #420D1D bordô profundo */
+
+    /* Tokens semânticos — MODO CLARO (padrão) */
+    --bg:         248 243 242;  /* #F8F3F2 fundo claro vinho */
+    --surface:    255 255 255;  /* #FFFFFF cartões */
+    --surface-2:  255 240 243;  /* #FFF0F3 elevação suave */
+    --text-pri:   37 20 27;     /* #25141B texto principal */
+    --text-sec:   100 63 79;    /* #643F4F texto secundário */
+    --border-col: 229 186 196;  /* #E5BAC4 bordas */
+    --accent:     185 85 114;   /* #B95572 destaques */
   }
 
-  .af-app-layout:has(.af-home-premium) .af-header-mobile {
-    top: calc(env(safe-area-inset-top, 0px) + 8px);
+  /* ─── MODO ESCURO MANUAL ──────────────────────────────────────────────────── */
+  .tema-escuro {
+    --marca: 185 85 114;        /* #B95572 destaque legível no escuro */
+    --marca-hover: 220 120 140;
+
+    --bg:          20 11 16;    /* #140B10 fundo escuro vinho */
+    --surface:     33 18 31;    /* #21121F cartões */
+    --surface-2:   43 23 39;    /* #2B1727 elevação */
+    --text-pri:    250 247 248; /* #FAF7F8 texto claro */
+    --text-sec:    212 168 182; /* #D4A8B6 texto secundário */
+    --border-col:  80 40 56;    /* #502838 bordas */
+    --accent:      185 85 114;  /* #B95572 */
+    color-scheme: dark;
   }
 
-  /* Ajuste da Home */
-  .af-home-premium {
+  /* ─── MODO AUTOMÁTICO ─────────────────────────────────────────────────────── */
+  /* Modo claro do sistema → usa :root (Claro Vinho). Nada a declarar. */
+  @media (prefers-color-scheme: dark) {
+    .tema-automatico {
+      --marca: 185 85 114;
+      --marca-hover: 220 120 140;
+      --bg:          20 11 16;
+      --surface:     33 18 31;
+      --surface-2:   43 23 39;
+      --text-pri:    250 247 248;
+      --text-sec:    212 168 182;
+      --border-col:  80 40 56;
+      --accent:      185 85 114;
+      color-scheme: dark;
+    }
+  }
+
+  /* Aliases de compatibilidade: tema-preto aponta para escuro vinho
+     (mantém usuários que tinham 'preto' salvo funcionando corretamente). */
+  .tema-preto {
+    --marca: 185 85 114;
+    --marca-hover: 220 120 140;
+    --fundo: 20 11 16;
+    --superficie: 33 18 31;
+    --superficie-2: 43 23 39;
+    --borda: 80 40 56;
+    --texto: 250 247 248;
+    --texto-suave: 212 168 182;
+    /* novos tokens */
+    --bg:          20 11 16;
+    --surface:     33 18 31;
+    --surface-2:   43 23 39;
+    --text-pri:    250 247 248;
+    --text-sec:    212 168 182;
+    --border-col:  80 40 56;
+    --accent:      185 85 114;
+    color-scheme: dark;
+  }
+
+  /* Aliases para temas antigos (usuários com preferência salva):
+     todos redirecionam para identidade vinho, preservando dados. */
+  .tema-vinho    { --marca: 128 29 57; --marca-hover: 66 13 29; }
+  .tema-roxo     { --marca: 128 29 57; --marca-hover: 66 13 29; }
+  .tema-azul     { --marca: 128 29 57; --marca-hover: 66 13 29; }
+  .tema-verde    { --marca: 128 29 57; --marca-hover: 66 13 29; }
+  .tema-rosa     { --marca: 128 29 57; --marca-hover: 66 13 29; }
+  .tema-vermelho { --marca: 128 29 57; --marca-hover: 66 13 29; }
+  .tema-laranja  { --marca: 128 29 57; --marca-hover: 66 13 29; }
+
+  html {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color-scheme: light;
+    /* Garante que o font-size base seja sempre 16px no modo PWA standalone iOS.
+       O Safari às vezes ajusta o tamanho de texto automaticamente (text-size-adjust).
+       Desabilitar o ajuste automático previne que o iOS amplie ou reduza textos
+       independentemente do CSS, o que pode parecer "zoom aplicado". */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Previne double-tap zoom em elementos interativos — sem bloquear o zoom
+       de acessibilidade do usuário (pinch-to-zoom continua funcionando). */
+    touch-action: manipulation;
+    /* Previne overscroll bounce no iOS (especialmente no modo standalone) */
+    overscroll-behavior: none;
+  }
+  
+  /* Modo standalone (PWA instalado): correções específicas para iPhone */
+  @media (display-mode: standalone) {
+    body {
+      /* Previne zoom indesejado ao focar inputs no modo standalone */
+      -webkit-text-size-adjust: 100%;
+    }
+  }
+
+  body {
+    /* Fundo geral claro (#F8FAFC) + texto escuro para legibilidade. */
+    @apply bg-gray-50 text-gray-900;
+    /* font-size base explícito para o iOS PWA standalone respeitar a escala. */
+    font-size: 16px;
+  }
+  /* Fundo/texto base no modo escuro. */
+  .tema-preto body {
+    background-color: rgb(var(--fundo));
+    color: rgb(var(--texto));
+  }
+  /* Modo escuro manual (vinho escuro). */
+  .tema-escuro body {
+    background-color: rgb(var(--bg));
+    color: rgb(var(--text-pri));
+  }
+
+  /* Evita scroll horizontal acidental em telas pequenas (nenhuma página deve
+     "vazar" na largura). Não afeta o desktop. */
+  /* Largura: nunca maior que a viewport. Em vez de `overflow-x: hidden` em
+     html/body (que no Safari iOS cria contêiner de rolagem, quebra position:
+     sticky e NÃO impede o navegador de alargar o layout viewport quando algum
+     filho é mais largo que a tela), tratamos a causa: o layout raiz usa
+     `min-w-0`/`max-w-full` (ver Layout.jsx) e o #root apenas "recorta" sem criar
+     contêiner de rolagem (`overflow-x: clip`) como última barreira. */
+  html, body {
     width: 100%;
+    max-width: 100%;
+  }
+  #root {
+    width: 100%;
+    max-width: 100%;
     min-width: 0;
-    box-sizing: border-box;
+    overflow-x: clip;
   }
 
-  /* Calendário */
-  .af-home-premium .af-cal-home {
-    border-radius: 16px;
-    padding: 12px;
+  /* Quando um modal/sheet está aberto, trava o scroll do conteúdo de fundo. */
+  body.no-scroll {
+    overflow: hidden;
   }
 
-  /* Padronização dos cards */
-  .af-home-premium .af-hcard,
-  .af-home-premium .af-hcard-accent {
-    border-radius: 16px;
+  /* ZOOM AUTOMÁTICO DO SAFARI iOS: ao focar um campo com fonte computada
+     < 16px, o Safari amplia a página. A regra é baseada no TIPO DE
+     DISPOSITIVO (toque), não na largura: um iPhone em paisagem tem 844px e
+     caía na regra de desktop (≥768px → 14px), voltando a ampliar.
+     Base genérica aqui; a garantia contra classes text-xs/text-sm fica em
+     @layer components (ver .input). Zoom manual (pinch) continua livre. */
+  @media (hover: none), (pointer: coarse) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-2xl border border-gray-200/80 p-5;
+    /* Sombra premium discreta em camadas (mais suave e com profundidade). */
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 16px rgba(16, 24, 40, 0.06);
+  }
+
+  /* Em telas muito estreitas (≤360px, ex.: iPhone SE/alguns Android), reduz o
+     padding interno dos cards para dar mais largura aos valores e evitar que
+     números fiquem apertados em grids de 3 colunas. Não afeta telas maiores. */
+  @media (max-width: 360px) {
+    .card {
+      @apply p-4;
+    }
+  }
+
+  /* Botão primário usa a COR DE MARCA (azul padrão / rosa). Como a marca é uma
+     variável CSS, trocar o tema (Fase 2) reflete em todos os botões primários
+     sem editar componente algum. */
+  .btn-primary {
+    @apply bg-marca hover:bg-marca-hover text-white font-medium px-4 py-2 rounded-xl shadow-sm transition-colors duration-200;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium px-4 py-2 rounded-lg transition-colors duration-200;
+  }
+
+  .input {
+    @apply w-full bg-white border border-gray-300 text-gray-900 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-marca focus:border-transparent;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  /* Select elements precisam de tratamento específico para dropdown */
+  select.input {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23374151' d='M10.293 3.293 6 7.586 1.707 3.293A1 1 0 0 0 .293 4.707l5 5a1 1 0 0 0 1.414 0l5-5a1 1 0 1 0-1.414-1.414Z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 12px;
+    padding-right: 2.5rem;
+  }
+
+  /* Dropdown do select em telas pequenas: garantir que não seja cortado */
+  @media (max-width: 767px) {
+    select.input {
+      /* iOS/Safari: permitir que o dropdown padrão funcione */
+      -webkit-appearance: menulist;
+      appearance: menulist;
+      background-image: none;
+      padding-right: 0.75rem;
+    }
+  }
+
+  /* Computador com mouse/trackpad (sem zoom de foco): campos .input voltam
+     ao visual compacto de 14px. Celulares e tablets de toque NUNCA entram
+     aqui, em qualquer largura ou orientação. */
+  @media (min-width: 768px) and (hover: hover) and (pointer: fine) {
+    .input {
+      font-size: 0.875rem; /* 14px */
+    }
+  }
+
+
+
+  .label {
+    @apply block text-sm font-medium text-gray-700 mb-1;
+  }
+
+  /* ─── MODO ESCURO (.tema-preto): superfícies de componentes ───────────────
+     Sobrescreve .card/.input/.label/.btn-secondary para o esquema escuro.
+     Escopado em .tema-preto: NÃO afeta azul/rosa/verde/roxo. */
+  .tema-preto .card {
+    background-color: rgb(var(--superficie));
+    border-color: rgb(var(--borda));
+    /* Sombra mais profunda para o card "flutuar" sobre o fundo escuro. */
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.35);
+  }
+  .tema-preto .btn-secondary {
+    background-color: rgb(var(--superficie-2));
+    color: rgb(var(--texto));
+  }
+  .tema-preto .btn-secondary:hover {
+    background-color: rgb(var(--borda));
+  }
+  .tema-preto .input {
+    background-color: rgb(var(--superficie-2));
+    border-color: rgb(var(--borda));
+    color: rgb(var(--texto));
+  }
+  .tema-preto .input::placeholder { color: rgb(var(--texto-suave)); }
+  .tema-preto .label { color: rgb(var(--texto-suave)); }
+
+  .badge-saudavel {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800;
+  }
+
+  .badge-atencao {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800;
+  }
+
+  .badge-arriscado {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800;
+  }
+
+  /* Navegação inferior mobile: alvo de toque confortável + rótulo */
+  .bottom-nav-item {
+    @apply flex flex-col items-center justify-center gap-0.5 flex-1 min-h-[52px] text-[11px] font-medium transition-colors;
+  }
+
+  /* Gradiente de DESTAQUE na cor da marca (azul padrão / rosa). Usado nos
+     cards-herói (ex.: "Quanto posso gastar?"). Segue a variável --marca, então
+     troca de tema reflete automaticamente. */
+  .bg-marca-grad {
+    /* Gradiente premium e discreto: um leve realce (branco translúcido) no
+       canto superior esquerdo + transição diagonal da cor da marca para o tom
+       mais escuro. Dá profundidade sutil sem poluição. Segue --marca, então
+       vale para os 4 temas automaticamente. */
+    background-image:
+      radial-gradient(120% 120% at 0% 0%, rgba(255,255,255,0.12), rgba(255,255,255,0) 45%),
+      linear-gradient(135deg, rgb(var(--marca)) 0%, rgb(var(--marca-hover)) 100%);
+  }
+
+  /* Variante PREMIUM mais escura/sofisticada: mistura a cor da marca com preto
+     via color-mix, então segue --marca automaticamente nos 5 temas (sem cores
+     fixas). Usada nos cards destacados (Saldo, Limite, "E se...?"). Texto branco
+     mantém contraste acessível sobre esses tons escuros. */
+  .bg-marca-grad-dark {
+    background-image:
+      radial-gradient(120% 130% at 0% 0%, rgba(255,255,255,0.08), rgba(255,255,255,0) 50%),
+      linear-gradient(135deg,
+        color-mix(in srgb, rgb(var(--marca)) 72%, #000) 0%,
+        color-mix(in srgb, rgb(var(--marca-hover)) 55%, #000) 100%);
+  }
+
+  /* ── Cabeçalho dinâmico dia/noite (Home) ──────────────────────────────────
+     Apenas o FUNDO da região superior muda conforme o horário. Não altera a
+     cor de marca nem a estrutura. Fundo discreto para preservar o contraste do
+     texto escuro (dia) / claro (noite). */
+  .sky-dyn {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1rem;
+  }
+  /* DIA: céu azul-claro suave + brilho de sol no canto. Texto escuro continua
+     legível sobre o tom claro. */
+  .sky-day {
+    background-image:
+      radial-gradient(circle at 88% 28%, rgba(250, 204, 21, 0.35), rgba(250, 204, 21, 0) 42%),
+      linear-gradient(135deg, #e0f2fe 0%, #eff6ff 60%, #ffffff 100%);
+  }
+  /* NOITE: céu azul-escuro. O texto fica claro via .sky-night (abaixo). */
+  .sky-night {
+    background-image:
+      radial-gradient(circle at 86% 30%, rgba(226, 232, 240, 0.25), rgba(226, 232, 240, 0) 40%),
+      linear-gradient(135deg, #1e293b 0%, #0f172a 70%, #111827 100%);
+  }
+  /* Estrelinhas discretas (noite) — pontos via box-shadow, sem imagens. */
+  .sky-night .sky-stars {
+    position: absolute;
+    top: 10px; left: 14px;
+    width: 2px; height: 2px;
+    border-radius: 9999px;
+    background: transparent;
+    box-shadow:
+      18px 6px 0 0 rgba(255,255,255,0.9),
+      54px 2px 0 0 rgba(255,255,255,0.6),
+      90px 12px 0 0 rgba(255,255,255,0.8),
+      130px 4px 0 0 rgba(255,255,255,0.5),
+      30px 20px 0 0 rgba(255,255,255,0.5),
+      100px 24px 0 0 rgba(255,255,255,0.7);
+    animation: sky-twinkle 3.5s ease-in-out infinite;
+  }
+  @keyframes sky-twinkle {
+    0%, 100% { opacity: 0.9; }
+    50%      { opacity: 0.4; }
+  }
+  /* Movimento reduzido: sem cintilar. */
+  @media (prefers-reduced-motion: reduce) {
+    .sky-night .sky-stars { animation: none; }
+  }
+}
+
+@layer utilities {
+  .pb-safe, .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+  .pb-mobilenav { padding-bottom: calc(var(--af-nav-h, calc(80px + env(safe-area-inset-bottom, 0px))) + 8px); }
+  .af-header-mobile { height: 3.5rem; flex-shrink: 0; }
+  .af-app-layout { min-height: 100vh; min-height: 100dvh; }
+  @media (max-width: 767px) {
+    .af-app-layout {
+      padding-top: env(safe-area-inset-top, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+    }
+    .af-header-mobile, .af-consultoria-banner { top: env(safe-area-inset-top, 0px); }
+    .af-bottom-nav {
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-left: env(safe-area-inset-left, 0px);
+      padding-right: env(safe-area-inset-right, 0px);
+    }
+  }
+  @media (min-width: 768px) {
+    .pb-mobilenav { padding-bottom: 2rem; }
+  }
+
+  /* Área de toque mínima recomendada (~44px) para ícones/botões pequenos. */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
+  }
+
+  /* Esconde a barra de rolagem mantendo o scroll funcional (carrosséis).
+     Usado no Horizonte financeiro para deslizar entre meses sem barra visível. */
+  .scrollbar-none {
+    -ms-overflow-style: none;      /* IE/Edge */
+    scrollbar-width: none;          /* Firefox */
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;                  /* Chrome/Safari/WebKit */
+  }
+
+  /* Animação da logo na splash screen: fade + leve zoom de entrada. */
+  @keyframes splash-logo {
+    0%   { opacity: 0; transform: scale(0.9); }
+    60%  { opacity: 1; }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  .animate-splash-logo {
+    animation: splash-logo 0.6s ease-out both;
+  }
+
+  /* Fade-out suave da splash inteira quando o App sinaliza a saída. */
+  .splash-fade-out {
+    opacity: 0;
+    transition: opacity 0.5s ease-in;
+  }
+
+  /* Barra de carregamento INDETERMINADA da splash: desliza da esquerda para a
+     direita em loop (sem porcentagem/progresso falso). Movimento discreto. */
+  @keyframes splash-bar {
+    0%   { transform: translateX(-120%); }
+    100% { transform: translateX(320%); }
+  }
+  .splash-bar {
+    animation: splash-bar 1.3s ease-in-out infinite;
+  }
+  /* Respeita quem prefere movimento reduzido: sem deslize; mostra uma barra
+     estática com leve pulsar de opacidade (suave e discreto). */
+  @media (prefers-reduced-motion: reduce) {
+    .splash-bar {
+      animation: sky-twinkle 2s ease-in-out infinite;
+      transform: none;
+      width: 100%;
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODO ESCURO COMPLETO — sobrescritas de utilitários neutros (.tema-preto)
+   ───────────────────────────────────────────────────────────────────────────
+   O app usa utilitários Tailwind concretos (bg-white, bg-gray-50, text-gray-*,
+   border-gray-*) em muitos componentes. Em vez de editar dezenas de arquivos,
+   remapeamos esses utilitários NEUTROS para a paleta escura SOMENTE sob
+   .tema-preto. Assim o modo escuro cobre Home, menu, cards, formulários,
+   onboarding, cartões, despesas, benefícios e simuladores de uma vez.
+
+   Regras de preservação (NÃO são tocadas, de propósito):
+   • Cores de marca (bg-marca, text-marca) — seguem a variável --marca.
+   • Cores semânticas (verde/am#, vermelho, azul de ícone, badges) — mantêm o
+     significado (receita, despesa, alerta). Só os NEUTROS viram escuros.
+   • Overlays translúcidos (bg-white/10, bg-black/20) e o gradiente dos
+     cards-herói (bg-marca-grad) — já funcionam no escuro.
+   Usamos !important porque os utilitários do Tailwind têm a mesma
+   especificidade; a cascata sozinha não garantiria a sobrescrita.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Fundos neutros → superfícies escuras */
+.tema-preto .bg-white { background-color: rgb(var(--superficie)) !important; }
+.tema-preto .bg-gray-50 { background-color: rgb(var(--superficie-2)) !important; }
+.tema-preto .bg-gray-100 { background-color: rgb(var(--superficie-2)) !important; }
+.tema-preto .bg-slate-50 { background-color: rgb(var(--superficie-2)) !important; }
+.tema-preto .bg-gray-200 { background-color: rgb(var(--borda)) !important; }
+
+/* Hover de fundos neutros */
+.tema-preto .hover\:bg-gray-50:hover { background-color: rgb(var(--superficie-2)) !important; }
+.tema-preto .hover\:bg-gray-100:hover { background-color: rgb(var(--superficie-2)) !important; }
+.tema-preto .hover\:bg-gray-200:hover { background-color: rgb(var(--borda)) !important; }
+
+/* Textos neutros → claros */
+.tema-preto .text-gray-900 { color: rgb(var(--texto)) !important; }
+.tema-preto .text-gray-800 { color: rgb(var(--texto)) !important; }
+.tema-preto .text-gray-700 { color: rgb(229 231 235) !important; }
+.tema-preto .text-gray-600 { color: rgb(var(--texto-suave)) !important; }
+.tema-preto .text-gray-500 { color: rgb(var(--texto-suave)) !important; }
+.tema-preto .text-gray-400 { color: rgb(148 163 184) !important; }
+
+/* Bordas neutras → discretas */
+.tema-preto .border-gray-100 { border-color: rgb(var(--borda)) !important; }
+.tema-preto .border-gray-200 { border-color: rgb(var(--borda)) !important; }
+.tema-preto .border-gray-300 { border-color: rgb(var(--borda)) !important; }
+.tema-preto .border-gray-200\/70 { border-color: rgb(var(--borda)) !important; }
+.tema-preto .border-slate-200 { border-color: rgb(var(--borda)) !important; }
+
+/* Divisores (divide-y utiliza border-color nos filhos) */
+.tema-preto .divide-gray-100 > * + * { border-color: rgb(var(--borda)) !important; }
+.tema-preto .divide-gray-200 > * + * { border-color: rgb(var(--borda)) !important; }
+
+/* Sidebar/áreas que usam branco direto já cobertas por .bg-white acima.
+   Ajuste fino: o fundo da página (main) herda do body escuro; cards sobre ele
+   usam --superficie, criando a hierarquia fundo(#10141D) < card(#202632). */
+/* Corrigir textos invisíveis no tema preto */
+.tema-preto .card {
+  color: #E5E7EB;
+}
+
+.tema-preto .card .text-gray-900,
+.tema-preto .card .text-gray-800,
+.tema-preto .card .text-gray-700 {
+  color: #FFFFFF !important;
+}
+
+/* ─── MODO AUTOMÁTICO — overrides quando o sistema preferir escuro ─────────
+   Idênticos ao .tema-preto, mas ativados automaticamente pelo OS.
+   Agrupados em @media para não afetar o modo claro do sistema. */
+@media (prefers-color-scheme: dark) {
+  .tema-automatico body { background-color: rgb(var(--fundo)); color: rgb(var(--texto)); }
+  .tema-automatico .card { background-color: rgb(var(--superficie)); border-color: rgb(var(--borda)); box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.35); color: #E5E7EB; }
+  .tema-automatico .card .text-gray-900, .tema-automatico .card .text-gray-800, .tema-automatico .card .text-gray-700 { color: #FFFFFF !important; }
+  .tema-automatico .btn-secondary { background-color: rgb(var(--superficie-2)); color: rgb(var(--texto)); }
+  .tema-automatico .btn-secondary:hover { background-color: rgb(var(--borda)); }
+  .tema-automatico .input { background-color: rgb(var(--superficie-2)); border-color: rgb(var(--borda)); color: rgb(var(--texto)); }
+  .tema-automatico .input::placeholder { color: rgb(var(--texto-suave)); }
+  .tema-automatico .label { color: rgb(var(--texto-suave)); }
+  .tema-automatico .bg-white { background-color: rgb(var(--superficie)) !important; }
+  .tema-automatico .bg-gray-50  { background-color: rgb(var(--superficie-2)) !important; }
+  .tema-automatico .bg-gray-100 { background-color: rgb(var(--superficie-2)) !important; }
+  .tema-automatico .bg-slate-50 { background-color: rgb(var(--superficie-2)) !important; }
+  .tema-automatico .bg-gray-200 { background-color: rgb(var(--borda)) !important; }
+  .tema-automatico .hover\:bg-gray-50:hover  { background-color: rgb(var(--superficie-2)) !important; }
+  .tema-automatico .hover\:bg-gray-100:hover { background-color: rgb(var(--superficie-2)) !important; }
+  .tema-automatico .hover\:bg-gray-200:hover { background-color: rgb(var(--borda)) !important; }
+  .tema-automatico .text-gray-900 { color: rgb(var(--texto)) !important; }
+  .tema-automatico .text-gray-800 { color: rgb(var(--texto)) !important; }
+  .tema-automatico .text-gray-700 { color: rgb(229 231 235) !important; }
+  .tema-automatico .text-gray-600 { color: rgb(var(--texto-suave)) !important; }
+  .tema-automatico .text-gray-500 { color: rgb(var(--texto-suave)) !important; }
+  .tema-automatico .text-gray-400 { color: rgb(148 163 184) !important; }
+  .tema-automatico .border-gray-100, .tema-automatico .border-gray-200, .tema-automatico .border-gray-300 { border-color: rgb(var(--borda)) !important; }
+  .tema-automatico .divide-gray-100 > * + *, .tema-automatico .divide-gray-200 > * + * { border-color: rgb(var(--borda)) !important; }
+}
+
+/* ─── MODO ESCURO MANUAL (.tema-escuro) — overrides Tailwind ─────────────────
+   Espelha .tema-preto mas usa as variáveis semânticas novas do Vinho Escuro. */
+.tema-escuro body { background-color: rgb(var(--bg)); color: rgb(var(--text-pri)); }
+.tema-escuro .card { background-color: rgb(var(--surface)); border-color: rgb(var(--border-col)); box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.35); color: rgb(var(--text-pri)); }
+.tema-escuro .card .text-gray-900, .tema-escuro .card .text-gray-800, .tema-escuro .card .text-gray-700 { color: #FAF7F8 !important; }
+.tema-escuro .btn-secondary { background-color: rgb(var(--surface-2)); color: rgb(var(--text-pri)); }
+.tema-escuro .btn-secondary:hover { background-color: rgb(var(--border-col)); }
+.tema-escuro .input { background-color: rgb(var(--surface-2)); border-color: rgb(var(--border-col)); color: rgb(var(--text-pri)); }
+.tema-escuro .input::placeholder { color: rgb(var(--text-sec)); }
+.tema-escuro .label { color: rgb(var(--text-sec)); }
+.tema-escuro .bg-white   { background-color: rgb(var(--surface))   !important; }
+.tema-escuro .bg-gray-50  { background-color: rgb(var(--surface-2)) !important; }
+.tema-escuro .bg-gray-100 { background-color: rgb(var(--surface-2)) !important; }
+.tema-escuro .bg-slate-50 { background-color: rgb(var(--surface-2)) !important; }
+.tema-escuro .bg-gray-200 { background-color: rgb(var(--border-col)) !important; }
+.tema-escuro .hover\:bg-gray-50:hover  { background-color: rgb(var(--surface-2))  !important; }
+.tema-escuro .hover\:bg-gray-100:hover { background-color: rgb(var(--surface-2))  !important; }
+.tema-escuro .hover\:bg-gray-200:hover { background-color: rgb(var(--border-col)) !important; }
+.tema-escuro .text-gray-900 { color: rgb(var(--text-pri)) !important; }
+.tema-escuro .text-gray-800 { color: rgb(var(--text-pri)) !important; }
+.tema-escuro .text-gray-700 { color: #FAF7F8 !important; }
+.tema-escuro .text-gray-600 { color: rgb(var(--text-sec)) !important; }
+.tema-escuro .text-gray-500 { color: rgb(var(--text-sec)) !important; }
+.tema-escuro .text-gray-400 { color: rgb(212 168 182) !important; }
+.tema-escuro .border-gray-100, .tema-escuro .border-gray-200, .tema-escuro .border-gray-300 { border-color: rgb(var(--border-col)) !important; }
+.tema-escuro .divide-gray-100 > * + *, .tema-escuro .divide-gray-200 > * + * { border-color: rgb(var(--border-col)) !important; }
+
+/* Modo automático escuro: reusar mesmas regras */
+@media (prefers-color-scheme: dark) {
+  .tema-automatico body { background-color: rgb(var(--bg)); color: rgb(var(--text-pri)); }
+  .tema-automatico .card { background-color: rgb(var(--surface)); border-color: rgb(var(--border-col)); }
+  .tema-automatico .bg-white   { background-color: rgb(var(--surface))   !important; }
+  .tema-automatico .bg-gray-50  { background-color: rgb(var(--surface-2)) !important; }
+  .tema-automatico .bg-gray-100 { background-color: rgb(var(--surface-2)) !important; }
+}
+
+/* ─── TEMA ESCURO MANUAL — overrides slate/* e complementos ─────────────────
+   O Dashboard usa classes slate-* nas seções internas (calendário, cards).
+   Estes overrides garantem legibilidade no modo escuro vinho. */
+.tema-escuro .text-gray-600 { color: rgb(var(--text-sec)) !important; }
+.tema-escuro .text-gray-500 { color: rgb(var(--text-sec)) !important; }
+.tema-escuro .text-gray-400 { color: rgb(212 168 182) !important; }
+.tema-escuro .border-gray-100, .tema-escuro .border-gray-200, .tema-escuro .border-gray-300 { border-color: rgb(var(--border-col)) !important; }
+.tema-escuro .divide-gray-100 > * + *, .tema-escuro .divide-gray-200 > * + * { border-color: rgb(var(--border-col)) !important; }
+/* Slate (usados no calendário e seções da Home) */
+.tema-escuro .bg-slate-50,
+.tema-escuro .bg-slate-100  { background-color: rgb(var(--surface-2)) !important; }
+.tema-escuro .bg-slate-900  { background-color: rgb(var(--surface))   !important; }
+.tema-escuro .text-slate-900,
+.tema-escuro .text-slate-800 { color: rgb(var(--text-pri)) !important; }
+.tema-escuro .text-slate-600,
+.tema-escuro .text-slate-500,
+.tema-escuro .text-slate-400 { color: rgb(var(--text-sec)) !important; }
+.tema-escuro .border-slate-100,
+.tema-escuro .border-slate-200 { border-color: rgb(var(--border-col)) !important; }
+.tema-escuro .hover\:bg-slate-50:hover { background-color: rgb(var(--surface-2)) !important; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HOME PREMIUM — classes .af-* que consomem variáveis CSS injetadas pelo Dashboard.
+   As variáveis --af-home-* são definidas via style={} no componente e mudam
+   automaticamente quando o usuário troca de tema (claro/escuro/automático).
+   Nenhum cálculo de modo em JS aqui — o CSS reage às variáveis sozinho.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.af-home-premium {
+  background: var(--af-home-bg, #F8F3F2);
+  color: var(--af-home-text, #25141B);
+  min-height: 100%;
+  transition: background 0.2s, color 0.2s;
+}
+
+.af-hcard {
+  background: var(--af-home-light, #FFFFFF);
+  border: 1px solid var(--af-home-border, #E5BAC4);
+  border-radius: 13px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .af-hcard {
+    padding: 16px 20px;
+  }
+}
+
+.af-hcard-accent {
+  background: var(--af-home-panel, #FFF5F7);
+  border: 1px solid var(--af-home-border, #E5BAC4);
+  border-radius: 13px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .af-hcard-accent {
+    padding: 16px 20px;
+  }
+}
+
+/* Texto principal dentro dos cards — respeita a variável de texto */
+.af-hcard .text-white,
+.af-hcard strong,
+.af-hcard p,
+.af-hcard-accent .text-white,
+.af-hcard-accent strong,
+.af-hcard-accent p,
+.af-side-section .text-white,
+.af-side-section strong,
+.af-side-section p {
+  color: var(--af-home-text, #25141B) !important;
+}
+
+.af-ht2 {
+  color: var(--af-home-muted, #643F4F);
+  font-size: 11px;
+}
+
+.af-hlink {
+  color: var(--af-home-primary, #801D39);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Cabeçalho de saudação — sempre vinho escuro independente do tema */
+.af-home-header {
+  background: linear-gradient(135deg, #5a1224 0%, #3d0a18 60%, #250610 100%);
+  border-radius: 13px;
+  padding: 11px 13px;
+  margin-bottom: 7px;
+}
+
+/* Calendário da Home */
+.af-cal-home {
+  background: var(--af-home-light, #FFFFFF);
+  border: 1px solid var(--af-home-border, #E5BAC4);
+  border-radius: 13px;
+  padding: 10px;
+  overflow: hidden;
+}
+
+.af-cal-home .af-cal-day {
+  background: var(--af-home-panel, #FFF5F7);
+  border: 1px solid var(--af-home-border, #E5BAC4);
+  border-radius: 8px;
+  min-height: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 3px 1px 2px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.af-cal-home .af-cal-day:hover { border-color: var(--af-home-primary, #801D39); }
+
+.af-cal-home .af-cal-day.hoje {
+  background: var(--af-home-primary, #801D39);
+  border-color: var(--af-home-primary, #801D39);
+}
+
+.af-cal-home .af-cal-day.hoje span { color: #fff !important; }
+.af-cal-home .af-cal-day.outro-mes { opacity: 0.35; }
+
+.af-cal-home .af-cal-day.selecionado {
+  border-color: var(--af-home-primary, #801D39);
+  box-shadow: 0 0 0 1px var(--af-home-primary, #801D39);
+}
+
+.af-cal-dots {
+  display: flex;
+  gap: 2px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 1px;
+}
+
+.af-cal-dot { width: 4px; height: 4px; border-radius: 50%; }
+
+@media (max-width: 767px) {
+  .af-cal-home .af-cal-day { min-height: 33px; padding: 2px 1px 1px; }
+  .af-cal-dot { width: 3px; height: 3px; }
+}
+
+/* Calendário desktop — células maiores e mais espaçamento */
+@media (min-width: 1024px) {
+  .af-cal-home .af-cal-day {
+    min-height: 68px;
+    padding: 8px 4px;
+  }
+  .af-cal-dot { width: 5px; height: 5px; }
+}
+
+@media (min-width: 1440px) {
+  .af-cal-home .af-cal-day {
+    min-height: 80px;
+    padding: 10px 6px;
+  }
+  .af-cal-home .af-cal-day span {
+    font-size: 1rem;
+  }
+}
+
+/* Atalhos */
+.af-shortcut-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  /* Largura fixa para forçar scroll horizontal em viewports estreitos */
+  min-width: 100px;
+  width: 100px;
+  padding: 9px 3px;
+  background: var(--af-home-light, #FFFFFF);
+  border: 1px solid var(--af-home-border, #E5BAC4);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.af-shortcut-btn:hover {
+  border-color: var(--af-home-primary, #801D39);
+  background: var(--af-home-panel, #FFF5F7);
+}
+
+.af-shortcut-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  background: var(--af-home-panel, #FFF5F7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--af-home-primary, #801D39);
+}
+
+.af-shortcut-btn span { color: var(--af-home-muted, #643F4F); }
+
+/* Setas do carrossel de atalhos (desktop/tablet). Discretas, sobre as bordas. */
+.af-shortcut-seta {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  align-items: center;
+  justify-content: center;
+  background: var(--af-home-light, #FFFFFF);
+  border: 1px solid var(--af-home-border, #E5BAC4);
+  color: var(--af-home-primary, #801D39);
+  box-shadow: 0 2px 8px rgba(37, 20, 27, 0.12);
+  z-index: 2;
+}
+.af-shortcut-seta:hover { background: var(--af-home-panel, #FFF5F7); }
+
+/* Indicadores de posição do carrossel de atalhos. */
+.af-shortcut-dot {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--af-home-border, #E5BAC4);
+  transition: width 0.2s, background 0.2s;
+}
+.af-shortcut-dot[data-ativo='true'] {
+  width: 14px;
+  background: var(--af-home-primary, #801D39);
+}
+@media (prefers-reduced-motion: reduce) {
+  .af-shortcut-dot { transition: none; }
+}
+
+/* Seções laterais */
+.af-side-section {
+  background: var(--af-home-light, #FFFFFF);
+  border: 1px solid var(--af-home-border, #E5BAC4);
+  border-radius: 13px;
+  padding: 12px 14px;
+}
+
+.af-side-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--af-home-panel, #FFF5F7);
+}
+
+.af-side-item:last-child { border-bottom: none; }
+
+.af-progress-bar {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--af-home-panel, #FFF5F7);
+  overflow: hidden;
+  margin-top: 5px;
+}
+
+.af-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--af-home-primary, #801D39), #C4507A);
+}
+
+
+/* Esconde scrollbar mas mantém funcionalidade de scroll */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Apresentação: entrada suave do conteúdo da tela ativa. Desligada quando o
+   aparelho pede movimento reduzido (o componente nem aplica a classe). */
+@keyframes af-apres-entrada {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.af-apres-entrada { animation: af-apres-entrada 0.35s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .af-apres-entrada { animation: none; }
+}
+
+/* ─── Anti-zoom de foco no Safari iOS (dispositivos de toque) ────────────────
+   Nenhum campo de texto abaixo de 16px em telas de toque, mesmo quando o
+   componente usa utilitários menores (text-xs, text-sm, !text-xs...). Só
+   eleva o que era menor: campos maiores (ex.: text-xl) não são afetados.
+   Fora de @layer para o Tailwind não remover a regra. Não usa transform,
+   não bloqueia o pinch-zoom e não depende da largura da tela. */
+@media (hover: none), (pointer: coarse) {
+  :is(input, select, textarea):is(.text-xs, .text-sm, .\!text-xs, .\!text-sm, .text-\[10px\], .text-\[11px\], .text-\[12px\], .text-\[13px\], .text-\[14px\], .text-\[15px\]) {
+    font-size: 16px !important;
+  }
+}
+
+/* Atalhos no computador: 5 cards proporcionais em grade (sem rolagem). */
+.af-shortcut-btn.af-shortcut-grade {
+  width: auto;
+  min-width: 0;
+  padding: 12px 8px;
+  gap: 8px;
+}
+.af-shortcut-btn.af-shortcut-grade span { overflow-wrap: anywhere; }
+
+
+/* Atalhos no celular: ~4 cards inteiros + parte do próximo, em qualquer largura. */
+@media (max-width: 767px) {
+  .af-shortcut-btn:not(.af-shortcut-grade) {
+    width: clamp(72px, calc((100vw - 40px) / 4.3), 104px);
     min-width: 0;
+    flex-shrink: 0;
   }
+}
 
-  /* Atalhos rápidos */
-  .af-home-premium .af-shortcut-btn {
-    min-height: 84px;
-    justify-content: center;
-    border-radius: 14px;
-    padding: 10px 5px;
-    gap: 6px;
+/* ────────────────────────────────────────────────────────────────────────────
+   DESKTOP LAYOUT SYSTEM — Unificação visual desktop/mobile
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* Container responsivo com max-width inteligente */
+.af-container {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 768px) {
+  .af-container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
   }
+}
 
-  .af-home-premium .af-shortcut-icon {
-    width: 38px;
-    height: 38px;
-    border-radius: 12px;
+@media (min-width: 1024px) {
+  .af-container {
+    max-width: 1280px;
+    padding-left: 2rem;
+    padding-right: 2rem;
   }
+}
 
-  /* Menu inferior */
-  .af-app-layout:has(.af-home-premium) .af-bottom-nav {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+@media (min-width: 1440px) {
+  .af-container {
+    max-width: 1440px;
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
   }
+}
 
-  .af-app-layout:has(.af-home-premium) .bottom-nav-item {
-    min-height: 52px;
-    gap: 4px;
+@media (min-width: 1920px) {
+  .af-container {
+    max-width: 1600px;
+  }
+}
+
+/* Grid adaptativo para cards de resumo */
+.af-summary-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, 1fr);
+}
+
+@media (min-width: 768px) {
+  .af-summary-grid {
+    gap: 1rem;
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .af-summary-grid {
+    gap: 1.5rem;
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Grid 2 colunas responsivo (calendário + resumo) */
+.af-grid-2col {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 1024px) {
+  .af-grid-2col {
+    grid-template-columns: minmax(400px, 1fr) minmax(320px, 400px);
+  }
+}
+
+@media (min-width: 1440px) {
+  .af-grid-2col {
+    grid-template-columns: 1fr 480px;
+    gap: 2rem;
+  }
+}
+
+/* Card de destaque maior em desktop */
+.af-card-hero {
+  @apply card;
+}
+
+@media (min-width: 1024px) {
+  .af-card-hero {
+    padding: 2rem;
+  }
+}
+
+/* Calendário expandido em desktop */
+.af-calendar-wrapper {
+  width: 100%;
+}
+
+@media (min-width: 1024px) {
+  .af-calendar-wrapper {
+    min-height: 600px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .af-calendar-wrapper {
+    min-height: 720px;
+  }
+}
+
+/* Scroll horizontal apenas em mobile/tablet */
+.af-scroll-mobile {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.af-scroll-mobile::-webkit-scrollbar {
+  display: none;
+}
+
+.af-scroll-mobile > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+@media (min-width: 1024px) {
+  .af-scroll-mobile {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    overflow-x: visible;
+  }
+  
+  .af-scroll-mobile > * {
+    flex-shrink: 1;
+  }
+}
+
+/* Espaçamento de seções adaptativo */
+.af-section-spacing {
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .af-section-spacing {
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+  }
+}
+
+@media (min-width: 1440px) {
+  .af-section-spacing {
+    margin-top: 2.5rem;
+    margin-bottom: 2.5rem;
+  }
+}
+
+
+/* PWA iOS: fundo do canvas e separação da área de status do conteúdo. */
+html:has(#root > .af-tour),
+html:has(#root > .af-tour) body,
+#root:has(> .af-tour) {
+  background-color: #280710;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+html:has(.af-login-page), html:has(.af-login-page) body,
+#root:has(.af-login-page) {
+  background-color: #350918;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+@media (display-mode: standalone) and (max-width: 767px) {
+  html:has(.af-app-layout), html:has(.af-app-layout) body,
+  #root:has(.af-app-layout) { background-color: rgb(var(--bg)); }
+  .af-app-layout { padding-top: calc(env(safe-area-inset-top, 0px) + 24px); }
+  .af-header-mobile, .af-consultoria-banner { top: calc(env(safe-area-inset-top, 0px) + 24px); }
+  #root > .af-tour {
+    height: 100vh; height: 100dvh;
+    min-height: 100svh;
+  }
+  #root > .af-tour .af-tour-header {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 24px);
+  }
+  #root > .af-tour .af-tour-footer {
+    padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
+  }
+  .af-login-page {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 32px);
   }
 }
